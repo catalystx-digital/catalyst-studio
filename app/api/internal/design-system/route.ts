@@ -10,24 +10,20 @@ import { DomProbeService } from "@/lib/studio/design-system/dom-probe/service";
 import { importDesignSystemFromUrl } from "@/lib/studio/design-system/import-design-system";
 import { isDomProbeEnabledForWebsite } from "@/lib/studio/import/utils/dom-probe-flags";
 
+export const maxDuration = 300;
+
 // Verify request is internal (from same server or workflow step)
 function isInternalRequest(request: NextRequest): boolean {
   const host = request.headers.get("host");
-  const origin = request.headers.get("origin");
 
   // Accept localhost requests
   if (host?.includes("localhost") || host?.includes("127.0.0.1")) {
     return true;
   }
 
-  // In production on Vercel, accept requests from same origin
-  if (origin && host && new URL(origin).host === host) {
-    return true;
-  }
-
   // Check for internal workflow header
   const workflowHeader = request.headers.get("x-workflow-internal");
-  if (workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
+  if (process.env.WORKFLOW_INTERNAL_SECRET && workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
     return true;
   }
 

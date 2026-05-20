@@ -15,6 +15,11 @@ export interface ImportJobMetadata {
     url: string
     order: number
     status: string
+    normalizedPageUrl?: string
+    rawStatus?: string
+    phase?: string
+    title?: string | null
+    committedPageId?: string | null
     error?: string
   }>
   progressSummary?: {
@@ -45,10 +50,13 @@ export type ImportJobStage =
   | 'analyzing'
   | 'generating'
   | 'creating'
+  | 'page_processing'
+  | 'finalizing'
   | 'queued'
   | 'cancelled'
   | 'failed'
   | 'completed'
+  | 'unknown'
 
 export interface ImportJobViewModel {
   id: string
@@ -67,6 +75,8 @@ export interface ImportJobViewModel {
   queuePosition?: number | null
   estimatedStartSeconds?: number | null
   metadata?: ImportJobMetadata
+  rawStatus?: string | null
+  productStatus?: 'success' | 'partial_success' | 'failed' | 'cancelled' | 'recoverable_stuck' | 'unknown' | 'active'
   website?: {
     id: string
     name: string | null

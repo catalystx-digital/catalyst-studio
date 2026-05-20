@@ -16,6 +16,8 @@ import { ImportJobRepository } from '../repositories/import-job.repository';
 import { ImportProgressManager } from './import-progress-manager';
 import { ImportOrchestrator } from './import-orchestrator';
 import { DesignSystemService } from './design-system-service';
+import { ImportRunService, isTerminalImportRunStatus } from './import-run-service';
+import type { ImportResult } from './interfaces/import-orchestrator.interface';
 import { getWebFetchTools } from './web-tools';
 import type { SitemapMetadata } from './sitemap-discovery.service';
 import { MediaRepository } from '@/lib/studio/media/media-repository';
@@ -23,6 +25,7 @@ import { getMediaStorageProvider } from '@/lib/studio/media/storage/media-storag
 import { MediaIngestService, type MediaIngestResult } from './media-ingest-service';
 import {
   consumeNormalizationWarnings,
+  recordNormalizationWarning,
   type NormalizationWarning as ContentNormalizationWarning
 } from './page-builder/normalization-telemetry';
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service';
@@ -33,6 +36,8 @@ interface PersistOptions {
   sitemapMetaByUrl: Map<string, SitemapMetadata>;
   orchestratorTimeoutMs?: number;
   domProbeCapture?: CaptureDesignSystemResult | null;
+  skipDesignSystemProcessing?: boolean;
+  skipMediaIngestion?: boolean;
 }
 
 interface HandlerDependencies {
@@ -49,6 +54,7 @@ export class ImportResultHandler {
   private readonly prisma: PrismaClient;
   private readonly mediaIngestService: MediaIngestService;
   private readonly designSystemService: DesignSystemService;
+  private readonly runService: ImportRunService;
 
   constructor(dependencies: HandlerDependencies) {
     this.repository = dependencies.repository;
@@ -67,6 +73,7 @@ export class ImportResultHandler {
     this.designSystemService = new DesignSystemService({
       prisma: this.prisma
     });
+    this.runService = new ImportRunService();
   }
 
   async persist(jobId: string, result: any, options: PersistOptions): Promise<void> {
@@ -201,7 +208,7 @@ export class ImportResultHandler {
     // Use only content pages for further processing
     detectionPages = contentPages;
 
-    if (detectionPages.length > 0) {
+    if (detectionPages.length > 0 && !options.skipMediaIngestion) {
       try {
         const mediaResult = await this.mediaIngestService.ingest({
           websiteId: job.websiteId,
@@ -218,7 +225,7 @@ export class ImportResultHandler {
     }
 
     // Process design system from detection results
-    if (detectionPages.length > 0) {
+    if (detectionPages.length > 0 && !options.skipDesignSystemProcessing) {
       try {
         console.log(`[ImportResultHandler] Processing design system for website ${job.websiteId}`);
 
@@ -267,7 +274,17 @@ export class ImportResultHandler {
         }
       } catch (error) {
         console.error('[ImportResultHandler] Failed to process design system:', error);
-        throw error instanceof Error ? error : new Error(String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        recordNormalizationWarning({
+          pageUrl: job.url,
+          parentType: 'design-system',
+          issue: 'suspicious-value',
+          message: `Design system extraction failed: ${message}`,
+          details: {
+            code: 'DESIGN_SYSTEM_EXTRACTION_FAILED',
+            retryable: true
+          }
+        });
       }
     }
 
@@ -418,7 +435,7 @@ export class ImportResultHandler {
             jobId: job.id,
             websiteId: job.websiteId,
             pageUrl: summary.pageUrl,
-            pageTitle: summary.title,
+            pageTitle: summary.title ?? 'Untitled',
             componentCount: summary.componentCount,
             status: summary.status,
             confidence: summary.accuracy,
@@ -726,6 +743,8 @@ export class ImportResultHandler {
           }
         }
 
+        await this.syncRunStagesAfterCommit(job, importResult);
+
         detectionSummary.readyPages = pageSummaries.filter((page) => page.status === 'import-ready').length;
         detectionSummary.skippedPages = pageSummaries.filter((page) => page.status === 'import-skipped').length;
         detectionSummary.invalidPages = pageSummaries.filter((page) => page.status === 'import-invalid').length;
@@ -789,6 +808,91 @@ export class ImportResultHandler {
     if (result.data?.templates?.length > 0 && detectionPayload.length === 0) {
       await this.repository.updateTemplates(jobId, result.data.templates);
     }
+  }
+
+  private async syncRunStagesAfterCommit(job: ImportJob, importResult: ImportResult): Promise<void> {
+    const extractImportSource = (page: ImportResult['pages'][number]): string | null => {
+      const metadata = page.metadata;
+      if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+        const source = (metadata as Record<string, unknown>).importSource;
+        if (typeof source === 'string' && source.trim().length > 0) {
+          return source;
+        }
+      }
+      return null;
+    };
+
+    const committedPages = importResult.pages
+      .map((page) => ({
+        page,
+        pageUrl: extractImportSource(page),
+      }))
+      .filter((entry): entry is { page: ImportResult['pages'][number]; pageUrl: string } => Boolean(entry.pageUrl));
+
+    if (committedPages.length === 0 && importResult.failedPages.length === 0) {
+      return;
+    }
+
+    const run = await this.runService.findByJobId(job.id);
+    if (!run) {
+      return;
+    }
+    if (isTerminalImportRunStatus(run.status)) {
+      console.warn('[ImportResultHandler] Skipping import run sync for terminal run', {
+        jobId: job.id,
+        runStatus: run.status,
+      });
+      return;
+    }
+
+    await this.runService.updateProgressForJob(job.id, {
+      status: 'committing',
+      phase: 'commit_page',
+      progress: 95,
+      message: 'Syncing committed import pages',
+    });
+
+    for (const { page, pageUrl } of committedPages) {
+      await this.runService.upsertPageStageForJob(job.id, {
+        pageUrl,
+        title: page.title,
+        status: 'committed',
+        phase: 'commit_page',
+        pageContent: page.content as Prisma.InputJsonValue,
+        structureCandidate: {
+          pageId: page.id,
+          templateKey: page.templateKey,
+          pageType: page.type,
+        } as Prisma.InputJsonValue,
+        committedPageId: page.id,
+      });
+    }
+
+    for (const failure of importResult.failedPages) {
+      await this.runService.upsertPageStageForJob(job.id, {
+        pageUrl: failure.pageUrl,
+        title: typeof failure.metadata?.pageTitle === 'string' ? failure.metadata.pageTitle : failure.pageUrl,
+        status: failure.stage === 'validation' ? 'failed_retryable' : 'failed_terminal',
+        phase: 'commit_page',
+        error: {
+          code: failure.stage === 'validation' ? 'PAGE_VALIDATION_FAILED' : 'PAGE_COMMIT_FAILED',
+          message: failure.error,
+          stage: failure.stage,
+          metadata: failure.metadata ?? null,
+        } as Prisma.InputJsonValue,
+      });
+    }
+
+    await this.runService.updateProgressForJob(job.id, {
+      status: importResult.failedPages.length > 0 ? 'partial_success' : 'success',
+      phase: 'completed',
+      progress: 100,
+      message:
+        importResult.failedPages.length > 0
+          ? `Import completed with ${importResult.failedPages.length} page warning${importResult.failedPages.length === 1 ? '' : 's'}`
+          : 'Import completed',
+      completedAt: new Date(),
+    });
   }
 
   private async persistBranding(job: ImportJob, brandingSource: {

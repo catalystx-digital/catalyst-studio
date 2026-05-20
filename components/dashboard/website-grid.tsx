@@ -44,6 +44,9 @@ interface WebsiteGridProps {
 function buildImportMap(activity: ImportActivityItem[] = []) {
   const map = new Map<string, ImportActivityItem>();
   for (const job of activity) {
+    if (!isActivelyImporting(job)) {
+      continue;
+    }
     const existing = map.get(job.websiteId);
     if (!existing) {
       map.set(job.websiteId, job);

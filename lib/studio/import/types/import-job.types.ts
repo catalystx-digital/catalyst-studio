@@ -5,6 +5,7 @@ export enum ImportJobStatus {
   QUEUED = 'queued',
   PROCESSING = 'processing',
   COMPLETED = 'completed',
+  COMPLETED_WITH_WARNINGS = 'completed_with_warnings',
   FAILED = 'failed',
   CANCELLED = 'cancelled'
 }

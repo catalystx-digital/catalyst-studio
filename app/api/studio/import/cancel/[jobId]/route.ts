@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ImportJobStatus } from '@/lib/studio/import/types/import-job.types';
 import { getAuthContext } from '@/lib/auth/context';
+import { ImportRunService } from '@/lib/studio/import/services/import-run-service';
+
+const importDb = prisma as any;
 
 export async function POST(
   request: NextRequest,
@@ -18,7 +21,7 @@ export async function POST(
     }
 
     // Get the import job
-    const job = await prisma.importJob.findUnique({
+    const job = await importDb.importJob.findUnique({
       where: { id: jobId },
       include: { website: true },
     });
@@ -32,13 +35,17 @@ export async function POST(
 
     // Ownership check
     const auth = await getAuthContext(request);
-    const site: any = await prisma.website.findUnique({ where: { id: job.websiteId } });
+    const site: any = await importDb.website.findUnique({ where: { id: job.websiteId } });
     if (!site?.accountId || site.accountId !== auth.accountId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Check if job is already completed or failed
-    if (job.status === ImportJobStatus.COMPLETED || job.status === ImportJobStatus.FAILED) {
+    if (
+      job.status === ImportJobStatus.COMPLETED ||
+      job.status === ImportJobStatus.COMPLETED_WITH_WARNINGS ||
+      job.status === ImportJobStatus.FAILED
+    ) {
       return NextResponse.json(
         { error: `Cannot cancel job with status: ${job.status}` },
         { status: 400 }
@@ -46,7 +53,7 @@ export async function POST(
     }
 
     // Update job status to cancelled
-    const updatedJob = await prisma.importJob.update({
+    const updatedJob = await importDb.importJob.update({
       where: { id: jobId },
       data: {
         status: ImportJobStatus.CANCELLED,
@@ -55,58 +62,11 @@ export async function POST(
       },
     });
 
-    // Clean up partial data
+    const runService = new ImportRunService();
+    await runService.markCancelledForJob(jobId, 'Import cancelled by user');
+
+    // Cancellation preserves any committed pages/components. It only stops future workflow work.
     try {
-      // Delete any WebsiteComponentType records created with this jobId
-      // Note: WebsiteComponentType doesn't have importJobId field directly, 
-      // but we can check through aiMetadata JSON field
-      const components = await prisma.websiteComponentType.findMany({
-        where: {
-          websiteId: job.websiteId,
-        },
-      });
-
-      // Filter components that were created by this import job
-      const componentsToDelete = components.filter((component: Record<string, unknown>) => {
-        const aiMetadata = component.aiMetadata as Record<string, unknown>;
-        return aiMetadata?.importJobId === jobId;
-      });
-
-      if (componentsToDelete.length > 0) {
-        await prisma.websiteComponentType.deleteMany({
-          where: {
-            id: {
-              in: componentsToDelete.map((c: Record<string, unknown>) => c.id as string),
-            },
-          },
-        });
-      }
-
-      // Check if website has any other successful imports
-      const otherImports = await prisma.importJob.findMany({
-        where: {
-          websiteId: job.websiteId,
-          status: ImportJobStatus.COMPLETED,
-          id: {
-            not: jobId,
-          },
-        },
-      });
-
-      // If no other successful imports, mark website as import_cancelled
-      if (otherImports.length === 0) {
-        await prisma.website.update({
-          where: { id: job.websiteId },
-          data: {
-            // Add a metadata field to indicate import was cancelled
-            // Since Website model doesn't have a specific field for this,
-            // we'll just log it
-            updatedAt: new Date(),
-          },
-        });
-      }
-
-      // Log cancellation with details
       const detectionResults = job.detectionResults as Record<string, unknown>;
       const progressAtCancellation = (detectionResults?.progress as number) || 0;
       
@@ -114,7 +74,7 @@ export async function POST(
         websiteId: job.websiteId,
         progressAtCancellation,
         timestamp: new Date().toISOString(),
-        componentsDeleted: componentsToDelete.length,
+        committedPagesPreserved: true,
       });
     } catch (cleanupError) {
       console.error('Error cleaning up cancelled import:', cleanupError);

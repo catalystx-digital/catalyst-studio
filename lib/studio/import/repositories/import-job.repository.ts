@@ -34,7 +34,7 @@ interface PageDetectionResult {
 }
 
 export class ImportJobRepository implements IImportJobRepository {
-  constructor(private readonly db: PrismaClient = prisma) {}
+  constructor(private readonly db: PrismaClient = prisma as unknown as PrismaClient) {}
 
   /**
    * Creates a new import job
@@ -148,7 +148,11 @@ export class ImportJobRepository implements IImportJobRepository {
     // Set timestamps based on status
     if (status === ImportJobStatus.PROCESSING) {
       updateData.startedAt = new Date()
-    } else if (status === ImportJobStatus.COMPLETED || status === ImportJobStatus.FAILED) {
+    } else if (
+      status === ImportJobStatus.COMPLETED ||
+      status === ImportJobStatus.COMPLETED_WITH_WARNINGS ||
+      status === ImportJobStatus.FAILED
+    ) {
       updateData.completedAt = new Date()
     }
     
@@ -247,4 +251,3 @@ export class ImportJobRepository implements IImportJobRepository {
     })
   }
 }
-

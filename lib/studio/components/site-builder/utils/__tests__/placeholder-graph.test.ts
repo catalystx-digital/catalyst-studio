@@ -14,6 +14,11 @@ describe('normalizeImportUrl', () => {
     expect(normalizeImportUrl('/relative/path/')).toBe('/relative/path')
     expect(normalizeImportUrl('')).toBeNull()
   })
+
+  it('preserves meaningful query params while stripping tracking params', () => {
+    expect(normalizeImportUrl('https://example.com/search?utm_source=x&q=b&page=2')).toBe('https://example.com/search?page=2&q=b')
+    expect(normalizeImportUrl('https://example.com/search?q=a')).not.toBe(normalizeImportUrl('https://example.com/search?q=b'))
+  })
 })
 
 describe('buildPlaceholderGraph', () => {
@@ -21,7 +26,8 @@ describe('buildPlaceholderGraph', () => {
     const graph = buildPlaceholderGraph(samplePages)
     expect(graph.nodes).toHaveLength(4)
     const ids = graph.nodes.map(node => node.id)
-    expect(ids).toEqual(['import-placeholder-0', 'import-placeholder-1', 'import-placeholder-2', 'import-placeholder-3'])
+    expect(new Set(ids).size).toBe(4)
+    expect(ids.every(id => id.startsWith('import-placeholder-'))).toBe(true)
 
     const rootNode = graph.nodes.find(node => node.normalizedUrl === 'https://example.com/')
     expect(rootNode?.depth).toBe(0)
@@ -36,11 +42,7 @@ describe('buildPlaceholderGraph', () => {
     expect(teamNode?.parentNormalizedUrl).toBe('https://example.com/about')
 
     expect(graph.edges).toHaveLength(3)
-    expect(graph.edges).toEqual(expect.arrayContaining([
-      { id: 'import-placeholder-0->import-placeholder-1', sourceId: 'import-placeholder-0', targetId: 'import-placeholder-1' },
-      { id: 'import-placeholder-0->import-placeholder-2', sourceId: 'import-placeholder-0', targetId: 'import-placeholder-2' },
-      { id: 'import-placeholder-2->import-placeholder-3', sourceId: 'import-placeholder-2', targetId: 'import-placeholder-3' },
-    ]))
+    expect(graph.edges.every(edge => ids.includes(edge.sourceId) && ids.includes(edge.targetId))).toBe(true)
   })
 
   it('skips pages that already exist in the structure', () => {
@@ -51,6 +53,46 @@ describe('buildPlaceholderGraph', () => {
     const normalizedUrls = graph.nodes.map(node => node.normalizedUrl)
     expect(normalizedUrls).not.toContain('https://example.com/about')
     expect(graph.nodes).toHaveLength(3)
+  })
+
+  it('deduplicates pages that normalize to the same placeholder id', () => {
+    const graph = buildPlaceholderGraph([
+      { url: 'https://example.com/about/?utm_source=newsletter', status: 'pending', order: 2 },
+      { url: 'https://example.com/about', status: 'processing', order: 1 },
+      { url: 'https://example.com/about/', status: 'ready', order: 3 },
+    ])
+
+    expect(graph.nodes).toHaveLength(1)
+    expect(graph.nodes[0].normalizedUrl).toBe('https://example.com/about')
+    expect(graph.nodes[0].status).toBe('processing')
+  })
+
+  it('keeps stable placeholder ids when sitemap order changes', () => {
+    const first = buildPlaceholderGraph(samplePages)
+    const reordered = buildPlaceholderGraph([...samplePages].reverse())
+
+    const firstAbout = first.nodes.find(node => node.normalizedUrl === 'https://example.com/about')
+    const reorderedAbout = reordered.nodes.find(node => node.normalizedUrl === 'https://example.com/about')
+
+    expect(firstAbout?.id).toBe(reorderedAbout?.id)
+  })
+
+  it('maps backend page-stage statuses to non-queued placeholder states', () => {
+    const graph = buildPlaceholderGraph([
+      { url: 'https://example.com/a', status: 'detected', order: 0 },
+      { url: 'https://example.com/b', status: 'normalized', order: 1 },
+      { url: 'https://example.com/c', status: 'committed', order: 2 },
+      { url: 'https://example.com/d', status: 'failed_retryable', order: 3 },
+      { url: 'https://example.com/e', status: 'recoverable_stuck', order: 4 },
+    ])
+
+    expect(graph.nodes.map(node => node.status)).toEqual([
+      'processing',
+      'processing',
+      'ready',
+      'failed',
+      'invalid',
+    ])
   })
 })
 
@@ -70,5 +112,3 @@ describe('toReactFlowPlaceholders', () => {
     })
   })
 })
-
-

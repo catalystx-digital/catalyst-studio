@@ -152,6 +152,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate OpenRouter API key before creating a website/job so failed starts do not leave orphan sites.
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterApiKey) {
+      return NextResponse.json(
+        { error: 'Import service not configured. Please contact support.' },
+        { status: 500 }
+      );
+    }
+
     const auth = await getAuthContext(request);
 
     // Enforce per-account import limit (counted as import starts)
@@ -200,15 +209,6 @@ export async function POST(request: NextRequest) {
     // Initialize import service
     const importService = new ImportService();
 
-    // Validate OpenRouter API key is configured
-    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-    if (!openRouterApiKey) {
-      return NextResponse.json(
-        { error: 'Import service not configured. Please contact support.' },
-        { status: 500 }
-      );
-    }
-
     // Create import job record with new options
     const result = await importService.startImport({
       websiteId,
@@ -240,7 +240,13 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof ApiError) {
       return NextResponse.json(
-        { error: error.message },
+        {
+          error: {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          },
+        },
         { status: error.statusCode }
       );
     }

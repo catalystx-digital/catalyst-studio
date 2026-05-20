@@ -14,6 +14,7 @@ const STATUS_TO_STAGE: Record<ImportJobStatus, ImportStage> = {
   [ImportJobStatus.QUEUED]: 'queued',
   [ImportJobStatus.PROCESSING]: 'page_processing',
   [ImportJobStatus.COMPLETED]: 'completed',
+  [ImportJobStatus.COMPLETED_WITH_WARNINGS]: 'completed',
   [ImportJobStatus.FAILED]: 'failed',
   [ImportJobStatus.CANCELLED]: 'failed',
 };

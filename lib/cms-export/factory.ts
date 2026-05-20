@@ -10,6 +10,12 @@ import { MockProvider } from './mock';
 export class ProviderFactory {
   private static providers = createProviderMap();
 
+  private static debug(...args: unknown[]): void {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(...args);
+    }
+  }
+
   /**
    * Register a custom provider factory
    * @param id Provider identifier
@@ -29,7 +35,7 @@ export class ProviderFactory {
     providerId: string = 'auto',
     config?: ProviderSpecificConfig
   ): ICMSProvider {
-    console.log(`🏭 ProviderFactory.createProvider called with providerId: ${providerId}, config:`, config);
+    this.debug(`ProviderFactory.createProvider called with providerId: ${providerId}, config:`, config);
     
     // Auto-detect provider from environment
     if (providerId === 'auto') {
@@ -59,18 +65,18 @@ export class ProviderFactory {
     }
 
     try {
-      console.log(`🔨 Creating ${providerId} provider...`);
+      this.debug(`Creating ${providerId} provider...`);
       const provider = factory();
       
       // Apply configuration if provided
       if (config && this.isConfigurable(provider)) {
-        console.log(`⚙️ Configuring ${providerId} provider with:`, config);
+        this.debug(`Configuring ${providerId} provider with:`, config);
         provider.configure(config);
       } else if (config) {
         console.warn(`⚠️ Provider ${providerId} does not have a configure method`);
       }
 
-      console.log(`✅ ${providerId} provider created successfully`);
+      this.debug(`${providerId} provider created successfully`);
       return provider;
     } catch (error) {
       console.error(`❌ Failed to create ${providerId} provider:`, error);

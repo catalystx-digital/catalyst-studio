@@ -40,7 +40,12 @@ jest.mock('../repositories/import-job.repository')
 describe('ImportService', () => {
   let importService: ImportService
   let mockRepository: jest.Mocked<ImportJobRepository>
-  let transactionClient: { importJob: { count: jest.Mock; update: jest.Mock } }
+  let transactionClient: {
+    importJob: { count: jest.Mock; update: jest.Mock }
+    importRun: { upsert: jest.Mock }
+    importPageStage: { upsert: jest.Mock }
+    importRunEvent: { create: jest.Mock }
+  }
 
   beforeEach(() => {
     jest.restoreAllMocks()
@@ -50,6 +55,20 @@ describe('ImportService', () => {
       importJob: {
         count: jest.fn(),
         update: jest.fn(),
+      },
+      importRun: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'run-1',
+          importJobId: 'job-active',
+          websiteId: 'site-123',
+          totalPages: 1,
+        }),
+      },
+      importPageStage: {
+        upsert: jest.fn().mockResolvedValue({ id: 'stage-1' }),
+      },
+      importRunEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-1' }),
       },
     }
 
@@ -88,7 +107,7 @@ describe('ImportService', () => {
         url: 'https://example.com',
       })
 
-      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2)
       expect(mockRepository.create).toHaveBeenCalledWith(
         {
           websiteId: 'site-123',
@@ -98,12 +117,14 @@ describe('ImportService', () => {
         transactionClient,
       )
       expect(transactionClient.importJob.update).toHaveBeenCalledTimes(1)
+      expect(transactionClient.importRun.upsert).toHaveBeenCalledTimes(1)
+      expect(transactionClient.importPageStage.upsert).toHaveBeenCalledTimes(1)
       expect(expandSpy).toHaveBeenCalled()
       expect(patchSpy).toHaveBeenCalled()
 
       expect(result).toEqual({
         job: pendingJob,
-        message: 'Preparing import...',
+        message: 'Preparing import (strategy: sitemap)...',
         initialSitemap: [
           {
             url: 'https://example.com/about',
@@ -146,11 +167,17 @@ describe('ImportService', () => {
         url: 'https://example.com',
       })
 
-      // Should still return successfully with empty sitemap
+      // Should still return successfully with the planned URL staged for workflow processing.
       expect(result).toEqual({
         job: pendingJob,
-        message: 'Preparing import...',
-        initialSitemap: [],
+        message: 'Preparing import (strategy: sitemap)...',
+        initialSitemap: [
+          {
+            url: 'https://example.com',
+            order: 0,
+            status: 'pending',
+          },
+        ],
       })
     })
   })

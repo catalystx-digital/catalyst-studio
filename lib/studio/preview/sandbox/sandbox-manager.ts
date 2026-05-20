@@ -465,15 +465,22 @@ HEAD_RUNTIME_REVALIDATE_SECONDS=0
     console.log(`[sandbox-manager] Sandbox created at ${previewUrl} (server starting in background)`)
 
     // Update instance
-    instance.id = `sandbox-${websiteId}-${Date.now()}`
+    instance.id = sandbox.sandboxId
     instance.status = 'ready'
     instance.previewUrl = previewUrl
 
     return instance
   } catch (error) {
     instance.status = 'error'
-    instance.error = error instanceof Error ? error.message : 'Unknown error'
+    const response = (error as { response?: Response } | null)?.response
+    const isForbidden = response?.status === 403
+    instance.error = isForbidden
+      ? 'Vercel Sandbox returned 403 Forbidden. The token or OIDC identity is not authorized for this team/project, or the Vercel account does not have Sandbox access. Use the default local preview mode or fix the Vercel Sandbox credentials.'
+      : error instanceof Error ? error.message : 'Unknown error'
     console.error(`[sandbox-manager] Error creating sandbox:`, error)
+    if (isForbidden) {
+      throw new Error(instance.error)
+    }
     throw error
   }
 }

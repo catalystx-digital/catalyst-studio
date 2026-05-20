@@ -22,7 +22,8 @@ export type ImportStage =
   | 'template_generation'
   | 'finalizing'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'unknown';
 
 /**
  * Granular subsystem identifiers for detailed progress tracking.
@@ -102,7 +103,7 @@ export interface ImportProgressState {
   estimatedTimeRemaining: number | null; // in seconds
 
   // Status
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial_success' | 'recoverable_stuck' | 'unknown' | 'cancelled';
   message: string;
   description?: string;
 
@@ -191,7 +192,7 @@ export interface SerializedProgressState {
   startedAt: string;
   updatedAt: string;
   estimatedTimeRemaining: number | null;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial_success' | 'recoverable_stuck' | 'unknown' | 'cancelled';
   message: string;
   description?: string;
   queuePosition: number | null;
@@ -222,6 +223,7 @@ export const STAGE_WEIGHTS: Record<ImportStage, number> = {
   finalizing: 5,       // Saving to database (96-100% of pipeline)
   completed: 0,        // Terminal state
   failed: 0,           // Terminal state
+  unknown: 0,
 };
 
 /**
@@ -292,6 +294,12 @@ export const STAGE_CONFIGS: StageConfig[] = [
   {
     id: 'failed',
     label: 'Failed',
+    weight: 0,
+    subsystems: [],
+  },
+  {
+    id: 'unknown',
+    label: 'Needs attention',
     weight: 0,
     subsystems: [],
   },

@@ -145,8 +145,7 @@ export function useViewportSync({
       // Get the actual detail level from the API response
       const responseDetailLevel = data.meta?.detailLevel || 'full';
 
-      // DEBUG: Log what we received from viewport API
-      if (data.visible?.length > 0) {
+      if (process.env.NODE_ENV === 'development' && data.visible?.length > 0) {
         console.log('[ViewportSync] Received data from viewport API:', {
           visibleCount: data.visible.length,
           detailLevel: responseDetailLevel,
@@ -261,8 +260,9 @@ export function useViewportSync({
   const wasEnabledRef = useRef(false);
   useEffect(() => {
     if (enabled && !wasEnabledRef.current && websiteId) {
-      // Viewport sync just became enabled - trigger initial fetch immediately
-      console.log('[ViewportSync] Initial fetch triggered after skeleton load');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ViewportSync] Initial fetch triggered after skeleton load');
+      }
       // Small delay to ensure ReactFlow has set initial viewport
       const timer = setTimeout(() => {
         fetchViewportNodes();

@@ -112,7 +112,9 @@ export function useImportActivity(options?: UseImportActivityOptions) {
       lastActivityRef.current = Date.now();
       if (!isPollingActive) {
         setIsPollingActive(true);
-        console.log('[use-import-activity] Resuming polling due to user activity');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[use-import-activity] Resuming polling due to user activity');
+        }
       }
     };
 
@@ -134,7 +136,9 @@ export function useImportActivity(options?: UseImportActivityOptions) {
       const idleTime = Date.now() - lastActivityRef.current;
       if (idleTime > STOP_POLLING_AFTER_IDLE_MS && isPollingActive) {
         setIsPollingActive(false);
-        console.log('[use-import-activity] Stopping polling due to inactivity');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[use-import-activity] Stopping polling due to inactivity');
+        }
       }
     }, 60_000); // Check every minute
 

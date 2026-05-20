@@ -6,6 +6,7 @@ interface UseImportHydrationOptions {
   pollInterval?: number | null
   idlePollInterval?: number | null
   jobId?: string | null
+  websiteId?: string | null
   /** When false, disables all API calls and polling. Defaults to true. */
   enabled?: boolean
 }
@@ -16,6 +17,7 @@ const DEFAULT_IDLE_POLL_INTERVAL = 120_000
 export function useImportHydration(options?: UseImportHydrationOptions) {
   const hydrateJobs = useImportTrackerStore((state) => state.hydrateJobs)
   const jobId = options?.jobId ?? null
+  const websiteId = options?.websiteId ?? null
   const enabled = options?.enabled ?? true
   const jobs = useImportTrackerStore((state) => state.jobs)
   const [hasRemoteActivity, setHasRemoteActivity] = useState(false)
@@ -70,6 +72,9 @@ export function useImportHydration(options?: UseImportHydrationOptions) {
         const url = new URL('/api/studio/import/activity', window.location.origin)
         if (jobId) {
           url.searchParams.set('jobId', jobId)
+        }
+        if (websiteId) {
+          url.searchParams.set('websiteId', websiteId)
         }
 
         const response = await fetch(url.toString(), {
@@ -127,5 +132,5 @@ export function useImportHydration(options?: UseImportHydrationOptions) {
         clearInterval(timer)
       }
     }
-  }, [hydrateJobs, pollInterval, jobId, enabled])
+  }, [hydrateJobs, pollInterval, jobId, websiteId, enabled])
 }

@@ -31,7 +31,7 @@ import './site-builder-print.css'
 
 import { professionalNodeTypes, ProfessionalNodeData } from '@/lib/studio/components/site-builder/professional-nodes'
 import type { PageContextMenuAction } from '@/lib/studio/components/site-builder/page-context-menu'
-import { buildPlaceholderGraph, toReactFlowPlaceholders } from '@/lib/studio/components/site-builder/utils/placeholder-graph'
+import { buildPlaceholderGraph, normalizeImportUrl, toReactFlowPlaceholders } from '@/lib/studio/components/site-builder/utils/placeholder-graph'
 import type { ComponentData } from '@/lib/studio/components/site-builder/types'
 import { ComponentInstance, resolveSharedComponentReference } from '@/lib/studio/types/site-builder/component-instance'
 import { KeyboardShortcutsHelp } from '@/lib/studio/components/site-builder/keyboard-shortcuts-help'
@@ -103,6 +103,14 @@ import {
 
 import { saveManager } from '@/lib/studio/components/site-builder/save-manager'
 import { ReImportDialog } from '@/lib/studio/components/site-builder/reimport-dialog'
+
+const DEBUG_SITE_BUILDER = process.env.NODE_ENV !== 'production'
+
+const debugSiteBuilder = (...args: unknown[]) => {
+  if (DEBUG_SITE_BUILDER) {
+    console.log(...args)
+  }
+}
 
 type NodeMetadataShape = NonNullable<ProfessionalNodeData['metadata']>
 type NodeMetadataStatus = NodeMetadataShape['status']
@@ -248,17 +256,30 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   const { jumpToNode } = useJumpToNode()
 
   // Get websiteId from URL params, default
-  const websiteId = searchParams.get('websiteId')
-  const conceptId = searchParams.get('conceptId') ?? undefined
+  const websiteId = searchParams?.get('websiteId') ?? null
+  const conceptId = searchParams?.get('conceptId') ?? undefined
   
-  const importJobIdParam = searchParams.get('importJobId')
+  const importJobIdParam = searchParams?.get('importJobId') ?? null
   const importJobs = useImportTrackerStore((state) => state.jobs)
   const currentImportJob = useMemo(() => {
     if (!websiteId) return undefined
     if (importJobIdParam) {
       return importJobs.find((job) => job.id === importJobIdParam)
     }
-    return importJobs.find((job) => job.websiteId === websiteId)
+    const websiteJobs = importJobs.filter((job) => job.websiteId === websiteId)
+    const timestamp = (value: unknown) => {
+      if (typeof value !== 'string') return 0
+      const parsed = Date.parse(value)
+      return Number.isNaN(parsed) ? 0 : parsed
+    }
+    const isActiveImport = (job: (typeof importJobs)[number]) =>
+      job.state !== 'completed' ||
+      ['pending', 'queued', 'processing', 'running'].includes(job.status)
+    return [...websiteJobs].sort((a, b) => {
+      const activeDelta = Number(isActiveImport(b)) - Number(isActiveImport(a))
+      if (activeDelta !== 0) return activeDelta
+      return timestamp(b.updatedAt) - timestamp(a.updatedAt)
+    })[0]
   }, [importJobs, importJobIdParam, websiteId])
   const [lastImportSync, setLastImportSync] = useState<{ jobId: string; status: string; progress: number; processedCount?: number } | null>(null)
 
@@ -369,7 +390,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     viewportSyncEnabled,
     finalEnabled: !!websiteId && !isLoading && viewportSyncEnabled,
   }
-  console.log('[SiteBuilder] Viewport sync conditions:', viewportSyncConditions)
+  debugSiteBuilder('[SiteBuilder] Viewport sync conditions:', viewportSyncConditions)
 
   const {
     isLoading: isViewportLoading,
@@ -384,30 +405,46 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   })
   
   // Transform store nodes to match ProfessionalNodeData format
+  const isTerminalImportJob = useCallback((job: typeof currentImportJob | undefined) => {
+    if (!job) return false
+    if (job.state === 'completed') return true
+    return ['completed', 'success', 'partial_success', 'failed', 'cancelled', 'recoverable_stuck', 'unknown'].includes(job.status)
+  }, [])
+
   const importStatusMap = useMemo(() => {
     const rawPages = currentImportJob?.metadata?.pages;
     if (!Array.isArray(rawPages)) {
       return new Map<string, { status: string; order?: number }>()
     }
     const pairs = rawPages
-      .filter((page): page is { url: string; status?: string; order?: number } => Boolean(page && typeof page.url === 'string'))
+      .filter((page): page is { url: string; normalizedPageUrl?: string; status?: string; order?: number } => Boolean(page && typeof page.url === 'string'))
       .map(page => {
         const rawStatus = typeof page.status === 'string' ? page.status.trim().toLowerCase() : 'pending'
         const normalizedStatus = rawStatus.startsWith('import-') ? rawStatus.replace('import-', '') : rawStatus
+        const nodeStatus = normalizedStatus === 'failed' ? 'error' : normalizedStatus
+        const normalizedUrl = normalizeImportUrl(page.normalizedPageUrl || page.url)
         return {
           url: page.url,
-          status: normalizedStatus,
+          normalizedUrl,
+          status: nodeStatus,
           order: page.order,
         }
       })
-    return new Map(pairs.map(item => [item.url, { status: item.status, order: item.order }]))
+    const map = new Map<string, { status: string; order?: number }>()
+    pairs.forEach((item) => {
+      map.set(item.url, { status: item.status, order: item.order })
+      if (item.normalizedUrl) {
+        map.set(item.normalizedUrl, { status: item.status, order: item.order })
+      }
+    })
+    return map
   }, [currentImportJob?.metadata?.pages])
 
   const transformedStoreNodes = useMemo(() => {
     // Log first node's _detailLevel from storeNodes
     const firstNode = storeNodes[0];
     const firstNodeDetailLevel = (firstNode?.data as unknown as Record<string, unknown>)?._detailLevel;
-    console.log('[TransformedStoreNodes] Computing, storeNodes count:', storeNodes.length, 'first node _detailLevel:', firstNodeDetailLevel);
+    debugSiteBuilder('[TransformedStoreNodes] Computing, storeNodes count:', storeNodes.length, 'first node _detailLevel:', firstNodeDetailLevel);
 
     return storeNodes.map(node => {
       const rawMetadata = (node.data as ProfessionalNodeData).metadata as MutableMetadata | undefined
@@ -428,14 +465,19 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
           status: computedStatus,
         } as MutableMetadata;
       }
-      if (sourceUrl && importStatusMap.has(sourceUrl) && currentImportJob && currentImportJob.status !== 'completed') {
-        const info = importStatusMap.get(sourceUrl)!
+      const normalizedSourceUrl = sourceUrl ? normalizeImportUrl(sourceUrl) : null
+      const importInfo = sourceUrl
+        ? importStatusMap.get(sourceUrl) ?? (normalizedSourceUrl ? importStatusMap.get(normalizedSourceUrl) : undefined)
+        : undefined
+      if (sourceUrl && importInfo && currentImportJob && !isTerminalImportJob(currentImportJob)) {
+        const info = importInfo
         nextMetadata = {
           ...(nextMetadata ?? {}),
           status: ('import-' + info.status) as NodeMetadataStatus,
           importStatus: info.status as NodeImportStatus,
           isPlaceholder: false,
           importSource: sourceUrl,
+          ...(normalizedSourceUrl ? { importSourceNormalized: normalizedSourceUrl } : {}),
           importOrder: info.order ?? (nextMetadata ? nextMetadata.importOrder : undefined),
         } as MutableMetadata
       }
@@ -457,7 +499,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
         },
       }
     })
-  }, [storeNodes, importStatusMap, currentImportJob?.status])
+  }, [storeNodes, importStatusMap, currentImportJob, isTerminalImportJob])
 
   const realNodeCount = useMemo(() => (
     transformedStoreNodes.filter((node) => {
@@ -468,23 +510,22 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   ), [transformedStoreNodes])
 
   const placeholderPages = useMemo(() => {
-    const jobStatus = currentImportJob?.status ?? 'pending'
     if (!currentImportJob) {
       return [] as Array<{ url: string; status?: string; order?: number }>
     }
 
-    if (jobStatus === 'completed' || jobStatus === 'failed' || jobStatus === 'cancelled') {
+    if (isTerminalImportJob(currentImportJob)) {
       return [] as Array<{ url: string; status?: string; order?: number }>
     }
 
     const pagesMetadata = Array.isArray(currentImportJob?.metadata?.pages)
       ? [...currentImportJob.metadata.pages]
-      : [] as Array<{ url: string; status?: string; order?: number }>
+      : [] as Array<{ url: string; normalizedPageUrl?: string; status?: string; order?: number; title?: string | null; rawStatus?: string }>
 
     if (pagesMetadata.length > 0) {
       const pendingPages = pagesMetadata.filter((page) => {
         const normalized = typeof page.status === 'string' ? page.status.trim().toLowerCase() : 'pending'
-        return normalized !== 'ready' && normalized !== 'completed' && normalized !== 'skipped'
+        return normalized !== 'ready' && normalized !== 'completed' && normalized !== 'success' && normalized !== 'skipped'
       })
 
       return pendingPages
@@ -515,7 +556,8 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   }, [
     currentImportJob?.metadata?.pages,
     currentImportJob?.metadata?.sitemap,
-    currentImportJob?.status,
+    currentImportJob,
+    isTerminalImportJob,
   ])
 
   const existingImportSources = useMemo(() => {
@@ -593,10 +635,6 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
       currentNodesSnapshot.some(existing => existing.id === node.id)
     )
 
-    if (!hasOnlyRoot && placeholdersAlreadyApplied) {
-      return
-    }
-
     const baseNodes = hasOnlyRoot
       ? currentNodesSnapshot.filter(node => !isScaffoldRootNode(node))
       : currentNodesSnapshot.filter(node => !node.id.startsWith('import-placeholder-'))
@@ -608,6 +646,15 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     const nextNodes = baseNodes.length === 0
       ? (applyAutoLayout(combined, combinedEdges, 'TB', 'tree', { force: true }).nodes as Node<ProfessionalNodeData>[])
       : combined
+
+    if (!hasOnlyRoot && placeholdersAlreadyApplied) {
+      setNodes((current) => {
+        const placeholdersById = new Map(placeholderNodes.map(node => [node.id, node]))
+        return current.map(node => placeholdersById.get(node.id) ?? node)
+      })
+      setEdges(combinedEdges)
+      return
+    }
 
     setNodes(nextNodes)
     setEdges(combinedEdges)
@@ -625,7 +672,16 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
           }
           return current
         }
-        return filtered
+        if (transformedStoreNodes.length === 0) {
+          return filtered
+        }
+        const mergedById = new Map(filtered.map(node => [node.id, node]))
+        transformedStoreNodes.forEach((node) => {
+          if (!mergedById.has(node.id)) {
+            mergedById.set(node.id, node)
+          }
+        })
+        return Array.from(mergedById.values())
       })
 
       setEdges((current) => {
@@ -636,7 +692,10 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
           }
           return current
         }
-        return filtered
+        if (storeEdges.length === 0) {
+          return filtered
+        }
+        return mergeEdges(filtered, storeEdges)
       })
 
       if (previousCount > 0) {
@@ -650,6 +709,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     placeholderNodes.length,
     transformedStoreNodes,
     storeEdges,
+    mergeEdges,
     setNodes,
     setEdges,
   ])
@@ -911,7 +971,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
       return
     }
 
-    if (currentImportJob.status === 'completed') {
+    if (isTerminalImportJob(currentImportJob)) {
       if (!alreadySynced || statusChanged) {
         void syncStructure()
       }
@@ -921,7 +981,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     if (currentImportJob.progress >= 90 && (!alreadySynced || progressDelta >= 5)) {
       void syncStructure()
     }
-  }, [currentImportJob, lastImportSync, loadStructure, websiteId])
+  }, [currentImportJob, isTerminalImportJob, lastImportSync, loadStructure, websiteId])
 
   // Apply layout when store nodes are loaded
   // Guard to ensure initial auto-layout runs only once (avoids clobbering manual drags)
@@ -983,7 +1043,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
         const fitDuration = includePlaceholders ? 600 : 800
 
         // For large sites with server positions, center on home instead of fitting all nodes
-        console.log('[SiteBuilder] Layout decision:', { useServerPositions, viewportSyncEnabled, nodeCount: layouted.length })
+        debugSiteBuilder('[SiteBuilder] Layout decision:', { useServerPositions, viewportSyncEnabled, nodeCount: layouted.length })
         if (useServerPositions) {
           // Find home node - cast to any since skeleton data has fullPath not in ProfessionalNodeData type
           const homeNode = layouted.find(n => {
@@ -1000,7 +1060,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
             // Use shared constants for consistent viewport centering
             const centerX = homeNode.position.x + LAYOUT.NODE_WIDTH / 2
             const centerY = homeNode.position.y + LAYOUT.NODE_HEIGHT / 2
-            console.log('[SiteBuilder] Centering on home node:', {
+            debugSiteBuilder('[SiteBuilder] Centering on home node:', {
               homeId: homeNode.id,
               fullPath: (homeNode.data as unknown as Record<string, unknown>)?.fullPath,
               position: homeNode.position,
@@ -1010,7 +1070,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
             // Zoom level 0.8-1.0 shows about 5-8 nodes comfortably
             setTimeout(() => setCenter(centerX, centerY, { zoom: 0.9, duration: fitDuration }), 200)
           } else {
-            console.log('[SiteBuilder] No home node found, using fitView')
+            debugSiteBuilder('[SiteBuilder] No home node found, using fitView')
             setTimeout(() => fitView({ padding: 0.2, duration: fitDuration }), 200)
           }
         } else {
@@ -1033,19 +1093,19 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
 
   // Keep node data (e.g., components/effective props) in sync when topology is unchanged
   useEffect(() => {
-    console.log('[SyncEffect] Running, isLoading:', isLoading, 'storeNodes:', transformedStoreNodes?.length);
+    debugSiteBuilder('[SyncEffect] Running, isLoading:', isLoading, 'storeNodes:', transformedStoreNodes?.length);
     if (isLoading) return;
     if (!transformedStoreNodes || transformedStoreNodes.length === 0) return;
 
     // Log first node's _detailLevel from store for debugging
     const firstStoreNode = transformedStoreNodes[0];
-    console.log('[SyncEffect] First store node _detailLevel:', firstStoreNode?.data?._detailLevel, '_needsDetailLoad:', firstStoreNode?.data?._needsDetailLoad);
+    debugSiteBuilder('[SyncEffect] First store node _detailLevel:', firstStoreNode?.data?._detailLevel, '_needsDetailLoad:', firstStoreNode?.data?._needsDetailLoad);
 
     const nextById = new Map(transformedStoreNodes.map(n => [n.id, n]));
     let updatedCount = 0;
 
     setNodes(current => {
-      console.log('[SyncEffect] Updating nodes, current count:', current.length);
+      debugSiteBuilder('[SyncEffect] Updating nodes, current count:', current.length);
 
       return current.map(n => {
         const src = nextById.get(n.id);
@@ -1069,7 +1129,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
         );
 
         if (dataChanged && (detailLevelChanged || needsDetailLoadChanged)) {
-          console.log('[SyncEffect] Node', n.id, 'detail level changed:', currData._detailLevel, '->', nextData._detailLevel, 'needsDetailLoad:', currData._needsDetailLoad, '->', nextData._needsDetailLoad);
+          debugSiteBuilder('[SyncEffect] Node', n.id, 'detail level changed:', currData._detailLevel, '->', nextData._detailLevel, 'needsDetailLoad:', currData._needsDetailLoad, '->', nextData._needsDetailLoad);
           updatedCount++;
         }
 
@@ -1287,7 +1347,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   const handleSectionSelect = useCallback((sectionName: string) => {
     const targetNodeId = sectionPickerNodeId || (selectedNodes.length > 0 ? selectedNodes[0].id : null)
     if (targetNodeId) {
-      console.log('[handleSectionSelect] Adding component:', sectionName, 'to node:', targetNodeId)
+      debugSiteBuilder('[handleSectionSelect] Adding component:', sectionName, 'to node:', targetNodeId)
       handleComponentAdd(targetNodeId, sectionName, sectionPickerAfterIndex)
     } else {
       // CP-01: Show error when no target node is available
@@ -1406,8 +1466,8 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   }, [pendingDeleteComponent, nodes, handleComponentRemove])
 
   const handleComponentClick = useCallback((component: ComponentInstance) => {
-    console.log('[Site Builder] Component clicked:', component.id, component.type)
-    console.log('[Site Builder] Component structure:', JSON.stringify(component, null, 2))
+    debugSiteBuilder('[Site Builder] Component clicked:', component.id, component.type)
+    debugSiteBuilder('[Site Builder] Component structure:', JSON.stringify(component, null, 2))
     
     // Set the selected component ID in the store
     setSelectedComponentId(component.id)
@@ -2517,7 +2577,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
                 onClick={() => {
                   setLoadError(null)
                   setIsInitialLoading(true)
-                  const websiteId = searchParams.get('websiteId')
+                  const websiteId = searchParams?.get('websiteId')
                   if (websiteId) {
                     loadStructure(websiteId)
                   } else {
@@ -2536,7 +2596,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   }
 
   // Conditional rendering based on loading/error state
-  console.log('[SiteBuilder] Render check:', {
+  debugSiteBuilder('[SiteBuilder] Render check:', {
     isInitialLoading,
     isLoading,
     nodeCount: nodes.length,
@@ -2973,7 +3033,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
           handleComponentAdd(nodeId, section)
         }}
         onOptimize={(suggestion) => {
-          console.log('Optimize:', suggestion)
+          debugSiteBuilder('Optimize:', suggestion)
           // Implement optimization logic
         }}
       />
@@ -3188,14 +3248,14 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
 
 function SitemapBuilderContent() {
   const searchParams = useSearchParams()
-  const importJobId = searchParams.get('importJobId')
+  const importJobId = searchParams?.get('importJobId') ?? null
   const router = useRouter()
   const saveStatus = useSiteBuilderStore((state) => state.saveStatus)
   const closePropertyPanel = useSiteBuilderStore((state) => state.closePropertyPanel)
   const isDirty = saveStatus === 'saving' || saveStatus === 'error'
-  const websiteId = searchParams.get('websiteId')
-  const conceptId = searchParams.get('conceptId') ?? undefined
-  const websiteName = searchParams.get('websiteName') ?? 'this website'
+  const websiteId = searchParams?.get('websiteId') ?? null
+  const conceptId = searchParams?.get('conceptId') ?? undefined
+  const websiteName = searchParams?.get('websiteName') ?? 'this website'
   const [componentPanelOpen, setComponentPanelOpen] = useState(false)
 
   // SEARCH INTEGRATION: Use server-side search via SearchOverlay (Ctrl+K)
@@ -3220,10 +3280,10 @@ function SitemapBuilderContent() {
   // Both hooks hydrate into the same ImportTrackerStore, so currentImportJob will find either type
   const isGreenfieldJob = importJobId?.startsWith('bootstrap-') ?? false
 
-  // Import hydration - only enabled for non-greenfield import jobs
+  // Import hydration - enabled for import URLs and website reloads so active jobs can resume without importJobId.
   // Greenfield jobs are handled by useGreenfieldHydration below
-  const isImportJob = !!importJobId && !isGreenfieldJob
-  useImportHydration({ jobId: importJobId, pollInterval: 2000, idlePollInterval: 120_000, enabled: isImportJob })
+  const isImportJob = !!websiteId && !isGreenfieldJob
+  useImportHydration({ jobId: importJobId, websiteId, pollInterval: 2000, idlePollInterval: 120_000, enabled: isImportJob })
   useGreenfieldHydration({
     jobId: importJobId,
     websiteId: websiteId,
@@ -3268,8 +3328,8 @@ function SitemapBuilderContent() {
       >
         <ReactFlowProvider>
           <ResponsiveWrapper
-            onZoomChange={(zoom) => console.log('Zoom:', zoom)}
-            onViewportChange={(viewport) => console.log('Viewport:', viewport)}
+            onZoomChange={(zoom) => debugSiteBuilder('Zoom:', zoom)}
+            onViewportChange={(viewport) => debugSiteBuilder('Viewport:', viewport)}
           >
             <SitemapFlow
               componentPanelOpen={componentPanelOpen}

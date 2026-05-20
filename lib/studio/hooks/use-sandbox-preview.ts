@@ -134,9 +134,11 @@ export function useSandboxPreview(options: UseSandboxPreviewOptions): UseSandbox
         // Create sandbox instance from job data
         setSandbox({
           id: data.jobId,
+          websiteId,
           previewUrl: data.previewUrl,
-          status: 'running',
+          status: 'ready',
           createdAt: new Date(data.createdAt),
+          lastActivityAt: new Date(data.updatedAt),
         })
       } else if (data.status === 'ERROR') {
         stopPolling()
@@ -205,9 +207,11 @@ export function useSandboxPreview(options: UseSandboxPreviewOptions): UseSandbox
         // Existing ready job - use it directly
         setSandbox({
           id: data.jobId,
+          websiteId,
           previewUrl: data.previewUrl,
-          status: 'running',
+          status: 'ready',
           createdAt: new Date(),
+          lastActivityAt: new Date(),
         })
         setStatus('ready')
         return

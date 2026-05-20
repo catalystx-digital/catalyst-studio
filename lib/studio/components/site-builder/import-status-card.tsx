@@ -56,7 +56,7 @@ export interface ImportStatusCardProps {
   estimatedTimeRemaining?: number | null // seconds
 
   // Status
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial_success' | 'recoverable_stuck' | 'unknown' | 'cancelled'
 
   // Queue info
   queuePosition?: number | null
@@ -88,6 +88,7 @@ const STAGE_LABELS: Record<ImportStage, string> = {
   finalizing: 'Saving',
   completed: 'Completed',
   failed: 'Failed',
+  unknown: 'Needs attention',
 }
 
 function formatTimeRemaining(seconds: number | null | undefined): string {
@@ -120,7 +121,12 @@ function getStatusIcon(status: ImportStatusCardProps['status']) {
     case 'running':
       return <Loader2 className="h-4 w-4 animate-spin text-primary" />
     case 'completed':
+    case 'partial_success':
       return <CheckCircle2 className="h-4 w-4 text-green-500" />
+    case 'recoverable_stuck':
+    case 'unknown':
+    case 'cancelled':
+      return <AlertTriangle className="h-4 w-4 text-yellow-600" />
     case 'failed':
       return <XCircle className="h-4 w-4 text-destructive" />
   }
@@ -133,7 +139,12 @@ function getStatusBadgeVariant(status: ImportStatusCardProps['status']): 'defaul
     case 'running':
       return 'default'
     case 'completed':
+    case 'partial_success':
       return 'outline'
+    case 'recoverable_stuck':
+    case 'unknown':
+    case 'cancelled':
+      return 'secondary'
     case 'failed':
       return 'destructive'
   }
@@ -168,6 +179,8 @@ export function ImportStatusCard({
         'w-full border-primary/20 bg-card/95 backdrop-blur-sm',
         sticky && 'sticky top-4 z-10',
         status === 'completed' && 'border-green-500/20',
+        status === 'partial_success' && 'border-yellow-500/20',
+        (status === 'recoverable_stuck' || status === 'unknown' || status === 'cancelled') && 'border-yellow-500/20',
         status === 'failed' && 'border-destructive/20',
         className
       )}
@@ -218,7 +231,7 @@ export function ImportStatusCard({
                 {processedCount} / {totalCount} pages
               </span>
             </div>
-            {currentUrl && status === 'running' && (
+            {currentUrl && (status === 'running' || status === 'recoverable_stuck') && (
               <div className="flex items-center gap-1 truncate max-w-[200px]">
                 <Globe className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate" title={currentUrl}>

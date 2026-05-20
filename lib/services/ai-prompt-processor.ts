@@ -16,6 +16,24 @@ type ImportJobStatus = 'pending' | 'processing' | 'queued' | 'completed' | 'fail
 
 type ImportJobLifecycleState = 'active' | 'queued' | 'completed'
 
+const debugAIPromptProcessor = (...args: unknown[]) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(...args)
+  }
+}
+
+const warnAIPromptProcessor = (...args: unknown[]) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(...args)
+  }
+}
+
+const errorAIPromptProcessor = (...args: unknown[]) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(...args)
+  }
+}
+
 export interface ImportJobSnapshot {
   id: string
   websiteId: string
@@ -92,7 +110,7 @@ export class AIPromptProcessor {
     // Use LLM-based workflow routing with regex fallback
     const routingResult = await this.detectWorkflowIntent(userPrompt)
 
-    console.log('[AIPromptProcessor] Workflow routing decision:', {
+    debugAIPromptProcessor('[AIPromptProcessor] Workflow routing decision:', {
       workflow: routingResult.workflow,
       importUrl: routingResult.importUrl,
       confidence: routingResult.confidence,
@@ -131,7 +149,9 @@ export class AIPromptProcessor {
       })
 
       if (!response.ok) {
-        console.warn('[AIPromptProcessor] Workflow routing API failed, using regex fallback')
+        warnAIPromptProcessor('[AIPromptProcessor] Workflow routing API failed, using regex fallback', {
+          status: response.status,
+        })
         return this.detectWorkflowIntentFallback(userPrompt)
       }
 
@@ -139,7 +159,7 @@ export class AIPromptProcessor {
 
       // Validate response structure
       if (!result.workflow || !['import', 'greenfield'].includes(result.workflow)) {
-        console.warn('[AIPromptProcessor] Invalid workflow routing response, using fallback')
+        warnAIPromptProcessor('[AIPromptProcessor] Invalid workflow routing response, using fallback')
         return this.detectWorkflowIntentFallback(userPrompt)
       }
 
@@ -151,7 +171,9 @@ export class AIPromptProcessor {
         usedFallback: false
       }
     } catch (error) {
-      console.warn('[AIPromptProcessor] Workflow routing error, using fallback:', error)
+      warnAIPromptProcessor('[AIPromptProcessor] Workflow routing error, using fallback', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       return this.detectWorkflowIntentFallback(userPrompt)
     }
   }
@@ -205,10 +227,10 @@ export class AIPromptProcessor {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        console.error('[AIPromptProcessor] Bootstrap request failed', {
+        errorAIPromptProcessor('[AIPromptProcessor] Bootstrap request failed', {
           status: response.status,
           websiteId: input.websiteId,
-          payload
+          payload,
         })
         return undefined
       }
@@ -216,16 +238,16 @@ export class AIPromptProcessor {
       const result = await response.json()
       const jobId = result.jobId as string | undefined
       if (!jobId) {
-        console.warn('[AIPromptProcessor] Bootstrap returned no jobId - progress tracking disabled')
+        warnAIPromptProcessor('[AIPromptProcessor] Bootstrap returned no jobId - progress tracking disabled')
       }
 
       // Check for error in data (legacy response format)
       const data = result.data
       if (data && !data.success) {
-        console.warn('[AIPromptProcessor] Bootstrap generation failed', {
+        warnAIPromptProcessor('[AIPromptProcessor] Bootstrap generation failed', {
           websiteId: input.websiteId,
           error: data.error,
-          populatedPages: data.populatedPages
+          populatedPages: data.populatedPages,
         })
         // Don't throw - let UI handle the error gracefully
         // Store error message in sessionStorage for UI to display
@@ -243,9 +265,9 @@ export class AIPromptProcessor {
 
       return jobId
     } catch (error) {
-      console.error('[AIPromptProcessor] Bootstrap request error', {
+      errorAIPromptProcessor('[AIPromptProcessor] Bootstrap request error', {
         websiteId: input.websiteId,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
       return undefined
     }
@@ -272,11 +294,16 @@ export class AIPromptProcessor {
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}))
-      // API returns { error: "message string" }, not { error: { message: "..." } }
       const errorMessage = typeof errorBody.error === 'string'
         ? errorBody.error
         : errorBody.error?.message || 'Failed to start import'
-      throw new Error(errorMessage)
+      const error = new Error(errorMessage) as Error & { code?: string; details?: unknown; status?: number }
+      if (errorBody.error && typeof errorBody.error === 'object') {
+        error.code = typeof errorBody.error.code === 'string' ? errorBody.error.code : undefined
+        error.details = errorBody.error.details
+      }
+      error.status = response.status
+      throw error
     }
 
     const data = await response.json()
@@ -853,4 +880,3 @@ export class AIPromptProcessor {
     return icons[category];
   }
 }
-

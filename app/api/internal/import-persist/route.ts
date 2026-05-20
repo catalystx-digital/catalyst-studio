@@ -12,24 +12,26 @@ import { prisma } from "@/lib/prisma";
 import { ImportJobStatus } from "@/lib/studio/import/types/import-job.types";
 import type { PrismaClient } from "@/lib/generated/prisma";
 
+const TERMINAL_IMPORT_JOB_STATUSES = [
+  ImportJobStatus.COMPLETED,
+  ImportJobStatus.COMPLETED_WITH_WARNINGS,
+  ImportJobStatus.FAILED,
+  ImportJobStatus.CANCELLED,
+];
+const importDb = prisma as any;
+
 // Verify request is internal (from same server or workflow step)
 function isInternalRequest(request: NextRequest): boolean {
   const host = request.headers.get("host");
-  const origin = request.headers.get("origin");
 
   // Accept localhost requests
   if (host?.includes("localhost") || host?.includes("127.0.0.1")) {
     return true;
   }
 
-  // In production on Vercel, accept requests from same origin
-  if (origin && host && new URL(origin).host === host) {
-    return true;
-  }
-
   // Check for internal workflow header
   const workflowHeader = request.headers.get("x-workflow-internal");
-  if (workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
+  if (process.env.WORKFLOW_INTERNAL_SECRET && workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
     return true;
   }
 
@@ -57,6 +59,10 @@ import type { ImportDetectionResult } from "@/lib/studio/import/web-detection";
 import type { NavigationHierarchy, Template, DesignTokens } from "@/lib/studio/import/types";
 import type { CapturedDesignSystem } from "@/lib/studio/import/types/design-system.types";
 import type { CaptureDesignSystemResult } from "@/lib/studio/design-system/dom-probe/service";
+import type { SitemapMetadata } from "@/lib/studio/import/services/sitemap-discovery.service";
+import { ImportRunService } from "@/lib/studio/import/services/import-run-service";
+
+export const maxDuration = 300;
 
 interface SharedComponentsResult {
   navigation: NavigationHierarchy;
@@ -70,7 +76,7 @@ interface DesignSystemResult {
 }
 
 interface SitemapResult {
-  sitemapMetaByUrl: Record<string, unknown>;
+  sitemapMetaByUrl: Record<string, SitemapMetadata>;
 }
 
 interface PersistRequest {
@@ -98,6 +104,23 @@ export async function POST(request: NextRequest) {
     if (!websiteId || typeof websiteId !== "string") {
       return NextResponse.json({ error: "Invalid websiteId" }, { status: 400 });
     }
+
+    const currentJob = await importDb.importJob.findUnique({
+      where: { id: jobId },
+      select: { status: true },
+    });
+    if (!currentJob) {
+      return NextResponse.json({ error: "Import job not found" }, { status: 404 });
+    }
+    if (TERMINAL_IMPORT_JOB_STATUSES.includes(currentJob.status as ImportJobStatus)) {
+      return NextResponse.json(
+        { error: `Cannot persist job with terminal status: ${currentJob.status}` },
+        { status: 409 }
+      );
+    }
+
+    const runService = new ImportRunService();
+    await runService.assertRunNotCancelled(jobId);
 
     const repository = new ImportJobRepository();
     const progressManager = new ImportProgressManager(repository);
@@ -136,7 +159,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Convert plain object back to Map (JSON serialization converts Map to object)
-    const sitemapMetaMap = new Map<string, unknown>(
+    const sitemapMetaMap = new Map<string, SitemapMetadata>(
       Object.entries(sitemapResult.sitemapMetaByUrl || {})
     );
 
@@ -144,11 +167,43 @@ export async function POST(request: NextRequest) {
     await resultHandler.persist(jobId, pipelineResult, {
       sitemapMetaByUrl: sitemapMetaMap,
       domProbeCapture: designResult.domProbeCapture,
+      skipDesignSystemProcessing: true,
     });
 
-    // Mark job as completed
-    await repository.updateStatus(jobId, ImportJobStatus.COMPLETED);
-    await repository.update(jobId, { completedAt: new Date() });
+    const finalStatus = await runService.deriveFinalStatusForJob(jobId);
+    const runFinalStatus = finalStatus?.status ?? "success";
+    const jobFinalStatus =
+      runFinalStatus === "partial_success"
+        ? ImportJobStatus.COMPLETED_WITH_WARNINGS
+        : runFinalStatus === "success"
+          ? ImportJobStatus.COMPLETED
+          : runFinalStatus === "cancelled"
+            ? ImportJobStatus.CANCELLED
+            : ImportJobStatus.FAILED;
+
+    await importDb.importJob.updateMany({
+      where: {
+        id: jobId,
+        status: { notIn: TERMINAL_IMPORT_JOB_STATUSES },
+      },
+      data: {
+        status: jobFinalStatus,
+        errorMessage: jobFinalStatus === ImportJobStatus.FAILED ? finalStatus?.message ?? "Import failed" : undefined,
+        completedAt: new Date(),
+      },
+    });
+
+    await runService.updateProgressForJob(jobId, {
+      status: runFinalStatus,
+      phase: "completed",
+      progress: 100,
+      message: finalStatus?.message ?? "Import completed",
+      totalPages: finalStatus?.totalPages,
+      committedPages: finalStatus?.committedPages,
+      failedPages: finalStatus?.failedPages,
+      recoverableActions: runFinalStatus === "partial_success" ? ["retry_failed_pages", "continue_with_successful_pages"] : [],
+      completedAt: new Date(),
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

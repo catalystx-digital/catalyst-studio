@@ -81,11 +81,14 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
   const maxUrls = options?.maxUrls ?? ConcurrencyConfig.maxUrls;
 
   try {
+    await assertRunActiveStep(jobId);
+
     // Stage 1: Discover sitemap and expand URLs
-    const sitemapResult = await discoverSitemapStep(url, maxUrls);
+    const sitemapResult = await loadImportUrlsStep(jobId, url, maxUrls);
 
     if (sitemapResult.urls.length === 0) {
       errors.push("No URLs discovered from sitemap");
+      await markJobFailedStep(jobId, "No URLs discovered from sitemap");
       return { success: false, jobId, pagesProcessed: 0, componentsDetected: 0, errors };
     }
 
@@ -108,10 +111,14 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
 
       // Process batch in parallel using Promise.all
       const batchResults = await Promise.all(
-        batchUrls.map((pageUrl) => processPageStep(pageUrl, websiteId, options?.model))
+        batchUrls.map((pageUrl) => processPageStep(jobId, pageUrl, websiteId, options?.model))
       );
 
       pageResults.push(...batchResults);
+
+      await Promise.all(
+        batchResults.map((result) => persistPageStageStep(jobId, result))
+      );
 
       // Update progress after each batch
       const progress = 10 + Math.floor((batchEnd / totalPages) * 50);
@@ -142,6 +149,13 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
       if (result.error) {
         errors.push(`Page ${result.url}: ${result.error}`);
       }
+    }
+
+    if (successfulDetections.length === 0) {
+      const message = "No pages were successfully detected";
+      errors.push(message);
+      await markJobFailedStep(jobId, message);
+      return { success: false, jobId, pagesProcessed: 0, componentsDetected: 0, errors };
     }
 
     await updateJobProgressStep(jobId, 60, "Extracting shared components...");
@@ -210,8 +224,35 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
  * Step 1: Discover sitemap and expand URLs for import.
  * Wraps SitemapDiscoveryService.expandUrlsForImport()
  */
-async function discoverSitemapStep(url: string, maxUrls: number): Promise<ExpandedImportUrls> {
+async function loadImportUrlsStep(jobId: string, url: string, maxUrls: number): Promise<ExpandedImportUrls> {
   "use step";
+
+  try {
+    const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
+      method: "POST",
+      headers: getInternalApiHeaders(),
+      body: JSON.stringify({
+        action: "getRunPlan",
+        jobId,
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      const urls = Array.isArray(result.data?.urls)
+        ? result.data.urls.filter((candidate: unknown): candidate is string => typeof candidate === "string")
+        : [];
+      if (urls.length > 0) {
+        return {
+          urls: urls.slice(0, maxUrls),
+          sitemapMetaByUrl: new Map(),
+          detectedPlatform: null,
+        };
+      }
+    }
+  } catch (error) {
+    console.warn("[ImportWorkflow] Failed to load staged URL plan, falling back to discovery:", error);
+  }
 
   // Validate URL format - this is a non-recoverable error
   try {
@@ -233,6 +274,7 @@ async function discoverSitemapStep(url: string, maxUrls: number): Promise<Expand
  * Each page is a separate durable step for fine-grained resume.
  */
 async function processPageStep(
+  jobId: string,
   pageUrl: string,
   websiteId: string,
   model?: string
@@ -240,6 +282,8 @@ async function processPageStep(
   "use step";
 
   try {
+    await assertRunActiveHttp(jobId);
+
     const { getDetectionService } = await import("@/lib/studio/import/web-detection");
     const detectionService = getDetectionService();
 
@@ -266,6 +310,53 @@ async function processPageStep(
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[ImportWorkflow] Page detection failed for ${pageUrl}:`, errorMessage);
     return { url: pageUrl, detection: null, error: errorMessage };
+  }
+}
+
+/**
+ * Persist each page detection as a durable stage row immediately.
+ * This makes workflow retries resume from DB state rather than an in-memory payload.
+ */
+async function persistPageStageStep(jobId: string, result: PageProcessingResult): Promise<void> {
+  "use step";
+
+  await assertRunActiveHttp(jobId);
+
+  const detection = result.detection;
+  const title = detection ? derivePageTitle(detection) : null;
+  const status = detection ? "detected" : "failed_retryable";
+
+  const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
+    method: "POST",
+    headers: getInternalApiHeaders(),
+    body: JSON.stringify({
+      action: "upsertPageStage",
+      jobId,
+      pageUrl: result.url,
+      title,
+      status,
+      phase: "detect_page",
+      detectionPayload: detection,
+      error: result.error
+        ? {
+            code: "PAGE_DETECTION_FAILED",
+            category: "llm_retryable",
+            retryable: true,
+            scope: "page",
+            phase: "detect_page",
+            pageUrl: result.url,
+            message: result.error,
+            attempts: 1,
+            firstSeenAt: new Date().toISOString(),
+            lastSeenAt: new Date().toISOString(),
+          }
+        : null,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to persist page stage: ${error}`);
   }
 }
 
@@ -304,9 +395,7 @@ async function generateDesignSystemStep(
   try {
     const response = await fetch(getInternalApiUrl("/api/internal/design-system"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getInternalApiHeaders(),
       body: JSON.stringify({
         websiteId,
         targetUrl,
@@ -355,11 +444,11 @@ async function persistResultsStep(
     throw new FatalError("Invalid websiteId provided to persistResultsStep");
   }
 
+  await assertRunActiveHttp(jobId);
+
   const response = await fetch(getInternalApiUrl("/api/internal/import-persist"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getInternalApiHeaders(),
     body: JSON.stringify({
       jobId,
       websiteId,
@@ -420,6 +509,16 @@ function getInternalApiUrl(path: string): string {
   return url.toString();
 }
 
+function getInternalApiHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (process.env.WORKFLOW_INTERNAL_SECRET) {
+    headers["x-workflow-internal"] = process.env.WORKFLOW_INTERNAL_SECRET;
+  }
+  return headers;
+}
+
 /**
  * Step: Update job progress in database via internal API.
  * Uses HTTP calls because Prisma can't be bundled in workflow steps.
@@ -434,9 +533,7 @@ async function updateJobProgressStep(
 
   const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getInternalApiHeaders(),
     body: JSON.stringify({
       action: "updateProgress",
       jobId,
@@ -452,6 +549,27 @@ async function updateJobProgressStep(
   }
 }
 
+async function assertRunActiveStep(jobId: string): Promise<void> {
+  "use step";
+  await assertRunActiveHttp(jobId);
+}
+
+async function assertRunActiveHttp(jobId: string): Promise<void> {
+  const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
+    method: "POST",
+    headers: getInternalApiHeaders(),
+    body: JSON.stringify({
+      action: "assertRunActive",
+      jobId,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new FatalError(`Import run is no longer active: ${error}`);
+  }
+}
+
 /**
  * Step: Mark job as failed via internal API.
  * Uses HTTP calls because Prisma can't be bundled in workflow steps.
@@ -461,9 +579,7 @@ async function markJobFailedStep(jobId: string, errorMessage: string): Promise<v
 
   const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getInternalApiHeaders(),
     body: JSON.stringify({
       action: "markFailed",
       jobId,

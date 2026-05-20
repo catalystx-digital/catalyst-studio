@@ -166,7 +166,7 @@ const statusColors = {
     icon: Clock
   },
   'import-pending': {
-    label: 'Queued',
+    label: 'Waiting',
     bg: 'bg-amber-500/10',
     border: 'border-amber-500/30',
     text: 'text-amber-300',
@@ -1323,7 +1323,6 @@ export const professionalNodeTypes = {
   folder: ProfessionalFolderNode,
   redirect: ProfessionalRedirectNode,
 }
-
 
 
 

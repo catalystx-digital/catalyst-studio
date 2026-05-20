@@ -1,12 +1,15 @@
 import { ImportJobRepository } from '../repositories/import-job.repository';
 import { ImportJobStatus } from '../types/import-job.types';
-import type { ImportJob } from '@/lib/generated/prisma';
+import type { ImportJob, PrismaClient } from '@/lib/generated/prisma';
 import { prisma } from '@/lib/prisma';
 import { ImportProgressManager } from './import-progress-manager';
 import { SitemapDiscoveryService, type ExpandedImportUrls } from './sitemap-discovery.service';
 import { ImportPlannerService } from './import-planner';
 import type { ImportPlannerInput, ImportPlan } from '../types/import-planner.types';
 import { ConcurrencyConfig, LoggingConfig } from '../config';
+import { ImportRunService } from './import-run-service';
+
+const importDb = prisma as unknown as PrismaClient;
 
 /**
  * Options for starting an import job.
@@ -38,12 +41,14 @@ export class ImportService {
   private readonly progressManager: ImportProgressManager;
   private readonly sitemapDiscovery: SitemapDiscoveryService;
   private readonly planner: ImportPlannerService;
+  private readonly runService: ImportRunService;
 
   constructor() {
     this.repository = new ImportJobRepository();
     this.progressManager = new ImportProgressManager(this.repository);
     this.sitemapDiscovery = new SitemapDiscoveryService();
     this.planner = new ImportPlannerService();
+    this.runService = new ImportRunService();
   }
 
   /**
@@ -86,7 +91,7 @@ export class ImportService {
     const message = `Preparing import (strategy: ${plan.strategy})...`;
 
     // Create the job in PENDING status
-    const job = await prisma.$transaction(async (tx) => {
+    const job = await importDb.$transaction(async (tx) => {
       const createdJob = await this.repository.create(
         {
           websiteId,
@@ -123,16 +128,30 @@ export class ImportService {
     let precomputed: ExpandedImportUrls;
     const maxUrlsCap = ConcurrencyConfig.maxUrls;
 
-    if (plan.strategy === 'sitemap') {
-      // Use existing sitemap discovery for root domains
-      precomputed = await this.sitemapDiscovery.expandUrlsForImport(plan.urls[0], maxUrlsCap);
-    } else {
-      // Use new crawl method for crawl_from_root or specific_urls
-      precomputed = await this.sitemapDiscovery.expandUrlsFromCrawl(plan.urls, {
-        maxUrls: maxUrlsCap,
-        followLinks: plan.followLinks,
-        linkScope: plan.linkScope,
+    try {
+      if (plan.strategy === 'sitemap') {
+        // Use existing sitemap discovery for root domains
+        precomputed = await this.sitemapDiscovery.expandUrlsForImport(plan.urls[0], maxUrlsCap);
+      } else {
+        // Use new crawl method for crawl_from_root or specific_urls
+        precomputed = await this.sitemapDiscovery.expandUrlsFromCrawl(plan.urls, {
+          maxUrls: maxUrlsCap,
+          followLinks: plan.followLinks,
+          linkScope: plan.linkScope,
+        });
+      }
+    } catch (error) {
+      console.warn('[ImportService] URL discovery failed before workflow start; continuing with planned URLs', {
+        websiteId,
+        strategy: plan.strategy,
+        error: error instanceof Error ? error.message : String(error),
       });
+      precomputed = {
+        urls: plan.urls,
+        sitemapMetaByUrl: new Map(),
+        detectedPlatform: null,
+        skipped: [],
+      };
     }
 
     // Pre-discover sitemap for faster UI feedback
@@ -189,6 +208,23 @@ export class ImportService {
       console.warn('[ImportService] Failed to seed initial sitemap for job', job.id, error);
     }
 
+    await this.runService.createForJob({
+      job,
+      sourceUrl: primaryUrl,
+      urls: precomputed.urls,
+      message,
+      importPlan: {
+        strategy: plan.strategy,
+        urls: plan.urls,
+        followLinks: plan.followLinks,
+        linkScope: plan.linkScope,
+        maxPages: plan.maxPages,
+        reasoning: plan.reasoning,
+        discoveredUrls: precomputed.urls,
+        skipped: precomputed.skipped ?? [],
+      },
+    });
+
     return { job, message, initialSitemap };
   }
 
@@ -216,7 +252,10 @@ export class ImportService {
     }
 
     const detectionResults = job.detectionResults as Record<string, unknown> | null;
-    const progress = job.status === ImportJobStatus.COMPLETED ? 100 : (detectionResults?.progress as number) || 0;
+    const isCompleted =
+      job.status === ImportJobStatus.COMPLETED ||
+      job.status === ImportJobStatus.COMPLETED_WITH_WARNINGS;
+    const progress = isCompleted ? 100 : (detectionResults?.progress as number) || 0;
     const message = detectionResults?.lastProgressMessage as string | undefined;
     const metadata = this.progressManager.normalizeJobMetadata(detectionResults);
 
@@ -225,7 +264,7 @@ export class ImportService {
       stage = 'cancelled';
     } else if (job.status === ImportJobStatus.FAILED) {
       stage = 'failed';
-    } else if (job.status === ImportJobStatus.COMPLETED) {
+    } else if (isCompleted) {
       stage = 'completed';
     } else if (progress > 0 && progress <= 30) {
       stage = 'fetching';

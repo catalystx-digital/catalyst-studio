@@ -49,12 +49,28 @@ function isGreenfieldJob(jobId: string | null | undefined): boolean {
   return !!jobId && jobId.startsWith('bootstrap-')
 }
 
+const TRACKED_TERMINAL_STATUSES = new Set([
+  'success',
+  'partial_success',
+  'completed',
+  'completed_with_warnings',
+  'failed',
+  'cancelled',
+  'recoverable_stuck',
+  'unknown',
+])
+
 /**
  * Map ImportJobEntry status to ImportProgressState status
  */
 function mapJobStatus(status: string, state: ImportLifecycleState): ImportProgressState['status'] {
-  if (state === 'completed' || status === 'completed') return 'completed'
-  if (status === 'failed' || status === 'cancelled') return 'failed'
+  if (status === 'success' || status === 'completed') return 'completed'
+  if (status === 'partial_success' || status === 'completed_with_warnings') return 'partial_success'
+  if (status === 'recoverable_stuck') return 'recoverable_stuck'
+  if (status === 'unknown') return 'unknown'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'failed') return 'failed'
+  if (state === 'completed') return 'completed'
   if (status === 'pending' || status === 'queued') return 'pending'
   return 'running'
 }
@@ -230,6 +246,98 @@ function useGreenfieldProgress(
   return progressState
 }
 
+function useDbPolledImportProgress(
+  jobId: string | null | undefined,
+  enabled: boolean = true,
+): ImportProgressState {
+  const [state, setState] = React.useState<ImportProgressState>(() => jobEntryToProgressState(null, false))
+
+  React.useEffect(() => {
+    if (!enabled || !jobId) {
+      setState(jobEntryToProgressState(null, false))
+      return
+    }
+
+    let cancelled = false
+    let timer: NodeJS.Timeout | null = null
+
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/studio/import/jobs/${encodeURIComponent(jobId)}/progress`, {
+          cache: 'no-store',
+        })
+        if (!response.ok) {
+          throw new Error(`Failed to load import progress: ${response.status}`)
+        }
+        const data = await response.json()
+        if (cancelled) return
+
+        const status = mapStatusFromProgress(data.status)
+        const active = status === 'pending' || status === 'running'
+        setState({
+          hasActiveImport: active,
+          jobId: data.jobId ?? jobId,
+          stage: mapJobStage(data.stage),
+          progress: typeof data.progress === 'number' ? data.progress : 0,
+          stageProgress: typeof data.progress === 'number' ? data.progress : 0,
+          message: typeof data.error === 'string' && data.error ? data.error : typeof data.stage === 'string' ? data.stage : '',
+          description: typeof data.currentUrl === 'string' ? data.currentUrl : undefined,
+          processedCount: typeof data.processedCount === 'number' ? data.processedCount : 0,
+          totalCount: typeof data.totalCount === 'number' ? data.totalCount : 0,
+          currentUrl: typeof data.currentUrl === 'string' || data.currentUrl === null ? data.currentUrl : null,
+          startedAt: data.timestamp ? new Date(data.timestamp) : null,
+          estimatedTimeRemaining: null,
+          status,
+          queuePosition: null,
+          estimatedStartSeconds: null,
+          skippedPages: [],
+          errorCount: data.error ? 1 : 0,
+          rawMessage: null,
+          isGreenfield: false,
+        })
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[ImportProgress] DB polling failed', error)
+        }
+      }
+    }
+
+    void load()
+    timer = setInterval(load, 3000)
+
+    return () => {
+      cancelled = true
+      if (timer) clearInterval(timer)
+    }
+  }, [enabled, jobId])
+
+  return state
+}
+
+function mapStatusFromProgress(status: string | undefined): ImportProgressState['status'] {
+  switch ((status ?? '').toLowerCase()) {
+    case 'pending':
+    case 'queued':
+      return 'pending'
+    case 'success':
+    case 'completed':
+      return 'completed'
+    case 'partial_success':
+    case 'completed_with_warnings':
+      return 'partial_success'
+    case 'recoverable_stuck':
+      return 'recoverable_stuck'
+    case 'unknown':
+      return 'unknown'
+    case 'cancelled':
+      return 'cancelled'
+    case 'failed':
+      return 'failed'
+    default:
+      return 'running'
+  }
+}
+
 /**
  * Hybrid hook that uses SSE when available, falls back to store (for greenfield) or polling.
  * This ensures 100% browser compatibility while preferring the more efficient SSE.
@@ -247,14 +355,64 @@ export function useImportProgressHybrid(
   websiteId: string | null | undefined,
   sessionId: string | null | undefined
 ): ImportProgressState {
+  const trackedJobData = useImportTrackerStore(
+    useShallow((state) => {
+      if (!jobId) return null
+      const job = state.jobs.find((candidate) => candidate.id === jobId)
+      if (!job) return null
+      return {
+        id: job.id,
+        progress: job.progress,
+        stage: job.stage,
+        message: job.message,
+        state: job.state,
+        status: job.status,
+        websiteId: job.websiteId,
+        url: job.url,
+        mode: job.mode,
+        startedAt: job.startedAt,
+        updatedAt: job.updatedAt,
+        completedAt: job.completedAt,
+        error: job.error,
+        queuePosition: job.queuePosition,
+        estimatedStartSeconds: job.estimatedStartSeconds,
+        metadata: job.metadata,
+      }
+    })
+  )
+
+  const trackedJob = React.useMemo<ImportJobEntry | null>(() => {
+    if (!trackedJobData) return null
+    return {
+      id: trackedJobData.id,
+      websiteId: trackedJobData.websiteId,
+      url: trackedJobData.url,
+      mode: trackedJobData.mode,
+      status: trackedJobData.status,
+      state: trackedJobData.state,
+      progress: trackedJobData.progress,
+      stage: trackedJobData.stage,
+      message: trackedJobData.message,
+      startedAt: trackedJobData.startedAt,
+      updatedAt: trackedJobData.updatedAt ?? null,
+      completedAt: trackedJobData.completedAt ?? null,
+      error: trackedJobData.error,
+      queuePosition: trackedJobData.queuePosition,
+      estimatedStartSeconds: trackedJobData.estimatedStartSeconds,
+      metadata: trackedJobData.metadata,
+    }
+  }, [trackedJobData])
+
   // Check if SSE is supported and enabled (static check, doesn't change)
   const sseCapable = React.useMemo(() => isSSESupported() && isSSEEnabled(), [])
 
   // Check if this is a greenfield job (needs to react to jobId changes)
   const isGreenfield = isGreenfieldJob(jobId)
+  const trackedTerminal =
+    trackedJob?.state === 'completed' || (trackedJob ? TRACKED_TERMINAL_STATUSES.has(trackedJob.status) : false)
 
   // Use SSE only if capable AND not a greenfield job
-  const useSSE = sseCapable && !isGreenfield
+  const useSSE = sseCapable && !isGreenfield && !trackedTerminal
 
   // SSE-based progress (preferred for regular import jobs)
   const sseProgress = useImportProgressSSE(
@@ -271,10 +429,15 @@ export function useImportProgressHybrid(
 
   // Polling-based progress (fallback when SSE not supported and not greenfield)
   // Note: No longer used for greenfield jobs - they read from store instead
-  const pollingProgress = usePolledImportProgress(
+  const legacyPollingProgress = usePolledImportProgress(
     websiteId,
     sessionId,
-    !useSSE && !isGreenfield // Only poll if SSE not supported AND not greenfield
+    !useSSE && !isGreenfield && !jobId // Only poll legacy AI context if no import job id exists
+  )
+
+  const dbPollingProgress = useDbPolledImportProgress(
+    jobId,
+    !useSSE && !isGreenfield && !trackedTerminal && !!jobId
   )
 
   // Log which method is being used (development only)
@@ -309,7 +472,10 @@ export function useImportProgressHybrid(
   if (isGreenfield) {
     return greenfieldProgress
   }
-  return useSSE ? sseProgress : pollingProgress
+  if (trackedTerminal) {
+    return jobEntryToProgressState(trackedJob, false)
+  }
+  return useSSE ? sseProgress : (jobId ? dbPollingProgress : legacyPollingProgress)
 }
 
 /**

@@ -97,18 +97,18 @@ model AccountApiKeyEvent {
 }
 
 model User {
-  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email       String              @unique
-  name        String?
-  passwordHash String
-  passwordSalt String
-  passwordParams Json
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String              @unique
+  name            String?
+  passwordHash    String
+  passwordSalt    String
+  passwordParams  Json
   emailVerifiedAt DateTime?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  sessions    AuthSession[]
-  memberships AccountMembership[]
-  systemAdmin SystemAdmin?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  sessions        AuthSession[]
+  memberships     AccountMembership[]
+  systemAdmin     SystemAdmin?
 }
 
 model AuthSession {
@@ -136,10 +136,10 @@ model AccountMembership {
   accountId     String   @db.Uuid
   userId        String   @db.Uuid
   role          String   @default("member")
-  websiteAccess String   @default("all")      // 'all' or 'specific'
-  websiteIds    String[] @default([])         // Only used when websiteAccess = 'specific'
-  invitedBy     String?  @db.Uuid             // User ID who invited this member
-  joinedAt      DateTime @default(now())      // When user accepted invitation
+  websiteAccess String   @default("all") // 'all' or 'specific'
+  websiteIds    String[] @default([]) // Only used when websiteAccess = 'specific'
+  invitedBy     String?  @db.Uuid // User ID who invited this member
+  joinedAt      DateTime @default(now()) // When user accepted invitation
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   account       Account  @relation(fields: [accountId], references: [id])
@@ -205,8 +205,8 @@ model Website {
   metadata                Json?
   icon                    Json?
   settings                Json?
-  agencyBranding          Json?                      /// Agency white-label branding for proposals
-  proposalTemplate        Json?                      /// Custom Word template for proposal exports (base64 content + metadata)
+  agencyBranding          Json? /// Agency white-label branding for proposals
+  proposalTemplate        Json? /// Custom Word template for proposal exports (base64 content + metadata)
   isActive                Boolean                    @default(true)
   createdAt               DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
@@ -217,6 +217,7 @@ model Website {
   contentTypes            ContentType[]
   deployments             Deployment[]
   importJobs              ImportJob[]
+  importRuns              ImportRun[]
   previewJobs             PreviewJob[]
   integrationUsageRecords IntegrationUsage[]
   account                 Account?                   @relation(fields: [accountId], references: [id])
@@ -336,27 +337,27 @@ model AIContext {
 }
 
 model WebsiteStructure {
-  id            String             @id @default(cuid())
+  id            String   @id @default(cuid())
   websiteId     String
-  slug          String             @db.VarChar(255)
+  slug          String   @db.VarChar(255)
   fullPath      String
   websitePageId String?
   parentId      String?
-  position      Int                @default(0)
-  pathDepth     Int                @default(0)
-  weight        Int                @default(0)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  position      Int      @default(0)
+  pathDepth     Int      @default(0)
+  weight        Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // IA Metadata (nullable - only for greenfield sites)
-  iaMetadata    Json?              // Stores purpose, audience, requiredSections
-  iaStatus      String?            // 'pending' | 'generating' | 'complete' | 'error'
+  iaMetadata Json? // Stores purpose, audience, requiredSections
+  iaStatus   String? // 'pending' | 'generating' | 'complete' | 'error'
 
-  parent        WebsiteStructure?  @relation("WebsiteStructureHierarchy", fields: [parentId], references: [id])
-  children      WebsiteStructure[] @relation("WebsiteStructureHierarchy")
-  website       Website            @relation(fields: [websiteId], references: [id])
-  websitePage   WebsitePage?       @relation(fields: [websitePageId], references: [id])
-  nodePosition  NodePosition?
+  parent       WebsiteStructure?  @relation("WebsiteStructureHierarchy", fields: [parentId], references: [id])
+  children     WebsiteStructure[] @relation("WebsiteStructureHierarchy")
+  website      Website            @relation(fields: [websiteId], references: [id])
+  websitePage  WebsitePage?       @relation(fields: [websitePageId], references: [id])
+  nodePosition NodePosition?
 
   @@unique([parentId, slug])
   @@unique([websiteId, fullPath])
@@ -529,10 +530,103 @@ model ImportJob {
   updatedAt          DateTime              @updatedAt
   website            Website               @relation(fields: [websiteId], references: [id])
   pageDetections     ImportPageDetection[]
+  importRuns         ImportRun[]
   designSystems      WebsiteDesignSystem[]
 
   @@index([websiteId])
   @@index([status])
+}
+
+/// Authoritative execution record for website import runs.
+/// ImportJob remains as the public compatibility job during migration.
+model ImportRun {
+  id                  String            @id @default(cuid())
+  importJobId         String            @unique
+  websiteId           String
+  sourceUrl           String
+  normalizedSourceUrl String
+  status              String            @default("queued")
+  phase               String            @default("queued")
+  progress            Int               @default(0)
+  message             String?
+  totalPages          Int               @default(0)
+  stagedPages         Int               @default(0)
+  committedPages      Int               @default(0)
+  failedPages         Int               @default(0)
+  recoverableActions  String[]          @default([])
+  importPlan          Json?
+  lastError           Json?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  cancellationRequestedAt DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  importJob           ImportJob         @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  website             Website           @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  pageStages          ImportPageStage[]
+  events              ImportRunEvent[]
+
+  @@index([websiteId])
+  @@index([status])
+  @@index([phase])
+  @@index([updatedAt])
+}
+
+/// Per-URL staging row for detected and normalized import content.
+/// Retries update this row by normalized URL instead of appending duplicate state.
+model ImportPageStage {
+  id                 String    @id @default(cuid())
+  runId              String
+  websiteId          String
+  sourceUrl          String
+  canonicalUrl       String?
+  normalizedPageUrl  String
+  normalizedPath     String
+  title              String?
+  status             String    @default("pending")
+  phase              String    @default("queued")
+  detectionPayload   Json?
+  pageContent        Json?
+  structureCandidate Json?
+  contentFingerprint String?
+  committedPageId    String?
+  error              Json?
+  attempts           Int       @default(0)
+  firstSeenAt        DateTime  @default(now())
+  lastAttemptAt      DateTime?
+  committedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  run                ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, normalizedPageUrl])
+  @@index([runId])
+  @@index([websiteId])
+  @@index([status])
+  @@index([committedPageId])
+}
+
+/// Append-only audit/debug event stream for import runs.
+/// Polling uses ImportRun snapshot fields, not this table.
+model ImportRunEvent {
+  id        String    @id @default(cuid())
+  runId     String
+  websiteId String
+  level     String    @default("info")
+  code      String?
+  category  String?
+  phase     String?
+  scope     String    @default("run")
+  pageUrl   String?
+  message   String
+  detail    Json?
+  createdAt DateTime  @default(now())
+  run       ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([websiteId])
+  @@index([level])
+  @@index([createdAt])
 }
 
 /// Tracks async preview sandbox creation jobs
@@ -643,32 +737,32 @@ model NodePosition {
 }
 
 model ContentReference {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // Source (the content containing the reference)
-  sourceType  String   // 'page' | 'component'
-  sourceId    String   // WebsitePage.id
-  sourcePath  String   // JSON path: "content.components.0.props.image"
+  sourceType String // 'page' | 'component'
+  sourceId   String // WebsitePage.id
+  sourcePath String // JSON path: "content.components.0.props.image"
 
   // Target (what is being referenced)
-  targetType  String   // 'page' | 'media'
-  targetId    String   // WebsitePage.id or WebsiteMedia.id
+  targetType String // 'page' | 'media'
+  targetId   String // WebsitePage.id or WebsiteMedia.id
 
   // Context
-  websiteId   String
-  createdAt   DateTime @default(now())
+  websiteId String
+  createdAt DateTime @default(now())
 
   // Validation fields - track reference health over time
   status          String    @default("active") // 'active' | 'broken' | 'pending'
   lastValidatedAt DateTime?
 
-  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
+  @@unique([sourceId, sourcePath, targetId])
   @@index([sourceId])
   @@index([targetId])
   @@index([websiteId, targetType])
   @@index([websiteId, status])
-  @@unique([sourceId, sourcePath, targetId])
 }
 
 /// Tracks failed reference resolutions during import
@@ -676,11 +770,11 @@ model ContentReference {
 model FailedReference {
   id          String   @id @default(cuid())
   websiteId   String
-  sourceType  String   // 'page' | 'component'
-  sourceId    String   // WebsitePage.id or component instance ID
-  sourcePath  String   // JSON path: "content.components.0.props.image"
+  sourceType  String // 'page' | 'component'
+  sourceId    String // WebsitePage.id or component instance ID
+  sourcePath  String // JSON path: "content.components.0.props.image"
   originalUrl String
-  reason      String   // 'download_failed' | 'invalid_mime' | 'timeout' | 'not_found'
+  reason      String // 'download_failed' | 'invalid_mime' | 'timeout' | 'not_found'
   attempts    Int      @default(1)
   lastAttempt DateTime @default(now())
   createdAt   DateTime @default(now())
@@ -767,25 +861,25 @@ enum PreviewJobStatus {
 
 /// Invitation to join an account
 model Invitation {
-  id              String              @id @default(cuid())
-  accountId       String              @db.Uuid
-  account         Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  email           String              // Email of the invited user
-  role            String              @default("member")
-  websiteAccess   String              @default("all")
-  websiteIds      String[]            @default([])
-  invitedBy       String              @db.Uuid  // User ID who sent invitation
-  status          InvitationStatus    @default(pending)
-  emailStatus     EmailDeliveryStatus @default(pending)
-  emailError      String?
-  emailSentAt     DateTime?
-  token           String              @unique @default(cuid())  // Secure token for accept link
-  expiresAt       DateTime            // Invitation expiry
-  respondedAt     DateTime?           // When user responded (accepted/declined/revoked)
-  acceptedAt      DateTime?
-  declinedAt      DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id            String              @id @default(cuid())
+  accountId     String              @db.Uuid
+  account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  email         String // Email of the invited user
+  role          String              @default("member")
+  websiteAccess String              @default("all")
+  websiteIds    String[]            @default([])
+  invitedBy     String              @db.Uuid // User ID who sent invitation
+  status        InvitationStatus    @default(pending)
+  emailStatus   EmailDeliveryStatus @default(pending)
+  emailError    String?
+  emailSentAt   DateTime?
+  token         String              @unique @default(cuid()) // Secure token for accept link
+  expiresAt     DateTime // Invitation expiry
+  respondedAt   DateTime? // When user responded (accepted/declined/revoked)
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@unique([accountId, email])
   @@index([accountId, status])
@@ -795,14 +889,14 @@ model Invitation {
 
 /// System administrators who can impersonate users
 model SystemAdmin {
-  id                    String                @id @default(cuid())
-  userId                String                @unique @db.Uuid
-  isActive              Boolean               @default(true)
-  grantedBy             String?               @db.Uuid
-  grantedAt             DateTime              @default(now())
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  user                  User                  @relation(fields: [userId], references: [id])
+  id                    String                 @id @default(cuid())
+  userId                String                 @unique @db.Uuid
+  isActive              Boolean                @default(true)
+  grantedBy             String?                @db.Uuid
+  grantedAt             DateTime               @default(now())
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  user                  User                   @relation(fields: [userId], references: [id])
   impersonationSessions ImpersonationSession[]
 }
 

@@ -125,7 +125,7 @@ export function WebsiteCard({
 
   const isQueued = importJob?.state === 'queued';
   const isImporting = importJob && !isQueued && importJob.progress < 100;
-  const importFailed = importJob?.state === 'failed';
+  const importFailed = importJob?.status === 'failed' || importJob?.status === 'cancelled';
   const etaLabel = formatEta(importJob?.estimatedStartSeconds ?? null);
 
   // Determine status

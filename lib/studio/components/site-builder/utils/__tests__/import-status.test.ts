@@ -4,6 +4,8 @@ describe('normalizeImportTrackerStatus', () => {
   it.each([
     ['completed', 'completed'],
     ['COMPLETED', 'completed'],
+    ['completed_with_warnings', 'completed_with_warnings'],
+    ['COMPLETED_WITH_WARNINGS', 'completed_with_warnings'],
     ['Completed', 'completed'],
     ['failed', 'failed'],
     ['FAILED', 'failed'],
@@ -11,6 +13,10 @@ describe('normalizeImportTrackerStatus', () => {
     ['CANCELLED', 'cancelled'],
     ['processing', 'processing'],
     ['PROCESSING', 'processing'],
+    ['running', 'running'],
+    ['success', 'success'],
+    ['partial_success', 'partial_success'],
+    ['recoverable_stuck', 'recoverable_stuck'],
     ['pending', 'pending'],
     ['QUEUED', 'queued'],
     ['queued', 'queued'],
@@ -23,10 +29,10 @@ describe('normalizeImportTrackerStatus', () => {
     expect(normalizeImportTrackerStatus('  completed  ')).toBe('completed')
   })
 
-  it('defaults to pending for unknown or empty values', () => {
-    expect(normalizeImportTrackerStatus('unknown-status')).toBe('pending')
-    expect(normalizeImportTrackerStatus('')).toBe('pending')
-    expect(normalizeImportTrackerStatus(null)).toBe('pending')
-    expect(normalizeImportTrackerStatus(undefined)).toBe('pending')
+  it('surfaces unknown for unknown or empty values', () => {
+    expect(normalizeImportTrackerStatus('unknown-status')).toBe('unknown')
+    expect(normalizeImportTrackerStatus('')).toBe('unknown')
+    expect(normalizeImportTrackerStatus(null)).toBe('unknown')
+    expect(normalizeImportTrackerStatus(undefined)).toBe('unknown')
   })
 })

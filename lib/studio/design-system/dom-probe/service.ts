@@ -169,6 +169,14 @@ export class DomProbeService {
       })
 
       page = await context.newPage()
+      await page.route('**/*', async (route) => {
+        const request = route.request()
+        if (this.shouldBlockProbeResource(request.url(), request.resourceType())) {
+          await route.abort().catch(() => {})
+          return
+        }
+        await route.continue().catch(() => {})
+      })
       const onConsole = async (message: any) => {
         const entry = {
           type: message.type(),
@@ -207,11 +215,6 @@ export class DomProbeService {
         message: 'Page loaded, capturing design system...',
       })
 
-      const screenshotPath = path.join(artifacts.screenshotsDir, 'full-page.png')
-      await page.screenshot({ path: screenshotPath, fullPage: true, type: 'png' })
-      manifest.artifacts.screenshots.push(path.relative(process.cwd(), screenshotPath))
-      markCheckpoint(manifest, 'CP1', path.relative(process.cwd(), screenshotPath))
-
       const domSnapshot = await page.content()
       await artifacts.writeDomSnapshot(domSnapshot)
       manifest.artifacts.domSnapshot = path.relative(process.cwd(), artifacts.domSnapshotPath)
@@ -225,6 +228,17 @@ export class DomProbeService {
 
       const navigationTimings = await this.collectNavigationTimings(page)
       const analysis = await extractDesignSystemFromDom(page)
+
+      try {
+        const screenshotPath = path.join(artifacts.screenshotsDir, 'viewport.png')
+        await page.screenshot({ path: screenshotPath, fullPage: false, type: 'png' })
+        manifest.artifacts.screenshots.push(path.relative(process.cwd(), screenshotPath))
+        markCheckpoint(manifest, 'CP1', path.relative(process.cwd(), screenshotPath))
+      } catch (error) {
+        const warning = `Screenshot capture failed; continuing with DOM token evidence: ${error instanceof Error ? error.message : String(error)}`
+        navigationWarnings.push(warning)
+        await logger.warn(warning)
+      }
 
       // Progress: design system analyzed (step 4 of 5)
       onProgress?.({
@@ -1013,5 +1027,35 @@ export class DomProbeService {
     }
 
     return warnings
+  }
+
+  private shouldBlockProbeResource(url: string, resourceType: string): boolean {
+    if (resourceType === 'document') {
+      return false
+    }
+
+    if (resourceType === 'media' || resourceType === 'websocket' || resourceType === 'eventsource') {
+      return true
+    }
+
+    try {
+      const host = new URL(url).hostname.toLowerCase()
+      const blockedHosts = [
+        'analytics',
+        'doubleclick',
+        'googletagmanager',
+        'google-analytics',
+        'hotjar',
+        'intercom',
+        'segment',
+        'fullstory',
+        'navattic',
+        'capture.navattic.com',
+        'c.navattic.com',
+      ]
+      return blockedHosts.some((blocked) => host === blocked || host.includes(blocked))
+    } catch {
+      return false
+    }
   }
 }

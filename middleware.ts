@@ -10,6 +10,7 @@ const STATIC_BYPASS_PATTERNS = [
   /^\/_next\//,
   /^\/favicons?\//,
   /^\/robots\.txt$/,
+  /^\/site\.webmanifest$/,
   /^\/static\//,
   /^\/images\//,
   /^\/fonts\//,

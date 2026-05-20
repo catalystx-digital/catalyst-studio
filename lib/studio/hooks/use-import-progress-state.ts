@@ -66,7 +66,7 @@ export interface ImportProgressState {
   estimatedTimeRemaining: number | null
 
   /** Current status */
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial_success' | 'recoverable_stuck' | 'unknown' | 'cancelled'
 
   /** Queue position (if waiting) */
   queuePosition: number | null

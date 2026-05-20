@@ -6,7 +6,19 @@ enableMapSet();
 
 export type ImportSessionMode = 'new' | 'merge';
 
-export type ImportTrackerStatus = 'pending' | 'processing' | 'queued' | 'completed' | 'failed' | 'cancelled';
+export type ImportTrackerStatus =
+  | 'pending'
+  | 'processing'
+  | 'queued'
+  | 'running'
+  | 'success'
+  | 'partial_success'
+  | 'completed'
+  | 'completed_with_warnings'
+  | 'failed'
+  | 'cancelled'
+  | 'recoverable_stuck'
+  | 'unknown';
 
 export interface ImportJobSummary {
   pagesCreated?: number;
@@ -104,9 +116,14 @@ const deriveLifecycleState = (status: ImportTrackerStatus): ImportLifecycleState
   switch (status) {
     case 'queued':
       return 'queued';
+    case 'success':
+    case 'partial_success':
     case 'completed':
+    case 'completed_with_warnings':
     case 'failed':
     case 'cancelled':
+    case 'recoverable_stuck':
+    case 'unknown':
       return 'completed';
     default:
       return 'active';
@@ -139,13 +156,15 @@ export const useImportTrackerStore = create<ImportTrackerState>()(
           status,
           state: resolveLifecycleState(status, payload.state),
           progress: clampProgress(
-            status === 'completed' ? 100 : payload.progress ?? 0,
+            status === 'completed' || status === 'completed_with_warnings' || status === 'success' || status === 'partial_success'
+              ? 100
+              : payload.progress ?? 0,
           ),
           stage:
             payload.stage ??
             (status === 'queued'
               ? 'queued'
-              : status === 'completed'
+              : status === 'completed' || status === 'success' || status === 'partial_success'
               ? 'creating'
               : 'fetching'),
           message: payload.message,
@@ -264,7 +283,15 @@ export const useImportTrackerStore = create<ImportTrackerState>()(
           const existing = existingIndex >= 0 ? state.jobs[existingIndex] : undefined;
 
           const status = payload.status ?? existing?.status ?? 'pending';
-          const isTerminal = status === 'completed' || status === 'failed' || status === 'cancelled';
+          const isTerminal =
+            status === 'completed' ||
+            status === 'success' ||
+            status === 'partial_success' ||
+            status === 'completed_with_warnings' ||
+            status === 'failed' ||
+            status === 'cancelled' ||
+            status === 'recoverable_stuck' ||
+            status === 'unknown';
           if (state.dismissedJobIds.has(id)) {
             if (isTerminal) {
               continue;
@@ -273,20 +300,26 @@ export const useImportTrackerStore = create<ImportTrackerState>()(
           }
           const stateValue = resolveLifecycleState(status, payload.state ?? existing?.state ?? null);
           const progress =
-            status === 'completed'
+            status === 'completed' || status === 'completed_with_warnings' || status === 'success' || status === 'partial_success'
               ? 100
               : clampProgress(payload.progress ?? existing?.progress ?? 0);
           const stage =
             payload.stage ??
             existing?.stage ??
-            (status === 'queued' ? 'queued' : status === 'completed' ? 'creating' : 'fetching');
+            (status === 'queued'
+              ? 'queued'
+              : status === 'completed' || status === 'completed_with_warnings' || status === 'success' || status === 'partial_success'
+              ? 'creating'
+              : 'fetching');
           const message = payload.message ?? existing?.message;
           const startedAt =
             payload.startedAt !== undefined ? payload.startedAt : existing?.startedAt ?? null;
           const updatedAt = payload.updatedAt ?? isoNow();
           const completedAt =
             payload.completedAt ??
-            (status === 'completed' ? updatedAt : existing?.completedAt ?? undefined);
+            (status === 'completed' || status === 'completed_with_warnings' || status === 'success' || status === 'partial_success'
+              ? updatedAt
+              : existing?.completedAt ?? undefined);
           const queuePosition =
             payload.queuePosition ?? existing?.queuePosition ?? null;
           const estimatedStartSeconds =
@@ -353,4 +386,3 @@ export const selectActiveImportJobs = (state: ImportTrackerState) =>
 
 export const selectCompletedImportJobs = (state: ImportTrackerState) =>
   deriveCompletedImportJobs(state.jobs);
-

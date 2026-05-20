@@ -23,6 +23,7 @@ import {
 } from './page-builder/page-metadata'
 import { calculatePositions, deduplicateComponents } from './page-builder/component-tree-utils'
 import { generateComponentId, extractComponentProps } from './page-builder/component-helpers'
+import { normalizeImportUrl } from './import-run-service'
 
 const PageDataSchema = z.object({
   title: z.string().min(1, 'Page title is required'),
@@ -473,21 +474,40 @@ export class PageBuilderService implements IPageBuilderService {
     pageData: PageData
     prepared: PreparedPage
   }): Promise<WebsitePage> {
+    const normalizedImportSource = normalizeImportUrl(pageData.url)
     const existing = await tx.websitePage.findFirst({
       where: {
         websiteId,
-        metadata: {
-          path: ['importSource'],
-          equals: pageData.url
-        }
+        OR: [
+          {
+            metadata: {
+              path: ['importSourceNormalized'],
+              equals: normalizedImportSource
+            }
+          },
+          {
+            metadata: {
+              path: ['importSource'],
+              equals: pageData.url
+            }
+          }
+        ]
       }
     })
+
+    const preparedMetadata =
+      prepared.metadata && typeof prepared.metadata === 'object' && !Array.isArray(prepared.metadata)
+        ? {
+            ...(prepared.metadata as Record<string, unknown>),
+            importSourceNormalized: normalizedImportSource,
+          }
+        : prepared.metadata
 
     const baseData = {
       type: prepared.pageType,
       title: prepared.pageTitle,
       content: prepared.pageContent,
-      metadata: prepared.metadata,
+      metadata: preparedMetadata as Prisma.InputJsonValue,
       templateKey: prepared.templateMetadata.templateKey,
       templateProps: (prepared.templateValidation.props ?? Prisma.JsonNull) as Prisma.InputJsonValue,
       contentTypeId: prepared.contentTypeId ?? contentTypeId,

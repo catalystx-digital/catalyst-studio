@@ -46,9 +46,23 @@ const DEFAULT_STATE: ImportProgressState = {
   isGreenfield: false,
 }
 
+const ACTIVE_STATUSES = new Set(['PENDING', 'QUEUED', 'PROCESSING', 'RUNNING'])
+const TERMINAL_STATUSES = new Set([
+  'SUCCESS',
+  'PARTIAL_SUCCESS',
+  'COMPLETED',
+  'COMPLETED_WITH_WARNINGS',
+  'FAILED',
+  'CANCELLED',
+  'RECOVERABLE_STUCK',
+  'UNKNOWN',
+])
+
 interface SSEProgressData {
   jobId: string
   status: string
+  productStatus?: string
+  rawStatus?: string | null
   progress: number
   stage: string
   processedCount: number
@@ -74,11 +88,13 @@ export function useImportProgressSSE(
   const reconnectTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
   const reconnectAttemptsRef = React.useRef(0)
   const maxProgressRef = React.useRef(0)
+  const terminalReachedRef = React.useRef(false)
 
   React.useEffect(() => {
     if (!jobId || !enabled) {
       setState(DEFAULT_STATE)
       maxProgressRef.current = 0
+      terminalReachedRef.current = false
       return
     }
 
@@ -89,6 +105,10 @@ export function useImportProgressSSE(
     }
 
     const connect = () => {
+      if (terminalReachedRef.current) {
+        return
+      }
+
       // Close existing connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
@@ -113,9 +133,12 @@ export function useImportProgressSSE(
 
           // Normalize status to uppercase for comparison (database stores lowercase)
           const normalizedStatus = data.status?.toUpperCase() ?? ''
-          const isActive = normalizedStatus === 'PENDING' ||
-                          normalizedStatus === 'QUEUED' ||
-                          normalizedStatus === 'PROCESSING'
+          const normalizedProductStatus = data.productStatus?.toUpperCase() ?? ''
+          const isTerminal =
+            TERMINAL_STATUSES.has(normalizedStatus) || TERMINAL_STATUSES.has(normalizedProductStatus)
+          const isActive = ACTIVE_STATUSES.has(normalizedStatus) && !isTerminal
+          const displayStatus =
+            isTerminal && normalizedProductStatus ? data.productStatus ?? data.status : data.status
 
           // MONOTONIC PROGRESS ENFORCEMENT: Progress must never decrease
           const enforcedProgress = isActive
@@ -135,20 +158,28 @@ export function useImportProgressSSE(
             stage: mapStage(data.stage),
             progress: enforcedProgress,
             stageProgress: enforcedProgress, // Can be refined per-stage
-            message: getProgressMessage(data),
+            message: getProgressMessage({ ...data, status: displayStatus }),
             description: data.currentUrl ?? undefined,
             processedCount: data.processedCount,
             totalCount: data.totalCount,
             currentUrl: data.currentUrl,
             startedAt: data.timestamp ? new Date(data.timestamp) : null,
             estimatedTimeRemaining: null, // Can calculate based on rate
-            status: mapStatus(data.status),
+            status: mapStatus(displayStatus),
             queuePosition: null,
             estimatedStartSeconds: null,
             skippedPages: [],
             errorCount: data.error ? 1 : 0,
             rawMessage: null,
           })
+
+          if (isTerminal) {
+            terminalReachedRef.current = true
+            eventSource.close()
+            if (eventSourceRef.current === eventSource) {
+              eventSourceRef.current = null
+            }
+          }
         } catch (error) {
           console.error('[SSE] Error parsing message:', error)
           sseMetrics.recordError()
@@ -156,6 +187,14 @@ export function useImportProgressSSE(
       }
 
       eventSource.onerror = () => {
+        if (terminalReachedRef.current) {
+          eventSource.close()
+          if (eventSourceRef.current === eventSource) {
+            eventSourceRef.current = null
+          }
+          return
+        }
+
         if (process.env.NODE_ENV === 'development') {
           console.warn('[SSE] Connection error, attempting reconnection')
         }
@@ -185,6 +224,7 @@ export function useImportProgressSSE(
     connect()
 
     return () => {
+      terminalReachedRef.current = false
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
@@ -215,6 +255,7 @@ function mapStage(stage: string): ImportStage {
     'finalizing': 'finalizing',
     'completed': 'completed',
     'failed': 'failed',
+    'unknown': 'unknown',
   }
   return stageMap[stage] ?? 'page_processing'
 }
@@ -226,19 +267,28 @@ function mapStatus(status: string): ImportProgressState['status'] {
     'PENDING': 'pending',
     'QUEUED': 'pending',
     'PROCESSING': 'running',
+    'RUNNING': 'running',
+    'SUCCESS': 'completed',
+    'PARTIAL_SUCCESS': 'partial_success',
     'COMPLETED': 'completed',
+    'COMPLETED_WITH_WARNINGS': 'partial_success',
     'FAILED': 'failed',
-    'CANCELLED': 'failed',
+    'CANCELLED': 'cancelled',
+    'RECOVERABLE_STUCK': 'recoverable_stuck',
+    'UNKNOWN': 'unknown',
   }
-  return statusMap[normalized] ?? 'running'
+  return statusMap[normalized] ?? 'unknown'
 }
 
 function getProgressMessage(data: SSEProgressData): string {
   // Normalize status to uppercase for comparison
   const normalizedStatus = data.status?.toUpperCase() ?? ''
   if (data.error) return `Error: ${data.error}`
-  if (normalizedStatus === 'COMPLETED') return 'Import completed successfully'
+  if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'SUCCESS') return 'Import completed successfully'
+  if (normalizedStatus === 'PARTIAL_SUCCESS' || normalizedStatus === 'COMPLETED_WITH_WARNINGS') return 'Import completed with warnings'
   if (normalizedStatus === 'FAILED') return 'Import failed'
+  if (normalizedStatus === 'RECOVERABLE_STUCK') return 'Import needs attention'
+  if (normalizedStatus === 'UNKNOWN') return 'Import status is unknown'
   if (data.totalCount > 0) {
     return `Processing page ${data.processedCount} of ${data.totalCount}`
   }

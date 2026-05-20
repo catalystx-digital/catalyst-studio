@@ -4,6 +4,7 @@ import { POST as cancelImport } from '../cancel/[jobId]/route'
 import { prisma } from '@/lib/prisma'
 import { checkAndRecordUsage } from '@/lib/usage/limits'
 import { ImportService } from '@/lib/studio/import/services/import-service'
+import { ApiError } from '@/lib/api/errors'
 
 jest.mock('@/lib/auth/context', () => ({
   getAuthContext: jest.fn().mockResolvedValue({
@@ -22,6 +23,10 @@ jest.mock('@/lib/prisma', () => ({
     importJob: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    importRun: {
+      findUnique: jest.fn(),
       update: jest.fn(),
     },
     websiteComponentType: {
@@ -59,6 +64,10 @@ const prismaMock = prisma as unknown as {
     findMany: jest.Mock
     update: jest.Mock
   }
+  importRun: {
+    findUnique: jest.Mock
+    update: jest.Mock
+  }
   websiteComponentType: {
     findMany: jest.Mock
     deleteMany: jest.Mock
@@ -84,6 +93,8 @@ describe('Import API Routes', () => {
     prismaMock.importJob.findUnique.mockResolvedValue(null)
     prismaMock.importJob.findMany.mockResolvedValue([])
     prismaMock.importJob.update.mockResolvedValue({})
+    prismaMock.importRun.findUnique.mockResolvedValue(null)
+    prismaMock.importRun.update.mockResolvedValue({})
     prismaMock.websiteComponentType.findMany.mockResolvedValue([])
     prismaMock.websiteComponentType.deleteMany.mockResolvedValue({ count: 0 })
 
@@ -121,6 +132,10 @@ describe('Import API Routes', () => {
         websiteId: 'test-website-id',
         url: 'https://example.com',
         accountId: 'test-account-id',
+        urls: undefined,
+        request: undefined,
+        followSubpages: true,
+        maxDepth: 3,
       })
       expect(payload).toEqual({
         jobId: 'job-1',
@@ -160,6 +175,10 @@ describe('Import API Routes', () => {
         websiteId: 'existing-site',
         url: 'https://example.com',
         accountId: 'test-account-id',
+        urls: undefined,
+        request: undefined,
+        followSubpages: true,
+        maxDepth: 3,
       })
       expect(payload.websiteId).toBe('existing-site')
       expect(payload.mode).toBe('merge')
@@ -232,6 +251,44 @@ describe('Import API Routes', () => {
       expect(payload.error).toContain('Import service not configured')
       expect(startImportMock).not.toHaveBeenCalled()
     })
+
+    it('returns structured quota errors without creating a website', async () => {
+      usageMock.mockRejectedValueOnce(
+        new ApiError(402, 'Import limit reached', 'QUOTA_EXCEEDED', {
+          kind: 'import_page',
+          used: 5,
+          limit: 5,
+          period: 'month',
+          available: 0,
+        }),
+      )
+
+      const request = new NextRequest('http://localhost:3000/api/studio/import/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          url: 'https://example.com',
+          websiteName: 'Example Site',
+        }),
+      })
+
+      const response = await startImport(request)
+      const payload = await response.json()
+
+      expect(response.status).toBe(402)
+      expect(payload.error).toEqual({
+        message: 'Import limit reached',
+        code: 'QUOTA_EXCEEDED',
+        details: {
+          kind: 'import_page',
+          used: 5,
+          limit: 5,
+          period: 'month',
+          available: 0,
+        },
+      })
+      expect(prismaMock.website.create).not.toHaveBeenCalled()
+      expect(startImportMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('POST /api/studio/import/cancel/[jobId]', () => {
@@ -260,6 +317,12 @@ describe('Import API Routes', () => {
         id: 'job-1',
         status: 'cancelled',
       })
+      prismaMock.importRun.findUnique.mockResolvedValueOnce({
+        id: 'run-1',
+        importJobId: 'job-1',
+        status: 'running',
+      })
+      prismaMock.importRun.update.mockResolvedValueOnce({ id: 'run-1', status: 'cancelled' })
 
       const request = new NextRequest('http://localhost:3000/api/studio/import/cancel/job-1', {
         method: 'POST',
@@ -274,15 +337,14 @@ describe('Import API Routes', () => {
         jobId: 'job-1',
         status: 'cancelled',
       })
-      expect(prismaMock.websiteComponentType.deleteMany).toHaveBeenCalledWith({
-        where: { id: { in: ['component-1'] } },
-      })
-      expect(prismaMock.importJob.findMany).toHaveBeenCalledWith({
-        where: {
-          websiteId: 'test-website-id',
-          status: 'completed',
-          id: { not: 'job-1' },
-        },
+      expect(prismaMock.websiteComponentType.deleteMany).not.toHaveBeenCalled()
+      expect(prismaMock.importRun.update).toHaveBeenCalledWith({
+        where: { id: 'run-1' },
+        data: expect.objectContaining({
+          status: 'cancelled',
+          phase: 'cancelled',
+          message: 'Import cancelled by user',
+        }),
       })
     })
 
