@@ -99,7 +99,7 @@ export async function middleware(request: NextRequest) {
       return finalizeResponse(unauthorized, pathname, websiteId);
     }
 
-    if (!isApiPath && !matchesAny(pathname, PUBLIC_APP_PATHS)) {
+    if (!isApiPath && !authPage && !matchesAny(pathname, PUBLIC_APP_PATHS)) {
       const redirectUrl = new URL('/sign-in', request.url);
       redirectUrl.searchParams.set('redirect_url', `${request.nextUrl.pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(redirectUrl);
