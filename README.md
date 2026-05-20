@@ -13,19 +13,28 @@ Catalyst Studio is an open-source AI-assisted website and CMS studio built with 
 
 ## Getting Started
 
+Requirements:
+
+- Node.js 20 or newer
+- npm
+- PostgreSQL, or a Supabase project with Postgres enabled
+
 ```bash
 npm ci
 cp .env.example .env.local
 npm run db:generate
+npm run db:migrate
 npm run dev
 ```
 
 Open `http://localhost:3000/studio/site-builder`.
 
-Most tests that do not need a real database should run with Prisma setup skipped:
+For a full environment walkthrough, see [docs/setup.md](docs/setup.md).
+
+The stable public CI smoke suite is:
 
 ```powershell
-$env:SKIP_DB_SETUP="true"; npm run test -- --runInBand
+$env:SKIP_DB_SETUP="true"; npm run test:ci
 ```
 
 ## Useful Scripts
