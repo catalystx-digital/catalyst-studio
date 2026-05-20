@@ -54,7 +54,12 @@ function createPrismaClient() {
     });
   }
 
-  return client.$extends(withAccelerate());
+  const databaseUrl = process.env.DATABASE_URL ?? '';
+  if (databaseUrl.startsWith('prisma://') || databaseUrl.startsWith('prisma+postgres://')) {
+    return client.$extends(withAccelerate());
+  }
+
+  return client;
 }
 
 // Export the extended client type for use in function signatures

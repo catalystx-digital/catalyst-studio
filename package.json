@@ -7,7 +7,7 @@
     "node": ">=20.x"
   },
   "scripts": {
-    "postinstall": "node -e \"process.exit(process.env.VERCEL ? 0 : 1)\" && prisma generate --no-engine || prisma generate",
+    "postinstall": "prisma generate",
     "build:components": "tsx scripts/generate-component-registry.ts",
     "dev": "npm run build:components && next dev",
     "dev:4000": "npm run build:components && next dev -p 4000",
