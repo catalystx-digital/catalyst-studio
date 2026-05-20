@@ -1,0 +1,99 @@
+/**
+ * Glass Morphism Styles
+ * Story 1.1c - Glass effects and animations
+ */
+
+/* Glass effect for cards when feature is enabled */
+.glass-morphism .bg-card {
+  background: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-morphism .bg-secondary {
+  background: rgba(255, 85, 0, 0.1) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 85, 0, 0.2);
+}
+
+.glass-morphism .bg-primary {
+  background: linear-gradient(135deg, rgba(255, 85, 0, 0.8), rgba(255, 85, 0, 0.6)) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+}
+
+/* Hover effects when animations are enabled */
+.animations-enabled .bg-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(255, 85, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.animations-enabled button:hover {
+  transform: scale(1.05);
+  transition: all 0.2s ease;
+}
+
+.animations-enabled input:focus {
+  box-shadow: 0 0 0 4px rgba(255, 85, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+/* Smooth scroll behavior */
+.animations-enabled {
+  scroll-behavior: smooth;
+}
+
+/* Loading animation enhancement */
+.animations-enabled .animate-bounce {
+  animation: bounce 1.5s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+/* Gradient animation for buttons */
+.animations-enabled .bg-catalyst-orange {
+  background: linear-gradient(135deg, #FF5500, #E64A00);
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Panel transitions */
+.panel-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Floating animation for shapes */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(45deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(50deg);
+  }
+}
+
+.floating-shape {
+  animation: float 6s ease-in-out infinite;
+}

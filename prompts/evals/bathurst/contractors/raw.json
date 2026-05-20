@@ -1,0 +1,217 @@
+{
+  "pageTemplate": {
+    "templateKey": "core/generic-default",
+    "confidence": 0.95,
+    "reason": "Informational page with navbar, rich text content on contractor induction and requirements, and footer; URL /contractors matches generic content route hints.",
+    "source": "model"
+  },
+  "components": [
+    [
+      "navbar",
+      0.95,
+      {
+        "logo": {
+          "src": "https://cdn.intelligencebank.com/au/share/qyp3/dAOvp/7BoyB/original/BathurstCityCentreSVGBlackLogo",
+          "alt": "centre logo",
+          "href": "/"
+        },
+        "menuItems": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-about-us",
+            "label": "About Us",
+            "href": "/Centre-Information/About-Us",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-opening-hours",
+            "label": "Opening Hours",
+            "href": "/Centre-Information/Opening-Hours",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-store-directory",
+            "label": "Store Directory",
+            "href": "/Directory",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-centre-map",
+            "label": "Centre Map",
+            "href": "/Centre-Information/Centre-Map",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-getting-here",
+            "label": "Getting Here",
+            "href": "/Centre-Information/Getting-Here",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-conditions-of-entry",
+            "label": "Conditions of Entry",
+            "href": "/Conditions-of-Entry/Centre-Conditions-of-Entry",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-contact-us",
+            "label": "Contact Us",
+            "href": "/Centre-Information/Contact-Us",
+            "external": false
+          }
+        ],
+        "sticky": true
+      }
+    ],
+    [
+      "text-block",
+      0.98,
+      {
+        "heading": "Information for On-Site Contractors at Bathurst City Centre",
+        "body": "<h4>Contractor Induction</h4><p>All contractors completing works on-site are required to complete a full induction.</p><p>To commence the induction process, please contact the Centre Management Office for Bathurst City Centre as inductions are by invitation only.</p><p>Your insurance certificates can be uploaded online. You will need to upload a copy of the following insurance certificates of currency:</p><ul><li>Public Liability (of at least $20,000,000 per claim);</li><li>Professional Indemnity (of at least $10,000,000 per claim, if applicable); and</li><li>Workers Compensation</li></ul><p><strong>Note</strong>: If you are a subcontractor, then prior to you completing your induction, you will need to ensure that your Principal Contractor has completed the induction and has provided the Centre with copies of their insurance certificates of currenc</p><p>Thank you for taking the time to complete your induction. Should you have any problems, please do not hesitate to contact us.</p>"
+      }
+    ],
+    [
+      "footer",
+      0.95,
+      {
+        "columns": [
+          {
+            "type": "columnItem",
+            "id": "columnItem-visit-us",
+            "title": "Visit us at Bathurst City Centre",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about-us-footer",
+                "label": "About Us",
+                "href": "/Centre-Information/About-Us",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-opening-hours-footer",
+                "label": "Opening Hours",
+                "href": "/Centre-Information/Opening-Hours",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-store-directory-footer",
+                "label": "Store Directory",
+                "href": "/Directory",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-centre-map-footer",
+                "label": "Centre Map",
+                "href": "/Centre-Information/Centre-Map",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-getting-here-footer",
+                "label": "Getting Here",
+                "href": "/Centre-Information/Getting-Here",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-conditions-of-entry-footer",
+                "label": "Conditions of Entry",
+                "href": "/Conditions-of-Entry/Centre-Conditions-of-Entry",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-contact-us-footer",
+                "label": "Contact Us",
+                "href": "/Centre-Information/Contact-Us",
+                "external": false
+              }
+            ]
+          }
+        ],
+        "description": "210 Howick St, Bathurst NSW 2795 We acknowledge and respect the traditional lands and cultures of the Wiradyuri people, the Traditional Owners and Custodians of the Country on which Bathurst City Centre resides, and pay our respects to Elders past and present. We recognise",
+        "socialLinks": [
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-facebook",
+            "platform": "facebook",
+            "url": "https://www.facebook.com/bathurstcity/",
+            "label": "Facebook"
+          }
+        ],
+        "legalLinks": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-legal",
+            "label": "Legal",
+            "href": "/Legal/Legal",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-privacy-policy",
+            "label": "Privacy Policy",
+            "href": "https://www.qicre.com/privacy-policy",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-tenant-portal",
+            "label": "Tenant Portal",
+            "href": "https://www.qicre.com/Tenant-Portal",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-pop-up-with-us",
+            "label": "Pop-Up With Us",
+            "href": "https://www.qicre.com/Brand_iQ/Retail-solutions",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-advertise-with-us",
+            "label": "Advertise With Us",
+            "href": "https://www.qicre.com/Brand_iQ/Media-solutions",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-contractors",
+            "label": "Contractors",
+            "href": "/Contractors",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-leasing",
+            "label": "Leasing",
+            "href": "https://qicre.com/Places/Bathurst-City-Centre?enquire=leasing",
+            "external": true
+          }
+        ],
+        "newsletter": {
+          "description": "Keep up-to-date with the latest events",
+          "placeholder": "Email Address",
+          "buttonText": "Sign up"
+        }
+      }
+    ]
+  ],
+  "pageMetadata": {
+    "title": "Information for On-Site Contractors at Bathurst City Centre",
+    "description": "All contractors completing works on-site are required to complete a full induction.",
+    "canonicalUrl": "https://bathurstcitycentre.qicre.com/contractors",
+    "language": "en"
+  }
+}

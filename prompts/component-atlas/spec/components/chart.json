@@ -1,0 +1,147 @@
+{
+  "canonicalType": "chart",
+  "componentType": "chart",
+  "content": {
+    "categories": [
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4"
+    ],
+    "description": "Comparison of ARR by quarter.",
+    "series": [
+      {
+        "name": "2023",
+        "values": [
+          1.2,
+          1.6,
+          2.1,
+          2.8
+        ]
+      },
+      {
+        "name": "2024",
+        "values": [
+          2,
+          2.5,
+          3.1,
+          3.7
+        ]
+      }
+    ],
+    "title": "Quarterly growth",
+    "type": "bar",
+    "unitLabel": "ARR (in millions)"
+  },
+  "cues": [
+    "chart",
+    "data visualization",
+    "analytics"
+  ],
+  "defaultRegion": "main",
+  "description": "Data visualization block supporting bar, line, or pie charts driven by structured datasets.",
+  "fragments": [
+    "chart-area",
+    "legend",
+    "data-series"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Data visualization card",
+      "role": "region"
+    },
+    "commonNames": [
+      "chart",
+      "data-chart",
+      "metrics-chart",
+      "analytics-card",
+      "kpi-chart"
+    ],
+    "confidence": 0.78,
+    "description": "Token-aware chart component that renders multi-series bar charts with Shadcn card chrome and falls back to a placeholder summary for other types.",
+    "keywords": [
+      "chart",
+      "bar chart",
+      "line chart",
+      "donut chart",
+      "graph",
+      "data viz",
+      "analytics",
+      "kpi",
+      "metrics",
+      "visualization"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar"
+    ],
+    "patterns": [
+      "bar\\s+chart",
+      "line\\s+chart",
+      "donut\\s+chart",
+      "data\\s+(visualization|viz)",
+      "analytics\\s+chart",
+      "performance\\s+(graph|chart)"
+    ],
+    "properties": [
+      {
+        "description": "Heading displayed above the visualization.",
+        "name": "title",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Optional rich text supporting emphasis and links for additional context.",
+        "name": "description",
+        "required": false,
+        "type": "rich-text"
+      },
+      {
+        "description": "Controls visualization style. Only `bar` currently renders full charts; other types surface summary placeholders.",
+        "name": "type",
+        "required": false,
+        "type": "'bar'|'line'|'donut'"
+      },
+      {
+        "description": "Category axis labels for multi-series data. Generated when omitted.",
+        "name": "categories",
+        "required": false,
+        "type": "string[]"
+      },
+      {
+        "description": "Simple single-series dataset. Provide either `data` or `series`.",
+        "name": "data",
+        "required": false,
+        "type": "Array<{ id?:string; label?:string; value:number|string; tone?:'accent'|'positive'|'negative'|'neutral' }>"
+      },
+      {
+        "description": "Multi-series dataset. Values align to `categories` and drive legend tokens.",
+        "name": "series",
+        "required": false,
+        "type": "Array<{ id?:string; name?:string; values?:Array<number|string>; tone?:'accent'|'positive'|'negative'|'neutral'; icon?:unknown }>"
+      },
+      {
+        "description": "Units appended to formatted values (e.g., %, ms) for accessibility.",
+        "name": "unitLabel",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Caption text rendered in the card footer for methodology or caveats.",
+        "name": "footnote",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "relatedComponents": [
+      "statistics",
+      "data-table"
+    ],
+    "semanticRole": "figure"
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

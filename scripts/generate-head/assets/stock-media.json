@@ -1,0 +1,153 @@
+{
+  "hero": [
+    {
+      "id": "hero-analytics",
+      "url": "https://images.pexels.com/photos/590016/pexels-photo-590016.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "alt": "Team collaborating around laptops and charts in a modern office",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/590016/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "hero-dashboard",
+      "url": "https://images.pexels.com/photos/6476584/pexels-photo-6476584.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "alt": "Product leader presenting analytics dashboard on large screen",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/6476584/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "hero-team-planning",
+      "url": "https://images.pexels.com/photos/3184636/pexels-photo-3184636.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "alt": "UX team mapping customer journey with sticky notes",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184636/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    }
+  ],
+  "card": [
+    {
+      "id": "card-launch",
+      "url": "https://images.pexels.com/photos/1181354/pexels-photo-1181354.jpeg?auto=compress&cs=tinysrgb&w=1200",
+      "alt": "Product manager reviewing launch checklist on tablet",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/1181354/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "card-growth",
+      "url": "https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1200",
+      "alt": "Strategists brainstorming growth experiments",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184291/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "card-sales",
+      "url": "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1200",
+      "alt": "Sales leader presenting quarterly targets to team",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184465/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    }
+  ],
+  "gallery": [
+    {
+      "id": "gallery-collaboration",
+      "url": "https://images.pexels.com/photos/3184312/pexels-photo-3184312.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "alt": "Coworkers collaborating with sticky notes on glass wall",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184312/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "gallery-presentation",
+      "url": "https://images.pexels.com/photos/3861963/pexels-photo-3861963.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "alt": "Facilitator presenting roadmap to cross-functional team",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3861963/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "gallery-whiteboard",
+      "url": "https://images.pexels.com/photos/3184463/pexels-photo-3184463.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "alt": "Product team aligning on roadmap at whiteboard",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184463/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "gallery-hands-on",
+      "url": "https://images.pexels.com/photos/3184454/pexels-photo-3184454.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "alt": "Closeup of collaborative planning session",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184454/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    }
+  ],
+  "general": [
+    {
+      "id": "general-workshop",
+      "url": "https://images.pexels.com/photos/6476588/pexels-photo-6476588.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "alt": "Leaders hosting strategy workshop with sticky notes",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/6476588/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "general-customer-panel",
+      "url": "https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "alt": "Customer panel discussing product experience",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184292/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    },
+    {
+      "id": "general-journey-mapping",
+      "url": "https://images.pexels.com/photos/3184360/pexels-photo-3184360.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "alt": "Design researchers mapping customer journey",
+      "attribution": {
+        "text": "Photo on Pexels",
+        "url": "https://www.pexels.com/photo/3184360/"
+      },
+      "license": "Pexels License",
+      "orientation": "landscape"
+    }
+  ]
+}

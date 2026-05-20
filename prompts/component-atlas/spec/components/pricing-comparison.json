@@ -1,0 +1,84 @@
+{
+  "canonicalType": "pricing-comparison",
+  "componentType": "pricing-comparison",
+  "content": {
+    "description": "Choose the plan that matches your team size and governance needs.",
+    "features": [
+      {
+        "name": "Unlimited published pages",
+        "values": [
+          false,
+          true,
+          true
+        ]
+      },
+      {
+        "name": "Custom workflows",
+        "values": [
+          false,
+          true,
+          true
+        ]
+      },
+      {
+        "name": "Dedicated success manager",
+        "values": [
+          false,
+          false,
+          true
+        ]
+      }
+    ],
+    "heading": "Compare plans",
+    "plans": [
+      {
+        "cta": {
+          "text": "Start Starter",
+          "url": "/signup/starter"
+        },
+        "highlighted": false,
+        "name": "Starter",
+        "price": "",
+        "unit": "per month"
+      },
+      {
+        "badge": "Most popular",
+        "cta": {
+          "text": "Choose Growth",
+          "url": "/signup/growth"
+        },
+        "highlighted": true,
+        "name": "Growth",
+        "price": "",
+        "unit": "per month"
+      },
+      {
+        "cta": {
+          "text": "Talk to sales",
+          "url": "/contact/sales"
+        },
+        "highlighted": false,
+        "name": "Enterprise",
+        "price": "Contact us",
+        "unit": ""
+      }
+    ]
+  },
+  "cues": [
+    "pricing comparison",
+    "plan matrix",
+    "tiered pricing"
+  ],
+  "defaultRegion": "main",
+  "description": "Side-by-side pricing comparison summarizing plan tiers and capabilities.",
+  "fragments": [
+    "comparison-summary",
+    "plan-column",
+    "feature-row"
+  ],
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": false,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "canonicalType": "hero-video",
+  "componentType": "hero-video",
+  "content": {
+    "videoUrl": "https://videos.example.com/catalyst-demo.mp4",
+    "posterImage": "https://cdn.example.com/video/poster.jpg",
+    "overlayContent": {
+      "heading": "See Catalyst Studio in Motion",
+      "subheading": "Two-minute walkthrough of the collaborative editing workflow.",
+      "body": "Watch product teams and marketers co-create pages and launch updates without developer bottlenecks.",
+      "ctaButtons": [
+        {
+          "href": "/signup",
+          "label": "Start Free Trial",
+          "variant": "primary"
+        }
+      ]
+    },
+    "videoSettings": {
+      "autoplay": false,
+      "loop": false,
+      "muted": false,
+      "controls": true
+    },
+    "alignment": "center",
+    "height": "medium"
+  },
+  "cues": [
+    "hero video",
+    "product demo",
+    "autoplay hero"
+  ],
+  "defaultRegion": "hero",
+  "description": "Hero block featuring autoplay or lightboxed marketing video.",
+  "fragments": [
+    "hero-heading",
+    "video-embed",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Video hero section",
+      "role": "banner"
+    },
+    "commonNames": [
+      "video hero",
+      "video background",
+      "hero with video",
+      "cinematic hero"
+    ],
+    "confidence": 0.88,
+    "industry": [
+      "general",
+      "media",
+      "entertainment",
+      "marketing"
+    ],
+    "keywords": [
+      "hero",
+      "video",
+      "background",
+      "autoplay",
+      "loop",
+      "cinematic",
+      "fullscreen"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "video.*hero",
+      "hero.*video",
+      "background.*video",
+      "cinematic.*hero"
+    ],
+    "relatedComponents": [
+      "hero-banner",
+      "hero-split",
+      "hero-minimal"
+    ],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

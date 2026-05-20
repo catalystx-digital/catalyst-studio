@@ -1,0 +1,4 @@
+- Spec: `prompts/component-atlas/spec/pages/social-contact-about.json` (social proof, contact, and about modules).
+- Fixtures refreshed with `pnpm tsx scripts/eval/build-component-atlas-fixtures.ts --generate-data --update-expected` (2025-11-01).
+- Passing eval report: `reports/eval/detection/2025-11-01T05-06-34-501Z.json` (prompt chars: 89734, importer diffs: 0).
+- Normalization fixes: testimonials/reviews now emit canonical subcomponent payloads; contact-info/location-map/simple-form match registry field names; team-grid/timeline ids mirror importer expectations; all components omit legacy `region` fields.

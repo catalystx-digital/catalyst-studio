@@ -1,0 +1,133 @@
+{
+  "https://fixture.local/home": {
+    "llmResponse": {
+      "pageTemplate": {
+        "templateKey": "marketing/home-default",
+        "confidence": 0.94,
+        "reason": "Hero, testimonials, footer layout"
+      },
+      "components": [
+        [
+          "NavBar",
+          0.95,
+          {
+            "logo": { "text": "Fixture", "href": "/" },
+            "menuItems": [
+              { "label": "Home", "url": "/" },
+              { "label": "About", "url": "/about" },
+              { "label": "Work", "url": "/work" }
+            ],
+            "location": "header"
+          }
+        ],
+        [
+          "HeroWithImage",
+          0.9,
+          {
+            "heading": "Build Faster With Catalyst",
+            "subheading": "Bathurst caliber imports in minutes.",
+            "backgroundImage": "https://cdn.fixture/assets/hero.jpg",
+            "ctaPrimary": { "label": "Request Demo", "href": "/contact" }
+          }
+        ],
+        [
+          "Testimonials",
+          0.84,
+          {
+            "items": [
+              { "quote": "Fastest migration yet", "attribution": "ACME" },
+              { "quote": "Loved the accuracy", "attribution": "Globex" }
+            ]
+          }
+        ],
+        [
+          "Footer",
+          0.88,
+          {
+            "links": [
+              { "label": "Privacy", "url": "/privacy" },
+              { "label": "Terms", "url": "/terms" }
+            ],
+            "copyright": "© Fixture Studio"
+          }
+        ]
+      ],
+      "pageMetadata": {
+        "title": "Fixture Studio — Home",
+        "description": "Fixture marketing homepage"
+      }
+    },
+    "usage": {
+      "total_tokens": 1620,
+      "total_cost": 0.028
+    }
+  },
+  "https://fixture.local/about": {
+    "llmResponse": {
+      "pageTemplate": {
+        "templateKey": "marketing/home-default",
+        "confidence": 0.82,
+        "reason": "Compact hero with text sections"
+      },
+      "components": [
+        [
+          "NavBar",
+          0.92,
+          {
+            "logo": { "text": "Fixture", "href": "/" },
+            "menuItems": [
+              { "label": "Home", "url": "/" },
+              { "label": "About", "url": "/about" },
+              { "label": "Contact", "url": "/contact" }
+            ],
+            "location": "header"
+          }
+        ],
+        [
+          "HeroMinimal",
+          0.87,
+          {
+            "heading": "About Fixture Studio",
+            "subheading": "Enterprise-grade imports and acceleration",
+            "eyebrow": "Our Story"
+          }
+        ],
+        [
+          "TextBlock",
+          0.83,
+          {
+            "heading": "Teams",
+            "body": "Fixture enables web teams to migrate complex sites without downtime."
+          }
+        ],
+        [
+          "TextBlock",
+          0.81,
+          {
+            "heading": "Values",
+            "body": "Accuracy, performance, and maintainability define every import."
+          }
+        ],
+        [
+          "Footer",
+          0.85,
+          {
+            "links": [
+              { "label": "Support", "url": "/support" },
+              { "label": "Status", "url": "/status" }
+            ],
+            "copyright": "© Fixture Studio"
+          }
+        ]
+      ],
+      "pageMetadata": {
+        "title": "Fixture Studio — About",
+        "description": "Meet the team behind Fixture"
+      }
+    },
+    "usage": {
+      "total_tokens": 1510,
+      "total_cost": 0.026
+    }
+  }
+}

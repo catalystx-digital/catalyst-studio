@@ -1,0 +1,82 @@
+{
+  "canonicalType": "pricing-card",
+  "componentType": "pricing-card",
+  "content": {
+    "badge": "Most Flexible",
+    "ctaText": "Talk to sales",
+    "ctaUrl": "/contact/sales",
+    "currency": "USD",
+    "description": "Dedicated support and governance.",
+    "features": [
+      {
+        "included": true,
+        "text": "Unlimited workspaces"
+      },
+      {
+        "included": true,
+        "text": "SAML SSO"
+      },
+      {
+        "included": true,
+        "text": "Onboarding concierge"
+      }
+    ],
+    "highlighted": true,
+    "name": "Enterprise",
+    "period": "monthly",
+    "price": 199
+  },
+  "cues": [
+    "pricing card",
+    "subscription card"
+  ],
+  "defaultRegion": "main",
+  "description": "Standalone pricing option card with feature checklist.",
+  "fragments": [
+    "pricing-card",
+    "feature-checklist"
+  ],
+  "metadata": {
+    "commonNames": [
+      "pricing-card",
+      "price-box",
+      "plan-card",
+      "subscription-card",
+      "pricing-option",
+      "package-card"
+    ],
+    "confidence": 0.8,
+    "keywords": [
+      "price",
+      "plan",
+      "package",
+      "subscription",
+      "tier",
+      "pricing card",
+      "pricing option",
+      "membership",
+      "cost",
+      "billing",
+      "pricing box"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "pricing\\s+(card|box|option)",
+      "price\\s+plan",
+      "subscription\\s+(card|box)",
+      "plan\\s+(card|details)",
+      "membership\\s+(option|card)",
+      "package\\s+details"
+    ],
+    "relatedComponents": [
+      "pricing-table"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

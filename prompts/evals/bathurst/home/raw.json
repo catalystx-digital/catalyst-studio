@@ -1,0 +1,349 @@
+{
+  "pageTemplate": {
+    "templateKey": "marketing/home-default",
+    "confidence": 0.95,
+    "reason": "Home page (/) with hero promotion, featured events/offers grid, store directory cards, newsletter CTA, and footer navigation matching marketing home layout.",
+    "source": "model"
+  },
+  "components": [
+    [
+      "navbar",
+      0.98,
+      {
+        "logo": {
+          "src": "https://cdn.intelligencebank.com/au/share/qyp3/dAOvp/7BoyB/original/BathurstCityCentreSVGBlackLogo",
+          "alt": "centre logo",
+          "href": "/"
+        },
+        "menuItems": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-opening-hours",
+            "label": "Opening Hours",
+            "href": "/Centre-Information/Opening-Hours",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-store-directory",
+            "label": "Store Directory",
+            "href": "/Directory",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-centre-map",
+            "label": "Centre Map",
+            "href": "/Centre-Information/Centre-Map",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-getting-here",
+            "label": "Getting Here",
+            "href": "/Centre-Information/Getting-Here",
+            "external": false
+          }
+        ],
+        "sticky": true
+      }
+    ],
+    [
+      "hero-with-image",
+      0.95,
+      {
+        "heading": "Coffee With a Cop",
+        "body": "Come join us for coffee and conversation with local Police officers.",
+        "image": {
+          "src": "https://cdn.intelligencebank.com/au/share/qyp3/Dnbw9/ZkDEN/original/Coffee+with+a+Cop",
+          "alt": "Police Force member speaking with a local resident."
+        },
+        "layout": "image-left",
+        "ctaButtons": [
+          {
+            "label": "Read More",
+            "href": "/Promotions/Coffee-With-a-Cop",
+            "variant": "primary",
+            "style": "primary"
+          }
+        ]
+      }
+    ],
+    [
+      "card-grid",
+      0.92,
+      {
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-christmas-has-arrived-at-bed-bath-n-table",
+            "title": "Christmas has arrived at Bed Bath N' Table",
+            "description": "Article Published on 15 October, 2025",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "Christmas 1200x1200"
+            },
+            "link": "/Stores/Retail-Stores/Bed-Bath-and-Table/Articles/2025/10/Christmas-has-arrived-at-Bed-Bath-N-Table",
+            "linkText": "Christmas has arrived at Bed Bath N' Table",
+            "metadata": {
+              "category": "Article"
+            }
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-free-polarisation",
+            "title": "Free Polarisation",
+            "description": "Offer 5 Oct 1 Nov",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "Generic 800x800_2"
+            },
+            "link": "/Stores/Retail-Stores/Specsavers/Promotions/2025/10/Free-Polarisation",
+            "linkText": "Free Polarisation",
+            "metadata": {
+              "category": "Offer",
+              "location": "Specsavers"
+            }
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-coffee-with-a-cop",
+            "title": "Coffee With a Cop",
+            "description": "Event 5 Nov",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "Police Force member speaking with a local resident."
+            },
+            "link": "/Promotions/Coffee-With-a-Cop",
+            "linkText": "Coffee With a Cop",
+            "metadata": {
+              "category": "Event",
+              "location": "Oliver Brown"
+            }
+          }
+        ]
+      }
+    ],
+    [
+      "card-grid",
+      0.94,
+      {
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-skechers",
+            "title": "Skechers",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "image"
+            },
+            "link": "/Stores/Retail-Stores/Skechers",
+            "linkText": "Skechers"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-pharmacy-4-less",
+            "title": "Pharmacy 4 Less",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "Pharmacy 4 Less"
+            },
+            "link": "/Stores/Retail-Stores/Pharmacy-4-Less",
+            "linkText": "Pharmacy 4 Less"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-williams-shoes",
+            "title": "Williams Shoes",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "image"
+            },
+            "link": "/Stores/Retail-Stores/Williams-Shoes",
+            "linkText": "Williams Shoes"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-dusk",
+            "title": "Dusk",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "Dusk Logo Back1000x1000"
+            },
+            "link": "/Stores/Retail-Stores/Dusk",
+            "linkText": "Dusk"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-tarocash",
+            "title": "Tarocash",
+            "image": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAIAAABEtEjdAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAawSURBVHhe7dQBDQAADMOg+5",
+              "alt": "Untitled_1_6f7edc36_42e0_467c_9955_cb9ed74ae8e5.png"
+            },
+            "link": "/Stores/Retail-Stores/Tarocash",
+            "linkText": "Tarocash"
+          }
+        ]
+      }
+    ],
+    [
+      "cta-with-form",
+      0.96,
+      {
+        "heading": "Stay in the loop with Bathurst City Centre!",
+        "subheading": "I agree to the and wish to receive Bathurst City Centre's newsletter containing the latest news and offers.",
+        "placeholder": "Email address",
+        "buttonText": "Sign up",
+        "privacyText": "privacy policy",
+        "privacyLink": "https://www.qicre.com/privacy-policy",
+        "emailFieldName": "subscribeEmail",
+        "layout": "horizontal"
+      }
+    ],
+    [
+      "footer",
+      0.98,
+      {
+        "logo": "https://cdn.intelligencebank.com/au/share/qyp3/dAOvp/7BoyB/original/BathurstCityCentreSVGBlackLogo",
+        "logoAlt": "centre logo",
+        "description": "Keep up-to-date with the latest events",
+        "columns": [
+          {
+            "type": "columnItem",
+            "id": "columnItem-centre-information",
+            "title": "Visit us at Bathurst City Centre",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about-us",
+                "label": "About Us",
+                "href": "/Centre-Information/About-Us",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-opening-hours",
+                "label": "Opening Hours",
+                "href": "/Centre-Information/Opening-Hours",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-store-directory",
+                "label": "Store Directory",
+                "href": "/Directory",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-centre-map",
+                "label": "Centre Map",
+                "href": "/Centre-Information/Centre-Map",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-getting-here",
+                "label": "Getting Here",
+                "href": "/Centre-Information/Getting-Here",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-conditions-of-entry",
+                "label": "Conditions of Entry",
+                "href": "/Conditions-of-Entry/Centre-Conditions-of-Entry",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-contact-us",
+                "label": "Contact Us",
+                "href": "/Centre-Information/Contact-Us",
+                "external": false
+              }
+            ]
+          }
+        ],
+        "socialLinks": [
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-facebook",
+            "platform": "facebook",
+            "url": "https://www.facebook.com/bathurstcity/",
+            "label": "Facebook"
+          }
+        ],
+        "legalLinks": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-legal",
+            "label": "Legal",
+            "href": "/Legal/Legal",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-privacy-policy",
+            "label": "Privacy Policy",
+            "href": "https://www.qicre.com/privacy-policy",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-tenant-portal",
+            "label": "Tenant Portal",
+            "href": "https://www.qicre.com/Tenant-Portal",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-pop-up-with-us",
+            "label": "Pop-Up With Us",
+            "href": "https://www.qicre.com/Brand_iQ/Retail-solutions",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-advertise-with-us",
+            "label": "Advertise With Us",
+            "href": "https://www.qicre.com/Brand_iQ/Media-solutions",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-contractors",
+            "label": "Contractors",
+            "href": "/Contractors",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-leasing",
+            "label": "Leasing",
+            "href": "https://qicre.com/Places/Bathurst-City-Centre?enquire=leasing",
+            "external": true
+          }
+        ],
+        "newsletter": {
+          "heading": "Keep up-to-date with the latest events",
+          "placeholder": "Email Address",
+          "buttonText": "Sign up"
+        },
+        "copyright": "We acknowledge and respect the traditional lands and cultures of the Wiradyuri people, the Traditional Owners and Custodians of the Country on which Bathurst City Centre resides, and pay our respects to Elders past and present. We recognise"
+      }
+    ]
+  ],
+  "pageMetadata": {
+    "title": "Bathurst City Centre",
+    "description": "",
+    "canonicalUrl": "https://bathurstcitycentre.qicre.com/",
+    "language": "en",
+    "viewport": "width=device-width, initial-scale=1",
+    "themeColor": "",
+    "openGraph": {},
+    "twitterCard": "summary_large_image",
+    "robots": "index,follow"
+  }
+}

@@ -1,0 +1,311 @@
+{
+  "blocks": [
+    {
+      "id": "block_001",
+      "type": "HeroBlock",
+      "name": "Homepage Hero",
+      "properties": {
+        "heading": "Welcome to Catalyst Studio",
+        "subheading": "The Universal CMS Content Management Platform",
+        "backgroundImage": {
+          "id": "img_hero_001",
+          "url": "/media/homepage-hero.jpg",
+          "alt": "Catalyst Studio Hero Image"
+        },
+        "ctaButton": {
+          "text": "Start Your Journey",
+          "url": "/get-started",
+          "style": "primary",
+          "icon": "arrow-right"
+        },
+        "overlay": {
+          "enabled": true,
+          "opacity": 0.4,
+          "color": "#000000"
+        }
+      },
+      "settings": {
+        "alignment": "center",
+        "height": "full",
+        "animationType": "fade-in"
+      }
+    },
+    {
+      "id": "block_002",
+      "type": "TextBlock",
+      "name": "About Section",
+      "properties": {
+        "heading": "Why Choose Catalyst Studio?",
+        "content": "<p>Catalyst Studio revolutionizes content management by providing a <strong>universal type system</strong> that works seamlessly across multiple CMS platforms.</p><ul><li>Migrate content without data loss</li><li>Support multiple CMS platforms simultaneously</li><li>AI-powered content transformations</li><li>Developer-friendly APIs</li></ul>",
+        "alignment": "left",
+        "backgroundColor": "#f5f5f5",
+        "padding": {
+          "top": 40,
+          "bottom": 40,
+          "left": 20,
+          "right": 20
+        }
+      }
+    },
+    {
+      "id": "block_003",
+      "type": "CTABlock",
+      "name": "Feature CTA",
+      "properties": {
+        "heading": "Ready to Transform Your Content Strategy?",
+        "subheading": "Join thousands of teams already using Catalyst Studio",
+        "buttons": [
+          {
+            "text": "Start Free Trial",
+            "url": "/trial",
+            "style": "primary",
+            "size": "large"
+          },
+          {
+            "text": "View Pricing",
+            "url": "/pricing",
+            "style": "secondary",
+            "size": "large"
+          }
+        ],
+        "backgroundType": "gradient",
+        "gradient": {
+          "start": "#667eea",
+          "end": "#764ba2",
+          "angle": 135
+        }
+      }
+    },
+    {
+      "id": "block_004",
+      "type": "CarouselBlock",
+      "name": "Testimonials Carousel",
+      "properties": {
+        "heading": "What Our Customers Say",
+        "slides": [
+          {
+            "id": "slide_001",
+            "content": "Catalyst Studio transformed how we manage content across our multi-brand portfolio. The migration was seamless!",
+            "author": "Jane Smith",
+            "role": "CTO, TechCorp",
+            "image": {
+              "url": "/media/testimonials/jane.jpg",
+              "alt": "Jane Smith"
+            }
+          },
+          {
+            "id": "slide_002",
+            "content": "The AI-powered transformations saved us months of manual work. Incredible tool!",
+            "author": "Mike Johnson",
+            "role": "Head of Content, MediaCo",
+            "image": {
+              "url": "/media/testimonials/mike.jpg",
+              "alt": "Mike Johnson"
+            }
+          },
+          {
+            "id": "slide_003",
+            "content": "Finally, a solution that lets us use multiple CMS platforms without the headache of synchronization.",
+            "author": "Sarah Lee",
+            "role": "Digital Director, GlobalBrand",
+            "image": {
+              "url": "/media/testimonials/sarah.jpg",
+              "alt": "Sarah Lee"
+            }
+          }
+        ],
+        "settings": {
+          "autoplay": true,
+          "interval": 5000,
+          "showIndicators": true,
+          "showControls": true,
+          "transition": "slide"
+        }
+      }
+    },
+    {
+      "id": "block_005",
+      "type": "FormBlock",
+      "name": "Contact Form",
+      "properties": {
+        "heading": "Get in Touch",
+        "description": "Have questions? We're here to help!",
+        "fields": [
+          {
+            "name": "fullName",
+            "label": "Full Name",
+            "type": "text",
+            "required": true,
+            "placeholder": "John Doe"
+          },
+          {
+            "name": "email",
+            "label": "Email Address",
+            "type": "email",
+            "required": true,
+            "placeholder": "john@example.com"
+          },
+          {
+            "name": "company",
+            "label": "Company",
+            "type": "text",
+            "required": false,
+            "placeholder": "Acme Corp"
+          },
+          {
+            "name": "message",
+            "label": "Message",
+            "type": "textarea",
+            "required": true,
+            "placeholder": "Tell us about your project...",
+            "rows": 5
+          },
+          {
+            "name": "newsletter",
+            "label": "Subscribe to our newsletter",
+            "type": "checkbox",
+            "defaultValue": false
+          }
+        ],
+        "submitButton": {
+          "text": "Send Message",
+          "style": "primary"
+        },
+        "successMessage": "Thank you! We'll be in touch soon.",
+        "errorMessage": "Something went wrong. Please try again."
+      }
+    },
+    {
+      "id": "block_006",
+      "type": "VideoBlock",
+      "name": "Product Demo Video",
+      "properties": {
+        "heading": "See Catalyst Studio in Action",
+        "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+        "videoType": "youtube",
+        "posterImage": {
+          "url": "/media/video-poster.jpg",
+          "alt": "Video thumbnail"
+        },
+        "autoplay": false,
+        "controls": true,
+        "loop": false,
+        "muted": false,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "id": "block_007",
+      "type": "NavigationBlock",
+      "name": "Footer Navigation",
+      "properties": {
+        "heading": "Quick Links",
+        "links": [
+          {
+            "text": "Documentation",
+            "url": "/docs",
+            "openInNewTab": false
+          },
+          {
+            "text": "API Reference",
+            "url": "/api",
+            "openInNewTab": false
+          },
+          {
+            "text": "Support",
+            "url": "/support",
+            "openInNewTab": false
+          },
+          {
+            "text": "Blog",
+            "url": "/blog",
+            "openInNewTab": false
+          },
+          {
+            "text": "GitHub",
+            "url": "https://github.com/catalyst-studio",
+            "openInNewTab": true,
+            "icon": "github"
+          }
+        ],
+        "layout": "vertical"
+      }
+    },
+    {
+      "id": "block_008",
+      "type": "PromoBlock",
+      "name": "Special Offer",
+      "properties": {
+        "heading": "Limited Time Offer",
+        "description": "Get 30% off Catalyst Studio Pro",
+        "code": "CATALYST30",
+        "expiryDate": "2025-02-28T23:59:59Z",
+        "ctaButton": {
+          "text": "Claim Offer",
+          "url": "/pricing?promo=CATALYST30"
+        },
+        "badge": {
+          "text": "30% OFF",
+          "color": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "block_009",
+      "type": "ImageBlock",
+      "name": "Feature Image",
+      "properties": {
+        "image": {
+          "url": "/media/features/universal-types.png",
+          "alt": "Universal Type System Diagram"
+        },
+        "caption": "Our universal type system in action",
+        "link": {
+          "url": "/features/universal-types",
+          "openInNewTab": false
+        },
+        "aspectRatio": "16:9",
+        "objectFit": "cover"
+      }
+    },
+    {
+      "id": "block_010",
+      "type": "NewsletterBlock",
+      "name": "Newsletter Signup",
+      "properties": {
+        "heading": "Stay Updated",
+        "description": "Get the latest Catalyst Studio news and updates",
+        "fields": [
+          {
+            "name": "email",
+            "placeholder": "Enter your email",
+            "type": "email"
+          }
+        ],
+        "submitButton": {
+          "text": "Subscribe",
+          "style": "primary"
+        },
+        "privacyText": "We respect your privacy. Unsubscribe at any time.",
+        "successMessage": "You're subscribed! Check your email for confirmation."
+      }
+    }
+  ],
+  "metadata": {
+    "total": 10,
+    "types": [
+      "HeroBlock",
+      "TextBlock",
+      "CTABlock",
+      "CarouselBlock",
+      "FormBlock",
+      "VideoBlock",
+      "NavigationBlock",
+      "PromoBlock",
+      "ImageBlock",
+      "NewsletterBlock"
+    ],
+    "mockData": true,
+    "generatedAt": "2025-01-19T10:00:00Z"
+  }
+}

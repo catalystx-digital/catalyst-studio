@@ -1,0 +1,82 @@
+{
+  "canonicalType": "image-gallery",
+  "componentType": "image-gallery",
+  "content": {
+    "columns": 3,
+    "displayMode": "grid",
+    "enableLightbox": true,
+    "images": [
+      {
+        "alt": "Team working in modern office",
+        "caption": "Collaboration in Catalyst Studio.",
+        "url": "https://cdn.example.com/gallery/office-1.jpg"
+      },
+      {
+        "alt": "Product manager reviewing designs",
+        "url": "https://cdn.example.com/gallery/office-2.jpg"
+      },
+      {
+        "alt": "Developer presenting results",
+        "url": "https://cdn.example.com/gallery/office-3.jpg"
+      }
+    ]
+  },
+  "cues": [
+    "image gallery",
+    "media grid",
+    "photo section"
+  ],
+  "defaultRegion": "main",
+  "description": "Responsive gallery of images with grid, carousel, or masonry layout and optional lightbox.",
+  "fragments": [
+    "image",
+    "caption",
+    "lightbox"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Image gallery",
+      "role": "region"
+    },
+    "commonNames": [
+      "image-gallery",
+      "photo-gallery",
+      "gallery",
+      "carousel",
+      "slider"
+    ],
+    "confidence": 0.9,
+    "keywords": [
+      "gallery",
+      "images",
+      "photos",
+      "carousel",
+      "grid",
+      "slideshow",
+      "album",
+      "portfolio"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "image gallery",
+      "photo grid",
+      "picture carousel",
+      "image slider",
+      "photo album"
+    ],
+    "semanticRole": "region",
+    "suggestedVariants": [
+      "default",
+      "compact",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "pages": [
+    {
+      "id": "page_001",
+      "contentType": "Article",
+      "name": "Getting Started with Catalyst Studio",
+      "url": "/articles/getting-started-catalyst-studio",
+      "properties": {
+        "title": "Getting Started with Catalyst Studio",
+        "slug": "getting-started-catalyst-studio",
+        "author": "John Developer",
+        "publishDate": "2025-01-15T09:00:00Z",
+        "heroImage": {
+          "id": "img_001",
+          "url": "/media/hero-catalyst.jpg",
+          "alt": "Catalyst Studio Dashboard"
+        },
+        "summary": "Learn how to set up and use Catalyst Studio for managing your content types across multiple CMS platforms.",
+        "content": "<h2>Introduction</h2><p>Catalyst Studio is a powerful tool for managing content types...</p><h2>Key Features</h2><ul><li>Universal type system</li><li>Multi-CMS support</li><li>AI-powered transformations</li></ul>",
+        "categories": ["Tutorial", "Documentation"],
+        "tags": ["catalyst", "cms", "getting-started", "tutorial"],
+        "relatedArticles": ["page_002", "page_003"],
+        "seoMetadata": {
+          "metaTitle": "Getting Started with Catalyst Studio - Complete Guide",
+          "metaDescription": "Learn how to set up and use Catalyst Studio for managing content types across multiple CMS platforms.",
+          "metaKeywords": ["catalyst studio", "cms", "content management", "tutorial"]
+        }
+      },
+      "status": "published",
+      "version": 3,
+      "lastModified": "2025-01-18T14:30:00Z",
+      "createdBy": "user_001",
+      "modifiedBy": "user_001"
+    },
+    {
+      "id": "page_002",
+      "contentType": "Article",
+      "name": "Understanding Universal Content Types",
+      "url": "/articles/understanding-universal-content-types",
+      "properties": {
+        "title": "Understanding Universal Content Types",
+        "slug": "understanding-universal-content-types",
+        "author": "Sarah Tech",
+        "publishDate": "2025-01-16T10:00:00Z",
+        "summary": "Deep dive into the universal content type system and how it enables seamless CMS migrations.",
+        "content": "<h2>What are Universal Content Types?</h2><p>Universal content types provide a common abstraction layer...</p>",
+        "categories": ["Technical", "Architecture"],
+        "tags": ["content-types", "architecture", "migration"],
+        "relatedArticles": ["page_001", "page_003"]
+      },
+      "status": "published",
+      "version": 2
+    },
+    {
+      "id": "page_003",
+      "contentType": "Product",
+      "name": "Catalyst Studio Pro License",
+      "url": "/products/catalyst-studio-pro",
+      "properties": {
+        "productName": "Catalyst Studio Pro",
+        "sku": "CS-PRO-001",
+        "price": 299.99,
+        "description": "<h3>Professional Content Management</h3><p>Unlock the full power of Catalyst Studio with our Pro license...</p>",
+        "images": [
+          {
+            "id": "img_002",
+            "url": "/media/products/catalyst-pro-1.jpg",
+            "alt": "Catalyst Studio Pro Dashboard"
+          },
+          {
+            "id": "img_003",
+            "url": "/media/products/catalyst-pro-2.jpg",
+            "alt": "Advanced Features"
+          }
+        ],
+        "specifications": {
+          "license": "Per Organization",
+          "users": "Unlimited",
+          "support": "Priority",
+          "updates": "1 Year Included",
+          "apis": "Full Access"
+        },
+        "inventory": 999,
+        "variants": [
+          {
+            "variantName": "Annual Subscription",
+            "variantSKU": "CS-PRO-001-ANNUAL",
+            "attributes": {
+              "billing": "Annual",
+              "discount": "20%"
+            },
+            "priceModifier": -60.00,
+            "inventory": 999
+          },
+          {
+            "variantName": "Monthly Subscription",
+            "variantSKU": "CS-PRO-001-MONTHLY",
+            "attributes": {
+              "billing": "Monthly"
+            },
+            "priceModifier": -270.00,
+            "inventory": 999
+          }
+        ]
+      },
+      "status": "published",
+      "version": 1
+    },
+    {
+      "id": "page_004",
+      "contentType": "LandingPage",
+      "name": "Epic 7 Launch",
+      "url": "/epic-7-launch",
+      "properties": {
+        "title": "Introducing Epic 7: Universal CMS Architecture",
+        "heroSection": [
+          {
+            "type": "HeroBlock",
+            "properties": {
+              "heading": "Transform Your Content Management",
+              "subheading": "One system, infinite possibilities",
+              "backgroundImage": {
+                "id": "img_004",
+                "url": "/media/hero-epic7.jpg"
+              },
+              "ctaButton": {
+                "text": "Get Started",
+                "url": "/signup",
+                "style": "primary"
+              }
+            }
+          }
+        ],
+        "mainContent": [
+          {
+            "type": "TextBlock",
+            "properties": {
+              "content": "<h2>Revolutionary Features</h2><p>Epic 7 brings unprecedented flexibility...</p>"
+            }
+          },
+          {
+            "type": "CTABlock",
+            "properties": {
+              "heading": "Ready to upgrade?",
+              "buttons": [
+                {
+                  "text": "View Documentation",
+                  "url": "/docs"
+                },
+                {
+                  "text": "Start Free Trial",
+                  "url": "/trial"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": "draft",
+      "version": 1
+    }
+  ],
+  "metadata": {
+    "total": 4,
+    "mockData": true,
+    "generatedAt": "2025-01-19T10:00:00Z"
+  }
+}

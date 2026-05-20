@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "url": "https://bathurstcitycentre.qicre.com/",
+    "updatedAt": "2025-11-05T05:28:11.000Z",
+    "notes": [
+      "Baseline generated from DOM probe capture 2025-11-05T05:28:05Z",
+      "Includes lead system font body style and Merriweather headings"
+    ]
+  },
+  "typography": [
+    {
+      "id": "body-system-16",
+      "role": "body",
+      "fontFamily": "-apple-system",
+      "fontWeight": "400",
+      "fontSizePx": 16,
+      "tolerancePx": 1.5
+    },
+    {
+      "id": "heading-merriweather-24",
+      "role": "heading",
+      "fontFamily": "Merriweather",
+      "fontWeight": "300",
+      "fontSizePx": 24,
+      "tolerancePx": 2
+    }
+  ],
+  "palette": [
+    { "hex": "#222222", "role": "primary" },
+    { "hex": "#698137", "role": "secondary" },
+    { "hex": "#e20000", "role": "accent" }
+  ],
+  "spacing": {
+    "baseUnitPx": 8,
+    "tolerancePx": 2,
+    "scale": [8, 16, 24]
+  }
+}

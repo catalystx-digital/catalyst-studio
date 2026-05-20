@@ -1,0 +1,145 @@
+import { SitemapDiscoveryService } from '../sitemap-discovery.service';
+
+describe('SitemapDiscoveryService', () => {
+  const service = new SitemapDiscoveryService();
+
+  const makeResponse = (status: number, body: string, contentType: string = 'text/xml') =>
+    ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: {
+        get: (key: string) => {
+          if (key.toLowerCase() === 'content-type') return contentType;
+          return null;
+        },
+      },
+      text: async () => body,
+      arrayBuffer: async () => Buffer.from(body),
+      body: {
+        getReader: () => {
+          let consumed = false;
+          return {
+            read: async () => {
+              if (consumed) return { done: true, value: undefined };
+              consumed = true;
+              return { done: false, value: Buffer.from(body) };
+            },
+          };
+        },
+      },
+    } as any);
+
+  beforeEach(() => {
+    const responses: Record<string, { status: number; body: string; contentType?: string }> = {
+      // Platform detection fetch.
+      'https://example.com/': { status: 200, body: '<html><head></head><body>home</body></html>', contentType: 'text/html' },
+      // Primary sitemap.
+      'https://example.com/sitemap.xml': {
+        status: 200,
+        body: `
+          <urlset>
+            <url><loc>https://example.com/valid/</loc></url>
+            <url><loc>https://example.com/compact/</loc></url>
+            <url><loc>https://example.com/encoded%2Fpath/</loc></url>
+          </urlset>
+        `,
+      },
+      // Reachability probes.
+      'https://example.com/valid/': { status: 200, body: 'ok' },
+      'https://example.com/compact/': {
+        status: 200,
+        body: '<html><body><h1>Page not found</h1><p>Error: 404</p></body></html>',
+      },
+      'https://example.com/encoded/path/': { status: 200, body: 'ok' },
+    };
+
+    const fetchMock = jest.spyOn(global, 'fetch' as any);
+    fetchMock.mockImplementation(async (input: any) => {
+      const url = typeof input === 'string' ? input : input?.toString();
+      const hit = responses[url];
+      if (!hit) {
+        throw new Error(`Unexpected fetch for ${url}`);
+      }
+      return makeResponse(hit.status, hit.body, hit.contentType);
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.clearAllTimers();
+  });
+
+  it('always includes the site root first and filters unreachable entries', async () => {
+    const result = await service.expandUrlsForImport('https://example.com/', 5);
+
+    expect(result.urls[0]).toBe('https://example.com/');
+    expect(result.urls).toContain('https://example.com/valid/');
+    expect(result.urls).toContain('https://example.com/encoded/path/');
+    expect(result.urls.some((u) => u.includes('compact'))).toBe(false);
+  });
+
+  it('drops intranet-looking paths by default', async () => {
+    const intranetService = new SitemapDiscoveryService();
+    (global.fetch as any).mockImplementation(async (input: any) => {
+      const url = typeof input === 'string' ? input : input?.toString();
+      if (url === 'https://example.com/') {
+        return makeResponse(200, '<html>home</html>', 'text/html');
+      }
+      if (url === 'https://example.com/sitemap.xml') {
+        return makeResponse(
+          200,
+          `<urlset>
+             <url><loc>https://example.com/intranet/secret/</loc></url>
+             <url><loc>https://example.com/valid/</loc></url>
+           </urlset>`
+        );
+      }
+      if (url === 'https://example.com/valid/') {
+        return makeResponse(200, 'ok');
+      }
+      if (url === 'https://example.com/intranet/secret/') {
+        return makeResponse(200, '<html>Page not found</html>', 'text/html');
+      }
+      throw new Error(`Unexpected fetch for ${url}`);
+    });
+
+    const result = await intranetService.expandUrlsForImport('https://example.com/', 5);
+    expect(result.urls[0]).toBe('https://example.com/');
+    expect(result.urls).toContain('https://example.com/valid/');
+    expect(result.urls.some((u) => u.includes('/intranet/'))).toBe(false);
+  });
+
+  it('continues past soft-404 pages to fill the max URLs cap', async () => {
+    const serviceWithCap = new SitemapDiscoveryService();
+    (global.fetch as any).mockImplementation(async (input: any) => {
+      const url = typeof input === 'string' ? input : input?.toString();
+      if (url === 'https://example.com/') {
+        return makeResponse(200, '<html>home</html>', 'text/html');
+      }
+      if (url === 'https://example.com/sitemap.xml') {
+        return makeResponse(
+          200,
+          `<urlset>
+             <url><loc>https://example.com/valid-a/</loc></url>
+             <url><loc>https://example.com/soft404/</loc></url>
+             <url><loc>https://example.com/valid-b/</loc></url>
+             <url><loc>https://example.com/valid-c/</loc></url>
+           </urlset>`
+        );
+      }
+      if (url === 'https://example.com/soft404/') {
+        return makeResponse(200, '<html><body><h1>Error: 404</h1></body></html>');
+      }
+      if (url === 'https://example.com/valid-a/' || url === 'https://example.com/valid-b/' || url === 'https://example.com/valid-c/') {
+        return makeResponse(200, 'ok');
+      }
+      throw new Error(`Unexpected fetch for ${url}`);
+    });
+
+    const result = await serviceWithCap.expandUrlsForImport('https://example.com/', 3);
+    expect(result.urls[0]).toBe('https://example.com/');
+    expect(result.urls).toContain('https://example.com/valid-a/');
+    expect(result.urls).toContain('https://example.com/valid-b/');
+    expect(result.urls.length).toBe(3);
+  });
+});

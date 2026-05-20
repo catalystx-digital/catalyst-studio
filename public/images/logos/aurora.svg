@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 56" role="img" aria-labelledby="title">
+  <title>Aurora Health</title>
+  <defs>
+    <radialGradient id="aurora-glow" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#facc15" />
+      <stop offset="45%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#db2777" />
+    </radialGradient>
+  </defs>
+  <g transform="translate(36 12)" opacity="0.9">
+    <circle cx="24" cy="24" r="18" fill="url(#aurora-glow)" opacity="0.8" />
+    <circle cx="64" cy="18" r="14" fill="url(#aurora-glow)" opacity="0.6" />
+    <circle cx="104" cy="30" r="16" fill="url(#aurora-glow)" opacity="0.4" />
+  </g>
+  <text x="120" y="44" font-family="Inter, 'Segoe UI', sans-serif" font-size="24" font-weight="600" text-anchor="middle" fill="#db2777">
+    AURORA
+  </text>
+</svg>

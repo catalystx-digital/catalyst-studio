@@ -1,0 +1,68 @@
+{
+  "canonicalType": "megamenu",
+  "componentType": "megamenu",
+  "content": {
+    "columns": [
+      {
+        "links": [
+          {
+            "type": "nav-menu-item",
+            "id": "megamenu-platform-overview",
+            "label": "Overview",
+            "href": "/platform"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "megamenu-platform-automation",
+            "label": "Automation",
+            "href": "/platform/automation"
+          }
+        ],
+        "title": "Platform"
+      },
+      {
+        "links": [
+          {
+            "type": "nav-menu-item",
+            "id": "megamenu-solutions-marketing",
+            "label": "Marketing Teams",
+            "href": "/solutions/marketing"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "megamenu-solutions-it",
+            "label": "IT Leaders",
+            "href": "/solutions/it"
+          }
+        ],
+        "title": "Solutions"
+      }
+    ],
+    "featured": {
+      "cta": {
+        "label": "Play video",
+        "url": "/demo"
+      },
+      "description": "Watch a two-minute overview of our composable platform.",
+      "heading": "See Catalyst Studio in action"
+    },
+    "triggerLabel": "Products"
+  },
+  "cues": [
+    "mega menu",
+    "multi-column menu",
+    "flyout navigation"
+  ],
+  "defaultRegion": "header",
+  "description": "Expanded navigation menu with multi-column layout and featured content.",
+  "fragments": [
+    "menu-panel",
+    "menu-column",
+    "featured-link"
+  ],
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": false,
+    "hasSynthesizer": false
+  }
+}

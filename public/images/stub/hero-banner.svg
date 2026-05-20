@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="hero-banner-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="45%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="hero-banner-highlight" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.25)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#hero-banner-gradient)"/>
+  <ellipse cx="1200" cy="220" rx="520" ry="320" fill="url(#hero-banner-highlight)"/>
+  <ellipse cx="420" cy="720" rx="460" ry="280" fill="rgba(56,189,248,0.28)"/>
+  <ellipse cx="800" cy="520" rx="320" ry="180" fill="rgba(14,165,233,0.22)"/>
+</svg>

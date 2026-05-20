@@ -1,0 +1,59 @@
+{
+  "canonicalType": "sidemenu",
+  "componentType": "sidemenu",
+  "content": {
+    "sections": [
+      {
+        "heading": "Documentation",
+        "links": [
+          {
+            "type": "nav-menu-item",
+            "id": "sidemenu-docs-overview",
+            "label": "Overview",
+            "href": "/docs"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "sidemenu-docs-api",
+            "label": "API Reference",
+            "href": "/docs/api"
+          }
+        ]
+      },
+      {
+        "heading": "Support",
+        "links": [
+          {
+            "type": "nav-menu-item",
+            "id": "sidemenu-support-contact",
+            "label": "Contact",
+            "href": "/support/contact"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "sidemenu-support-status",
+            "label": "Status",
+            "href": "/status"
+          }
+        ]
+      }
+    ],
+    "title": "Resources"
+  },
+  "cues": [
+    "side navigation",
+    "sidebar menu",
+    "secondary navigation"
+  ],
+  "defaultRegion": "sidebar",
+  "description": "Vertical navigation menu for secondary pages or dashboard layouts.",
+  "fragments": [
+    "menu-section",
+    "menu-link"
+  ],
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": false,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,417 @@
+{
+  "pageTemplate": null,
+  "components": [
+    {
+      "type": "article-header",
+      "confidence": 0.99,
+      "content": {
+        "author": {
+          "name": "Sofia Martinez",
+          "title": "Community Reporter"
+        },
+        "categories": [
+          "Community"
+        ],
+        "featuredImage": {
+          "alt": "Visitors exploring the Bathurst community market",
+          "src": "https://cdn.example.com/articles/bathurst-market.jpg"
+        },
+        "publishDate": "2024-07-12",
+        "readingTime": 5,
+        "subtitle": "Local makers and growers open a permanent hub in the city center.",
+        "tags": [
+          "Local partnerships",
+          "Events"
+        ],
+        "title": "Bathurst unveils new community market"
+      }
+    },
+    {
+      "type": "blog-post",
+      "confidence": 0.99,
+      "content": {
+        "attachments": [
+          {
+            "label": "Download market insights report",
+            "url": "/downloads/market-insights-2024.pdf"
+          }
+        ],
+        "author": {
+          "name": "Jane Smith",
+          "title": "Food Editor"
+        },
+        "bodyHtml": "<p>Opening paragraph describing the partnership.</p><p>Support details and quotes.</p>",
+        "categories": [
+          "Retail"
+        ],
+        "excerpt": "Regional retailers join forces to deliver a fresh market experience for local customers.",
+        "heroImage": {
+          "alt": "Farmgate Meats storefront",
+          "src": "https://cdn.component-atlas.dev/blog/hero.jpg"
+        },
+        "publishDate": "2024-07-12",
+        "readingTime": "6 min read",
+        "relatedLinks": [
+          {
+            "label": "Market activation recap",
+            "url": "/blog/market-activation-recap"
+          },
+          {
+            "label": "Retail partnership toolkit",
+            "url": "/resources/retail-partnership-toolkit"
+          }
+        ],
+        "subtitle": "Regional butchers partner with Bathurst City Centre to open a new farm-to-market concept.",
+        "tags": [
+          "Local news",
+          "Partnership"
+        ],
+        "title": "Barc x Farmgate Meats Launch Local Market"
+      }
+    },
+    {
+      "type": "blog-list",
+      "confidence": 0.99,
+      "content": {
+        "description": "Fresh stories from Bathurst City Centre.",
+        "manualPosts": [],
+        "posts": [
+          {
+            "type": "blog-card",
+            "id": "blog-card-barc-x-farmgate-meats",
+            "title": "Barc x Farmgate Meats Launch Local Market",
+            "excerpt": "Regional butchers partner with the centre to open a new farm-to-market concept.",
+            "author": {
+              "name": "Jane Smith"
+            },
+            "publishDate": "2024-07-12",
+            "categories": [
+              "Retail"
+            ],
+            "tags": [
+              "Food"
+            ],
+            "slug": "barc-x-farmgate-meats",
+            "featured": true
+          },
+          {
+            "type": "blog-card",
+            "id": "blog-card-school-holiday-guide",
+            "title": "School Holiday Guide",
+            "excerpt": "Activities and offers to entertain the family this winter.",
+            "author": {
+              "name": "Team Bathurst"
+            },
+            "publishDate": "2024-06-22",
+            "categories": [
+              "Lifestyle"
+            ],
+            "tags": [
+              "Family"
+            ],
+            "slug": "school-holiday-guide",
+            "featured": false
+          }
+        ],
+        "showPagination": false,
+        "title": "Latest Articles"
+      }
+    },
+    {
+      "type": "author-bio",
+      "confidence": 0.99,
+      "content": {
+        "bio": "Sofia covers regional retail and community partnerships for Bathurst City Centre.",
+        "name": "Sofia Martinez",
+        "photo": "https://cdn.example.com/authors/sofia-martinez.jpg",
+        "socialLinks": {
+          "linkedin": "https://www.linkedin.com/in/sofia-martinez/",
+          "twitter": "https://twitter.com/sofiawrites"
+        },
+        "title": "Community Reporter"
+      }
+    },
+    {
+      "type": "related-posts",
+      "confidence": 0.99,
+      "content": {
+        "displayMode": "grid",
+        "manualPosts": [],
+        "posts": [
+          {
+            "type": "blog-card",
+            "id": "blog-card-artisan-food-trail",
+            "title": "Artisan Food Trail launches this spring",
+            "publishDate": "2024-06-18",
+            "slug": "artisan-food-trail"
+          },
+          {
+            "type": "blog-card",
+            "id": "blog-card-winter-festival",
+            "title": "Winter festival brings live music downtown",
+            "publishDate": "2024-05-30",
+            "slug": "winter-festival"
+          },
+          {
+            "type": "blog-card",
+            "id": "blog-card-makers-program",
+            "title": "Makers-in-residence program expands",
+            "publishDate": "2024-05-15",
+            "slug": "makers-program"
+          }
+        ],
+        "title": "More stories from the center"
+      }
+    },
+    {
+      "type": "pricing-table",
+      "confidence": 0.99,
+      "content": {
+        "features": [
+          {
+            "name": "Unlimited editors",
+            "values": [
+              false,
+              true
+            ]
+          },
+          {
+            "name": "Custom integrations",
+            "values": [
+              false,
+              true
+            ]
+          }
+        ],
+        "plans": [
+          {
+            "ctaText": "Start Starter",
+            "ctaUrl": "/signup/starter",
+            "currency": "USD",
+            "description": "Launch a marketing site in days.",
+            "features": [
+              "5 published pages",
+              "Basic analytics"
+            ],
+            "id": "starter",
+            "name": "Starter",
+            "period": "monthly",
+            "price": 29
+          },
+          {
+            "ctaText": "Start Growth",
+            "ctaUrl": "/signup/growth",
+            "currency": "USD",
+            "description": "Collaborative workflows for growing teams.",
+            "features": [
+              "Unlimited pages",
+              "Advanced roles"
+            ],
+            "highlighted": true,
+            "id": "growth",
+            "name": "Growth",
+            "period": "monthly",
+            "price": 79
+          }
+        ],
+        "showComparison": true,
+        "subtitle": "Flexible pricing for teams of any size.",
+        "title": "Choose the plan that fits"
+      }
+    },
+    {
+      "type": "pricing-card",
+      "confidence": 0.99,
+      "content": {
+        "badge": "Most Flexible",
+        "ctaText": "Talk to sales",
+        "ctaUrl": "/contact/sales",
+        "currency": "USD",
+        "description": "Dedicated support and governance.",
+        "features": [
+          {
+            "included": true,
+            "text": "Unlimited workspaces"
+          },
+          {
+            "included": true,
+            "text": "SAML SSO"
+          },
+          {
+            "included": true,
+            "text": "Onboarding concierge"
+          }
+        ],
+        "highlighted": true,
+        "name": "Enterprise",
+        "period": "monthly",
+        "price": 199
+      }
+    },
+    {
+      "type": "pricing-comparison",
+      "confidence": 0.99,
+      "content": {
+        "description": "Choose the plan that matches your team size and governance needs.",
+        "features": [
+          {
+            "name": "Unlimited published pages",
+            "values": [
+              false,
+              true,
+              true
+            ]
+          },
+          {
+            "name": "Custom workflows",
+            "values": [
+              false,
+              true,
+              true
+            ]
+          },
+          {
+            "name": "Dedicated success manager",
+            "values": [
+              false,
+              false,
+              true
+            ]
+          }
+        ],
+        "heading": "Compare plans",
+        "plans": [
+          {
+            "cta": {
+              "text": "Start Starter",
+              "url": "/signup/starter"
+            },
+            "highlighted": false,
+            "name": "Starter",
+            "price": "/atlas",
+            "unit": "per month"
+          },
+          {
+            "badge": "Most popular",
+            "cta": {
+              "text": "Choose Growth",
+              "url": "/signup/growth"
+            },
+            "highlighted": true,
+            "name": "Growth",
+            "price": "/atlas",
+            "unit": "per month"
+          },
+          {
+            "cta": {
+              "text": "Talk to sales",
+              "url": "/contact/sales"
+            },
+            "highlighted": false,
+            "name": "Enterprise",
+            "price": "Contact us",
+            "unit": "/atlas"
+          }
+        ]
+      }
+    },
+    {
+      "type": "statistics",
+      "confidence": 0.99,
+      "content": {
+        "layout": "grid",
+        "stats": [
+          {
+            "id": "velocity",
+            "label": "Faster publishing cycles",
+            "suffix": "x",
+            "value": 4
+          },
+          {
+            "id": "adoption",
+            "label": "Editor adoption across teams",
+            "suffix": "%",
+            "value": 92
+          }
+        ],
+        "title": "Impact by the numbers"
+      }
+    },
+    {
+      "type": "data-table",
+      "confidence": 0.99,
+      "content": {
+        "columns": [
+          {
+            "key": "metric",
+            "label": "Metric"
+          },
+          {
+            "key": "value",
+            "label": "Value"
+          }
+        ],
+        "pagination": {
+          "enabled": false
+        },
+        "rows": [
+          {
+            "id": "storage",
+            "metric": "Storage",
+            "value": "2 TB SSD"
+          },
+          {
+            "id": "bandwidth",
+            "metric": "Bandwidth",
+            "value": "Unlimited"
+          }
+        ],
+        "sorting": {
+          "enabled": false
+        },
+        "title": "Technical specifications"
+      }
+    },
+    {
+      "type": "chart",
+      "confidence": 0.99,
+      "content": {
+        "categories": [
+          "Q1",
+          "Q2",
+          "Q3",
+          "Q4"
+        ],
+        "description": "Comparison of ARR by quarter.",
+        "series": [
+          {
+            "name": "2023",
+            "values": [
+              1.2,
+              1.6,
+              2.1,
+              2.8
+            ]
+          },
+          {
+            "name": "2024",
+            "values": [
+              2,
+              2.5,
+              3.1,
+              3.7
+            ]
+          }
+        ],
+        "title": "Quarterly growth",
+        "type": "bar",
+        "unitLabel": "ARR (in millions)"
+      }
+    }
+  ],
+  "pageMetadata": {
+    "description": "Exercises the editorial/blog canon, pricing tables, and data visualization blocks to ensure importer parity across structured datasets.",
+    "tags": [],
+    "title": "Editorial, Pricing, and Data Visualization Components"
+  }
+}

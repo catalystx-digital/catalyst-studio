@@ -1,0 +1,44 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["syd1"],
+  "functions": {
+    "app/api/studio/import/**/*.ts": {
+      "maxDuration": 60
+    },
+    "app/api/studio/sitemap/**/*.ts": {
+      "maxDuration": 30
+    },
+    "app/api/studio/site-builder/**/*.ts": {
+      "maxDuration": 60
+    },
+    "app/api/preview/sandbox/**/*.ts": {
+      "maxDuration": 60
+    },
+    "app/api/preview/sandbox/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,DELETE,PATCH,POST,PUT,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization" }
+      ]
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_IS_STUDIO_DEPLOYMENT": "true"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_IS_STUDIO_DEPLOYMENT": "true"
+    }
+  }
+}

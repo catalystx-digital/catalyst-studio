@@ -1,0 +1,122 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`ucsGraphqlSchema lists design systems for the website 1`] = `
+{
+  "designSystems": [
+    {
+      "conceptName": null,
+      "id": "ds_001",
+      "isCurrent": true,
+      "version": "1.0.0",
+    },
+  ],
+}
+`;
+
+exports[`ucsGraphqlSchema maps page responses to snapshot-compatible shapes 1`] = `
+{
+  "page": {
+    "components": [
+      {
+        "effectiveProps": {
+          "headline": "Peak flavor without the sugar crash",
+          "links": [
+            {
+              "href": "/shop",
+              "label": "Shop",
+            },
+            {
+              "href": "/visit",
+              "label": "Visit",
+            },
+          ],
+        },
+        "id": "cmp_hero",
+        "isSharedInstance": true,
+        "sharedComponentId": "shared_nav",
+        "type": "hero",
+      },
+      {
+        "effectiveProps": {
+          "text": "We roast in small batches every Monday.",
+        },
+        "id": "cmp_intro",
+        "isSharedInstance": false,
+        "sharedComponentId": null,
+        "type": "rich-text",
+      },
+    ],
+    "diagnostics": [],
+    "fullPath": "/",
+    "id": "page_home",
+    "sharedComponentIds": [
+      "shared_nav",
+    ],
+    "sharedComponents": [
+      {
+        "componentType": "Navigation",
+        "id": "shared_nav",
+        "name": "Primary Nav",
+      },
+    ],
+    "title": "Home",
+  },
+}
+`;
+
+exports[`ucsGraphqlSchema returns paginated websites with Relay fields 1`] = `
+{
+  "websites": {
+    "edges": [
+      {
+        "cursor": "c2l0ZV90b25pYzoyMDI0LTEwLTAxVDEwOjEyOjQ1LjAwMFo=",
+        "node": {
+          "id": "site_tonic",
+          "name": "Tonic Coffee Roasters",
+        },
+      },
+    ],
+    "pageInfo": {
+      "endCursor": "c2l0ZV90b25pYzoyMDI0LTEwLTAxVDEwOjEyOjQ1LjAwMFo=",
+      "hasNextPage": false,
+    },
+    "totalCount": 1,
+  },
+}
+`;
+
+exports[`ucsGraphqlSchema returns shared components when scoped to website 1`] = `
+{
+  "sharedComponent": {
+    "componentType": "Navigation",
+    "config": {
+      "category": "navigation",
+      "defaultProps": {
+        "links": [
+          {
+            "href": "/shop",
+            "label": "Shop",
+          },
+          {
+            "href": "/visit",
+            "label": "Visit",
+          },
+        ],
+      },
+    },
+    "id": "shared_nav",
+    "name": "Primary Nav",
+  },
+}
+`;
+
+exports[`ucsGraphqlSchema returns website payloads 1`] = `
+{
+  "website": {
+    "category": "hospitality",
+    "createdAt": "2024-10-01T10:12:45.000Z",
+    "id": "site_tonic",
+    "name": "Tonic Coffee Roasters",
+  },
+}
+`;

@@ -1,0 +1,90 @@
+{
+  "canonicalType": "hero-split",
+  "componentType": "hero-split",
+  "content": {
+    "body": "Carbon fiber panels keep cards secure while the RFID-blocking design protects your identity.",
+    "ctaButtons": [
+      {
+        "href": "/products/ridge-carbon",
+        "label": "Shop Now",
+        "variant": "primary"
+      },
+      {
+        "href": "/products#compare",
+        "label": "Compare Wallets",
+        "variant": "outline"
+      }
+    ],
+    "heading": "Meet the Ridge Carbon Wallet",
+    "media": {
+      "alt": "Carbon wallet resting on desk accessories",
+      "src": "https://cdn.example.com/products/ridge-wallet.jpg",
+      "type": "image"
+    },
+    "mediaPosition": "right",
+    "subheading": "Durable essentials engineered for everyday carry."
+  },
+  "cues": [
+    "split hero",
+    "two-column hero",
+    "product spotlight"
+  ],
+  "defaultRegion": "hero",
+  "description": "Split layout hero balancing narrative copy with media on either side.",
+  "fragments": [
+    "hero-heading",
+    "hero-media",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Split hero section",
+      "role": "banner"
+    },
+    "commonNames": [
+      "split hero",
+      "two-column hero",
+      "hero with image",
+      "side-by-side layout"
+    ],
+    "confidence": 0.85,
+    "industry": [
+      "general",
+      "saas",
+      "technology",
+      "product"
+    ],
+    "keywords": [
+      "hero",
+      "split",
+      "two-column",
+      "side-by-side",
+      "image",
+      "content"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "split.*hero",
+      "two.*column.*hero",
+      "hero.*with.*image",
+      "side.*by.*side"
+    ],
+    "relatedComponents": [
+      "hero-banner",
+      "hero-minimal",
+      "hero-video"
+    ],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "canonicalType": "mobile-menu",
+  "componentType": "mobile-menu",
+  "content": {
+    "menuItems": [
+      {
+        "type": "nav-menu-item",
+        "id": "mobile-menu-home",
+        "label": "Home",
+        "href": "/"
+      },
+      {
+        "type": "nav-menu-item",
+        "id": "mobile-menu-about",
+        "label": "About",
+        "href": "/about"
+      },
+      {
+        "type": "nav-menu-item",
+        "id": "mobile-menu-contact",
+        "label": "Contact",
+        "href": "/contact"
+      }
+    ],
+    "position": "left",
+    "animation": "slide"
+  },
+  "cues": [
+    "mobile navigation",
+    "hamburger menu",
+    "drawer navigation"
+  ],
+  "defaultRegion": "header",
+  "description": "Mobile navigation drawer with hierarchical items, supporting left/right slide or fade animations.",
+  "fragments": [
+    "mobile-nav",
+    "menu-links",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Mobile navigation menu",
+      "role": "navigation"
+    },
+    "commonNames": [
+      "mobile menu",
+      "hamburger menu",
+      "burger menu",
+      "drawer menu"
+    ],
+    "confidence": 0.85,
+    "description": "Mobile navigation drawer that mirrors primary site navigation, with configurable position and animations.",
+    "keywords": [
+      "mobile-menu",
+      "hamburger",
+      "burger-menu",
+      "mobile-nav",
+      "drawer",
+      "slide-menu"
+    ],
+    "pageLocation": [
+      "header"
+    ],
+    "patterns": [
+      "mobile.*menu",
+      "hamburger.*menu",
+      "burger.*menu",
+      "drawer.*menu",
+      "slide.*menu"
+    ],
+    "properties": [
+      {
+        "allowedTypes": [
+          "nav-menu-item"
+        ],
+        "description": "Mobile navigation entries represented as nav-menu-item subcomponents, preserving nested hierarchy.",
+        "name": "menuItems",
+        "required": true,
+        "type": "content[]"
+      },
+      {
+        "description": "Determines whether the drawer slides from the left or right edge.",
+        "name": "position",
+        "required": false,
+        "type": "'left'|'right'"
+      },
+      {
+        "description": "Transition style when opening or closing the menu.",
+        "name": "animation",
+        "required": false,
+        "type": "'slide'|'fade'"
+      }
+    ],
+    "semanticRole": "navigation",
+    "suggestedVariants": [
+      "default",
+      "minimal"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

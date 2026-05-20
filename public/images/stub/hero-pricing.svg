@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="hero-pricing-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <radialGradient id="hero-pricing-spot" cx="45%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="rgba(94,234,212,0.4)"/>
+      <stop offset="100%" stop-color="rgba(94,234,212,0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#hero-pricing-gradient)"/>
+  <circle cx="700" cy="360" r="420" fill="url(#hero-pricing-spot)"/>
+  <rect x="180" y="600" width="1240" height="180" rx="90" fill="rgba(15,118,110,0.25)"/>
+  <circle cx="1180" cy="540" r="260" fill="rgba(45,212,191,0.18)"/>
+</svg>

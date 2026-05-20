@@ -1,0 +1,78 @@
+{
+  "canonicalType": "statistics",
+  "componentType": "statistics",
+  "content": {
+    "layout": "grid",
+    "stats": [
+      {
+        "id": "velocity",
+        "label": "Faster publishing cycles",
+        "suffix": "x",
+        "value": 4
+      },
+      {
+        "id": "adoption",
+        "label": "Editor adoption across teams",
+        "suffix": "%",
+        "value": 92
+      }
+    ],
+    "title": "Impact by the numbers"
+  },
+  "cues": [
+    "statistics",
+    "kpi",
+    "metrics"
+  ],
+  "defaultRegion": "main",
+  "description": "Key performance indicators and metrics displayed as stats with labels, delta trends, and optional icons.",
+  "fragments": [
+    "stat",
+    "stat-label"
+  ],
+  "metadata": {
+    "commonNames": [
+      "statistics",
+      "stats-counter",
+      "metrics-display",
+      "number-counter",
+      "achievements",
+      "key-metrics"
+    ],
+    "confidence": 0.75,
+    "keywords": [
+      "statistics",
+      "numbers",
+      "metrics",
+      "counter",
+      "achievements",
+      "stats",
+      "key metrics",
+      "performance",
+      "results",
+      "data points",
+      "kpis",
+      "milestones",
+      "facts",
+      "figures"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "statistics?\\s*(section|block|display)?",
+      "key\\s+(metrics?|numbers?|stats?)",
+      "performance\\s+(metrics?|indicators?)",
+      "achievements?\\s*(section)?",
+      "counter\\s*(section|block)?",
+      "by\\s+the\\s+numbers?",
+      "our\\s+(results?|numbers?|impact)"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

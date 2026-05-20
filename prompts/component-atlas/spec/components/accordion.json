@@ -1,0 +1,107 @@
+{
+  "canonicalType": "accordion",
+  "componentType": "accordion",
+  "content": {
+    "allowMultiple": false,
+    "heading": "Frequently asked questions",
+    "items": [
+      {
+        "id": "accordion-item-faq-implementation",
+        "type": "accordion-item",
+        "title": "How long does implementation take?",
+        "content": "Most teams launch their first production experience within two weeks."
+      },
+      {
+        "id": "accordion-item-faq-security",
+        "type": "accordion-item",
+        "title": "What security certifications do you hold?",
+        "content": "We maintain SOC 2 Type II and regularly complete enterprise vendor assessments."
+      }
+    ],
+    "areas": []
+  },
+  "cues": [
+    "faq",
+    "expandable section",
+    "accordion"
+  ],
+  "defaultRegion": "main",
+  "description": "Expandable FAQ or detail list with accessible toggles.",
+  "fragments": [
+    "accordion-item"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Frequently Asked Questions",
+      "role": "region"
+    },
+    "commonNames": [
+      "Accordion",
+      "FAQ",
+      "FAQSection",
+      "AccordionMenu",
+      "CollapsibleList",
+      "ExpandableContent",
+      "QuestionsAnswers",
+      "Collapsible",
+      "DisclosurePanel",
+      "ToggleContent"
+    ],
+    "confidence": 0.85,
+    "industry": [
+      "general",
+      "support",
+      "education",
+      "documentation"
+    ],
+    "keywords": [
+      "accordion",
+      "faq",
+      "frequently asked questions",
+      "collapsible",
+      "expandable",
+      "toggle",
+      "dropdown content",
+      "q&a",
+      "questions and answers",
+      "disclosure",
+      "expand collapse",
+      "show hide",
+      "accordion menu",
+      "collapsible sections"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar"
+    ],
+    "patterns": [
+      "class.*accordion",
+      "class.*faq",
+      "class.*collapsible",
+      "class.*expandable",
+      "role.*region.*expanded",
+      "aria-expanded",
+      "data-accordion",
+      "data-faq",
+      "<details>.*<summary>",
+      "accordion-item",
+      "accordion-header",
+      "accordion-content"
+    ],
+    "relatedComponents": [
+      "tabs",
+      "text-block"
+    ],
+    "semanticRole": "interactive-content",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

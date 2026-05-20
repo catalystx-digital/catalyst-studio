@@ -1,0 +1,492 @@
+{
+  "pageTemplate": null,
+  "components": [
+    {
+      "type": "navbar",
+      "confidence": 0.99,
+      "content": {
+        "cta": {
+          "href": "/contact",
+          "text": "Get Started",
+          "variant": "primary"
+        },
+        "logo": {
+          "alt": "Catalyst Studio",
+          "href": "/",
+          "src": "https://cdn.example.com/brand/logo-light.svg"
+        },
+        "menuItems": [
+          {
+            "href": "/solutions",
+            "id": "nav-item-solutions",
+            "label": "Solutions",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/pricing",
+            "id": "nav-item-pricing",
+            "label": "Pricing",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/resources",
+            "id": "nav-item-resources",
+            "label": "Resources",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/company",
+            "id": "nav-item-company",
+            "label": "Company",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/customers",
+            "id": "nav-item-customers",
+            "label": "Customers",
+            "type": "nav-menu-item"
+          }
+        ],
+        "sticky": true
+      }
+    },
+    {
+      "type": "megamenu",
+      "confidence": 0.99,
+      "content": {
+        "columns": [
+          {
+            "links": [
+              {
+                "href": "/platform",
+                "id": "megamenu-platform-overview",
+                "label": "Overview",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/platform/automation",
+                "id": "megamenu-platform-automation",
+                "label": "Automation",
+                "type": "nav-menu-item"
+              }
+            ],
+            "title": "Platform"
+          },
+          {
+            "links": [
+              {
+                "href": "/solutions/marketing",
+                "id": "megamenu-solutions-marketing",
+                "label": "Marketing Teams",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/solutions/it",
+                "id": "megamenu-solutions-it",
+                "label": "IT Leaders",
+                "type": "nav-menu-item"
+              }
+            ],
+            "title": "Solutions"
+          }
+        ],
+        "featured": {
+          "cta": {
+            "label": "Play video",
+            "url": "/demo"
+          },
+          "description": "Watch a two-minute overview of our composable platform.",
+          "heading": "See Catalyst Studio in action"
+        },
+        "triggerLabel": "Products"
+      }
+    },
+    {
+      "type": "mobile-menu",
+      "confidence": 0.99,
+      "content": {
+        "animation": "slide",
+        "menuItems": [
+          {
+            "href": "/",
+            "id": "mobile-menu-home",
+            "label": "Home",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/about",
+            "id": "mobile-menu-about",
+            "label": "About",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/contact",
+            "id": "mobile-menu-contact",
+            "label": "Contact",
+            "type": "nav-menu-item"
+          }
+        ],
+        "position": "left"
+      }
+    },
+    {
+      "type": "search-bar",
+      "confidence": 0.99,
+      "content": {
+        "placeholder": "Search the site",
+        "showIcon": true,
+        "showSuggestions": true,
+        "recentSearches": [
+          "campaign templates",
+          "component atlas",
+          "editor workflows"
+        ]
+      }
+    },
+    {
+      "type": "hero-simple",
+      "confidence": 0.99,
+      "content": {
+        "body": "Catalyst Studio pairs structured components with best-practice templates so every team can move quickly.",
+        "ctaButtons": [
+          {
+            "href": "/signup",
+            "label": "Start building",
+            "variant": "primary"
+          }
+        ],
+        "heading": "Ship pages in minutes",
+        "subheading": "Use our AI-assisted editor to launch campaigns faster with built-in guardrails."
+      }
+    },
+    {
+      "type": "hero-banner",
+      "confidence": 0.99,
+      "content": {
+        "backgroundImage": "https://cdn.example.com/hero/banner-bg.jpg",
+        "body": "Secure, composable infrastructure with prebuilt workflows for governance.",
+        "ctaButtons": [
+          {
+            "href": "/request-access",
+            "label": "Request Access",
+            "variant": "primary"
+          }
+        ],
+        "heading": "Launch with confidence",
+        "subheading": "Give every team the guardrails they need to ship on-brand experiences."
+      }
+    },
+    {
+      "type": "hero-with-image",
+      "confidence": 0.99,
+      "content": {
+        "body": "Catalyst Studio unifies content, design, and AI workflows so your team ships faster.",
+        "ctaButtons": [
+          {
+            "href": "/contact",
+            "label": "Book a Demo",
+            "variant": "primary"
+          },
+          {
+            "href": "/pricing",
+            "label": "View Pricing",
+            "variant": "outline"
+          }
+        ],
+        "heading": "Transform Your Digital Experiences",
+        "image": {
+          "src": "https://cdn.example.com/hero/scene.jpg",
+          "alt": "Team collaborating on a product launch"
+        },
+        "subheading": "Design, launch, and iterate omnichannel sites in minutes."
+      }
+    },
+    {
+      "type": "hero-split",
+      "confidence": 0.99,
+      "content": {
+        "body": "Carbon fiber panels keep cards secure while the RFID-blocking design protects your identity.",
+        "ctaButtons": [
+          {
+            "href": "/products/ridge-carbon",
+            "label": "Shop Now",
+            "variant": "primary"
+          },
+          {
+            "href": "/products#compare",
+            "label": "Compare Wallets",
+            "variant": "outline"
+          }
+        ],
+        "heading": "Meet the Ridge Carbon Wallet",
+        "media": {
+          "alt": "Carbon wallet resting on desk accessories",
+          "src": "https://cdn.example.com/products/ridge-wallet.jpg",
+          "type": "image"
+        },
+        "mediaPosition": "right",
+        "subheading": "Durable essentials engineered for everyday carry."
+      }
+    },
+    {
+      "type": "hero-minimal",
+      "confidence": 0.99,
+      "content": {
+        "ctaButtons": [
+          {
+            "text": "View release notes",
+            "url": "/release-notes",
+            "variant": "outline"
+          }
+        ],
+        "heading": "Catalyst 3.0 is here",
+        "subheading": "New modular APIs and guardrails for global teams."
+      }
+    },
+    {
+      "type": "hero-video",
+      "confidence": 0.99,
+      "content": {
+        "alignment": "center",
+        "height": "medium",
+        "overlayContent": {
+          "body": "Watch product teams and marketers co-create pages and launch updates without developer bottlenecks.",
+          "ctaButtons": [
+            {
+              "href": "/signup",
+              "label": "Start Free Trial",
+              "variant": "primary"
+            }
+          ],
+          "heading": "See Catalyst Studio in Motion",
+          "subheading": "Two-minute walkthrough of the collaborative editing workflow."
+        },
+        "posterImage": "https://cdn.example.com/video/poster.jpg",
+        "videoSettings": {
+          "autoplay": false,
+          "controls": true,
+          "loop": false,
+          "muted": false
+        },
+        "videoUrl": "https://videos.example.com/catalyst-demo.mp4"
+      }
+    },
+    {
+      "type": "hero-carousel",
+      "confidence": 0.99,
+      "content": {
+        "autoPlay": true,
+        "autoPlayInterval": 6000,
+        "slides": [
+          {
+            "ctaButtons": [
+              {
+                "href": "/collections/spring",
+                "label": "Explore Collection",
+                "variant": "primary"
+              }
+            ],
+            "heading": "Spring Collection Drop",
+            "id": "slide-spring-collection",
+            "image": {
+              "alt": "Model wearing spring fashion",
+              "src": "https://cdn.example.com/hero/spring-drop.jpg"
+            },
+            "subheading": "Limited-edition styles inspired by city skylines."
+          },
+          {
+            "ctaButtons": [
+              {
+                "href": "/loyalty",
+                "label": "Join Loyalty",
+                "variant": "secondary"
+              }
+            ],
+            "heading": "Members Save 20%",
+            "id": "slide-members-save",
+            "image": {
+              "alt": "Close-up of loyalty card",
+              "src": "https://cdn.example.com/hero/members.jpg"
+            },
+            "subheading": "Unlock early access and exclusive drops."
+          }
+        ]
+      }
+    },
+    {
+      "type": "breadcrumbs",
+      "confidence": 0.99,
+      "content": {
+        "items": [
+          {
+            "label": "Home",
+            "url": "/"
+          },
+          {
+            "label": "Blog",
+            "url": "/blog"
+          },
+          {
+            "label": "Article",
+            "url": "/blog/article"
+          }
+        ]
+      }
+    },
+    {
+      "type": "breadcrumbs",
+      "confidence": 0.99,
+      "content": {
+        "items": [
+          {
+            "label": "Home",
+            "url": "/"
+          },
+          {
+            "label": "Section",
+            "url": "/section"
+          },
+          {
+            "label": "Current Page",
+            "url": "/section/current"
+          }
+        ]
+      }
+    },
+    {
+      "type": "sidemenu",
+      "confidence": 0.99,
+      "content": {
+        "sections": [
+          {
+            "heading": "Documentation",
+            "links": [
+              {
+                "href": "/docs",
+                "id": "sidemenu-docs-overview",
+                "label": "Overview",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/docs/api",
+                "id": "sidemenu-docs-api",
+                "label": "API Reference",
+                "type": "nav-menu-item"
+              }
+            ]
+          },
+          {
+            "heading": "Support",
+            "links": [
+              {
+                "href": "/support/contact",
+                "id": "sidemenu-support-contact",
+                "label": "Contact",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/status",
+                "id": "sidemenu-support-status",
+                "label": "Status",
+                "type": "nav-menu-item"
+              }
+            ]
+          }
+        ],
+        "title": "Resources"
+      }
+    },
+    {
+      "type": "footer",
+      "confidence": 0.99,
+      "content": {
+        "columns": [
+          {
+            "id": "footer-column-company",
+            "links": [
+              {
+                "href": "/company",
+                "id": "footer-company-about",
+                "label": "About",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/careers",
+                "id": "footer-company-careers",
+                "label": "Careers",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/press",
+                "id": "footer-company-press",
+                "label": "Press",
+                "type": "nav-menu-item"
+              }
+            ],
+            "title": "Company",
+            "type": "columnItem"
+          },
+          {
+            "id": "footer-column-resources",
+            "links": [
+              {
+                "href": "/resources/blog",
+                "id": "footer-resources-blog",
+                "label": "Blog",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/docs",
+                "id": "footer-resources-docs",
+                "label": "Docs",
+                "type": "nav-menu-item"
+              },
+              {
+                "href": "/support",
+                "id": "footer-resources-support",
+                "label": "Support",
+                "type": "nav-menu-item"
+              }
+            ],
+            "title": "Resources",
+            "type": "columnItem"
+          }
+        ],
+        "copyright": "Copyright 2024 Catalyst Studio. All rights reserved.",
+        "legalLinks": [
+          {
+            "href": "/legal/privacy",
+            "id": "footer-legal-privacy",
+            "label": "Privacy Policy",
+            "type": "nav-menu-item"
+          },
+          {
+            "href": "/legal/terms",
+            "id": "footer-legal-terms",
+            "label": "Terms of Service",
+            "type": "nav-menu-item"
+          }
+        ],
+        "socialLinks": [
+          {
+            "id": "footer-social-linkedin",
+            "platform": "linkedin",
+            "type": "socialLinkItem",
+            "url": "https://www.linkedin.com/company/catalyst-studio/"
+          },
+          {
+            "id": "footer-social-twitter",
+            "platform": "twitter",
+            "type": "socialLinkItem",
+            "url": "https://twitter.com/catalyststudio"
+          }
+        ]
+      }
+    }
+  ],
+  "pageMetadata": {
+    "description": "Covers header-level navigation (navbar, mega menu, mobile menu, search) alongside full hero variants to exercise canonical top-of-page components.",
+    "tags": [],
+    "title": "Navigation, Search, and Hero Patterns"
+  }
+}

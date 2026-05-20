@@ -1,0 +1,4 @@
+- Spec: `prompts/component-atlas/spec/pages/blog-pricing-data.json` (editorial stack + pricing matrices + data viz components).
+- Fixtures rebuilt via `pnpm tsx scripts/eval/build-component-atlas-fixtures.ts --generate-data --update-expected` (2025-11-01).
+- Passing eval report: `reports/eval/detection/2025-11-01T05-06-34-501Z.json` (prompt chars: 89734, importer diffs: 0).
+- Key schema alignment: `article-header` now emits `featuredImage`/`readingTime`; `blog-list` + `related-posts` use `blog-card` subcomponents with canonical ids; `author-bio` swapped to `photo` + social link map; pricing/data blocks drop legacy `region` echoes.

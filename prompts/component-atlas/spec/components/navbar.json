@@ -1,0 +1,146 @@
+{
+  "canonicalType": "navbar",
+  "componentType": "navbar",
+  "content": {
+    "cta": {
+      "href": "/contact",
+      "text": "Get Started",
+      "variant": "primary"
+    },
+    "logo": {
+      "alt": "Catalyst Studio",
+      "href": "/",
+      "src": "https://cdn.example.com/brand/logo-light.svg"
+    },
+    "menuItems": [
+      {
+        "id": "nav-item-solutions",
+        "type": "nav-menu-item",
+        "label": "Solutions",
+        "href": "/solutions"
+      },
+      {
+        "id": "nav-item-pricing",
+        "type": "nav-menu-item",
+        "label": "Pricing",
+        "href": "/pricing"
+      },
+      {
+        "id": "nav-item-resources",
+        "type": "nav-menu-item",
+        "label": "Resources",
+        "href": "/resources"
+      },
+      {
+        "id": "nav-item-company",
+        "type": "nav-menu-item",
+        "label": "Company",
+        "href": "/company"
+      },
+      {
+        "id": "nav-item-customers",
+        "type": "nav-menu-item",
+        "label": "Customers",
+        "href": "/customers"
+      }
+    ],
+    "sticky": true
+  },
+  "cues": [
+    "navigation",
+    "menu",
+    "site header",
+    "global nav"
+  ],
+  "defaultRegion": "header",
+  "description": "Primary site navigation with logo, menu items, and optional call-to-action.",
+  "fragments": [
+    "logo",
+    "menu",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Main navigation",
+      "role": "navigation"
+    },
+    "commonNames": [
+      "navigation bar",
+      "nav bar",
+      "header",
+      "main menu",
+      "top menu"
+    ],
+    "confidence": 0.95,
+    "description": "Primary site navigation with logo configuration, hierarchical menu items, and optional call-to-action.",
+    "keywords": [
+      "navigation",
+      "navbar",
+      "header",
+      "menu",
+      "nav",
+      "top bar"
+    ],
+    "pageLocation": [
+      "header"
+    ],
+    "patterns": [
+      "nav(?:bar|igation)?",
+      "menu",
+      "header",
+      "top.*bar"
+    ],
+    "properties": [
+      {
+        "description": "Logo configuration including image source, alt text, and link destination.",
+        "name": "logo",
+        "required": false,
+        "type": "{ src?:string; alt?:string; text?:string; href?:string; width?:number; height?:number }"
+      },
+      {
+        "allowedTypes": [
+          "nav-menu-item"
+        ],
+        "description": "Navigation items represented as nav-menu-item subcomponents with optional nested children.",
+        "name": "menuItems",
+        "required": true,
+        "type": "content[]"
+      },
+      {
+        "description": "Optional call-to-action button rendered alongside the menu.",
+        "name": "cta",
+        "required": false,
+        "type": "{ text:string; href:string; variant?:\"primary\"|\"secondary\"|\"outline\"; external?:boolean }"
+      },
+      {
+        "description": "Pixel breakpoint at which the mobile menu toggles.",
+        "name": "mobileBreakpoint",
+        "required": false,
+        "type": "number"
+      },
+      {
+        "description": "Fix the navigation bar to the top of the viewport when scrolling.",
+        "name": "sticky",
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "description": "Render the navigation bar with an initial transparent background.",
+        "name": "transparent",
+        "required": false,
+        "type": "boolean"
+      }
+    ],
+    "semanticRole": "navigation",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": true
+  }
+}

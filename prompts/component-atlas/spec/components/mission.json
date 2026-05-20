@@ -1,0 +1,36 @@
+{
+  "canonicalType": "mission",
+  "componentType": "mission",
+  "content": {
+    "focusAreas": [
+      {
+        "description": "Enable marketing, product, and engineering to work together seamlessly.",
+        "title": "Collaboration"
+      },
+      {
+        "description": "Ensure every brand touchpoint meets enterprise-quality standards.",
+        "title": "Governance"
+      }
+    ],
+    "heading": "Our mission",
+    "mission": "Empower every team to create, launch, and scale digital experiences without friction.",
+    "vision": "A composable future where content, design, and data stay in sync."
+  },
+  "cues": [
+    "mission statement",
+    "company mission",
+    "purpose"
+  ],
+  "defaultRegion": "main",
+  "description": "Mission statement section highlighting purpose, vision, and core focus.",
+  "fragments": [
+    "mission-statement",
+    "vision",
+    "supporting-points"
+  ],
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": false,
+    "hasSynthesizer": false
+  }
+}

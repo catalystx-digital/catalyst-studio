@@ -1,0 +1,77 @@
+{
+  "canonicalType": "video-player",
+  "componentType": "video-player",
+  "content": {
+    "autoPlay": false,
+    "controls": true,
+    "description": "Explore the editorial workflow in two minutes.",
+    "posterImage": "https://cdn.example.com/video/poster.jpg",
+    "sources": [
+      {
+        "type": "mp4",
+        "url": "https://videos.example.com/catalyst-demo.mp4"
+      }
+    ],
+    "title": "Product walkthrough"
+  },
+  "cues": [
+    "video player",
+    "product demo video",
+    "embedded video"
+  ],
+  "defaultRegion": "main",
+  "description": "Responsive video player supporting multiple sources and playback controls.",
+  "fragments": [
+    "video-player",
+    "play-button",
+    "caption"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Video player",
+      "role": "application"
+    },
+    "commonNames": [
+      "video-player",
+      "video",
+      "player",
+      "media-player",
+      "video-embed"
+    ],
+    "confidence": 0.95,
+    "keywords": [
+      "video",
+      "player",
+      "media",
+      "mp4",
+      "youtube",
+      "vimeo",
+      "embed",
+      "movie",
+      "film",
+      "watch"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "video player",
+      "embedded video",
+      "youtube embed",
+      "vimeo embed",
+      "media player"
+    ],
+    "semanticRole": "video",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

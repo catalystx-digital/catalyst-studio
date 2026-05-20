@@ -1,0 +1,48 @@
+{
+  "id": "content-features-cta",
+  "title": "Content Blocks, Feature Highlights, and Calls to Action",
+  "description": "Sequences the core content display components, feature layouts, and CTA patterns so the importer sees representative nested payloads for every canonical type.",
+  "regions": [
+    {
+      "region": "main",
+      "heading": "Rich Content Blocks",
+      "components": [
+        { "canonicalType": "text-block", "heading": "Text block copy + headings" },
+        { "canonicalType": "two-column", "heading": "Two column layout" },
+        { "canonicalType": "accordion", "heading": "Accordion expandable list" },
+        { "canonicalType": "tabs", "heading": "Tabbed content panels" },
+        { "canonicalType": "card-grid", "heading": "Card grid with nested cards" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Media + Quote Modules",
+      "components": [
+        { "canonicalType": "image-gallery", "heading": "Image gallery" },
+        { "canonicalType": "video-player", "heading": "Video player (hosted media)" },
+        { "canonicalType": "video-embed", "heading": "Video embed (external)" },
+        { "canonicalType": "quote-block", "heading": "Quote block / testimonial callout" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Feature Presentations",
+      "components": [
+        { "canonicalType": "feature-grid", "heading": "Feature grid" },
+        { "canonicalType": "feature-list", "heading": "Feature list" },
+        { "canonicalType": "feature-showcase", "heading": "Feature showcase with alternating media" },
+        { "canonicalType": "feature-comparison", "heading": "Feature comparison table" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Call to Action Patterns",
+      "components": [
+        { "canonicalType": "cta-simple", "heading": "CTA simple / banner" },
+        { "canonicalType": "cta-banner", "heading": "CTA banner with background" },
+        { "canonicalType": "cta-with-form", "heading": "CTA with form / newsletter" },
+        { "canonicalType": "cta-button-group", "heading": "CTA button group" }
+      ]
+    }
+  ]
+}

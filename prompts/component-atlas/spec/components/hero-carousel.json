@@ -1,0 +1,126 @@
+{
+  "canonicalType": "hero-carousel",
+  "componentType": "hero-carousel",
+  "content": {
+    "autoPlay": true,
+    "autoPlayInterval": 6000,
+    "slides": [
+      {
+        "id": "slide-spring-collection",
+        "heading": "Spring Collection Drop",
+        "image": {
+          "alt": "Model wearing spring fashion",
+          "src": "https://cdn.example.com/hero/spring-drop.jpg"
+        },
+        "subheading": "Limited-edition styles inspired by city skylines.",
+        "ctaButtons": [
+          {
+            "href": "/collections/spring",
+            "label": "Explore Collection",
+            "variant": "primary"
+          }
+        ]
+      },
+      {
+        "id": "slide-members-save",
+        "heading": "Members Save 20%",
+        "image": {
+          "alt": "Close-up of loyalty card",
+          "src": "https://cdn.example.com/hero/members.jpg"
+        },
+        "subheading": "Unlock early access and exclusive drops.",
+        "ctaButtons": [
+          {
+            "href": "/loyalty",
+            "label": "Join Loyalty",
+            "variant": "secondary"
+          }
+        ]
+      }
+    ]
+  },
+  "cues": [
+    "carousel",
+    "rotating hero",
+    "slideshow"
+  ],
+  "defaultRegion": "hero",
+  "description": "Carousel hero rotating featured stories or promotions.",
+  "fragments": [
+    "hero-slide",
+    "carousel-controls"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Featured content hero carousel",
+      "role": "region"
+    },
+    "commonNames": [
+      "hero carousel",
+      "hero slider",
+      "rotating hero",
+      "featured hero carousel"
+    ],
+    "confidence": 0.9,
+    "description": "Full-bleed hero carousel rotating multiple feature stories with imagery, copy, and calls to action.",
+    "industry": [
+      "general",
+      "retail",
+      "events",
+      "news"
+    ],
+    "keywords": [
+      "hero",
+      "carousel",
+      "slider",
+      "promotion",
+      "feature",
+      "rotating",
+      "banner"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "hero.*carousel",
+      "carousel.*hero",
+      "hero.*slider",
+      "featured.*carousel"
+    ],
+    "properties": [
+      {
+        "description": "List of hero slides each containing heading, copy, imagery, and CTAs.",
+        "name": "slides",
+        "required": true,
+        "type": "HeroCarouselSlide[]"
+      },
+      {
+        "description": "Milliseconds between automatic slide transitions.",
+        "name": "autoPlayInterval",
+        "required": false,
+        "type": "number"
+      },
+      {
+        "description": "Toggle dot or bar indicators for slide navigation.",
+        "name": "showIndicators",
+        "required": false,
+        "type": "boolean"
+      }
+    ],
+    "relatedComponents": [
+      "hero-banner",
+      "hero-with-image",
+      "hero-video"
+    ],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

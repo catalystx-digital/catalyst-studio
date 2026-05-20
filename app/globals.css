@@ -1,0 +1,336 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Catalyst X Design System - Dark Theme by Default */
+    --background: 0 0% 4%; /* #0a0a0a */
+    --foreground: 0 0% 100%; /* white */
+    --card: 0 0% 10%; /* #1a1a1a */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 20 100% 50%; /* #FF5500 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 5% 64.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 20 100% 50%; /* Orange accent */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --border: 0 0% 20%;
+    --input: 0 0% 15%;
+    --ring: 20 100% 50%;
+    --radius: 0.5rem;
+    --chart-1: 20 100% 50%;
+    --chart-2: 207 90% 40%;
+    --chart-3: 148 100% 33%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Catalyst token variables for Tailwind utilities */
+    --color-bg-primary: #0a0a0a;
+    --color-bg-secondary: #1a1a1a;
+    --color-bg-surface: rgba(255, 255, 255, 0.05);
+    --color-bg-surface-dark: rgba(255, 255, 255, 0.03);
+    --color-bg-overlay: rgba(0, 0, 0, 0.8);
+
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #d1d5db;
+    --color-text-muted: #a1a1aa;
+    --color-text-disabled: #6b7280;
+
+    --color-accent-orange: #ff5500;
+    --color-accent-orange-hover: #ff6622;
+    --color-accent-orange-light: rgba(255, 85, 0, 0.1);
+    --color-accent-blue: #0077cc;
+    --color-accent-blue-hover: #0088dd;
+    --color-accent-blue-light: rgba(0, 119, 204, 0.1);
+    --color-accent-green: #00aa55;
+    --color-accent-green-hover: #00bb66;
+    --color-accent-green-light: rgba(0, 170, 85, 0.1);
+    --color-accent-red: #dc2626;
+    --color-accent-red-hover: #ef4444;
+    --color-accent-red-light: rgba(220, 38, 38, 0.1);
+
+    --color-border-default: rgba(255, 255, 255, 0.1);
+    --color-border-hover: rgba(255, 255, 255, 0.15);
+    --color-border-active: #ff5500;
+
+    --font-family: Inter, system-ui, -apple-system, sans-serif;
+    --font-weight-light: 200;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 700;
+
+    --transition-fast: 150ms;
+    --transition-normal: 200ms;
+    --transition-slow: 300ms;
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    /* Already dark by default */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 20 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 5% 64.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 20 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --border: 0 0% 20%;
+    --input: 0 0% 15%;
+    --ring: 20 100% 50%;
+    --chart-1: 20 100% 50%;
+    --chart-2: 207 90% 40%;
+    --chart-3: 148 100% 33%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom animations for enhanced chat */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+
+  .animate-fade-in-down {
+    animation: fadeInDown 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out forwards;
+  }
+
+  .animate-progress {
+    animation: progress 2s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Stagger animation delay utilities for grid items */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+  .stagger-6 { animation-delay: 0.6s; }
+}
+
+/* Typing indicator specific styles */
+.typing-indicator-container {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+/* Suggestion chips animations */
+.suggestion-chip {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.suggestion-chip:active {
+  @apply scale-95;
+}
+
+/* Catalyst X Design System Components */
+@layer components {
+  /* Card Components with Glass Morphism */
+  .catalyst-card {
+    @apply bg-surface-dark backdrop-blur-glass border border-gray-800 rounded-lg;
+  }
+  
+  .catalyst-card-dark {
+    @apply bg-surface-darker backdrop-blur-glass border border-gray-800 rounded-lg;
+  }
+  
+  /* Buttons */
+  .catalyst-button-primary {
+    @apply bg-catalyst-orange hover:bg-catalyst-orange-hover text-white transition-all duration-200 font-medium;
+  }
+  
+  .catalyst-button-secondary {
+    @apply bg-transparent hover:bg-catalyst-orange-light text-gray-300 hover:text-white border border-gray-700 hover:border-catalyst-orange transition-all duration-200;
+  }
+  
+  .catalyst-button-ghost {
+    @apply bg-transparent hover:bg-surface-dark text-gray-400 hover:text-white transition-all duration-200;
+  }
+  
+  /* Text Styles */
+  .catalyst-text-primary {
+    @apply text-white;
+  }
+  
+  .catalyst-text-secondary {
+    @apply text-gray-400;
+  }
+  
+  .catalyst-text-muted {
+    @apply text-gray-500;
+  }
+  
+  /* Surface Styles */
+  .catalyst-surface {
+    @apply bg-surface-dark backdrop-blur-glass;
+  }
+  
+  .catalyst-surface-dark {
+    @apply bg-surface-darker backdrop-blur-glass;
+  }
+  
+  /* Input Styles */
+  .catalyst-input {
+    @apply bg-surface-dark backdrop-blur-sm border border-gray-700 text-white placeholder-gray-500 focus:border-catalyst-orange focus:ring-1 focus:ring-catalyst-orange transition-all duration-200;
+  }
+  
+  /* Badge Styles */
+  .catalyst-badge {
+    @apply bg-surface-dark text-gray-300 border border-gray-700 px-2 py-0.5 rounded text-xs;
+  }
+  
+  .catalyst-badge-orange {
+    @apply bg-catalyst-orange-light text-catalyst-orange border border-catalyst-orange;
+  }
+  
+  .catalyst-badge-blue {
+    @apply bg-catalyst-blue-light text-catalyst-blue border border-catalyst-blue;
+  }
+  
+  .catalyst-badge-green {
+    @apply bg-catalyst-green-light text-catalyst-green border border-catalyst-green;
+  }
+  
+  /* Select and Form Control Styles */
+  .catalyst-select {
+    @apply bg-surface-dark backdrop-blur-glass border border-gray-800 text-gray-200 rounded-lg;
+    @apply focus:outline-none focus:ring-2 focus:ring-catalyst-orange focus:border-catalyst-orange;
+    @apply hover:border-gray-700 transition-colors;
+  }
+  
+  /* Force dark theme on select elements globally */
+  select {
+    @apply bg-gray-900 text-gray-200;
+  }
+  
+  select option {
+    @apply bg-gray-900 text-gray-200;
+  }
+  
+  select optgroup {
+    @apply bg-gray-900 text-catalyst-orange font-semibold;
+  }
+}
+
+/* Force dark backgrounds across all pages */
+html, body {
+  @apply bg-dark-primary text-white;
+}
+
+/* Ensure main layout has dark background */
+.main-layout {
+  @apply bg-gradient-to-br from-dark-primary to-dark-secondary min-h-screen;
+}

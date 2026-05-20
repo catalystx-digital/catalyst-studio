@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "url": "https://www.parra.catholic.edu.au/",
+    "updatedAt": "2025-11-05T05:26:12.000Z",
+    "notes": [
+      "Baseline derived from DOM probe capture 2025-11-05T05:26:05Z",
+      "Focuses on primary heading/body typography, key brand colors, and spacing increments"
+    ]
+  },
+  "typography": [
+    {
+      "id": "body-mulish-18",
+      "role": "body",
+      "fontFamily": "Mulish",
+      "fontWeight": "300",
+      "fontSizePx": 18,
+      "tolerancePx": 1.5
+    },
+    {
+      "id": "heading-space-grotesk",
+      "role": "heading",
+      "fontFamily": "Space Grotesk",
+      "fontWeight": "400",
+      "fontSizePx": 34,
+      "tolerancePx": 2
+    }
+  ],
+  "palette": [
+    { "hex": "#00202f", "role": "primary" },
+    { "hex": "#ffffff", "role": "secondary" },
+    { "hex": "#dc3848", "role": "accent" }
+  ],
+  "spacing": {
+    "baseUnitPx": 16,
+    "tolerancePx": 2,
+    "scale": [8, 16, 24, 32]
+  }
+}

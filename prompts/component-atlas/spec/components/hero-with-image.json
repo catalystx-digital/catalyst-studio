@@ -1,0 +1,87 @@
+{
+  "canonicalType": "hero-with-image",
+  "componentType": "hero-with-image",
+  "content": {
+    "body": "Catalyst Studio unifies content, design, and AI workflows so your team ships faster.",
+    "ctaButtons": [
+      {
+        "href": "/contact",
+        "label": "Book a Demo",
+        "variant": "primary"
+      },
+      {
+        "href": "/pricing",
+        "label": "View Pricing",
+        "variant": "outline"
+      }
+    ],
+    "heading": "Transform Your Digital Experiences",
+    "image": {
+      "alt": "Team collaborating on a product launch",
+      "src": "https://cdn.example.com/hero/scene.jpg"
+    },
+    "subheading": "Design, launch, and iterate omnichannel sites in minutes."
+  },
+  "cues": [
+    "hero image",
+    "above the fold",
+    "marketing hero"
+  ],
+  "defaultRegion": "hero",
+  "description": "Hero section pairing narrative copy with a prominent supporting image.",
+  "fragments": [
+    "hero-heading",
+    "hero-subheading",
+    "hero-image",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Hero section with supporting image",
+      "role": "banner"
+    },
+    "commonNames": [
+      "hero with image",
+      "marketing hero",
+      "product hero"
+    ],
+    "confidence": 0.9,
+    "industry": [
+      "general",
+      "saas",
+      "retail",
+      "commerce"
+    ],
+    "keywords": [
+      "hero",
+      "image hero",
+      "marketing hero",
+      "headline",
+      "cta"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "hero.*image",
+      "primary.*hero",
+      "hero.*with.*visual",
+      "hero.*cta"
+    ],
+    "relatedComponents": [
+      "hero-split",
+      "hero-banner",
+      "hero-minimal"
+    ],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": true
+  }
+}

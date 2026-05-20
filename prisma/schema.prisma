@@ -1,0 +1,845 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// Multi-tenancy and usage tracking models (feature-gated via code)
+model Account {
+  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String
+  supabaseOrgId           String?              @unique @db.Uuid
+  plan                    String               @default("free")
+  limits                  Json?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  aiContexts              AIContext[]
+  apiKeys                 AccountApiKey[]
+  apiKeyEvents            AccountApiKeyEvent[]
+  integrations            AccountIntegration[]
+  users                   AccountMembership[]
+  quotas                  AccountQuota[]
+  deployments             Deployment[]
+  integrationUsageRecords IntegrationUsage[]
+  usage                   UsageEvent[]
+  websites                Website[]
+  invitations             Invitation[]
+}
+
+model AccountIntegration {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId        String              @db.Uuid
+  provider         IntegrationProvider
+  displayName      String
+  status           IntegrationStatus   @default(enabled)
+  config           Json?
+  secretCiphertext Bytes?
+  secretVersion    String              @default("v1")
+  lastTestedAt     DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  createdBy        String?
+  updatedBy        String?
+  account          Account             @relation(fields: [accountId], references: [id])
+  deployments      Deployment[]
+  usageRecords     IntegrationUsage[]
+
+  @@unique([accountId, provider, displayName])
+  @@index([accountId, provider])
+}
+
+model AccountApiKey {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId        String               @db.Uuid
+  websiteId        String?
+  label            String
+  hashedSecret     String
+  salt             String
+  scopes           AccountApiKeyScope[] @default([ACCOUNT_READ])
+  issuedBy         String?              @db.Uuid
+  issuedAt         DateTime             @default(now())
+  expiresAt        DateTime?
+  lastUsedAt       DateTime?
+  status           AccountApiKeyStatus  @default(active)
+  primaryKeyHash   String
+  secondaryKeyHash String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  account          Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  website          Website?             @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  events           AccountApiKeyEvent[]
+
+  @@index([accountId, status])
+  @@index([accountId, websiteId])
+  @@index([websiteId])
+}
+
+model AccountApiKeyEvent {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  apiKeyId   String                 @db.Uuid
+  accountId  String                 @db.Uuid
+  websiteId  String?
+  action     AccountApiKeyEventType
+  actorId    String?                @db.Uuid
+  metadata   Json?
+  occurredAt DateTime               @default(now())
+  account    Account                @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  apiKey     AccountApiKey          @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  website    Website?               @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId, occurredAt])
+  @@index([accountId, occurredAt])
+}
+
+model User {
+  id          String              @id @db.Uuid
+  email       String?
+  name        String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  memberships AccountMembership[]
+  systemAdmin SystemAdmin?
+}
+
+model AccountMembership {
+  id            String   @id @default(cuid())
+  accountId     String   @db.Uuid
+  userId        String   @db.Uuid
+  role          String   @default("member")
+  websiteAccess String   @default("all")      // 'all' or 'specific'
+  websiteIds    String[] @default([])         // Only used when websiteAccess = 'specific'
+  invitedBy     String?  @db.Uuid             // User ID who invited this member
+  joinedAt      DateTime @default(now())      // When user accepted invitation
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  account       Account  @relation(fields: [accountId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([accountId, userId])
+  @@index([userId])
+}
+
+model UsageEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId    String   @db.Uuid
+  kind         String
+  amount       Int      @default(1)
+  metadata     Json?
+  occurredAt   DateTime @default(now())
+  inputTokens  Int?
+  outputTokens Int?
+  totalTokens  Int?
+  model        String?
+  account      Account  @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, kind, occurredAt])
+}
+
+model IntegrationUsage {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountIntegrationId String                 @db.Uuid
+  accountId            String                 @db.Uuid
+  websiteId            String?
+  deploymentId         String?
+  action               IntegrationUsageAction
+  metadata             Json?
+  occurredAt           DateTime               @default(now())
+  account              Account                @relation(fields: [accountId], references: [id])
+  integration          AccountIntegration     @relation(fields: [accountIntegrationId], references: [id])
+  deployment           Deployment?            @relation(fields: [deploymentId], references: [id])
+  website              Website?               @relation(fields: [websiteId], references: [id])
+
+  @@index([accountId, occurredAt])
+  @@index([accountIntegrationId, occurredAt])
+  @@index([deploymentId])
+  @@index([websiteId])
+}
+
+model AccountQuota {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String       @db.Uuid
+  kind      String
+  value     Int
+  updatedAt DateTime     @updatedAt
+  period    QuotaPeriod?
+  account   Account      @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, kind])
+}
+
+model Website {
+  id                      String                     @id @default(cuid())
+  name                    String
+  description             String?
+  category                String
+  metadata                Json?
+  icon                    Json?
+  settings                Json?
+  agencyBranding          Json?                      /// Agency white-label branding for proposals
+  proposalTemplate        Json?                      /// Custom Word template for proposal exports (base64 content + metadata)
+  isActive                Boolean                    @default(true)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  accountId               String?                    @db.Uuid
+  aiContexts              AIContext[]
+  apiKeys                 AccountApiKey[]
+  apiKeyEvents            AccountApiKeyEvent[]
+  contentTypes            ContentType[]
+  deployments             Deployment[]
+  importJobs              ImportJob[]
+  previewJobs             PreviewJob[]
+  integrationUsageRecords IntegrationUsage[]
+  account                 Account?                   @relation(fields: [accountId], references: [id])
+  websiteComponentTypes   WebsiteComponentType[]
+  websiteCustomContent    WebsiteCustomContentData[]
+  designConcepts          WebsiteDesignConcept[]
+  designSystems           WebsiteDesignSystem[]
+  mediaAssets             WebsiteMedia[]
+  mediaSources            WebsiteMediaSource[]
+  mediaUsages             WebsiteMediaUsage[]
+  websitePages            WebsitePage[]
+  websiteSharedComponents WebsiteSharedComponent[]
+  websiteStructures       WebsiteStructure[]
+  nodePositions           NodePosition[]
+  redirects               Redirect[]
+  contentReferences       ContentReference[]
+  failedReferences        FailedReference[]
+
+  @@index([accountId])
+}
+
+model ContentType {
+  id                   String                     @id @default(cuid())
+  key                  String
+  name                 String
+  pluralName           String
+  displayField         String?
+  category             ContentTypeCategory        @default(page)
+  fields               Json
+  websiteId            String
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  website              Website                    @relation(fields: [websiteId], references: [id])
+  websiteCustomContent WebsiteCustomContentData[]
+  websitePages         WebsitePage[]
+
+  @@unique([websiteId, key])
+  @@index([websiteId])
+  @@index([category])
+}
+
+model WebsitePage {
+  id            String             @id @default(cuid())
+  websiteId     String
+  type          String
+  title         String
+  content       Json?
+  metadata      Json?
+  contentTypeId String
+  status        String             @default("draft")
+  publishedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  templateKey   String?
+  templateProps Json?
+  contentType   ContentType        @relation(fields: [contentTypeId], references: [id])
+  website       Website            @relation(fields: [websiteId], references: [id])
+  structures    WebsiteStructure[]
+}
+
+model WebsiteCustomContentData {
+  id            String      @id @default(cuid())
+  websiteId     String
+  title         String
+  data          Json
+  contentTypeId String
+  status        String      @default("draft")
+  publishedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  createdBy     String?
+  updatedBy     String?
+  contentType   ContentType @relation(fields: [contentTypeId], references: [id])
+  website       Website     @relation(fields: [websiteId], references: [id])
+}
+
+model Deployment {
+  id                      String              @id @default(cuid())
+  websiteId               String
+  provider                String
+  status                  String
+  deploymentData          Json?
+  errorMessage            String?
+  deployedAt              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  accountId               String?             @db.Uuid
+  accountIntegrationId    String?             @db.Uuid
+  account                 Account?            @relation(fields: [accountId], references: [id])
+  integration             AccountIntegration? @relation(fields: [accountIntegrationId], references: [id])
+  website                 Website             @relation(fields: [websiteId], references: [id])
+  integrationUsageRecords IntegrationUsage[]
+
+  @@index([websiteId])
+  @@index([provider])
+  @@index([status])
+  @@index([accountId])
+  @@index([accountIntegrationId])
+}
+
+model AIContext {
+  id        String   @id @default(cuid())
+  websiteId String?
+  sessionId String   @default("default")
+  context   Json
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  accountId String?  @db.Uuid
+  account   Account? @relation(fields: [accountId], references: [id])
+  website   Website? @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, sessionId])
+  @@unique([accountId, sessionId])
+  @@index([websiteId])
+  @@index([accountId])
+}
+
+model WebsiteStructure {
+  id            String             @id @default(cuid())
+  websiteId     String
+  slug          String             @db.VarChar(255)
+  fullPath      String
+  websitePageId String?
+  parentId      String?
+  position      Int                @default(0)
+  pathDepth     Int                @default(0)
+  weight        Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  // IA Metadata (nullable - only for greenfield sites)
+  iaMetadata    Json?              // Stores purpose, audience, requiredSections
+  iaStatus      String?            // 'pending' | 'generating' | 'complete' | 'error'
+
+  parent        WebsiteStructure?  @relation("WebsiteStructureHierarchy", fields: [parentId], references: [id])
+  children      WebsiteStructure[] @relation("WebsiteStructureHierarchy")
+  website       Website            @relation(fields: [websiteId], references: [id])
+  websitePage   WebsitePage?       @relation(fields: [websitePageId], references: [id])
+  nodePosition  NodePosition?
+
+  @@unique([parentId, slug])
+  @@unique([websiteId, fullPath])
+  @@index([fullPath])
+  @@index([parentId])
+  @@index([websiteId])
+  @@index([pathDepth])
+  @@index([websitePageId])
+}
+
+model Redirect {
+  id           String   @id @default(uuid())
+  websiteId    String
+  sourcePath   String
+  targetPath   String
+  redirectType Int
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  description  String?
+  isExternal   Boolean  @default(false)
+  navLabel     String?
+  openInNewTab Boolean  @default(true)
+  showInNav    Boolean  @default(false)
+  source       String?
+  website      Website  @relation(fields: [websiteId], references: [id])
+
+  @@unique([websiteId, sourcePath])
+  @@index([sourcePath])
+  @@index([websiteId, isActive])
+  @@index([websiteId, isExternal])
+}
+
+model WebsiteComponentType {
+  id               String                   @id @default(cuid())
+  type             String
+  category         String
+  version          String                   @default("1.0.0")
+  defaultConfig    Json
+  placeholderData  Json
+  styles           Json?
+  aiMetadata       Json
+  confidence       Float                    @default(0)
+  isGlobal         Boolean                  @default(false)
+  websiteId        String
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  createdBy        String?
+  updatedBy        String?
+  analytics        ComponentAnalytics[]
+  website          Website                  @relation(fields: [websiteId], references: [id])
+  sharedComponents WebsiteSharedComponent[]
+
+  @@index([websiteId, type])
+  @@index([category])
+  @@index([createdAt])
+  @@index([confidence])
+}
+
+model ComponentAnalytics {
+  id             String               @id @default(cuid())
+  componentId    String
+  componentType  String
+  renderCount    Int                  @default(0)
+  avgRenderTime  Float                @default(0)
+  errorCount     Int                  @default(0)
+  impressions    Int                  @default(0)
+  interactions   Int                  @default(0)
+  conversionRate Float?
+  mobileViews    Int                  @default(0)
+  tabletViews    Int                  @default(0)
+  desktopViews   Int                  @default(0)
+  date           DateTime             @default(now())
+  component      WebsiteComponentType @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@index([componentId])
+  @@index([componentType])
+  @@index([date])
+}
+
+model WebsiteSharedComponent {
+  id                     String               @id @default(cuid())
+  websiteId              String
+  websiteComponentTypeId String
+  name                   String
+  config                 Json
+  usageCount             Int                  @default(0)
+  lastModified           DateTime             @updatedAt
+  createdAt              DateTime             @default(now())
+  createdBy              String?
+  updatedBy              String?
+  content                Json?
+  websiteComponentType   WebsiteComponentType @relation(fields: [websiteComponentTypeId], references: [id])
+  website                Website              @relation(fields: [websiteId], references: [id])
+
+  @@index([websiteId])
+  @@index([websiteComponentTypeId])
+}
+
+model WebsiteMedia {
+  id          String               @id @default(cuid())
+  websiteId   String
+  contentId   String?
+  provider    MediaStorageProvider
+  storageKey  String
+  checksum    String
+  contentType String
+  width       Int?
+  height      Int?
+  duration    Float?
+  metadata    Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  website     Website              @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  sources     WebsiteMediaSource[]
+  usages      WebsiteMediaUsage[]
+
+  @@unique([websiteId, storageKey])
+  @@unique([websiteId, checksum])
+  @@index([websiteId, contentType])
+}
+
+model WebsiteMediaSource {
+  id          String       @id @default(cuid())
+  websiteId   String
+  mediaId     String
+  originalUrl String
+  contentId   String?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  media       WebsiteMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  website     Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, originalUrl])
+  @@index([mediaId])
+}
+
+model WebsiteMediaUsage {
+  id                  String         @id @default(cuid())
+  websiteId           String
+  mediaId             String
+  contentId           String?
+  pageId              String?
+  componentInstanceId String?
+  usageType           MediaUsageType
+  metadata            Json?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  media               WebsiteMedia   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  website             Website        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId, usageType])
+  @@index([mediaId])
+  @@index([pageId])
+  @@index([componentInstanceId])
+}
+
+model ImportJob {
+  id                 String                @id @default(cuid())
+  websiteId          String
+  url                String
+  status             String                @default("pending")
+  templatesGenerated Json                  @default("[]")
+  detectionResults   Json                  @default("{}")
+  errorMessage       String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  website            Website               @relation(fields: [websiteId], references: [id])
+  pageDetections     ImportPageDetection[]
+  designSystems      WebsiteDesignSystem[]
+
+  @@index([websiteId])
+  @@index([status])
+}
+
+/// Tracks async preview sandbox creation jobs
+/// Allows UI polling for sandbox readiness status
+model PreviewJob {
+  id         String           @id @default(cuid())
+  websiteId  String
+  status     PreviewJobStatus @default(PENDING)
+  sandboxId  String?
+  previewUrl String?
+  error      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  website    Website          @relation(fields: [websiteId], references: [id])
+
+  @@index([websiteId])
+  @@index([status])
+}
+
+/// Stores individual page detection results for import jobs
+/// Replaces storing all pages in ImportJob.detectionResults JSON field
+model ImportPageDetection {
+  id             String    @id @default(cuid())
+  jobId          String
+  websiteId      String
+  pageUrl        String
+  pageTitle      String
+  componentCount Int       @default(0)
+  status         String
+  confidence     Float?
+  detectionData  Json
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  job            ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, pageUrl])
+  @@index([jobId])
+  @@index([jobId, status])
+  @@index([websiteId])
+}
+
+model WebsiteDesignSystem {
+  id              String               @id @default(cuid())
+  websiteId       String
+  version         String               @default("1.0.0")
+  tokens          Json
+  sourceJobId     String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  designConceptId String
+  isCurrent       Boolean              @default(true)
+  designConcept   WebsiteDesignConcept @relation(fields: [designConceptId], references: [id])
+  importJob       ImportJob?           @relation(fields: [sourceJobId], references: [id])
+  website         Website              @relation(fields: [websiteId], references: [id])
+
+  @@index([websiteId])
+  @@index([sourceJobId])
+  @@index([designConceptId, isCurrent])
+}
+
+model WebsiteDesignConcept {
+  id            String                @id @default(cuid())
+  websiteId     String
+  name          String
+  slug          String
+  position      Int                   @default(0)
+  description   String?
+  metadata      Json?
+  isDefault     Boolean               @default(false)
+  generatorSeed String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  website       Website               @relation(fields: [websiteId], references: [id])
+  designSystems WebsiteDesignSystem[]
+
+  @@unique([websiteId, slug])
+  @@index([websiteId, position])
+}
+
+/// Node positions for site-builder canvas
+/// Persists calculated layout positions to eliminate recalculation mismatches
+model NodePosition {
+  id            String           @id @default(cuid())
+  websiteId     String
+  structureId   String           @unique
+  x             Float
+  y             Float
+  width         Float            @default(280)
+  height        Float            @default(120)
+  gridCellX     Int
+  gridCellY     Int
+  pageTitle     String?
+  pageSlug      String
+  fullPath      String
+  pathDepth     Int
+  layoutVersion String           @default("1.0")
+  layoutHash    String?
+  calculatedAt  DateTime         @default(now())
+  structure     WebsiteStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  website       Website          @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId, gridCellX, gridCellY], map: "idx_spatial_grid")
+  @@index([websiteId, x], map: "idx_position_x")
+  @@index([websiteId, y], map: "idx_position_y")
+  @@index([websiteId, pathDepth], map: "idx_depth")
+  @@index([structureId], map: "idx_structure")
+}
+
+model ContentReference {
+  id          String   @id @default(cuid())
+
+  // Source (the content containing the reference)
+  sourceType  String   // 'page' | 'component'
+  sourceId    String   // WebsitePage.id
+  sourcePath  String   // JSON path: "content.components.0.props.image"
+
+  // Target (what is being referenced)
+  targetType  String   // 'page' | 'media'
+  targetId    String   // WebsitePage.id or WebsiteMedia.id
+
+  // Context
+  websiteId   String
+  createdAt   DateTime @default(now())
+
+  // Validation fields - track reference health over time
+  status          String    @default("active") // 'active' | 'broken' | 'pending'
+  lastValidatedAt DateTime?
+
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@index([targetId])
+  @@index([websiteId, targetType])
+  @@index([websiteId, status])
+  @@unique([sourceId, sourcePath, targetId])
+}
+
+/// Tracks failed reference resolutions during import
+/// Allows retry of failed downloads and visibility into import issues
+model FailedReference {
+  id          String   @id @default(cuid())
+  websiteId   String
+  sourceType  String   // 'page' | 'component'
+  sourceId    String   // WebsitePage.id or component instance ID
+  sourcePath  String   // JSON path: "content.components.0.props.image"
+  originalUrl String
+  reason      String   // 'download_failed' | 'invalid_mime' | 'timeout' | 'not_found'
+  attempts    Int      @default(1)
+  lastAttempt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, sourcePath, originalUrl])
+  @@index([websiteId])
+}
+
+enum IntegrationStatus {
+  enabled
+  disabled
+  error
+}
+
+enum IntegrationProvider {
+  OPTIMIZELY      @map("optimizely")
+  CONTENTFUL      @map("contentful")
+  STRAPI          @map("strapi")
+  MOCK            @map("mock")
+  CONTENTSTACK    @map("contentstack")
+  KONTENT         @map("kontent")
+  UMBRACO_COMPOSE @map("umbraco-compose")
+}
+
+enum IntegrationUsageAction {
+  deploy
+  test
+  export
+}
+
+enum QuotaPeriod {
+  day
+  week
+  month
+}
+
+enum MediaStorageProvider {
+  FILE
+  S3
+}
+
+enum MediaUsageType {
+  page_component
+  shared_component
+  custom_content
+  ai_generated
+}
+
+enum AccountApiKeyScope {
+  ACCOUNT_READ
+  WEBSITE_READ
+}
+
+enum AccountApiKeyStatus {
+  active
+  revoked
+}
+
+enum AccountApiKeyEventType {
+  issued
+  rotated
+  revoked
+  usage
+}
+
+enum ContentTypeCategory {
+  page
+  component
+  folder
+}
+
+enum PreviewJobStatus {
+  PENDING
+  CREATING_SANDBOX
+  SYNCING_FILES
+  READY
+  ERROR
+}
+
+// =============================================================================
+// RBAC Models
+// =============================================================================
+
+/// Invitation to join an account
+model Invitation {
+  id              String              @id @default(cuid())
+  accountId       String              @db.Uuid
+  account         Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  email           String              // Email of the invited user
+  role            String              @default("member")
+  websiteAccess   String              @default("all")
+  websiteIds      String[]            @default([])
+  invitedBy       String              @db.Uuid  // User ID who sent invitation
+  status          InvitationStatus    @default(pending)
+  emailStatus     EmailDeliveryStatus @default(pending)
+  emailError      String?
+  emailSentAt     DateTime?
+  token           String              @unique @default(cuid())  // Secure token for accept link
+  expiresAt       DateTime            // Invitation expiry
+  respondedAt     DateTime?           // When user responded (accepted/declined/revoked)
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([accountId, email])
+  @@index([accountId, status])
+  @@index([token])
+  @@index([email])
+}
+
+/// System administrators who can impersonate users
+model SystemAdmin {
+  id                    String                @id @default(cuid())
+  userId                String                @unique @db.Uuid
+  isActive              Boolean               @default(true)
+  grantedBy             String?               @db.Uuid
+  grantedAt             DateTime              @default(now())
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  user                  User                  @relation(fields: [userId], references: [id])
+  impersonationSessions ImpersonationSession[]
+}
+
+/// Impersonation sessions for system admins
+model ImpersonationSession {
+  id              String      @id @default(cuid())
+  systemAdminId   String
+  targetUserId    String      @db.Uuid
+  targetAccountId String      @db.Uuid
+  reason          String?
+  startedAt       DateTime    @default(now())
+  endedAt         DateTime?
+  systemAdmin     SystemAdmin @relation(fields: [systemAdminId], references: [id])
+
+  @@index([targetUserId, targetAccountId])
+  @@index([systemAdminId])
+}
+
+/// Audit log for RBAC actions
+model AuditLog {
+  id         String      @id @default(cuid())
+  accountId  String      @db.Uuid
+  actorId    String      @db.Uuid
+  actorType  String      @default("user")
+  action     AuditAction
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  occurredAt DateTime    @default(now())
+  createdAt  DateTime    @default(now())
+
+  @@index([accountId, occurredAt])
+  @@index([actorId])
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  declined
+  revoked
+  expired
+}
+
+enum EmailDeliveryStatus {
+  pending
+  sent
+  failed
+}
+
+enum AuditAction {
+  invitation_created
+  invitation_accepted
+  invitation_declined
+  invitation_revoked
+  invitation_resent
+  member_invited
+  member_role_changed
+  member_access_changed
+  member_removed
+  impersonation_started
+  impersonation_ended
+}

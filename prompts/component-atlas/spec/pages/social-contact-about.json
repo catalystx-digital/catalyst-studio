@@ -1,0 +1,37 @@
+{
+  "id": "social-contact-about",
+  "title": "Social Proof, Contact Surfaces, and About Storytelling",
+  "description": "Covers trust-building patterns (testimonials, reviews, case studies), primary contact interactions, and about/mission storytelling components.",
+  "regions": [
+    {
+      "region": "main",
+      "heading": "Social Proof Modules",
+      "components": [
+        { "canonicalType": "testimonials", "heading": "Testimonials carousel/grid" },
+        { "canonicalType": "reviews", "heading": "Reviews list" },
+        { "canonicalType": "logo-cloud", "heading": "Logo cloud partners" },
+        { "canonicalType": "case-study", "heading": "Case study spotlight" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Contact + Location Surfaces",
+      "components": [
+        { "canonicalType": "contact-form", "heading": "Contact form" },
+        { "canonicalType": "contact-info", "heading": "Contact info summary" },
+        { "canonicalType": "location-map", "heading": "Location map" },
+        { "canonicalType": "simple-form", "heading": "Simple inline form" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "About + Narrative Components",
+      "components": [
+        { "canonicalType": "mission", "heading": "Mission statement" },
+        { "canonicalType": "about-section", "heading": "About section overview" },
+        { "canonicalType": "team-grid", "heading": "Team grid" },
+        { "canonicalType": "timeline", "heading": "Company timeline" }
+      ]
+    }
+  ]
+}

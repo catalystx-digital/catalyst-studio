@@ -1,0 +1,2 @@
+-- Legacy placeholder migration.
+-- The original deployment recorded this step without schema changes.

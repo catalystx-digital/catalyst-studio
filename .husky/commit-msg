@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+
+# Get the commit message
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Define conventional commit pattern
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,}"
+
+# Check if commit message matches pattern
+if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+  echo "❌ Invalid commit message format!"
+  echo ""
+  echo "Commit message must follow Conventional Commits format:"
+  echo "  <type>(<scope>): <subject>"
+  echo ""
+  echo "Examples:"
+  echo "  feat: add new CMS component"
+  echo "  fix(cms): resolve rendering issue in hero component"
+  echo "  docs: update README with setup instructions"
+  echo ""
+  echo "Valid types:"
+  echo "  feat     - New feature"
+  echo "  fix      - Bug fix"
+  echo "  docs     - Documentation changes"
+  echo "  style    - Code style changes (formatting, etc)"
+  echo "  refactor - Code refactoring"
+  echo "  perf     - Performance improvements"
+  echo "  test     - Test additions or corrections"
+  echo "  build    - Build system changes"
+  echo "  ci       - CI configuration changes"
+  echo "  chore    - Other changes (maintenance, etc)"
+  echo "  revert   - Revert a previous commit"
+  echo ""
+  echo "Your message: $COMMIT_MSG"
+  exit 1
+fi
+
+echo "✅ Commit message validation passed"

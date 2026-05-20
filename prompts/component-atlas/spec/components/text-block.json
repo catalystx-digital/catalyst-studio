@@ -1,0 +1,68 @@
+{
+  "canonicalType": "text-block",
+  "componentType": "text-block",
+  "content": {
+    "alignment": "left",
+    "body": "<p>Our visual editor brings structured content and styling together so teams ship faster.</p>",
+    "heading": "Build content faster",
+    "subheading": "Pair AI assistance with guardrails."
+  },
+  "cues": [
+    "text block",
+    "rich text",
+    "content section"
+  ],
+  "defaultRegion": "main",
+  "description": "Rich text block for headings and paragraphs, with alignment and optional columns.",
+  "fragments": [
+    "heading",
+    "subheading",
+    "rich-text"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Text content section",
+      "role": "article"
+    },
+    "commonNames": [
+      "text-block",
+      "content-block",
+      "text-section",
+      "article-content",
+      "body-text"
+    ],
+    "confidence": 0.8,
+    "keywords": [
+      "text",
+      "paragraph",
+      "article",
+      "content",
+      "body",
+      "description",
+      "prose",
+      "copy"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar"
+    ],
+    "patterns": [
+      "<p>",
+      "lorem ipsum",
+      "text content",
+      "paragraph",
+      "article body"
+    ],
+    "semanticRole": "article",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

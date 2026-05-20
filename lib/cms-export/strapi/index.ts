@@ -1,0 +1,2 @@
+export { StrapiProvider } from './provider';
+

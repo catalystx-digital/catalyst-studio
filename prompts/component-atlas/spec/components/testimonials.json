@@ -1,0 +1,82 @@
+{
+  "canonicalType": "testimonials",
+  "componentType": "testimonials",
+  "content": {
+    "showNavigation": true,
+    "testimonials": [
+      {
+        "type": "testimonial-item",
+        "id": "testimonial-alicia-m",
+        "quote": "Catalyst cut our launch cycle from weeks to days -- our marketing team finally iterates at the pace of ideas.",
+        "author": "Alicia Mendoza",
+        "role": "VP Marketing, LumaSoft",
+        "avatar": "https://cdn.example.com/avatars/alicia.jpg"
+      },
+      {
+        "type": "testimonial-item",
+        "id": "testimonial-sam-r",
+        "quote": "The built-in approval workflows eliminated endless review threads and screenshots.",
+        "author": "Sam Reid",
+        "role": "Digital Director, Northwind Retail"
+      }
+    ]
+  },
+  "cues": [
+    "testimonial",
+    "customer quote",
+    "social proof"
+  ],
+  "defaultRegion": "main",
+  "description": "Carousel or grid of customer testimonials with author metadata.",
+  "fragments": [
+    "testimonial-quote",
+    "author-card"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Customer testimonials",
+      "role": "region"
+    },
+    "commonNames": [
+      "TestimonialSlider",
+      "ReviewCarousel",
+      "CustomerQuotes",
+      "TestimonialCarousel"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "testimonial",
+      "review",
+      "customer",
+      "quote",
+      "feedback",
+      "carousel",
+      "slider",
+      "rotator"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "testimonial[\\s-]?(slider|carousel|rotator)",
+      "customer[\\s-]?(reviews?|feedback|quotes?)",
+      "what[\\s-]?(our[\\s-]?)?(customers?|clients?)[\\s-]?say",
+      "client[\\s-]?testimonials?",
+      "review[\\s-]?carousel"
+    ],
+    "relatedComponents": [
+      "testimonials"
+    ],
+    "semanticRole": "complementary",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

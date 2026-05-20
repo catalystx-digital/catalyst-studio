@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "url": "https://www.tio.com.au/",
+    "updatedAt": "2025-11-05T05:29:40.000Z",
+    "notes": [
+      "Baseline generated from DOM probe capture 2025-11-05T05:29:37Z",
+      "Arial-based typography with strong heading weights"
+    ]
+  },
+  "typography": [
+    {
+      "id": "body-arial-18",
+      "role": "body",
+      "fontFamily": "arial",
+      "fontWeight": "400",
+      "fontSizePx": 18,
+      "tolerancePx": 2
+    },
+    {
+      "id": "heading-arial-41",
+      "role": "heading",
+      "fontFamily": "arial",
+      "fontWeight": "700",
+      "fontSizePx": 41,
+      "tolerancePx": 3
+    }
+  ],
+  "palette": [
+    { "hex": "#333232", "role": "primary" },
+    { "hex": "#3966a8", "role": "secondary" },
+    { "hex": "#efb154", "role": "accent" }
+  ],
+  "spacing": {
+    "baseUnitPx": 4,
+    "tolerancePx": 1,
+    "scale": [4, 12, 20, 30]
+  }
+}

@@ -1,0 +1,128 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${file}",
+            "outFiles": [
+                "${workspaceFolder}/**/*.js"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "E2E: Optimizely (Pages Only)",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/scripts/e2e/deploy-website-optimizely.js",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "env": {
+                "OPTIMIZELY_ENABLE_CREATE_CONTENT_TYPES": "false",
+                "OPTIMIZELY_ENABLE_CREATE_COMPONENTS": "true",
+                "OPTIMIZELY_ENABLE_CREATE_PAGES": "false"
+            },
+            "outFiles": [
+                "${workspaceFolder}/**/*.js"
+            ]
+        },
+        {
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Next.js: Dev (full stack)",
+            "command": "npm run dev",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "NODE_OPTIONS": "--inspect=9229 --enable-source-maps"
+            },
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/(rsc)/**",
+                "**/(client)/**"
+            ],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "sourceMapPathOverrides": {
+                "/(rsc)/*": "${workspaceFolder}/*",
+                "/(client)/*": "${workspaceFolder}/*",
+                "webpack:///./*": "${workspaceFolder}/*",
+                "webpack:///*": "${workspaceFolder}/*",
+                "webpack-internal:///*": "${workspaceFolder}/*",
+                "vscode-virtual:///*": "${workspaceFolder}/*"
+            }
+        },
+        {
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Kontent: Sync Website cmgk48awn0007v86s4mfx9tl7",
+            "command": "npm run debug:kontent-sync -- cmgk48awn0007v86s4mfx9tl7",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "NODE_OPTIONS": "--enable-source-maps"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Optimizely CMS Export",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "npx",
+            "runtimeArgs": [
+                "tsx",
+                "scripts/standalone-export.ts",
+                "--website-id", "cmji78qmx0001v8d0imk27vil",
+                "--email", "kikuxuzac@mailinator.com",
+                "--integration", "Optimizely - PMS",
+                "--publish"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "console": "integratedTerminal",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "attach",
+            "name": "Next.js: Attach (9229)",
+            "port": 9229,
+            "cwd": "${workspaceFolder}",
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/(rsc)/**",
+                "**/(client)/**"
+            ],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "sourceMaps": true,
+            "sourceMapPathOverrides": {
+                "/(rsc)/*": "${workspaceFolder}/*",
+                "/(client)/*": "${workspaceFolder}/*",
+                "webpack:///./*": "${workspaceFolder}/*",
+                "webpack:///*": "${workspaceFolder}/*",
+                "webpack-internal:///*": "${workspaceFolder}/*",
+                "vscode-virtual:///*": "${workspaceFolder}/*"
+            },
+            "outFiles": [
+                "${workspaceFolder}/.next/**/*.js",
+                "${workspaceFolder}/**/*.js"
+            ]
+        }
+    ]
+}

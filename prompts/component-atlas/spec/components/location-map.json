@@ -1,0 +1,73 @@
+{
+  "canonicalType": "location-map",
+  "componentType": "location-map",
+  "content": {
+    "address": "Level 19, 2 Chifley Square, Sydney NSW",
+    "coordinates": {
+      "lat": -33.8688,
+      "lng": 151.2093
+    },
+    "zoom": 12,
+    "mapType": "roadmap",
+    "markerTitle": "Sydney Office",
+    "infoWindow": {
+      "title": "Sydney Office",
+      "description": "Level 19, 2 Chifley Square, Sydney NSW",
+      "showDirections": true
+    },
+    "enableControls": true
+  },
+  "cues": [
+    "map embed",
+    "location map",
+    "store locator"
+  ],
+  "defaultRegion": "main",
+  "description": "Embeddable map with address/coordinates, marker info window, and styling options.",
+  "fragments": [
+    "map",
+    "location-pin",
+    "location-details"
+  ],
+  "metadata": {
+    "commonNames": [
+      "LocationMap",
+      "MapEmbed",
+      "GoogleMap",
+      "StoreLocator",
+      "OfficeMap",
+      "Map"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "map",
+      "location",
+      "directions",
+      "google maps",
+      "address",
+      "find us",
+      "where",
+      "office",
+      "store"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "map embed",
+      "location map",
+      "find us",
+      "directions",
+      "google maps",
+      "where are we",
+      "store locator",
+      "office location"
+    ],
+    "relatedComponents": []
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

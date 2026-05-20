@@ -1,0 +1,432 @@
+import { ReImportService } from '../reimport-service'
+import { PrismaClient } from '@/lib/generated/prisma'
+import { ImportPipeline } from '../../import-pipeline'
+
+// Mock dependencies
+jest.mock('@/lib/generated/prisma', () => ({
+  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+}))
+
+jest.mock('../../import-pipeline')
+jest.mock('../checkpoint-service', () => ({
+  getCheckpointService: jest.fn().mockReturnValue({
+    initializeSession: jest.fn().mockResolvedValue({
+      jobId: 'test-job',
+      websiteId: 'test-website',
+      cacheDir: '/tmp/test',
+      manifest: {}
+    }),
+    saveSitemap: jest.fn().mockResolvedValue(undefined),
+    getCompletedUrls: jest.fn().mockResolvedValue(new Set()),
+    finalize: jest.fn().mockResolvedValue(undefined),
+    updateStatus: jest.fn().mockResolvedValue(undefined),
+    completeStage: jest.fn().mockResolvedValue(undefined),
+    resumeSession: jest.fn().mockResolvedValue(null),
+    loadSitemap: jest.fn().mockResolvedValue(null),
+  }),
+}))
+
+const mockPrisma = {
+  website: {
+    findUnique: jest.fn(),
+  },
+  websitePage: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  websiteStructure: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
+  contentType: {
+    findFirst: jest.fn(),
+  },
+}
+
+const mockImportPipeline = {
+  execute: jest.fn(),
+  getLastDomProbeCapture: jest.fn().mockReturnValue(null),
+}
+
+describe('ReImportService', () => {
+  let service: ReImportService
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(ImportPipeline as jest.Mock).mockImplementation(() => mockImportPipeline)
+
+    service = new ReImportService({
+      prisma: mockPrisma as unknown as PrismaClient,
+      importPipeline: mockImportPipeline as unknown as ImportPipeline,
+    })
+
+    // Default mocks
+    mockPrisma.website.findUnique.mockResolvedValue({
+      id: 'test-website-id',
+      accountId: 'test-account-id',
+      importJobs: [{ url: 'https://example.com' }],
+    })
+
+    mockPrisma.contentType.findFirst.mockResolvedValue({
+      id: 'content-type-1',
+    })
+  })
+
+  describe('validateUrls', () => {
+    it('validates valid HTTP URLs', async () => {
+      const results = await service.validateUrls('website-1', [
+        'https://example.com/about',
+        'https://example.com/contact',
+      ])
+
+      expect(results).toHaveLength(2)
+      expect(results[0].valid).toBe(true)
+      expect(results[1].valid).toBe(true)
+    })
+
+    it('rejects invalid URL formats', async () => {
+      const results = await service.validateUrls('website-1', [
+        'not-a-url',
+        'ftp://example.com',
+      ])
+
+      expect(results[0].valid).toBe(false)
+      expect(results[0].reason).toContain('Invalid URL')
+      expect(results[1].valid).toBe(false)
+      expect(results[1].reason).toContain('HTTP or HTTPS')
+    })
+
+    it('rejects localhost and private IPs', async () => {
+      const results = await service.validateUrls('website-1', [
+        'http://localhost/page',
+        'http://127.0.0.1/page',
+        'http://192.168.1.1/page',
+        'http://10.0.0.1/page',
+      ])
+
+      results.forEach(result => {
+        expect(result.valid).toBe(false)
+        expect(result.reason).toContain('not allowed')
+      })
+    })
+
+    it('normalizes URLs correctly', async () => {
+      const results = await service.validateUrls('website-1', [
+        'https://EXAMPLE.COM/About/',
+      ])
+
+      expect(results[0].valid).toBe(true)
+      expect(results[0].normalizedUrl).toBe('https://example.com/About')
+    })
+  })
+
+  describe('resolveExistingPage', () => {
+    it('finds page by importSource metadata', async () => {
+      const mockPage = {
+        id: 'page-1',
+        title: 'About',
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1', fullPath: '/about' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(mockPage)
+
+      const result = await service.resolveExistingPage(
+        'website-1',
+        'https://example.com/about'
+      )
+
+      expect(result.found).toBe(true)
+      expect(result.page).toEqual(mockPage)
+      expect(result.matchedBy).toBe('importSource')
+    })
+
+    it('finds page by URL path when importSource not found', async () => {
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
+
+      const mockStructure = {
+        id: 'struct-1',
+        fullPath: '/about',
+        websitePage: { id: 'page-1', title: 'About' },
+      }
+      mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(mockStructure)
+
+      const result = await service.resolveExistingPage(
+        'website-1',
+        'https://example.com/about'
+      )
+
+      expect(result.found).toBe(true)
+      expect(result.page).toEqual(mockStructure.websitePage)
+      expect(result.matchedBy).toBe('fullPath')
+    })
+
+    it('returns not found when page does not exist', async () => {
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
+      mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(null)
+
+      const result = await service.resolveExistingPage(
+        'website-1',
+        'https://example.com/new-page'
+      )
+
+      expect(result.found).toBe(false)
+      expect(result.matchedBy).toBe('none')
+    })
+  })
+
+  describe('reimport', () => {
+    beforeEach(() => {
+      mockImportPipeline.execute.mockResolvedValue({
+        success: true,
+        detections: [{
+          url: 'https://example.com/about',
+          components: [
+            { type: 'hero', props: { title: 'About Us' } },
+            { type: 'content', props: { text: 'Content here' } },
+          ],
+          metadata: { httpStatus: 200 },
+        }],
+      })
+    })
+
+    it('returns error for non-existent website', async () => {
+      mockPrisma.website.findUnique.mockResolvedValueOnce(null)
+
+      const result = await service.reimport({
+        websiteId: 'non-existent',
+        urls: ['https://example.com/about'],
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.warnings).toContainEqual(
+        expect.stringContaining('Website not found')
+      )
+    })
+
+    it('skips URLs with invalid format', async () => {
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['not-a-url', 'https://example.com/about'],
+      })
+
+      expect(result.results).toHaveLength(2)
+      expect(result.results[0].status).toBe('skipped')
+      expect(result.results[0].error).toContain('Invalid URL')
+    })
+
+    it('skips URLs from different domains', async () => {
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://different.com/page'],
+      })
+
+      expect(result.results[0].status).toBe('skipped')
+      expect(result.results[0].error).toContain('Domain mismatch')
+    })
+
+    it('updates existing page successfully', async () => {
+      const existingPage = {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.results[0].status).toBe('updated')
+      expect(result.results[0].pageId).toBe('page-1')
+      expect(mockPrisma.websitePage.update).toHaveBeenCalled()
+    })
+
+    it('creates new page when not found and createIfNotExists is true', async () => {
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
+      mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(null)
+      mockPrisma.websitePage.create.mockResolvedValueOnce({
+        id: 'new-page-1',
+        title: 'About',
+      })
+      mockPrisma.websiteStructure.create.mockResolvedValueOnce({
+        id: 'new-struct-1',
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        createIfNotExists: true,
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.results[0].status).toBe('created')
+      expect(mockPrisma.websitePage.create).toHaveBeenCalled()
+      expect(mockPrisma.websiteStructure.create).toHaveBeenCalled()
+    })
+
+    it('skips creation when createIfNotExists is false', async () => {
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
+      mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(null)
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        createIfNotExists: false,
+      })
+
+      expect(result.results[0].status).toBe('skipped')
+      expect(result.results[0].error).toContain('createIfNotExists is false')
+    })
+
+    it('handles 404 source errors', async () => {
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: false,
+        errors: ['Source page not found (404)'],
+        detections: [],
+      })
+
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce({
+        id: 'page-1',
+        structures: [],
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/deleted-page'],
+      })
+
+      expect(result.results[0].status).toBe('failed')
+    })
+
+    it('reports progress during reimport', async () => {
+      const progressCallback = jest.fn()
+
+      mockPrisma.websitePage.findFirst.mockResolvedValue(null)
+      mockPrisma.websiteStructure.findFirst.mockResolvedValue(null)
+      mockPrisma.websitePage.create.mockResolvedValue({ id: 'new-page' })
+      mockPrisma.websiteStructure.create.mockResolvedValue({ id: 'new-struct' })
+
+      await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/page1'],
+        onProgress: progressCallback,
+      })
+
+      expect(progressCallback).toHaveBeenCalled()
+      expect(progressCallback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stage: expect.any(String),
+          progress: expect.any(Number),
+          message: expect.any(String),
+        })
+      )
+    })
+
+    it('respects dry run mode', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        dryRun: true,
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.results[0].status).toBe('updated')
+      expect(mockPrisma.websitePage.update).not.toHaveBeenCalled()
+    })
+
+    it('processes multiple URLs with correct summary', async () => {
+      // First URL - existing page
+      mockPrisma.websitePage.findFirst
+        .mockResolvedValueOnce({
+          id: 'page-1',
+          content: { components: [] },
+          metadata: { importSource: 'https://example.com/about' },
+          structures: [],
+        })
+        // Second URL - new page
+        .mockResolvedValueOnce(null)
+        // Third URL - new page
+        .mockResolvedValueOnce(null)
+
+      mockPrisma.websiteStructure.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+
+      mockPrisma.websitePage.update.mockResolvedValue({})
+      mockPrisma.websitePage.create.mockResolvedValue({ id: 'new-page' })
+      mockPrisma.websiteStructure.create.mockResolvedValue({ id: 'new-struct' })
+
+      mockImportPipeline.execute.mockResolvedValue({
+        success: true,
+        detections: [{
+          url: 'test',
+          components: [{ type: 'hero', props: {} }],
+          metadata: { httpStatus: 200 },
+        }],
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: [
+          'https://example.com/about',
+          'https://example.com/contact',
+          'https://example.com/services',
+        ],
+      })
+
+      expect(result.results).toHaveLength(3)
+      expect(result.summary.updated).toBe(1)
+      expect(result.summary.created).toBe(2)
+    })
+  })
+
+  describe('batch processing', () => {
+    it('processes URLs with configured concurrency', async () => {
+      const urls = [
+        'https://example.com/page1',
+        'https://example.com/page2',
+        'https://example.com/page3',
+        'https://example.com/page4',
+      ]
+
+      mockPrisma.websitePage.findFirst.mockResolvedValue(null)
+      mockPrisma.websiteStructure.findFirst.mockResolvedValue(null)
+      mockPrisma.websitePage.create.mockResolvedValue({ id: 'new-page' })
+      mockPrisma.websiteStructure.create.mockResolvedValue({ id: 'new-struct' })
+
+      mockImportPipeline.execute.mockResolvedValue({
+        success: true,
+        detections: [{
+          url: 'test',
+          components: [{ type: 'hero', props: {} }],
+          metadata: { httpStatus: 200 },
+        }],
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls,
+        concurrency: 2,
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.results).toHaveLength(4)
+    })
+  })
+})

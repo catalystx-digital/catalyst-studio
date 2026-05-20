@@ -1,0 +1,105 @@
+{
+  "canonicalType": "related-posts",
+  "componentType": "related-posts",
+  "content": {
+    "title": "More stories from the center",
+    "displayMode": "grid",
+    "posts": [
+      {
+        "type": "blog-card",
+        "id": "blog-card-artisan-food-trail",
+        "title": "Artisan Food Trail launches this spring",
+        "publishDate": "2024-06-18",
+        "slug": "artisan-food-trail"
+      },
+      {
+        "type": "blog-card",
+        "id": "blog-card-winter-festival",
+        "title": "Winter festival brings live music downtown",
+        "publishDate": "2024-05-30",
+        "slug": "winter-festival"
+      },
+      {
+        "type": "blog-card",
+        "id": "blog-card-makers-program",
+        "title": "Makers-in-residence program expands",
+        "publishDate": "2024-05-15",
+        "slug": "makers-program"
+      }
+    ],
+    "manualPosts": []
+  },
+  "cues": [
+    "related posts",
+    "more stories",
+    "you might also like"
+  ],
+  "defaultRegion": "main",
+  "description": "Related article rail highlighting additional content to continue the reading journey.",
+  "fragments": [
+    "related-card",
+    "card-list"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Related articles",
+      "role": "complementary"
+    },
+    "commonNames": [
+      "RelatedPosts",
+      "RelatedArticles",
+      "SuggestedPosts",
+      "RecommendedReading",
+      "MoreArticles",
+      "SimilarPosts"
+    ],
+    "confidence": 0.8,
+    "description": "Hybrid related content module that auto-suggests posts and supports editorial overrides.",
+    "industry": [
+      "Publishing",
+      "Media",
+      "Technology",
+      "Business",
+      "Education"
+    ],
+    "keywords": [
+      "related",
+      "you may also like",
+      "more articles",
+      "similar posts",
+      "recommended",
+      "related posts",
+      "related articles",
+      "suggested reading",
+      "more from",
+      "you might like"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar",
+      "footer"
+    ],
+    "patterns": [
+      "related.*posts",
+      "related.*articles",
+      "similar.*posts",
+      "recommended.*reading",
+      "you.*may.*like",
+      "more.*articles",
+      "suggested.*posts"
+    ],
+    "relatedComponents": [],
+    "semanticRole": "complementary",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "compact",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

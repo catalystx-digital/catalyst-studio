@@ -1,0 +1,53 @@
+{
+  "recommendations": [
+    // Core Development
+    "dbaeumer.vscode-eslint",                // ESLint integration
+    "esbenp.prettier-vscode",                // Prettier code formatter
+    "ms-vscode.vscode-typescript-next",      // Latest TypeScript features
+    
+    // Database & Prisma
+    "prisma.prisma",                         // Prisma language support
+    "qcz.sqlite-viewer",                      // View SQLite databases
+    "mtxr.sqltools",                          // Database management
+    "mtxr.sqltools-driver-sqlite",           // SQLite driver
+    
+    // React & Next.js
+    "dsznajder.es7-react-js-snippets",       // React snippets
+    "pulkitgangwar.nextjs-snippets",         // Next.js snippets
+    "burkeholland.simple-react-snippets",     // More React snippets
+    
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",             // Tailwind IntelliSense
+    
+    // Git & GitHub
+    "eamodio.gitlens",                        // Advanced Git features
+    "github.vscode-pull-request-github",      // GitHub PR management
+    
+    // Code Quality
+    "sonarsource.sonarlint-vscode",          // Code quality & security
+    "streetsidesoftware.code-spell-checker",  // Spell checking
+    
+    // Productivity
+    "christian-kohler.path-intellisense",     // Path autocomplete
+    "formulahendry.auto-rename-tag",         // Auto rename HTML/JSX tags
+    "naumovs.color-highlight",               // Highlight colors in code
+    "wayou.vscode-todo-highlight",           // Highlight TODOs
+    "gruntfuggly.todo-tree",                 // TODO tree view
+    
+    // Testing
+    "orta.vscode-jest",                      // Jest integration
+    "ms-playwright.playwright",              // Playwright test runner
+    
+    // Documentation
+    "yzhang.markdown-all-in-one",            // Markdown support
+    "bierner.markdown-preview-github-styles", // GitHub-style markdown preview
+    
+    // Optional but Helpful
+    "usernamehw.errorlens",                  // Inline error display
+    "wix.vscode-import-cost",                // Display import sizes
+    "styled-components.vscode-styled-components", // Styled components support
+    "mikestead.dotenv",                      // .env file support
+    "redhat.vscode-yaml"                     // YAML support
+  ],
+  "unwantedRecommendations": []
+}

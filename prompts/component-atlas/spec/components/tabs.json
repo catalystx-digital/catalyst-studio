@@ -1,0 +1,106 @@
+{
+  "canonicalType": "tabs",
+  "componentType": "tabs",
+  "content": {
+    "defaultTab": "creation",
+    "heading": "Platform capabilities",
+    "tabs": [
+      {
+        "id": "tab-item-creation",
+        "type": "tab-item",
+        "label": "Create",
+        "content": "Generate responsive layouts with AI-assisted starter content."
+      },
+      {
+        "id": "tab-item-collaborate",
+        "type": "tab-item",
+        "label": "Collaborate",
+        "content": "Comment, assign tasks, and capture approvals in context."
+      }
+    ],
+    "areas": []
+  },
+  "cues": [
+    "tabs",
+    "tabbed content"
+  ],
+  "defaultRegion": "main",
+  "description": "Tabbed interface organizing content into switchable panels.",
+  "fragments": [
+    "tab-list",
+    "tab-panel"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Content Tabs",
+      "role": "tablist"
+    },
+    "commonNames": [
+      "Tabs",
+      "TabPanel",
+      "TabbedContent",
+      "TabNavigation",
+      "TabContainer",
+      "TabGroup",
+      "TabList",
+      "TabSwitcher",
+      "ContentTabs",
+      "NavigationTabs"
+    ],
+    "confidence": 0.88,
+    "industry": [
+      "general",
+      "documentation",
+      "product",
+      "education"
+    ],
+    "keywords": [
+      "tabs",
+      "tab panel",
+      "tabbed content",
+      "tab navigation",
+      "tab switcher",
+      "tabbed interface",
+      "tab control",
+      "tab menu",
+      "switchable content",
+      "tab list",
+      "tabpanel",
+      "nav tabs",
+      "content tabs"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "class.*tabs",
+      "class.*tab-",
+      "role.*tablist",
+      "role.*tab",
+      "role.*tabpanel",
+      "aria-selected",
+      "data-tabs",
+      "nav.*tabs",
+      "tab-content",
+      "tab-pane",
+      "tabpanel",
+      "tab-button"
+    ],
+    "relatedComponents": [
+      "accordion",
+      "text-block"
+    ],
+    "semanticRole": "navigation-content",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

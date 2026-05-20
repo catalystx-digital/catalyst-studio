@@ -1,0 +1,68 @@
+{
+  "canonicalType": "cta-banner",
+  "componentType": "cta-banner",
+  "content": {
+    "alignment": "center",
+    "fullWidth": true,
+    "heading": "Launch your next experience",
+    "primaryButton": {
+      "text": "Start free trial",
+      "url": "/signup",
+      "variant": "primary"
+    },
+    "secondaryButton": {
+      "text": "Talk to sales",
+      "url": "/contact/sales",
+      "variant": "outline"
+    },
+    "subheading": "See how teams ship new campaigns in days, not weeks."
+  },
+  "cues": [
+    "cta banner",
+    "full-width cta",
+    "promo strip"
+  ],
+  "defaultRegion": "main",
+  "description": "Full-width call-to-action section with headline and primary/secondary buttons.",
+  "fragments": [
+    "headline",
+    "supporting-copy",
+    "primary-button",
+    "secondary-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "CTABanner",
+      "CallToAction",
+      "ActionBanner"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "cta",
+      "call to action",
+      "banner",
+      "action section",
+      "get started",
+      "sign up"
+    ],
+    "pageLocation": [
+      "main",
+      "footer"
+    ],
+    "patterns": [
+      "call[\\s-]?to[\\s-]?action",
+      "cta[\\s-]?banner",
+      "action[\\s-]?section",
+      "get[\\s-]?started",
+      "sign[\\s-]?up[\\s-]?now"
+    ],
+    "relatedComponents": [
+      "cta-with-form"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

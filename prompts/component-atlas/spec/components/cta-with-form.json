@@ -1,0 +1,61 @@
+{
+  "canonicalType": "cta-with-form",
+  "componentType": "cta-with-form",
+  "content": {
+    "buttonText": "Subscribe",
+    "heading": "Stay in the loop",
+    "layout": "horizontal",
+    "placeholder": "Enter your work email",
+    "subheading": "Join our newsletter for product updates and best practices.",
+    "successMessage": "Thanks for subscribing!"
+  },
+  "cues": [
+    "newsletter signup",
+    "lead capture form",
+    "cta form"
+  ],
+  "defaultRegion": "main",
+  "description": "Email newsletter signup form with configurable layout and messaging.",
+  "fragments": [
+    "form-heading",
+    "input-field",
+    "submit-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "Newsletter",
+      "EmailSignup",
+      "Subscribe",
+      "CTANewsletter"
+    ],
+    "confidence": 0.88,
+    "keywords": [
+      "newsletter",
+      "subscribe",
+      "email",
+      "signup",
+      "mailing list",
+      "updates"
+    ],
+    "pageLocation": [
+      "footer",
+      "sidebar"
+    ],
+    "patterns": [
+      "newsletter",
+      "subscri(be|ption)",
+      "email[\\s-]?signup",
+      "mailing[\\s-]?list",
+      "stay[\\s-]?updated",
+      "get[\\s-]?updates"
+    ],
+    "relatedComponents": [
+      "cta-simple"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

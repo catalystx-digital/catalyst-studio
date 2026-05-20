@@ -1,0 +1,4 @@
+- Spec: `prompts/component-atlas/spec/pages/content-features-cta.json` (content primitives, media, feature layouts, CTA patterns).
+- Fixtures regenerated with `pnpm tsx scripts/eval/build-component-atlas-fixtures.ts --generate-data --update-expected` (2025-11-01).
+- Passing eval report: `reports/eval/detection/2025-11-01T05-06-34-501Z.json` (prompt chars: 89734, importer diffs: 0).
+- Schema updates: accordion/tabs now emit canonical subcomponent ids + slot `areas` arrays; card/feature/showcase payloads include explicit `type` hints; all content blocks drop synthetic `region` echoes.

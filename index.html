@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catalyst Studio - Documentation & Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --catalyst-orange: #FF5500;
+            --carbon-black: #212121;
+            --adaptive-blue: #0077CC;
+            --human-green: #00AA55;
+            --light-gray: #F5F5F5;
+            --medium-gray: #9E9E9E;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--catalyst-orange) 0%, var(--adaptive-blue) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Geometric Pattern Background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 100px,
+                    rgba(255, 255, 255, 0.03) 100px,
+                    rgba(255, 255, 255, 0.03) 200px
+                );
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .logo-icon {
+            width: 60px;
+            height: 60px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 32px;
+            transform: rotate(45deg);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .logo-icon::before {
+            content: 'X';
+            transform: rotate(-45deg);
+            color: var(--catalyst-orange);
+        }
+
+        .logo-icon:hover {
+            transform: rotate(45deg) scale(1.1);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: white;
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 20px;
+            font-weight: 300;
+            letter-spacing: 0.02em;
+        }
+
+        /* Cards Grid */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 85, 0, 0.05), transparent);
+            transition: left 0.5s;
+        }
+
+        .card:hover::before {
+            left: 100%;
+        }
+
+        .card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--catalyst-orange), var(--adaptive-blue));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(255, 85, 0, 0.3);
+        }
+
+        .card-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--carbon-black);
+            margin-bottom: 12px;
+        }
+
+        .card-description {
+            color: var(--medium-gray);
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .card-features {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .card-features li {
+            padding: 8px 0;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-features li::before {
+            content: '✓';
+            color: var(--human-green);
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .card-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--catalyst-orange);
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .card-action:hover {
+            gap: 12px;
+        }
+
+        .card-action svg {
+            transition: transform 0.2s ease;
+        }
+
+        .card-action:hover svg {
+            transform: translateX(4px);
+        }
+
+        /* Status Badge */
+        .status-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 6px 12px;
+            background: var(--human-green);
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-badge.beta {
+            background: var(--adaptive-blue);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            animation: fadeIn 0.8s ease 0.4s both;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            transition: opacity 0.2s ease;
+        }
+
+        .footer a:hover {
+            opacity: 0.8;
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 36px;
+            }
+
+            .subtitle {
+                font-size: 18px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 30px;
+            }
+        }
+
+        /* Documentation Navigation */
+        .docs-nav {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .docs-nav h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--carbon-black);
+            margin-bottom: 12px;
+        }
+
+        .docs-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .docs-link {
+            padding: 10px 16px;
+            background: var(--light-gray);
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--carbon-black);
+            font-size: 14px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .docs-link:hover {
+            background: linear-gradient(135deg, var(--catalyst-orange), var(--adaptive-blue));
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .docs-link-icon {
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon"></div>
+            </div>
+            <h1>Catalyst Studio</h1>
+            <p class="subtitle">AI-Powered Website Builder for Enterprise CMS</p>
+        </div>
+
+        <!-- Cards Grid -->
+        <div class="cards">
+            <!-- Interactive Mockup Card -->
+            <a href="mockup.html" class="card">
+                <span class="status-badge">Live Demo</span>
+                <div class="card-icon">🎨</div>
+                <h2 class="card-title">Interactive Mockup</h2>
+                <p class="card-description">
+                    Experience the full Catalyst Studio interface with our customer-approved HTML prototype.
+                </p>
+                <ul class="card-features">
+                    <li>Three-column responsive layout</li>
+                    <li>AI chat interface with typing indicators</li>
+                    <li>Content type builder with drag & drop</li>
+                    <li>Multi-device preview system</li>
+                    <li>Analytics dashboard mockup</li>
+                </ul>
+                <span class="card-action">
+                    Launch Interactive Demo
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"/>
+                    </svg>
+                </span>
+            </a>
+
+            <!-- Documentation Card -->
+            <div class="card">
+                <span class="status-badge beta">Documentation</span>
+                <div class="card-icon">📚</div>
+                <h2 class="card-title">Technical Documentation</h2>
+                <p class="card-description">
+                    Comprehensive guides for developers, designers, and product managers building Catalyst Studio.
+                </p>
+                
+                <div class="docs-nav">
+                    <h3>Quick Links</h3>
+                    <div class="docs-links">
+                        <a href="docs/project-brief.md" class="docs-link">
+                            <span class="docs-link-icon">🎯</span>
+                            Project Brief
+                        </a>
+                        <a href="docs/prd.md" class="docs-link">
+                            <span class="docs-link-icon">📋</span>
+                            PRD
+                        </a>
+                        <a href="docs/front-end-spec.md" class="docs-link">
+                            <span class="docs-link-icon">🎨</span>
+                            UI/UX Spec
+                        </a>
+                        <a href="docs/architecture.md" class="docs-link">
+                            <span class="docs-link-icon">🏗️</span>
+                            Architecture
+                        </a>
+                        <a href="docs/ai-ui-generation-prompt.md" class="docs-link">
+                            <span class="docs-link-icon">🤖</span>
+                            AI Prompts
+                        </a>
+                        <a href="docs/README.md" class="docs-link">
+                            <span class="docs-link-icon">📖</span>
+                            Full Index
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>
+                Built with ❤️ by the Catalyst Studio Team | 
+                <a href="https://github.com/catalystx/catalyst-studio" target="_blank">GitHub</a> | 
+                <a href="docs/README.md">Documentation Index</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactive effects
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-8px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+
+        // Smooth scroll for internal links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

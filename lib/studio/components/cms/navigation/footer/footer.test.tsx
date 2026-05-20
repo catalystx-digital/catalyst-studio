@@ -1,0 +1,138 @@
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+
+import { ComponentCategory, ComponentType } from '../../_core/types';
+import { Footer } from './index';
+import type { FooterProps } from './footer.types';
+
+describe('Footer Component', () => {
+  const defaultProps: FooterProps = {
+    id: 'test-footer',
+    type: ComponentType.Footer,
+    category: ComponentCategory.Navigation,
+    content: {
+      columns: [
+        {
+          title: 'Products',
+          links: [
+            { label: 'Features', href: '/features' },
+            { label: 'Pricing', href: '/pricing' },
+          ],
+        },
+        {
+          title: 'Company',
+          links: [
+            { label: 'About', href: '/about' },
+            { label: 'Contact', href: '/contact' },
+          ],
+        },
+      ],
+      socialLinks: [
+        { platform: 'twitter', url: 'https://twitter.com' },
+        { platform: 'github', url: 'https://github.com' },
+      ],
+      copyright: '© 2024 Test Company',
+      legalLinks: [
+        { label: 'Privacy', href: '/privacy' },
+        { label: 'Terms', href: '/terms' },
+      ],
+    },
+  };
+
+  it('renders without crashing', () => {
+    render(<Footer {...defaultProps} />);
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+  });
+
+  it('renders footer columns', () => {
+    render(<Footer {...defaultProps} />);
+
+    expect(screen.getByText('Products')).toBeInTheDocument();
+    expect(screen.getByText('Company')).toBeInTheDocument();
+    expect(screen.getByText('Features')).toBeInTheDocument();
+    expect(screen.getByText('About')).toBeInTheDocument();
+  });
+
+  it('renders social links inside button wrappers', () => {
+    render(<Footer {...defaultProps} />);
+
+    const twitterLink = screen.getByLabelText('Visit our twitter');
+    expect(twitterLink).toHaveAttribute('href', 'https://twitter.com');
+    expect(twitterLink.closest('button')).toBeNull();
+    expect(twitterLink).toHaveClass('cms-button');
+  });
+
+  it('renders copyright text', () => {
+    render(<Footer {...defaultProps} />);
+    expect(screen.getByText('© 2024 Test Company')).toBeInTheDocument();
+  });
+
+  it('renders legal links', () => {
+    render(<Footer {...defaultProps} />);
+
+    expect(screen.getByText('Privacy')).toBeInTheDocument();
+    expect(screen.getByText('Terms')).toBeInTheDocument();
+  });
+
+  it('renders newsletter form when provided', () => {
+    const propsWithNewsletter: FooterProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        newsletter: {
+          heading: 'Subscribe',
+          description: 'Get updates',
+          placeholder: 'Enter email',
+          buttonText: 'Subscribe',
+        },
+      },
+    };
+
+    render(<Footer {...propsWithNewsletter} />);
+
+    expect(screen.getByRole('heading', { name: 'Subscribe' })).toBeInTheDocument();
+    expect(screen.getByText('Get updates')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter email')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Subscribe' })).toBeInTheDocument();
+  });
+
+  it('handles newsletter submission', async () => {
+    const onInteraction = jest.fn();
+    const propsWithNewsletter: FooterProps = {
+      ...defaultProps,
+      onInteraction,
+      content: {
+        ...defaultProps.content,
+        newsletter: {
+          heading: 'Subscribe',
+          description: 'Get updates',
+          placeholder: 'Enter email',
+          buttonText: 'Subscribe',
+        },
+      },
+    };
+
+    render(<Footer {...propsWithNewsletter} />);
+
+    const emailInput = screen.getByPlaceholderText('Enter email');
+    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+    fireEvent.submit(emailInput.closest('form')!);
+
+    await waitFor(() =>
+      expect(onInteraction).toHaveBeenCalledWith('newsletter-submit', {
+        email: 'test@example.com',
+      }),
+    );
+  });
+
+  it('applies custom className to root footer', () => {
+    const propsWithClass: FooterProps = {
+      ...defaultProps,
+      className: 'custom-footer',
+    };
+
+    render(<Footer {...propsWithClass} />);
+    expect(screen.getByRole('contentinfo')).toHaveClass('custom-footer');
+  });
+});

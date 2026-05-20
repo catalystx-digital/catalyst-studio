@@ -1,0 +1,82 @@
+{
+  "canonicalType": "hero-simple",
+  "componentType": "hero-simple",
+  "content": {
+    "body": "Catalyst Studio pairs structured components with best-practice templates so every team can move quickly.",
+    "ctaButtons": [
+      {
+        "href": "/signup",
+        "label": "Start building",
+        "variant": "primary"
+      }
+    ],
+    "heading": "Ship pages in minutes",
+    "subheading": "Use our AI-assisted editor to launch campaigns faster with built-in guardrails."
+  },
+  "cues": [
+    "simple hero",
+    "compact hero",
+    "landing hero"
+  ],
+  "defaultRegion": "hero",
+  "description": "Compact hero with headline, subcopy, and primary action.",
+  "fragments": [
+    "hero-heading",
+    "supporting-copy",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Page hero section",
+      "role": "banner"
+    },
+    "commonNames": [
+      "simple hero",
+      "headline hero",
+      "landing hero",
+      "marketing hero"
+    ],
+    "confidence": 0.9,
+    "description": "Compact hero layout with headline, supporting copy, and primary call to action.",
+    "industry": [
+      "general",
+      "marketing",
+      "saas",
+      "public-sector"
+    ],
+    "keywords": [
+      "hero",
+      "simple hero",
+      "compact hero",
+      "landing hero",
+      "headline hero",
+      "banner"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "hero.*simple",
+      "compact.*hero",
+      "landing.*hero",
+      "hero.*headline",
+      "banner.*hero"
+    ],
+    "relatedComponents": [
+      "hero-banner",
+      "hero-split",
+      "hero-with-image",
+      "hero-minimal"
+    ],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

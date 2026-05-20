@@ -1,0 +1,80 @@
+{
+  "canonicalType": "feature-grid",
+  "componentType": "feature-grid",
+  "content": {
+    "columns": 3,
+    "features": [
+      {
+        "type": "feature-item",
+        "id": "feature-item-ai-authoring",
+        "title": "AI-assisted authoring",
+        "description": "Convert briefs into production-ready layouts using guided prompts.",
+        "icon": "sparkles"
+      },
+      {
+        "type": "feature-item",
+        "id": "feature-item-approvals",
+        "title": "Faster approvals",
+        "description": "Stakeholders review inline with real-time commenting and version history.",
+        "icon": "clock"
+      },
+      {
+        "type": "feature-item",
+        "id": "feature-item-security",
+        "title": "Enterprise security",
+        "description": "SOC 2 Type II compliant infrastructure and continuous monitoring.",
+        "icon": "shield-check"
+      }
+    ],
+    "heading": "Why teams choose Catalyst",
+    "subheading": "From ideation to launch, we remove friction across the content lifecycle."
+  },
+  "cues": [
+    "feature grid",
+    "benefit highlights",
+    "columns of features"
+  ],
+  "defaultRegion": "main",
+  "description": "Feature highlights arranged in a responsive grid with optional headings.",
+  "fragments": [
+    "feature-card",
+    "icon-text",
+    "supporting-copy"
+  ],
+  "metadata": {
+    "commonNames": [
+      "FeatureGrid",
+      "ServiceGrid",
+      "CapabilitiesGrid",
+      "SolutionsGrid"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "features",
+      "services",
+      "offerings",
+      "capabilities",
+      "what we do",
+      "solutions"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "features?[\\s-]?(grid|list|section)",
+      "services?[\\s-]?(overview|summary)",
+      "our[\\s-]?capabilities",
+      "what[\\s-]?we[\\s-]?(do|offer)",
+      "solutions?[\\s-]?overview"
+    ],
+    "relatedComponents": [
+      "feature-list",
+      "card-grid"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

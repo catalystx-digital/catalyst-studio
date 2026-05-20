@@ -1,0 +1,162 @@
+{
+  "examples": [
+    {
+      "name": "BlogPost",
+      "category": "page",
+      "purpose": "Blog article with rich content and metadata",
+      "fields": [
+        {"name": "title", "type": "Text", "required": true, "label": "Post Title", "validation": {"maxLength": 255}},
+        {"name": "slug", "type": "Text", "required": true, "label": "URL Slug", "validation": {"pattern": "^[a-z0-9-]+$"}},
+        {"name": "excerpt", "type": "Text", "required": false, "label": "Excerpt", "validation": {"maxLength": 500}},
+        {"name": "content", "type": "LongText", "required": true, "label": "Content Body"},
+        {"name": "featuredImage", "type": "Media", "required": false, "label": "Featured Image"},
+        {"name": "author", "type": "Text", "required": true, "label": "Author Name"},
+        {"name": "publishDate", "type": "Date", "required": true, "label": "Publish Date"},
+        {"name": "categories", "type": "JSON", "required": false, "label": "Categories"},
+        {"name": "tags", "type": "JSON", "required": false, "label": "Tags"},
+        {"name": "seoTitle", "type": "Text", "required": false, "label": "SEO Title", "validation": {"maxLength": 60}},
+        {"name": "seoDescription", "type": "Text", "required": false, "label": "SEO Description", "validation": {"maxLength": 160}}
+      ],
+      "confidence": 95
+    },
+    {
+      "name": "ProductPage",
+      "category": "page",
+      "purpose": "E-commerce product display page",
+      "fields": [
+        {"name": "title", "type": "Text", "required": true, "label": "Product Name"},
+        {"name": "slug", "type": "Text", "required": true, "label": "URL Slug"},
+        {"name": "description", "type": "LongText", "required": true, "label": "Product Description"},
+        {"name": "shortDescription", "type": "Text", "required": false, "label": "Short Description", "validation": {"maxLength": 300}},
+        {"name": "price", "type": "Decimal", "required": true, "label": "Price", "validation": {"min": 0}},
+        {"name": "compareAtPrice", "type": "Decimal", "required": false, "label": "Compare at Price"},
+        {"name": "sku", "type": "Text", "required": true, "label": "SKU"},
+        {"name": "images", "type": "JSON", "required": true, "label": "Product Images"},
+        {"name": "inStock", "type": "Boolean", "required": true, "label": "In Stock"},
+        {"name": "stockQuantity", "type": "Number", "required": false, "label": "Stock Quantity", "validation": {"min": 0}},
+        {"name": "specifications", "type": "JSON", "required": false, "label": "Technical Specifications"},
+        {"name": "relatedProducts", "type": "JSON", "required": false, "label": "Related Products"}
+      ],
+      "relationships": [
+        {"name": "category", "type": "manyToOne", "targetType": "ProductCategory", "required": false}
+      ],
+      "confidence": 92
+    },
+    {
+      "name": "LandingPage",
+      "category": "page",
+      "purpose": "Marketing landing page with conversion focus",
+      "fields": [
+        {"name": "title", "type": "Text", "required": true, "label": "Page Title"},
+        {"name": "slug", "type": "Text", "required": true, "label": "URL Slug"},
+        {"name": "heroSection", "type": "JSON", "required": true, "label": "Hero Section", "helpText": "Main hero content"},
+        {"name": "contentSections", "type": "JSON", "required": false, "label": "Content Sections", "helpText": "Flexible content areas"},
+        {"name": "ctaSection", "type": "JSON", "required": true, "label": "CTA Section"},
+        {"name": "testimonials", "type": "JSON", "required": false, "label": "Testimonials"},
+        {"name": "features", "type": "JSON", "required": false, "label": "Features List"},
+        {"name": "conversionTracking", "type": "JSON", "required": false, "label": "Conversion Tracking"}
+      ],
+      "confidence": 88
+    },
+    {
+      "name": "ArticlePage",
+      "category": "page",
+      "purpose": "News or magazine article page",
+      "fields": [
+        {"name": "title", "type": "Text", "required": true, "label": "Article Title"},
+        {"name": "slug", "type": "Text", "required": true, "label": "URL Slug"},
+        {"name": "subtitle", "type": "Text", "required": false, "label": "Subtitle"},
+        {"name": "content", "type": "LongText", "required": true, "label": "Article Content"},
+        {"name": "leadImage", "type": "Media", "required": true, "label": "Lead Image"},
+        {"name": "imageCaption", "type": "Text", "required": false, "label": "Image Caption"},
+        {"name": "author", "type": "JSON", "required": true, "label": "Author Info"},
+        {"name": "publishDate", "type": "Date", "required": true, "label": "Publish Date"},
+        {"name": "updateDate", "type": "Date", "required": false, "label": "Last Updated"},
+        {"name": "readTime", "type": "Number", "required": false, "label": "Read Time (minutes)"},
+        {"name": "relatedArticles", "type": "JSON", "required": false, "label": "Related Articles"}
+      ],
+      "confidence": 90
+    },
+    {
+      "name": "HeroSection",
+      "category": "component",
+      "purpose": "Hero banner component with media and CTA",
+      "fields": [
+        {"name": "headline", "type": "Text", "required": true, "label": "Headline", "validation": {"maxLength": 100}},
+        {"name": "subheadline", "type": "Text", "required": false, "label": "Subheadline", "validation": {"maxLength": 200}},
+        {"name": "backgroundImage", "type": "Media", "required": false, "label": "Background Image"},
+        {"name": "backgroundVideo", "type": "Media", "required": false, "label": "Background Video"},
+        {"name": "ctaButton", "type": "JSON", "required": false, "label": "CTA Button"},
+        {"name": "alignment", "type": "Text", "required": false, "label": "Content Alignment", "validation": {"pattern": "^(left|center|right)$"}}
+      ],
+      "confidence": 93
+    },
+    {
+      "name": "NavigationMenu",
+      "category": "component",
+      "purpose": "Site navigation component with links",
+      "fields": [
+        {"name": "menuItems", "type": "JSON", "required": true, "label": "Menu Items"},
+        {"name": "logo", "type": "Media", "required": false, "label": "Logo"},
+        {"name": "style", "type": "Text", "required": false, "label": "Menu Style", "validation": {"pattern": "^(horizontal|vertical|mega)$"}},
+        {"name": "mobileBreakpoint", "type": "Number", "required": false, "label": "Mobile Breakpoint", "validation": {"min": 320, "max": 1024}}
+      ],
+      "confidence": 91
+    },
+    {
+      "name": "ContactForm",
+      "category": "component",
+      "purpose": "Contact form component with fields",
+      "fields": [
+        {"name": "formTitle", "type": "Text", "required": false, "label": "Form Title"},
+        {"name": "formFields", "type": "JSON", "required": true, "label": "Form Fields Configuration"},
+        {"name": "submitButtonText", "type": "Text", "required": false, "label": "Submit Button Text", "validation": {"maxLength": 50}},
+        {"name": "successMessage", "type": "Text", "required": true, "label": "Success Message"},
+        {"name": "errorMessage", "type": "Text", "required": true, "label": "Error Message"},
+        {"name": "recipientEmail", "type": "Text", "required": true, "label": "Recipient Email", "validation": {"pattern": "^[^@]+@[^@]+\\.[^@]+$"}}
+      ],
+      "confidence": 89
+    },
+    {
+      "name": "ProductCard",
+      "category": "component",
+      "purpose": "Product card component for listings",
+      "fields": [
+        {"name": "productName", "type": "Text", "required": true, "label": "Product Name"},
+        {"name": "productImage", "type": "Media", "required": true, "label": "Product Image"},
+        {"name": "price", "type": "Decimal", "required": true, "label": "Price"},
+        {"name": "salePrice", "type": "Decimal", "required": false, "label": "Sale Price"},
+        {"name": "badge", "type": "Text", "required": false, "label": "Badge Text", "validation": {"maxLength": 20}},
+        {"name": "rating", "type": "Decimal", "required": false, "label": "Rating", "validation": {"min": 0, "max": 5}},
+        {"name": "link", "type": "Text", "required": true, "label": "Product Link"}
+      ],
+      "confidence": 94
+    },
+    {
+      "name": "Testimonial",
+      "category": "component",
+      "purpose": "Testimonial component with text and author",
+      "fields": [
+        {"name": "quote", "type": "LongText", "required": true, "label": "Testimonial Quote"},
+        {"name": "authorName", "type": "Text", "required": true, "label": "Author Name"},
+        {"name": "authorTitle", "type": "Text", "required": false, "label": "Author Title"},
+        {"name": "authorCompany", "type": "Text", "required": false, "label": "Author Company"},
+        {"name": "authorImage", "type": "Media", "required": false, "label": "Author Image"},
+        {"name": "rating", "type": "Number", "required": false, "label": "Rating", "validation": {"min": 1, "max": 5}}
+      ],
+      "confidence": 92
+    },
+    {
+      "name": "FAQ",
+      "category": "component",
+      "purpose": "FAQ component with Q&A structure",
+      "fields": [
+        {"name": "sectionTitle", "type": "Text", "required": false, "label": "Section Title"},
+        {"name": "questions", "type": "JSON", "required": true, "label": "FAQ Items", "helpText": "Array of question/answer pairs"},
+        {"name": "expandedByDefault", "type": "Boolean", "required": false, "label": "Expanded by Default"},
+        {"name": "schema", "type": "Boolean", "required": false, "label": "Include FAQ Schema Markup"}
+      ],
+      "confidence": 87
+    }
+  ]
+}

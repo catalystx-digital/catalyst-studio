@@ -1,0 +1,98 @@
+{
+  "canonicalType": "article-header",
+  "componentType": "article-header",
+  "content": {
+    "author": {
+      "name": "Sofia Martinez",
+      "title": "Community Reporter"
+    },
+    "categories": [
+      "Community"
+    ],
+    "featuredImage": {
+      "alt": "Visitors exploring the Bathurst community market",
+      "src": "https://cdn.example.com/articles/bathurst-market.jpg"
+    },
+    "publishDate": "2024-07-12",
+    "readingTime": 5,
+    "subtitle": "Local makers and growers open a permanent hub in the city center.",
+    "tags": [
+      "Local partnerships",
+      "Events"
+    ],
+    "title": "Bathurst unveils new community market"
+  },
+  "cues": [
+    "article header",
+    "post header",
+    "blog hero"
+  ],
+  "defaultRegion": "main",
+  "description": "Article header with title, author metadata, publishing info, and hero media.",
+  "fragments": [
+    "headline",
+    "author-meta",
+    "publish-date",
+    "hero-media"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Article header",
+      "role": "banner"
+    },
+    "commonNames": [
+      "ArticleHeader",
+      "PostHeader",
+      "BlogHeader",
+      "ArticleTitle",
+      "PostTitle",
+      "ArticleHeading"
+    ],
+    "confidence": 0.75,
+    "industry": [
+      "Publishing",
+      "Media",
+      "Technology",
+      "Business",
+      "Education"
+    ],
+    "keywords": [
+      "article title",
+      "post header",
+      "blog header",
+      "headline",
+      "article heading",
+      "post title",
+      "blog title",
+      "article meta",
+      "post metadata",
+      "article info"
+    ],
+    "pageLocation": [
+      "hero",
+      "main"
+    ],
+    "patterns": [
+      "article.*header",
+      "post.*header",
+      "blog.*header",
+      "article.*title",
+      "post.*title",
+      "headline",
+      "article.*heading"
+    ],
+    "relatedComponents": [],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

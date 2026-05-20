@@ -1,0 +1,1120 @@
+{
+  "pageTemplate": {
+    "templateKey": "marketing/home-default",
+    "confidence": 0.95,
+    "reason": "Homepage with hero carousel, feature grids for benefits and offerings, testimonials carousel, news/social card grid, CTAs for open days and careers, matching marketing home layout and URL root.",
+    "source": "model"
+  },
+  "components": [
+    {
+      "type": "navbar",
+      "confidence": 0.98,
+      "content": {
+        "logo": {
+          "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/shared/logos-and-crests/svg/crest-csdp-horizontal-colour.svg?h=283&iar=0&w=1042&hash=A251A0334B920A3972F0B7616801C500",
+          "alt": "Catholic Schools Parramatta Diocese Logo",
+          "href": "/"
+        },
+        "menuItems": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-about",
+            "label": "About",
+            "href": "/about",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-story",
+                "label": "Our Story",
+                "href": "/about/our-story",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-leadership",
+                "label": "Our Leadership",
+                "href": "/about/our-leadership",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-strategy",
+                "label": "Our Strategy",
+                "href": "/about/our-strategy-and-policies",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-student-safety",
+                "label": "Student Safety",
+                "href": "/about/student-safety",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-key-initiatives",
+                "label": "Key Initiatives",
+                "href": "/about/key-initiatives",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-frequently-asked-questions",
+                "label": "Frequently Asked Questions",
+                "href": "/about/frequently-asked-questions",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-requests",
+                "label": "Requests",
+                "href": "/about/requests",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-why-us",
+            "label": "Why Us",
+            "href": "/why-us",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-our-schools",
+            "label": "Our Schools",
+            "href": "/our-schools",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-find-a-school",
+                "label": "Find a School",
+                "href": "/our-schools/find-a-school",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-wellbeing",
+                "label": "Wellbeing",
+                "href": "/our-schools/wellbeing",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-sharing-our-catholic-tradition",
+                "label": "Sharing our Catholic Tradition",
+                "href": "/our-schools/sharing-our-catholic-tradition",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-enrolment",
+                "label": "Enrolment",
+                "href": "/our-schools/enrolment",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-affordable-education",
+                "label": "Affordable Education",
+                "href": "/our-schools/affordable-education",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-parents-as-partners",
+                "label": "Parents as Partners",
+                "href": "/our-schools/parents-as-partners",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-learning",
+            "label": "Learning",
+            "href": "/learning",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-great-teachers",
+                "label": "Great Teachers",
+                "href": "/learning/great-teachers",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-learning-approach",
+                "label": "Our Learning Approach",
+                "href": "/learning/our-learning-approach",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-every-student-is-unique",
+                "label": "Every Student is Unique",
+                "href": "/learning/every-student-is-unique",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-specialised-learning",
+                "label": "Specialised Learning",
+                "href": "/learning/specialised-learning",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-extracurricular-activities",
+                "label": "Extracurricular Activities",
+                "href": "/learning/extracurricular-activities",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-senior-school-learning-pathways",
+                "label": "Senior Learning Pathways",
+                "href": "/learning/senior-school-learning-pathways",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-whats-on",
+            "label": "What's On",
+            "href": "/whats-on",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-latest-news",
+                "label": "Latest News",
+                "href": "/whats-on/latest-news",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-announcements",
+                "label": "Announcements",
+                "href": "/whats-on/announcements",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-coming-up",
+                "label": "Coming Up",
+                "href": "/whats-on/coming-up",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-term-dates",
+                "label": "Term Dates",
+                "href": "/whats-on/term-dates",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-galleries",
+                "label": "Galleries",
+                "href": "/whats-on/galleries",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-careers",
+            "label": "Careers",
+            "href": "/careers",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-work-with-us",
+                "label": "Work With Us",
+                "href": "/careers/work-with-us",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-classification-accreditation",
+                "label": "Classification & Accreditation",
+                "href": "/careers/classification-and-accreditation",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-re-accreditation",
+                "label": "RE Accreditation",
+                "href": "/careers/re-accreditation",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-teacher-scholarship-program",
+                "label": "Teacher Scholarship Program",
+                "href": "/careers/teacher-scholarship-program",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-ict-traineeships",
+                "label": "IT Traineeships",
+                "href": "/careers/ict-traineeships",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-professional-learning",
+                "label": "Professional Learning",
+                "href": "/careers/professional-learning",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-contact-us",
+            "label": "Contact Us",
+            "href": "/contact-us",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-translation-and-interpreting-service",
+                "label": "Translation and Interpreting Service",
+                "href": "/contact-us/translation-and-interpreting-service",
+                "external": false
+              }
+            ]
+          }
+        ],
+        "cta": {
+          "text": "",
+          "href": "",
+          "variant": "primary"
+        },
+        "sticky": true
+      }
+    },
+    {
+      "type": "hero-carousel",
+      "confidence": 0.97,
+      "content": {
+        "slides": [
+          {
+            "heading": "World Teacher's Day 2025",
+            "body": "Our teachers meet the needs of the learners in their care. We thank them for all they do.",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/heros/2025-heros/homepage-heroes/world-teachers-day-2025-desktop.jpg",
+              "alt": "World Teachers Day, Emmaus Catholic College Kemps Creek student is hugging her teacher"
+            },
+            "ctaButtons": [
+              {
+                "href": "",
+                "label": "View World Teacher's Day 2025 video",
+                "variant": "primary"
+              }
+            ]
+          }
+        ],
+        "autoPlay": true,
+        "autoPlayInterval": 5000,
+        "showControls": true,
+        "loop": true,
+        "height": "large"
+      }
+    },
+    {
+      "type": "feature-grid",
+      "confidence": 0.96,
+      "content": {
+        "heading": "The unique benefits of a Catholic Education",
+        "features": [
+          {
+            "type": "feature-item",
+            "icon": "fa-solid fa-hand-holding-heart",
+            "title": "Welcoming school communities",
+            "description": "Our 80 caring schools are nurturing communities where students and their families are warmly welcomed. As children grow in faith and learning, they develop a strong sense of belonging that supports wellbeing and connection.",
+            "link": {
+              "text": "More",
+              "url": "/our-schools/wellbeing"
+            }
+          },
+          {
+            "type": "feature-item",
+            "icon": "fa-solid fa-chalkboard-teacher",
+            "title": "Skilled and caring teachers",
+            "description": "Our teachers bring learning to life with passion and creativity. They help students thrive and grow academically and socially through fostering their curiosity and individual talents in partnership with families.",
+            "link": {
+              "text": "More",
+              "url": "/learning/great-teachers"
+            }
+          },
+          {
+            "type": "feature-item",
+            "icon": "fa-solid fa-file-invoice-dollar",
+            "title": "High quality affordable education",
+            "description": "We’re committed to keeping school fees as low as possible, with options to support every family to access a Catholic education in the Diocese of Parramatta. No child will be refused enrolment due to a family's inability to pay school fees.",
+            "link": {
+              "text": "More",
+              "url": "/our-schools/affordable-education"
+            }
+          }
+        ],
+        "columns": 3
+      }
+    },
+    {
+      "type": "hero-carousel",
+      "confidence": 0.95,
+      "content": {
+        "slides": [
+          {
+            "body": "We encourage our students to have the courage, strength, and confidence to proudly embrace their culture and continue this journey for the sustainability of the oldest continuing culture on earth.",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2021-rectangles/home-testimonial-01.jpg",
+              "alt": "Bede Polding College Windsor students engaged in painting Aboriginal art"
+            },
+            "ctaButtons": [],
+            "theme": "dark"
+          },
+          {
+            "body": "Our school has a good sense of discipline and helps students branch out and really choose their future. It teaches you early on to find your own ideas and solutions and be your own man.",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2021-rectangles/testimonial-parra-marist.jpg",
+              "alt": "Smiling students from Parramatta Marist High School Westmead"
+            },
+            "ctaButtons": [],
+            "theme": "dark"
+          },
+          {
+            "body": "The best school ever! I have three kids attending St Oliver's and I am grateful they are there becoming safe, respectful learners.",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2021-rectangles/testimonial-st-olivers.jpg",
+              "alt": "St Oliver's Primary Harris Park students smiling"
+            },
+            "ctaButtons": [],
+            "theme": "dark"
+          }
+        ],
+        "autoPlay": true,
+        "autoPlayInterval": 5000,
+        "showControls": true,
+        "loop": true,
+        "height": "large",
+        "theme": "dark"
+      }
+    },
+    {
+      "type": "two-column",
+      "confidence": 0.94,
+      "content": {
+        "leftColumn": [
+          {
+            "type": "text-block",
+            "heading": "Our commitment to every student",
+            "body": "<h5>Sharing faith</h5><p>Catholic schools welcome students from many backgrounds and beliefs, supporting students to grow in faith and understanding through community and learning.</p><strong><a href=\"/learning/specialised-learning/religious-education\">More...</a></strong><h5>Nurturing friendship and community</h5><p>Our caring approach sees students develop confidence socially as they forge lifelong friendships. We value connection, compassion and community, and students and their families develop a strong sense of belonging.</p><strong><a href=\"/learning/our-learning-journey\">More...</a></strong><h5>Meeting the individual needs of every student</h5><p>We encourage our students to become confident, independent, creative thinkers who take responsibility for their learning. Building on their strengths and interests, we help them to become the best learners they can be.</p><strong><a href=\"/learning\">More...</a></strong>"
+          }
+        ],
+        "rightColumn": [
+          {
+            "type": "image-gallery",
+            "images": [
+              {
+                "url": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2024-squares/home-1.jpg",
+                "alt": "St Margaret Marys Catholic Primary Merrylands students playing outside"
+              }
+            ]
+          }
+        ],
+        "columnRatio": "50-50"
+      }
+    },
+    {
+      "type": "card-grid",
+      "confidence": 0.96,
+      "content": {
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-early-learning-centres",
+            "title": "Early Learning Centres",
+            "description": "There are six Catholic Early Learning Centres in the Diocese of Parramatta at Blacktown South, Emerton, Greystanes, Marsden Park, Gables (Box Hill) and Stanhope Gardens, providing quality early learning for children 3 to 5 years.",
+            "link": "/our-schools/find-a-school/catholic-early-learning-centres",
+            "linkText": "Learn more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-primary-schools",
+            "title": "Primary Schools",
+            "description": "Is your little learner ready to start school soon? With schools across Western Sydney and the Blue Mountains, there’s a Catholic school in your local community ready to welcome your family.",
+            "link": "/our-schools/find-a-school/primary-schools?service={3BA770A7-EC4A-40B2-97DA-D8CF45220C54}",
+            "linkText": "Learn More"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-out-of-hours-care",
+            "title": "Out of Hours Care",
+            "description": "Many of our primary schools have vibrant, friendly and caring environments for families in need of convenient before and after school care or vacation care onsite or nearby.",
+            "link": "/our-schools/find-a-school/out-of-hours-care?service={73196212-3584-47A4-B9D4-87DE0C52DD2A}",
+            "linkText": "Learn more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-secondary-schools",
+            "title": "Secondary Schools",
+            "description": "We have an excellent range of co-education and single-sex secondary school options right across Western Sydney and the Blue Mountains. We’d love to show you what our schools can offer your child.",
+            "link": "/our-schools/find-a-school/secondary-schools?service={0FB840DB-5AE5-4CD2-81F7-31A9DEF67D89}",
+            "linkText": "Learn more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-schools-done-differently",
+            "title": "Schools Done Differently",
+            "description": "We offer unique opportunities for students pursuing a career in a vocational field or looking to undertake focused study in a specific subject area.",
+            "link": "/our-schools/find-a-school/schools-done-differently",
+            "linkText": "Learn more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-high-support-learning",
+            "title": "High Support Learning",
+            "description": "Students with additional needs and their families are very welcome in our schools. High Support Learning settings are located at Marsden Park (K-12), Dundas (7-12) and Llandilo (7-12).",
+            "link": "/our-schools/find-a-school/high-support-learning-centres",
+            "linkText": "Learn more"
+          }
+        ]
+      }
+    },
+    {
+      "type": "card-grid",
+      "confidence": 0.95,
+      "content": {
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-hsc-business-studies-2025",
+            "title": "HSC Business Studies 2025: Exam writers struggle for 'fresh' questions in 15-year-old syllabus",
+            "description": "As students completed the 2025 Business Studies HSC exam, many left wondering: is the current curriculum still up to scratch? This year’s Business Studies exam, still based on the 2010 syllabus, posed a unique challenge for students, with e",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/shared/news-images/2025-news/10-oct-news/gilroy-business-studies-01.jpg",
+              "alt": "Gilroy Catholic College Castle Hill students being interviewed by Daily Telegraph"
+            },
+            "link": "/whats-on/latest-news/2025/10/31/00/20/hsc-business-studies-2025",
+            "linkText": "Read more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-youtube",
+            "title": "From CSPD YouTube",
+            "description": "",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/youtube-cedp-featured-videos/2025/10/30/15/22/uexnrufkswzftwk0b0nzcvdmv1zix1rrcnnkueh4tc1vws5grjzbmzg1qjyxm",
+              "alt": "UExNRUFKSWZFTWk0b0NZcVdMV1ZIX1RRcnNKUEh4TC1vWS5GRjZBMzg1QjYxMDdEQTZF-1"
+            },
+            "link": "https://www.youtube.com/watch?v=Jtvrp2ZqdNs&list=PLMEAJIfEMi4oCYqWLWVH_TQrsJPHxL-oY",
+            "linkText": "Watch video"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-facebook-1",
+            "title": "From CSPD Facebook",
+            "description": "🌟 OUR AMAZING ALUMNA, ALYSSA! 🌟 Have you heard the exciting news? Former CSPD student and The Voice Australia contestant Alyssa Delpopolo has made it all the way to the Grand Final this Sunday! 🎤✨ Alyssa recently wowed audiences at Catho",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/facebook-cedp/2025/10/30/14/49/617762377044461_1231022069051819/617762377044461_1231022069051819-1.jpg",
+              "alt": "617762377044461_1231022069051819-1"
+            },
+            "link": "https://www.facebook.com/617762377044461/posts/1231022069051819",
+            "linkText": "View post"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-facebook-2",
+            "title": "From CSPD Facebook",
+            "description": "📣 A NIGHT THAT WILL OPEN YOUR EYES… We all want our kids to feel safe, confident and connected - but let’s be honest, understanding bullying and online behaviour isn’t always easy. That’s why we’re so excited that the Parent Representative",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/facebook-cedp/2025/10/30/14/49/617762377044461_1230909035729789/617762377044461_1230909035729789-1.jpg",
+              "alt": "617762377044461_1230909035729789-1"
+            },
+            "link": "https://www.facebook.com/617762377044461/posts/1230909035729789",
+            "linkText": "View post"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-facebook-3",
+            "title": "From CSPD Facebook",
+            "description": "DEDICATION ON & OFF THE FIELD! 👏 These two Year 12 graduate sporting stars have been juggling HSC study and training - all while competing on the world stage! 💪 Matthew Engesser, from Gilroy Catholic College Castle Hill, has been balancin",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/facebook-cedp/2025/10/30/14/49/617762377044461_1230248732462486/617762377044461_1230248732462486-1.jpg",
+              "alt": "617762377044461_1230248732462486-1"
+            },
+            "link": "https://www.facebook.com/617762377044461/posts/1230248732462486",
+            "linkText": "View post"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-facebook-4",
+            "title": "From CSPD Facebook",
+            "description": "🧪 Year 5 students from St Michael's Blacktown South got a real taste of high school life at Nagle College, Blacktown South! From hands-on experiments to exploring Nagle’s state-of-the-art science labs, it’s safe to say they were inspired! ",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/facebook-cedp/2025/10/28/14/42/617762377044461_1229418172545542/617762377044461_1229418172545542-1.jpg",
+              "alt": "617762377044461_1229418172545542-1"
+            },
+            "link": "https://www.facebook.com/617762377044461/posts/1229418172545542",
+            "linkText": "View post"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-nagle-college-launches-new-stem-scholarship",
+            "title": "Nagle College Launches New STEM Scholarship for Future Innovators",
+            "description": "Nagle College Blacktown has announced the launch of the “Christine Howe STEM Academic Scholarship”, a new opportunity designed to support and inspire young women passionate about STEM (science, technology, engineering and mathematics). Stud",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/shared/news-images/2025-news/10-oct-news/scholarship-1.jpg",
+              "alt": "Nagle Catholic College students"
+            },
+            "link": "/whats-on/latest-news/2025/10/27/23/40/nagle-college-launches-new-stem-scholarship-for-future-innovators",
+            "linkText": "Read more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-facebook-5",
+            "title": "From CSPD Facebook",
+            "description": "📣 St John Vianney's Primary Doonside Open Day! Discover a school that lives the spirit of faith and community. At St John Vianney’s, students experience an enriching, challenging and fulfilling education - one that empowers them to become ",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/facebook-cedp/2025/10/26/14/38/617762377044461_1227635289390497/617762377044461_1227635289390497-1.jpg",
+              "alt": "617762377044461_1227635289390497-1"
+            },
+            "link": "https://www.facebook.com/617762377044461/posts/1227635289390497",
+            "linkText": "View post"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-from-cspd-facebook-6",
+            "title": "From CSPD Facebook",
+            "description": "📣 Mark Your Calendars! St Bernadette's Lalor Park is hosting an Open Day! 🎉 Come and discover a welcoming, culturally diverse community where learning is personalised, student-centred and rooted in care, compassion and acceptance. 29 Octo",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/facebook-cedp/2025/10/25/14/38/617762377044461_1226696716151021/617762377044461_1226696716151021-1.jpg",
+              "alt": "617762377044461_1226696716151021-1"
+            },
+            "link": "https://www.facebook.com/617762377044461/posts/1226696716151021",
+            "linkText": "View post"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta-simple",
+      "confidence": 0.93,
+      "content": {
+        "heading": "Catholic School Open Days",
+        "body": "We are enrolling now! Attend your local Catholic school's Open Day to find out more.",
+        "primaryButton": {
+          "text": "Find out more",
+          "url": "https://info.parra.catholic.edu.au/open-days-listing",
+          "variant": "primary"
+        }
+      }
+    },
+    {
+      "type": "two-column",
+      "confidence": 0.92,
+      "content": {
+        "leftColumn": [
+          {
+            "type": "text-block",
+            "heading": "Work with us",
+            "body": "<p>Whether your passion is to teach children and young people, to work in one of our rewarding school support roles or to join the Catholic Education Office you will be part of an enthusiastic and dedicated team at the forefront of contemporar</p><p>As one of the largest employers in Western Sydney and the Blue Mountains we are looking for the best people to join our team.</p>"
+          }
+        ],
+        "rightColumn": [
+          {
+            "type": "cta-simple",
+            "heading": "",
+            "primaryButton": {
+              "text": "View career opportunities",
+              "url": "http://careers.parra.catholic.edu.au/",
+              "variant": "primary"
+            }
+          },
+          {
+            "type": "image-gallery",
+            "images": [
+              {
+                "url": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2024-squares/home-corpus-christ.jpg",
+                "alt": "Corpus Christ Catholic Primary Creanbrook Religious Education teacher with students in garden"
+              }
+            ]
+          }
+        ],
+        "columnRatio": "50-50"
+      }
+    },
+    {
+      "type": "card-grid",
+      "confidence": 0.94,
+      "content": {
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-1",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/28/15/33/18109998541594406/18109998541594406-1.jpg",
+              "alt": "18109998541594406-1"
+            },
+            "link": "https://www.instagram.com/p/DQV__3FDpoC/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-2",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/27/15/34/17962800533847702/17962800533847702-1.jpg",
+              "alt": "17962800533847702-1"
+            },
+            "link": "https://www.instagram.com/p/DQTbMIsjQam/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-3",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/26/15/32/18051068942658354/18051068942658354-1.jpg",
+              "alt": "18051068942658354-1"
+            },
+            "link": "https://www.instagram.com/p/DQQ2bkzkqth/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-4",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/25/15/32/17942458173070922/17942458173070922-1.jpg",
+              "alt": "17942458173070922-1"
+            },
+            "link": "https://www.instagram.com/p/DQORmtiDWxm/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-5",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/24/15/33/18061817492161155/18061817492161155-1.jpg",
+              "alt": "18061817492161155-1"
+            },
+            "link": "https://www.instagram.com/p/DQLs0dYAXUN/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-6",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/24/15/33/18116070271556536/18116070271556536-1.jpg",
+              "alt": "18116070271556536-1"
+            },
+            "link": "https://www.instagram.com/p/DQLYQLKjGWD/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-7",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/23/15/35/18178261870357210/18178261870357210-1.jpg",
+              "alt": "18178261870357210-1"
+            },
+            "link": "https://www.instagram.com/p/DQJIFIxk5mw/",
+            "linkText": "View on Instagram"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-instagram-8",
+            "image": {
+              "src": "https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/social-media-feeds/instagram-cedp/2025/10/23/15/35/18046033049421177/18046033049421177-1.jpg",
+              "alt": "18046033049421177-1"
+            },
+            "link": "https://www.instagram.com/p/DQIzZsGgD65/",
+            "linkText": "View on Instagram"
+          }
+        ]
+      }
+    },
+    {
+      "type": "footer",
+      "confidence": 0.99,
+      "content": {
+        "logo": "https://www.parra.catholic.edu.au/-/media/project/cedp/shared/logos-and-crests/svg/crest-csdp-horizontal-white.svg?h=283&iar=0&w=1042&hash=DCC85A9C1D0E8BB9790455FD0CABC9F6",
+        "logoAlt": "Catholic Schools Parramatta Diocese Logo",
+        "description": "",
+        "columns": [
+          {
+            "type": "columnItem",
+            "id": "columnItem-main-navigation",
+            "title": "",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-home",
+                "label": "Home",
+                "href": "/",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about",
+                "label": "About",
+                "href": "/about",
+                "external": false,
+                "children": [
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-our-story",
+                    "label": "Our Story",
+                    "href": "/about/our-story",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-our-leadership",
+                    "label": "Our Leadership",
+                    "href": "/about/our-leadership",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-our-strategy",
+                    "label": "Our Strategy",
+                    "href": "/about/our-strategy-and-policies",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-our-policies",
+                    "label": "Our Policies",
+                    "href": "/about/policy-central",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-student-safety",
+                    "label": "Student Safety",
+                    "href": "/about/student-safety",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-key-initiatives",
+                    "label": "Key Initiatives",
+                    "href": "/about/key-initiatives",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-frequently-asked-questions",
+                    "label": "Frequently Asked Questions",
+                    "href": "/about/frequently-asked-questions",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-requests",
+                    "label": "Requests",
+                    "href": "/about/requests",
+                    "external": false
+                  }
+                ]
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-schools",
+                "label": "Our Schools",
+                "href": "/our-schools",
+                "external": false,
+                "children": [
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-find-a-school",
+                    "label": "Find a School",
+                    "href": "/our-schools/find-a-school",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-wellbeing",
+                    "label": "Wellbeing",
+                    "href": "/our-schools/wellbeing",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-sharing-our-catholic-tradition",
+                    "label": "Sharing our Catholic Tradition",
+                    "href": "/our-schools/sharing-our-catholic-tradition",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-enrolment",
+                    "label": "Enrolment",
+                    "href": "/our-schools/enrolment",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-affordable-education",
+                    "label": "Affordable Education",
+                    "href": "/our-schools/affordable-education",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-estimate-your-fees",
+                    "label": "Estimate Your Fees",
+                    "href": "/our-schools/school-fees",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-parents-as-partners",
+                    "label": "Parents as Partners",
+                    "href": "/our-schools/parents-as-partners",
+                    "external": false
+                  }
+                ]
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-learning",
+                "label": "Learning",
+                "href": "/learning",
+                "external": false,
+                "children": [
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-great-teachers",
+                    "label": "Great Teachers",
+                    "href": "/learning/great-teachers",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-our-learning-approach",
+                    "label": "Our Learning Approach",
+                    "href": "/learning/our-learning-approach",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-every-student-is-unique",
+                    "label": "Every Student is Unique",
+                    "href": "/learning/every-student-is-unique",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-specialised-learning",
+                    "label": "Specialised Learning",
+                    "href": "/learning/specialised-learning",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-extracurricular-activities",
+                    "label": "Extracurricular Activities",
+                    "href": "/learning/extracurricular-activities",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-senior-learning-pathways",
+                    "label": "Senior Learning Pathways",
+                    "href": "/learning/senior-school-learning-pathways",
+                    "external": false
+                  }
+                ]
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-whats-on",
+                "label": "What's On",
+                "href": "/whats-on",
+                "external": false,
+                "children": [
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-latest-news",
+                    "label": "Latest News",
+                    "href": "/whats-on/latest-news",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-announcements",
+                    "label": "Announcements",
+                    "href": "/whats-on/announcements",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-coming-up",
+                    "label": "Coming Up",
+                    "href": "/whats-on/coming-up",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-term-dates",
+                    "label": "Term Dates",
+                    "href": "/whats-on/term-dates",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-galleries",
+                    "label": "Galleries",
+                    "href": "/whats-on/galleries",
+                    "external": false
+                  }
+                ]
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-careers",
+                "label": "Careers",
+                "href": "/careers",
+                "external": false,
+                "children": [
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-work-with-us",
+                    "label": "Work With Us",
+                    "href": "/careers/work-with-us",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-classification-accreditation",
+                    "label": "Classification & Accreditation",
+                    "href": "/careers/classification-and-accreditation",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-re-accreditation",
+                    "label": "RE Accreditation",
+                    "href": "/careers/re-accreditation",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-teacher-scholarship-program",
+                    "label": "Teacher Scholarship Program",
+                    "href": "/careers/teacher-scholarship-program",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-ict-traineeships",
+                    "label": "IT Traineeships",
+                    "href": "/careers/ict-traineeships",
+                    "external": false
+                  },
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-professional-learning",
+                    "label": "Professional Learning",
+                    "href": "/careers/professional-learning",
+                    "external": false
+                  }
+                ]
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-contact-us",
+                "label": "Contact Us",
+                "href": "/contact-us",
+                "external": false,
+                "children": [
+                  {
+                    "type": "nav-menu-item",
+                    "id": "nav-menu-item-translation-and-interpreting-service",
+                    "label": "Translation and Interpreting Service",
+                    "href": "/contact-us/translation-and-interpreting-service",
+                    "external": false
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "socialLinks": [
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-facebook",
+            "platform": "facebook",
+            "url": "https://www.facebook.com/CatholicSchoolsParra",
+            "label": "Facebook CatholicEdParra"
+          },
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-instagram",
+            "platform": "instagram",
+            "url": "https://www.instagram.com/catholicschoolsparra",
+            "label": "Instagram CatholicEdParra"
+          },
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-linkedin",
+            "platform": "linkedin",
+            "url": "https://www.linkedin.com/company/catholic-education-office-parramatta/",
+            "label": "LinkedIn CatholicEdParra"
+          },
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-youtube",
+            "platform": "youtube",
+            "url": "https://www.youtube.com/user/catholicedparra",
+            "label": "YouTube CatholicEdParra"
+          }
+        ],
+        "legalLinks": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-acknowledgement-of-country",
+            "label": "Acknowledgement of Country",
+            "href": "/learning/specialised-learning/jarara/acknowledgement-of-country",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-bishops-office",
+            "label": "Bishop's Office",
+            "href": "https://parracatholic.org/",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-privacy",
+            "label": "Privacy",
+            "href": "/privacy",
+            "external": false
+          }
+        ],
+        "copyright": "© 2025 Catholic Schools Parramatta Diocese Ltd"
+      }
+    }
+  ],
+  "pageMetadata": {
+    "title": "Catholic Schools Parramatta Diocese",
+    "description": "",
+    "keywords": "",
+    "canonical": "https://www.parra.catholic.edu.au/",
+    "language": "en",
+    "viewport": "width=device-width, initial-scale=1.0"
+  }
+}

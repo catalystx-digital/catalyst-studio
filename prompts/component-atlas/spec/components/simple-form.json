@@ -1,0 +1,79 @@
+{
+  "canonicalType": "simple-form",
+  "componentType": "simple-form",
+  "content": {
+    "template": "newsletter",
+    "description": "We'll notify you when early access slots open up.",
+    "fields": [
+      {
+        "label": "Work email",
+        "name": "email",
+        "required": true,
+        "type": "email"
+      },
+      {
+        "label": "Company",
+        "name": "company",
+        "required": false,
+        "type": "text"
+      }
+    ],
+    "title": "Request access",
+    "submitButton": {
+      "text": "Request invite"
+    }
+  },
+  "cues": [
+    "simple form",
+    "lead capture form",
+    "newsletter form"
+  ],
+  "defaultRegion": "main",
+  "description": "Lightweight form with up to three fields, templates (newsletter/contact/callback), and customizable submit handling.",
+  "fragments": [
+    "form",
+    "input-field",
+    "submit-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "NewsletterForm",
+      "SignupForm",
+      "SubscribeForm",
+      "QuickContact",
+      "CallbackForm",
+      "SimpleForm"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "newsletter",
+      "signup",
+      "subscribe",
+      "quick contact",
+      "callback",
+      "simple form",
+      "email capture"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "newsletter signup",
+      "newsletter form",
+      "email signup",
+      "subscribe form",
+      "quick contact",
+      "callback request",
+      "simple form",
+      "signup form"
+    ],
+    "relatedComponents": [
+      "contact-form"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

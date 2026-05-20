@@ -1,0 +1,532 @@
+{
+  "platforms": {
+    "optimizely": {
+      "name": "Optimizely CMS",
+      "version": "12.x",
+      "fieldMappings": {
+        "Text": {
+          "type": "String",
+          "attributes": {
+            "StringLength": 255
+          }
+        },
+        "LongText": {
+          "type": "XhtmlString",
+          "attributes": {
+            "AllowedTypes": ["p", "h1", "h2", "h3", "ul", "ol", "li", "a", "strong", "em"]
+          }
+        },
+        "Number": {
+          "type": "Int",
+          "attributes": {}
+        },
+        "Decimal": {
+          "type": "Double",
+          "attributes": {
+            "DecimalPlaces": 2
+          }
+        },
+        "Boolean": {
+          "type": "Boolean",
+          "attributes": {}
+        },
+        "Date": {
+          "type": "DateTime",
+          "attributes": {
+            "DateOnly": true
+          }
+        },
+        "DateTime": {
+          "type": "DateTime",
+          "attributes": {}
+        },
+        "Media": {
+          "type": "ContentReference",
+          "attributes": {
+            "UIHint": "Image",
+            "AllowedTypes": ["ImageFile", "VideoFile", "DocumentFile"]
+          }
+        },
+        "ContentReference": {
+          "type": "ContentReference",
+          "attributes": {}
+        },
+        "ContentArea": {
+          "type": "ContentArea",
+          "attributes": {
+            "AllowedTypes": ["IContentData"]
+          }
+        },
+        "JSON": {
+          "type": "String",
+          "attributes": {
+            "UIHint": "JsonEditor"
+          },
+          "fallback": true,
+          "fallbackNote": "Stored as serialized string"
+        },
+        "URL": {
+          "type": "Url",
+          "attributes": {}
+        },
+        "Email": {
+          "type": "String",
+          "attributes": {
+            "RegularExpression": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          },
+          "fallback": true,
+          "fallbackNote": "String with email validation"
+        },
+        "Phone": {
+          "type": "String",
+          "attributes": {
+            "RegularExpression": "^[\\+]?[(]?[0-9]{1,3}[)]?[-\\s\\.]?[(]?[0-9]{1,4}[)]?[-\\s\\.]?[0-9]{1,4}[-\\s\\.]?[0-9]{1,9}$"
+          },
+          "fallback": true,
+          "fallbackNote": "String with phone validation"
+        },
+        "Select": {
+          "type": "String",
+          "attributes": {
+            "SelectOne": true
+          },
+          "requiresMetadata": ["options"]
+        },
+        "MultiSelect": {
+          "type": "String",
+          "attributes": {
+            "SelectMany": true
+          },
+          "fallback": true,
+          "fallbackNote": "Stored as comma-separated string",
+          "requiresMetadata": ["options"]
+        }
+      },
+      "capabilities": {
+        "supportsContentTypes": true,
+        "supportsNestedContent": true,
+        "supportsVersioning": true,
+        "supportsWorkflow": true,
+        "supportsMultilingual": true,
+        "supportsPersonalization": true,
+        "maxFieldsPerType": 100,
+        "maxNestingDepth": 5
+      },
+      "limitations": {
+        "noNativeJSONSupport": "JSON fields stored as strings",
+        "limitedMultiSelect": "MultiSelect stored as comma-separated values",
+        "complexValidation": "Complex validation rules require custom validators"
+      }
+    },
+    "contentful": {
+      "name": "Contentful",
+      "version": "latest",
+      "fieldMappings": {
+        "Text": {
+          "type": "Symbol",
+          "attributes": {
+            "size": 255
+          }
+        },
+        "LongText": {
+          "type": "RichText",
+          "attributes": {
+            "nodes": ["heading-1", "heading-2", "paragraph", "unordered-list", "ordered-list", "hyperlink"]
+          }
+        },
+        "Number": {
+          "type": "Integer",
+          "attributes": {}
+        },
+        "Decimal": {
+          "type": "Number",
+          "attributes": {}
+        },
+        "Boolean": {
+          "type": "Boolean",
+          "attributes": {}
+        },
+        "Date": {
+          "type": "Date",
+          "attributes": {
+            "dateOnly": true
+          }
+        },
+        "DateTime": {
+          "type": "Date",
+          "attributes": {}
+        },
+        "Media": {
+          "type": "Asset",
+          "attributes": {
+            "linkType": "Asset"
+          }
+        },
+        "ContentReference": {
+          "type": "Link",
+          "attributes": {
+            "linkType": "Entry"
+          }
+        },
+        "ContentArea": {
+          "type": "Array",
+          "attributes": {
+            "items": {
+              "type": "Link",
+              "linkType": "Entry"
+            }
+          }
+        },
+        "JSON": {
+          "type": "Object",
+          "attributes": {}
+        },
+        "URL": {
+          "type": "Symbol",
+          "attributes": {
+            "regexp": "^(https?:\\/\\/)?"
+          }
+        },
+        "Email": {
+          "type": "Symbol",
+          "attributes": {
+            "regexp": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          }
+        },
+        "Phone": {
+          "type": "Symbol",
+          "attributes": {
+            "regexp": "^[\\+]?[(]?[0-9]{1,3}[)]?[-\\s\\.]?[(]?[0-9]{1,4}[)]?[-\\s\\.]?[0-9]{1,4}[-\\s\\.]?[0-9]{1,9}$"
+          }
+        },
+        "Select": {
+          "type": "Symbol",
+          "attributes": {
+            "in": []
+          },
+          "requiresMetadata": ["options"]
+        },
+        "MultiSelect": {
+          "type": "Array",
+          "attributes": {
+            "items": {
+              "type": "Symbol"
+            }
+          },
+          "requiresMetadata": ["options"]
+        }
+      },
+      "capabilities": {
+        "supportsContentTypes": true,
+        "supportsNestedContent": true,
+        "supportsVersioning": true,
+        "supportsWorkflow": false,
+        "supportsMultilingual": true,
+        "supportsPersonalization": false,
+        "maxFieldsPerType": 50,
+        "maxNestingDepth": 10
+      },
+      "limitations": {
+        "fieldLimit": "Maximum 50 fields per content type",
+        "noBuiltInWorkflow": "Requires external workflow solution",
+        "limitedPersonalization": "No native personalization features"
+      }
+    },
+    "strapi": {
+      "name": "Strapi",
+      "version": "4.x",
+      "fieldMappings": {
+        "Text": {
+          "type": "string",
+          "attributes": {
+            "maxLength": 255
+          }
+        },
+        "LongText": {
+          "type": "richtext",
+          "attributes": {}
+        },
+        "Number": {
+          "type": "integer",
+          "attributes": {}
+        },
+        "Decimal": {
+          "type": "decimal",
+          "attributes": {}
+        },
+        "Boolean": {
+          "type": "boolean",
+          "attributes": {}
+        },
+        "Date": {
+          "type": "date",
+          "attributes": {}
+        },
+        "DateTime": {
+          "type": "datetime",
+          "attributes": {}
+        },
+        "Media": {
+          "type": "media",
+          "attributes": {
+            "allowedTypes": ["images", "videos", "files"]
+          }
+        },
+        "ContentReference": {
+          "type": "relation",
+          "attributes": {
+            "relation": "oneToOne"
+          }
+        },
+        "ContentArea": {
+          "type": "dynamiczone",
+          "attributes": {}
+        },
+        "JSON": {
+          "type": "json",
+          "attributes": {}
+        },
+        "URL": {
+          "type": "string",
+          "attributes": {
+            "regex": "^(https?:\\/\\/)?"
+          }
+        },
+        "Email": {
+          "type": "email",
+          "attributes": {}
+        },
+        "Phone": {
+          "type": "string",
+          "attributes": {
+            "regex": "^[\\+]?[(]?[0-9]{1,3}[)]?[-\\s\\.]?[(]?[0-9]{1,4}[)]?[-\\s\\.]?[0-9]{1,4}[-\\s\\.]?[0-9]{1,9}$"
+          },
+          "fallback": true,
+          "fallbackNote": "String with phone regex validation"
+        },
+        "Select": {
+          "type": "enumeration",
+          "attributes": {
+            "enum": []
+          },
+          "requiresMetadata": ["options"]
+        },
+        "MultiSelect": {
+          "type": "json",
+          "attributes": {},
+          "fallback": true,
+          "fallbackNote": "Stored as JSON array",
+          "requiresMetadata": ["options"]
+        }
+      },
+      "capabilities": {
+        "supportsContentTypes": true,
+        "supportsNestedContent": true,
+        "supportsVersioning": true,
+        "supportsWorkflow": true,
+        "supportsMultilingual": true,
+        "supportsPersonalization": false,
+        "maxFieldsPerType": null,
+        "maxNestingDepth": null
+      },
+      "limitations": {
+        "noNativeMultiSelect": "MultiSelect requires custom implementation",
+        "limitedRelations": "Complex relations may require custom logic"
+      }
+    },
+    "wordpress": {
+      "name": "WordPress (with ACF)",
+      "version": "6.x",
+      "fieldMappings": {
+        "Text": {
+          "type": "text",
+          "attributes": {
+            "maxlength": 255
+          }
+        },
+        "LongText": {
+          "type": "wysiwyg",
+          "attributes": {
+            "toolbar": "full",
+            "media_upload": true
+          }
+        },
+        "Number": {
+          "type": "number",
+          "attributes": {}
+        },
+        "Decimal": {
+          "type": "number",
+          "attributes": {
+            "step": 0.01
+          }
+        },
+        "Boolean": {
+          "type": "true_false",
+          "attributes": {}
+        },
+        "Date": {
+          "type": "date_picker",
+          "attributes": {
+            "display_format": "Y-m-d",
+            "return_format": "Y-m-d"
+          }
+        },
+        "DateTime": {
+          "type": "date_time_picker",
+          "attributes": {
+            "display_format": "Y-m-d H:i:s",
+            "return_format": "Y-m-d H:i:s"
+          }
+        },
+        "Media": {
+          "type": "image",
+          "attributes": {
+            "return_format": "array",
+            "preview_size": "medium"
+          }
+        },
+        "ContentReference": {
+          "type": "post_object",
+          "attributes": {
+            "multiple": false
+          }
+        },
+        "ContentArea": {
+          "type": "flexible_content",
+          "attributes": {}
+        },
+        "JSON": {
+          "type": "textarea",
+          "attributes": {},
+          "fallback": true,
+          "fallbackNote": "JSON stored as serialized string in textarea"
+        },
+        "URL": {
+          "type": "url",
+          "attributes": {}
+        },
+        "Email": {
+          "type": "email",
+          "attributes": {}
+        },
+        "Phone": {
+          "type": "text",
+          "attributes": {
+            "pattern": "[0-9\\-\\+\\(\\)\\s]+"
+          },
+          "fallback": true,
+          "fallbackNote": "Text field with pattern validation"
+        },
+        "Select": {
+          "type": "select",
+          "attributes": {
+            "choices": {},
+            "allow_null": false
+          },
+          "requiresMetadata": ["options"]
+        },
+        "MultiSelect": {
+          "type": "checkbox",
+          "attributes": {
+            "choices": {}
+          },
+          "requiresMetadata": ["options"]
+        }
+      },
+      "capabilities": {
+        "supportsContentTypes": true,
+        "supportsNestedContent": true,
+        "supportsVersioning": true,
+        "supportsWorkflow": true,
+        "supportsMultilingual": true,
+        "supportsPersonalization": false,
+        "maxFieldsPerType": null,
+        "maxNestingDepth": null
+      },
+      "limitations": {
+        "requiresACF": "Advanced Custom Fields plugin required",
+        "noNativeJSON": "JSON support requires custom handling",
+        "limitedTyping": "Less strict typing compared to headless CMS"
+      }
+    }
+  },
+  "fallbackStrategies": {
+    "simple": {
+      "description": "Direct fallback to text/string type",
+      "rules": [
+        {
+          "from": ["Email", "Phone", "URL"],
+          "to": "Text",
+          "addValidation": true
+        }
+      ]
+    },
+    "serialization": {
+      "description": "Complex types serialized to string",
+      "rules": [
+        {
+          "from": ["JSON", "MultiSelect"],
+          "to": "Text",
+          "transform": "serialize"
+        }
+      ]
+    },
+    "decomposition": {
+      "description": "Break complex type into simpler fields",
+      "rules": [
+        {
+          "from": "ContentArea",
+          "to": "JSON",
+          "transform": "decompose",
+          "note": "Requires custom rendering logic"
+        }
+      ]
+    },
+    "approximation": {
+      "description": "Use closest available type",
+      "rules": [
+        {
+          "from": "Decimal",
+          "to": "Number",
+          "transform": "round",
+          "warning": "Precision may be lost"
+        }
+      ]
+    }
+  },
+  "transformationRules": {
+    "universal_to_platform": {
+      "steps": [
+        "Check direct mapping exists",
+        "If not, check fallback mapping",
+        "Apply platform-specific attributes",
+        "Add validation rules if needed",
+        "Log transformation confidence"
+      ]
+    },
+    "platform_to_universal": {
+      "steps": [
+        "Identify platform field type",
+        "Map to universal type",
+        "Preserve original metadata",
+        "Extract validation rules",
+        "Calculate confidence score"
+      ]
+    }
+  },
+  "confidenceFactors": {
+    "directMapping": 100,
+    "fallbackWithValidation": 85,
+    "fallbackSerialization": 70,
+    "fallbackDecomposition": 60,
+    "fallbackApproximation": 50,
+    "noMapping": 0
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2025-01-21",
+    "supportedPlatforms": 4,
+    "totalMappings": 64
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "canonicalType": "reviews",
+  "componentType": "reviews",
+  "content": {
+    "rating": 5,
+    "reviewText": "Intuitive interface and fast publishing keeps our editors happy.",
+    "author": "Priya S.",
+    "date": "2024-04-12",
+    "verified": true,
+    "platform": "google"
+  },
+  "cues": [
+    "reviews",
+    "star rating",
+    "customer feedback"
+  ],
+  "defaultRegion": "main",
+  "description": "Collection of short-form customer reviews with ratings.",
+  "fragments": [
+    "review-card",
+    "star-rating"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Customer review",
+      "role": "article"
+    },
+    "commonNames": [
+      "ReviewCard",
+      "RatingCard",
+      "CustomerReview",
+      "ReviewBox",
+      "ProductReview"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "review",
+      "rating",
+      "star",
+      "feedback",
+      "customer",
+      "testimonial",
+      "verified",
+      "score"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "review[\\s-]?(card|box|section)",
+      "rating[\\s-]?(display|stars?|score)",
+      "customer[\\s-]?review",
+      "\\d+[\\s-]?star[\\s-]?rating",
+      "product[\\s-]?review",
+      "verified[\\s-]?review"
+    ],
+    "relatedComponents": [
+      "reviews",
+      "testimonials"
+    ],
+    "semanticRole": "article",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

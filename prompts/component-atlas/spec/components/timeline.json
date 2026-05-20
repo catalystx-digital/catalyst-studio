@@ -1,0 +1,81 @@
+{
+  "canonicalType": "timeline",
+  "componentType": "timeline",
+  "content": {
+    "events": [
+      {
+        "type": "timeline-event",
+        "id": "timeline-event-timeline-2022",
+        "date": "2022",
+        "title": "Company founded",
+        "description": "Raised seed to build AI-first content platform."
+      },
+      {
+        "type": "timeline-event",
+        "id": "timeline-event-timeline-2023",
+        "date": "2023",
+        "title": "First enterprise launch",
+        "description": "Scaled to support Fortune 500 content programs."
+      }
+    ],
+    "layout": "vertical",
+    "showConnectors": true,
+    "title": "Catalyst milestones"
+  },
+  "cues": [
+    "company timeline",
+    "roadmap timeline",
+    "chronology"
+  ],
+  "defaultRegion": "main",
+  "description": "Chronological timeline of events with titles, dates, descriptions, and optional icons.",
+  "fragments": [
+    "timeline-event",
+    "timeline-track"
+  ],
+  "metadata": {
+    "commonNames": [
+      "timeline",
+      "history-timeline",
+      "milestone-timeline",
+      "event-timeline",
+      "roadmap",
+      "journey-map"
+    ],
+    "confidence": 0.75,
+    "keywords": [
+      "timeline",
+      "history",
+      "milestones",
+      "roadmap",
+      "events",
+      "chronology",
+      "journey",
+      "process",
+      "steps",
+      "progress",
+      "timeline events",
+      "chronological",
+      "historical"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "timeline",
+      "history\\s*(section)?",
+      "milestones?",
+      "roadmap",
+      "chronolog(y|ical)",
+      "journey",
+      "our\\s+story",
+      "company\\s+history",
+      "event\\s+timeline"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

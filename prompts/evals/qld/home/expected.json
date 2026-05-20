@@ -1,0 +1,766 @@
+{
+  "pageTemplate": {
+    "templateKey": "marketing/home-default",
+    "confidence": 0.95,
+    "reason": "Site root URL with navbar in header, promotional service tiles in main resembling card-grid or feature-list, footer; matches home-eligible marketing layout with benefit-led services.",
+    "source": "model"
+  },
+  "components": [
+    {
+      "type": "navbar",
+      "confidence": 0.98,
+      "content": {
+        "logo": {
+          "src": "https://www.qld.gov.au/__data/assets/git_bridge/0029/95447/static.qgov.net.au/assets/v4/latest/images/coat-of-arms/qg-coa-white.svg",
+          "alt": "Queensland Government",
+          "href": "https://www.qld.gov.au"
+        },
+        "menuItems": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-home",
+            "label": "Home",
+            "href": "/",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-for-queenslanders",
+            "label": "For Queenslanders",
+            "href": null,
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-transport",
+                "label": "Transport and motoring",
+                "href": "https://www.qld.gov.au/transport",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-jobs",
+                "label": "Employment and jobs",
+                "href": "https://www.qld.gov.au/jobs",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-education",
+                "label": "Education and training",
+                "href": "https://www.qld.gov.au/education",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about",
+                "label": "Queensland and its government",
+                "href": "https://www.qld.gov.au/about",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-health",
+                "label": "Health and wellbeing",
+                "href": "https://www.qld.gov.au/health",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-community",
+                "label": "Community support",
+                "href": "https://www.qld.gov.au/community",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-emergency",
+                "label": "Emergency services and safety",
+                "href": "https://www.qld.gov.au/emergency",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-law",
+                "label": "Your rights, crime and the law",
+                "href": "https://www.qld.gov.au/law",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-environment",
+                "label": "Environment, land and water",
+                "href": "https://www.qld.gov.au/environment",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-housing",
+                "label": "Homes and housing",
+                "href": "https://www.qld.gov.au/housing",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-recreation",
+                "label": "Recreation, sport and arts",
+                "href": "https://www.qld.gov.au/recreation",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-families",
+                "label": "Parents and families",
+                "href": "https://www.qld.gov.au/families",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-disability",
+                "label": "People with disability",
+                "href": "https://www.qld.gov.au/disability",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-youth",
+                "label": "Youth",
+                "href": "https://www.qld.gov.au/youth",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-firstnations",
+                "label": "Aboriginal and Torres Strait Islander peoples",
+                "href": "https://www.qld.gov.au/firstnations",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-seniors",
+                "label": "Seniors",
+                "href": "https://www.qld.gov.au/seniors",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-contact",
+            "label": "Contact us",
+            "href": "https://www.qld.gov.au/contact-us",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-services",
+            "label": "Find services",
+            "href": "https://www.qld.gov.au/services",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-business",
+            "label": "Business and industry",
+            "href": null,
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-starting-business",
+                "label": "Starting a business",
+                "href": "https://www.business.qld.gov.au/starting-business",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-running-business",
+                "label": "Running a business",
+                "href": "https://www.business.qld.gov.au/running-business",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-employing",
+                "label": "Employing people",
+                "href": "https://www.business.qld.gov.au/running-business/employing",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-payroll-tax",
+                "label": "Payroll tax",
+                "href": "https://www.business.qld.gov.au/running-business/employing/payroll-tax",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-industries",
+                "label": "Industries",
+                "href": "https://www.business.qld.gov.au/industries",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-invest",
+                "label": "Investing in Queensland",
+                "href": "https://www.business.qld.gov.au/industries/invest",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-government-employees",
+            "label": "Government employees",
+            "href": null,
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-pay-benefits",
+                "label": "Pay, benefits and policy",
+                "href": "https://www.forgov.qld.gov.au/pay-benefits-and-policy",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-service-design",
+                "label": "Service design and delivery",
+                "href": "https://www.forgov.qld.gov.au/service-design-and-delivery",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-finance",
+                "label": "Finance, procurement and travel",
+                "href": "https://www.forgov.qld.gov.au/finance-procurement-and-travel",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-recruitment",
+                "label": "Recruitment, performance and career",
+                "href": "https://www.forgov.qld.gov.au/recruitment-performance-and-career",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-communication",
+                "label": "Communication and publishing",
+                "href": "https://www.forgov.qld.gov.au/communication-and-publishing",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-property",
+                "label": "Property, land and infrastructure",
+                "href": "https://www.forgov.qld.gov.au/property-land-and-infrastructure",
+                "external": false
+              }
+            ]
+          }
+        ],
+        "cta": {
+          "text": "Browse all information and services",
+          "href": "https://www.qld.gov.au/queenslanders",
+          "variant": "primary"
+        },
+        "sticky": true
+      }
+    },
+    {
+      "type": "search-bar",
+      "confidence": 0.95,
+      "content": {
+        "placeholder": "Search Queensland Government",
+        "showIcon": true,
+        "showSuggestions": true,
+        "suggestions": [
+          {
+            "text": "Renew vehicle or boat rego",
+            "url": "https://www.service.transport.qld.gov.au/renewregistration/public/Welcome.xhtml"
+          },
+          {
+            "text": "Check my licence demerit points",
+            "url": "https://www.service.transport.qld.gov.au/checkmydemeritpoints/public/Welcome.xhtml"
+          },
+          {
+            "text": "Renew my driving licence",
+            "url": "https://www.qld.gov.au/transport/licensing/driver-licensing/renew-replace/renew/online"
+          },
+          {
+            "text": "Change my address",
+            "url": "https://www.change-of-address.services.qld.gov.au/"
+          },
+          {
+            "text": "Transport and motoring",
+            "category": "Browse by category",
+            "url": "https://www.qld.gov.au/transport"
+          },
+          {
+            "text": "Employment and jobs",
+            "category": "Browse by category",
+            "url": "https://www.qld.gov.au/jobs"
+          },
+          {
+            "text": "Education and training",
+            "category": "Browse by category",
+            "url": "https://www.qld.gov.au/education"
+          },
+          {
+            "text": "Queensland and its government",
+            "category": "Browse by category",
+            "url": "https://www.qld.gov.au/about"
+          }
+        ],
+        "clearLabel": "Close Search Concierge",
+        "searchLabel": "Search site",
+        "recentLabel": "Popular services"
+      }
+    },
+    {
+      "type": "hero-simple",
+      "confidence": 0.9,
+      "content": {
+        "eyebrow": "",
+        "heading": "Queensland Government home",
+        "subheading": "",
+        "body": "Find services and information for Queenslanders",
+        "ctaButtons": [
+          {
+            "label": "Find a job",
+            "url": "https://www.qld.gov.au/jobs/finding",
+            "variant": "primary",
+            "style": "primary"
+          },
+          {
+            "label": "Change my address details",
+            "url": "https://www.change-of-address.services.qld.gov.au/",
+            "variant": "secondary",
+            "style": "primary"
+          },
+          {
+            "label": "Apply for a Seniors Card",
+            "url": "https://www.qld.gov.au/seniorscardapply/",
+            "variant": "outline",
+            "style": "primary"
+          }
+        ],
+        "alignment": "center"
+      }
+    },
+    {
+      "type": "card-grid",
+      "confidence": 0.97,
+      "content": {
+        "heading": "Browse by category",
+        "subheading": "",
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-transport-and-motoring",
+            "title": "Transport and motoring",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0018/114147/transport.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/transport",
+            "linkText": "Transport and motoring"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-employment-and-jobs",
+            "title": "Employment and jobs",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0020/113843/employment.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/jobs",
+            "linkText": "Employment and jobs"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-education-and-training",
+            "title": "Education and training",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0022/113845/education.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/education",
+            "linkText": "Education and training"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-queensland-and-its-government",
+            "title": "Queensland and its government",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0014/114152/qld-gov.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/about",
+            "linkText": "Queensland and its government"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-health-and-wellbeing",
+            "title": "Health and wellbeing",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0024/113838/health.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/health",
+            "linkText": "Health and wellbeing"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-community-support",
+            "title": "Community support",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0017/114155/community.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/community",
+            "linkText": "Community support"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-emergency-services-and-safety",
+            "title": "Emergency services and safety",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0021/113844/emergency-services.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/emergency",
+            "linkText": "Emergency services and safety"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-your-rights-crime-and-the-law",
+            "title": "Your rights, crime and the law",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0020/114149/your-rights-crime-law.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/law",
+            "linkText": "Your rights, crime and the law"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-environment-land-and-water",
+            "title": "Environment, land and water",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0019/113842/environment.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/environment",
+            "linkText": "Environment, land and water"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-homes-and-housing",
+            "title": "Homes and housing",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0023/113837/homes.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/housing",
+            "linkText": "Homes and housing"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-recreation-sport-and-arts",
+            "title": "Recreation, sport and arts",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0013/114151/recreation-sport-arts.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/recreation",
+            "linkText": "Recreation, sport and arts"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-parents-and-families",
+            "title": "Parents and families",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0015/114153/parents.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/families",
+            "linkText": "Parents and families"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-people-with-disability",
+            "title": "People with disability",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0016/114154/disability.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/disability",
+            "linkText": "People with disability"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-youth",
+            "title": "Youth",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0019/114148/youth.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/youth",
+            "linkText": "Youth"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-aboriginal-and-torres-strait-islander-peoples",
+            "title": "Aboriginal and Torres Strait Islander peoples",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0019/114157/aboriginal.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/firstnations",
+            "linkText": "Aboriginal and Torres Strait Islander peoples"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-seniors",
+            "title": "Seniors",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0012/114150/seniors.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/seniors",
+            "linkText": "Seniors"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-business-and-industry",
+            "title": "Business and industry",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0018/114156/business-industry.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/business",
+            "linkText": "Business and industry"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-for-government-employees",
+            "title": "For government employees",
+            "description": "",
+            "image": "https://www.qld.gov.au/__data/assets/image/0018/113841/for-gov.jpg",
+            "imageAlt": "",
+            "link": "https://www.qld.gov.au/for-government-employees",
+            "linkText": "For government employees"
+          }
+        ],
+        "columns": 4,
+        "gap": "medium",
+        "cardStyle": "vertical",
+        "imagePosition": "top",
+        "imageAspectRatio": "16:9"
+      }
+    },
+    {
+      "type": "footer",
+      "confidence": 0.98,
+      "content": {
+        "columns": [
+          {
+            "type": "columnItem",
+            "id": "columnItem-contact-us",
+            "title": "Contact us",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-general-enquiries",
+                "label": "For general enquiries, feedback, complaints and compliments:",
+                "href": null,
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-phone",
+                "label": "13 74 68",
+                "href": "tel:137468",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-facebook",
+                "label": "/QueenslandGovernment",
+                "href": "https://www.facebook.com/QueenslandGovernment/",
+                "external": true
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-twitter",
+                "label": "@QldGov",
+                "href": "https://twitter.com/qldgov",
+                "external": true
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-other-contact",
+                "label": "Other contact options",
+                "href": "https://www.qld.gov.au/contact-us",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "columnItem",
+            "id": "columnItem-website-feedback",
+            "title": "Website feedback",
+            "links": []
+          },
+          {
+            "type": "columnItem",
+            "id": "columnItem-cultural-acknowledgement",
+            "title": "Cultural acknowledgement",
+            "links": []
+          }
+        ],
+        "logo": "",
+        "logoAlt": "",
+        "description": "We pay our respects to the Aboriginal and Torres Strait Islander ancestors of this land, their spirits and their legacy. The foundations laid by these ancestors—our First Nations peoples—give strength, inspiration and courage to current and",
+        "socialLinks": [
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-facebook",
+            "platform": "facebook",
+            "url": "https://www.facebook.com/QueenslandGovernment/",
+            "label": "/QueenslandGovernment"
+          },
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-twitter",
+            "platform": "twitter",
+            "url": "https://twitter.com/qldgov",
+            "label": "@QldGov"
+          }
+        ],
+        "legalLinks": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-help",
+            "label": "Help",
+            "href": "https://www.qld.gov.au/help",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-copyright",
+            "label": "Copyright",
+            "href": "https://www.qld.gov.au/legal/copyright",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-disclaimer",
+            "label": "Disclaimer",
+            "href": "https://www.qld.gov.au/legal/disclaimer",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-privacy",
+            "label": "Privacy",
+            "href": "https://www.qld.gov.au/legal/privacy",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-right-to-information",
+            "label": "Right to information",
+            "href": "https://www.qld.gov.au/about/rights-accountability/right-to-information",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-accessibility",
+            "label": "Accessibility",
+            "href": "https://www.qld.gov.au/help/accessibility",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-keyboard-accessibility",
+            "label": "Keyboard Accessibility",
+            "href": "https://www.qld.gov.au/help/keyboard",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-jobs",
+            "label": "Jobs in Queensland Government",
+            "href": "https://smartjobs.qld.gov.au/",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-other-languages",
+            "label": "Other languages",
+            "href": "https://www.qld.gov.au/help/languages",
+            "external": false
+          }
+        ],
+        "newsletter": null,
+        "copyright": "© The State of Queensland 1995–2025"
+      }
+    },
+    {
+      "type": "cta-with-form",
+      "confidence": 0.92,
+      "content": {
+        "heading": "Website feedback",
+        "subheading": "Help us improve the content on our website or tell us what is working really well.",
+        "placeholder": "Comments",
+        "buttonText": "Submit feedback",
+        "successMessage": "",
+        "errorMessage": "",
+        "privacyText": "This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.",
+        "privacyLink": "https://policies.google.com/privacy",
+        "layout": "vertical",
+        "formAction": "https://www.smartservice.qld.gov.au/services/submissions/email/feedback/feedback-v2",
+        "emailFieldName": "",
+        "honeypot": false
+      }
+    }
+  ],
+  "pageMetadata": {
+    "title": "Queensland Government",
+    "description": "The official website for the Queensland Government",
+    "keywords": "",
+    "canonicalUrl": "https://www.qld.gov.au/",
+    "language": "en",
+    "author": "Queensland Government",
+    "publishedDate": "",
+    "modifiedDate": "",
+    "pageType": "home",
+    "primaryPurpose": "government",
+    "targetAudience": "queenslanders",
+    "favicon": "https://www.qld.gov.au/__data/assets/file/0018/297/favicon.ico",
+    "logo": "https://www.qld.gov.au/__data/assets/git_bridge/0029/95447/static.qgov.net.au/assets/v4/latest/images/coat-of-arms/qg-coa-white.svg",
+    "primaryColors": {
+      "background": "#ffffff",
+      "text": "#000000",
+      "accent": "#005ea2"
+    },
+    "fonts": [
+      "Lato"
+    ],
+    "visualStyle": "governmental",
+    "openGraph": {
+      "title": "Queensland Government",
+      "description": "The official website for the Queensland Government",
+      "image": ""
+    },
+    "twitterCard": {
+      "title": "Queensland Government",
+      "description": "The official website for the Queensland Government",
+      "image": ""
+    },
+    "schemaOrgData": {},
+    "contactInfo": {
+      "phone": "13 74 68",
+      "email": ""
+    },
+    "socialLinks": [
+      {
+        "platform": "facebook",
+        "url": "https://www.facebook.com/QueenslandGovernment/"
+      },
+      {
+        "platform": "twitter",
+        "url": "https://twitter.com/qldgov"
+      }
+    ],
+    "robots": "index,follow",
+    "viewport": "width=device-width, initial-scale=1"
+  }
+}

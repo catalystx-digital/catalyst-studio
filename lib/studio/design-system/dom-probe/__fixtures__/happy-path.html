@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DOM Probe Happy Path Fixture</title>
+    <style>
+      body {
+        font-family: "Open Sans", Arial, sans-serif;
+        margin: 0;
+        background: #f5f5f5;
+        color: #222222;
+      }
+      h1 {
+        font-family: "Roboto", "Open Sans", sans-serif;
+        font-size: 36px;
+        font-weight: 700;
+        line-height: 44px;
+        margin: 32px 32px 24px 32px;
+        color: #1434a4;
+      }
+      p {
+        font-size: 16px;
+        line-height: 24px;
+        margin: 0 32px 16px 32px;
+      }
+      .cta {
+        background-color: #ff6600;
+        color: #ffffff;
+        padding: 12px 24px;
+        margin: 0 32px 32px 32px;
+        display: inline-block;
+        text-transform: uppercase;
+        border-radius: 6px;
+        letter-spacing: 0.6px;
+      }
+      .card {
+        padding: 24px;
+        margin: 16px 32px 32px 32px;
+        border: 1px solid #d0d5dd;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(20, 52, 164, 0.08);
+      }
+      .card h2 {
+        font-family: "Roboto", sans-serif;
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 12px 0;
+        color: #1b4d3e;
+      }
+      .card p {
+        margin: 0 0 12px 0;
+      }
+      .spacer {
+        margin-top: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome to the Design System Probe Fixture</h1>
+    <p>
+      This fixture exercises font detection by combining heading and body styles within a simple layout. The typography extractor
+      should distinguish these roles clearly.
+    </p>
+    <a class="cta" href="#">Explore Components</a>
+    <section class="card">
+      <h2>Typography Coverage</h2>
+      <p>
+        The card text should use the base body style while the heading inherits the display style. Palette extraction should find
+        blues, oranges, and neutral greys.
+      </p>
+    </section>
+    <section class="card spacer">
+      <h2>Palette and Spacing</h2>
+      <p>Spacing tokens should capture 12px, 16px, 24px, and 32px increments along with the CTA padding.</p>
+    </section>
+  </body>
+</html>

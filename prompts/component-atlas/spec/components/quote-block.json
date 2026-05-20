@@ -1,0 +1,102 @@
+{
+  "canonicalType": "quote-block",
+  "componentType": "quote-block",
+  "content": {
+    "attribution": {
+      "author": "Amelia Rogers",
+      "image": "https://cdn.example.com/customers/amelia.jpg",
+      "title": "Director of Digital, Everlake Insurance"
+    },
+    "heading": "Customer spotlight",
+    "quote": "Catalyst Studio helped our team ship new experiences 4x faster.",
+    "style": "testimonial"
+  },
+  "cues": [
+    "quote",
+    "testimonial quote",
+    "pull quote"
+  ],
+  "defaultRegion": "main",
+  "description": "Pull quote section with attribution and styles for emphasis in content pages.",
+  "fragments": [
+    "quote",
+    "attribution"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Quote",
+      "role": "blockquote"
+    },
+    "commonNames": [
+      "Quote",
+      "QuoteBlock",
+      "Blockquote",
+      "Testimonial",
+      "PullQuote",
+      "CustomerQuote",
+      "ReviewQuote",
+      "Quotation",
+      "Citation",
+      "HighlightQuote",
+      "CalloutQuote"
+    ],
+    "confidence": 0.9,
+    "industry": [
+      "general",
+      "marketing",
+      "education",
+      "publishing",
+      "corporate"
+    ],
+    "keywords": [
+      "quote",
+      "blockquote",
+      "testimonial",
+      "pullquote",
+      "citation",
+      "quotation",
+      "customer review",
+      "praise",
+      "endorsement",
+      "feedback",
+      "saying",
+      "excerpt",
+      "highlight quote",
+      "callout quote"
+    ],
+    "pageLocation": [
+      "main",
+      "hero",
+      "sidebar"
+    ],
+    "patterns": [
+      "class.*quote",
+      "class.*blockquote",
+      "class.*testimonial",
+      "class.*pullquote",
+      "<blockquote",
+      "<q>",
+      "role.*quote",
+      "data-testimonial",
+      "data-quote",
+      "testimonial-text",
+      "quote-text",
+      "citation"
+    ],
+    "relatedComponents": [
+      "text-block",
+      "testimonials"
+    ],
+    "semanticRole": "testimonial",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DOM Probe Missing Fonts Fixture</title>
+    <style>
+      body {
+        font-family: "Phantom Sans", "Helvetica Neue", Arial, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #ffffff;
+        color: #111111;
+      }
+      h1 {
+        font-family: "Lumen Display", "Phantom Sans", sans-serif;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        color: #0d9488;
+      }
+      p {
+        font-size: 15px;
+        line-height: 22px;
+        margin-bottom: 12px;
+      }
+      .note {
+        font-family: "Document Mono", monospace;
+        background: #fef3c7;
+        color: #7c2d12;
+        padding: 8px 12px;
+        border-left: 4px solid #f97316;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fonts Are Still Loading</h1>
+    <p>
+      This fixture references custom families without embedding them. The adapter should surface missing font diagnostics so the runner
+      can emit actionable warnings.
+    </p>
+    <p class="note">Document Mono is also intentionally absent to mimic a console font.</p>
+  </body>
+</html>

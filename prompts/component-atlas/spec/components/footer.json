@@ -1,0 +1,218 @@
+{
+  "canonicalType": "footer",
+  "componentType": "footer",
+  "content": {
+    "columns": [
+      {
+        "type": "columnItem",
+        "id": "footer-column-company",
+        "title": "Company",
+        "links": [
+          {
+            "type": "nav-menu-item",
+            "id": "footer-company-about",
+            "label": "About",
+            "href": "/company"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "footer-company-careers",
+            "label": "Careers",
+            "href": "/careers"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "footer-company-press",
+            "label": "Press",
+            "href": "/press"
+          }
+        ]
+      },
+      {
+        "type": "columnItem",
+        "id": "footer-column-resources",
+        "title": "Resources",
+        "links": [
+          {
+            "type": "nav-menu-item",
+            "id": "footer-resources-blog",
+            "label": "Blog",
+            "href": "/resources/blog"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "footer-resources-docs",
+            "label": "Docs",
+            "href": "/docs"
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "footer-resources-support",
+            "label": "Support",
+            "href": "/support"
+          }
+        ]
+      }
+    ],
+    "copyright": "Copyright 2024 Catalyst Studio. All rights reserved.",
+    "legalLinks": [
+      {
+        "type": "nav-menu-item",
+        "id": "footer-legal-privacy",
+        "label": "Privacy Policy",
+        "href": "/legal/privacy"
+      },
+      {
+        "type": "nav-menu-item",
+        "id": "footer-legal-terms",
+        "label": "Terms of Service",
+        "href": "/legal/terms"
+      }
+    ],
+    "socialLinks": [
+      {
+        "type": "socialLinkItem",
+        "id": "footer-social-linkedin",
+        "platform": "linkedin",
+        "url": "https://www.linkedin.com/company/catalyst-studio/"
+      },
+      {
+        "type": "socialLinkItem",
+        "id": "footer-social-twitter",
+        "platform": "twitter",
+        "url": "https://twitter.com/catalyststudio"
+      }
+    ]
+  },
+  "cues": [
+    "footer",
+    "copyright",
+    "contact information",
+    "bottom navigation"
+  ],
+  "defaultRegion": "footer",
+  "description": "Site footer with navigation columns, social links, and compliance details.",
+  "fragments": [
+    "footer-column",
+    "social-links",
+    "legal-links"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Site footer",
+      "role": "contentinfo"
+    },
+    "commonNames": [
+      "footer",
+      "site footer",
+      "page footer",
+      "bottom navigation"
+    ],
+    "confidence": 0.95,
+    "description": "Comprehensive site footer with navigation columns, branding, social links, legal notices, and optional newsletter form.",
+    "industry": [
+      "general"
+    ],
+    "keywords": [
+      "footer",
+      "site footer",
+      "bottom",
+      "copyright",
+      "links",
+      "sitemap",
+      "legal"
+    ],
+    "pageLocation": [
+      "footer"
+    ],
+    "patterns": [
+      "footer",
+      "site.*footer",
+      "copyright",
+      "legal.*links",
+      "social.*links"
+    ],
+    "properties": [
+      {
+        "allowedTypes": [
+          "columnItem"
+        ],
+        "description": "Primary navigation columns grouped within the footer, composed of columnItem subcomponents.",
+        "name": "columns",
+        "required": false,
+        "type": "content[]"
+      },
+      {
+        "description": "Logo image URL displayed in the footer branding area.",
+        "name": "logo",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Accessible alternative text for the footer logo.",
+        "name": "logoAlt",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Supporting brand copy or mission statement.",
+        "name": "description",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "allowedTypes": [
+          "socialLinkItem"
+        ],
+        "description": "Collection of social media links rendered as icons via socialLinkItem subcomponents.",
+        "name": "socialLinks",
+        "required": false,
+        "type": "content[]"
+      },
+      {
+        "allowedTypes": [
+          "nav-menu-item"
+        ],
+        "description": "Legal or compliance-related footer links rendered via nav-menu-item subcomponents.",
+        "name": "legalLinks",
+        "required": false,
+        "type": "content[]"
+      },
+      {
+        "description": "Newsletter signup block displayed within the footer.",
+        "name": "newsletter",
+        "required": false,
+        "type": "{ heading:string; description?:string; placeholder?:string; buttonText?:string }"
+      },
+      {
+        "description": "Copyright or ownership notice text.",
+        "name": "copyright",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Custom CSS color value applied to the footer background.",
+        "name": "backgroundColor",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Custom CSS color value applied to footer text elements.",
+        "name": "textColor",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "semanticRole": "contentinfo",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": true
+  }
+}

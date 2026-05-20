@@ -1,0 +1,101 @@
+{
+  "canonicalType": "team-grid",
+  "componentType": "team-grid",
+  "content": {
+    "columns": {
+      "desktop": 3
+    },
+    "heading": "Meet the leadership team",
+    "members": [
+      {
+        "type": "team-member",
+        "id": "team-member-jonah-patel",
+        "name": "Jonah Patel",
+        "title": "CEO & Co-founder",
+        "bio": "Previously led platform strategy at Atlassian.",
+        "photo": "https://cdn.example.com/team/jonah.jpg",
+        "photoAlt": "Portrait of Jonah Patel",
+        "linkedin": "https://www.linkedin.com/in/jonahpatel/"
+      },
+      {
+        "type": "team-member",
+        "id": "team-member-linh-tran",
+        "name": "Linh Tran",
+        "title": "VP of Product",
+        "bio": "Drives roadmap for collaboration and AI-assisted workflows.",
+        "photo": "https://cdn.example.com/team/linh.jpg",
+        "photoAlt": "Portrait of Linh Tran"
+      }
+    ],
+    "manualMembers": []
+  },
+  "cues": [
+    "team grid",
+    "team members",
+    "leadership"
+  ],
+  "defaultRegion": "main",
+  "description": "Grid of team members with photos, titles, and optional department and profile links.",
+  "fragments": [
+    "team-member",
+    "profile-card"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Team members grid",
+      "role": "region"
+    },
+    "commonNames": [
+      "team-grid",
+      "staff-grid",
+      "team-section",
+      "people-grid",
+      "employee-grid",
+      "leadership-grid"
+    ],
+    "confidence": 0.8,
+    "description": "Hybrid team overview that auto-populates from the directory with optional spotlight members.",
+    "industry": [
+      "corporate",
+      "agency",
+      "nonprofit",
+      "education"
+    ],
+    "keywords": [
+      "team",
+      "staff",
+      "people",
+      "our team",
+      "leadership",
+      "employees",
+      "meet the team",
+      "team members",
+      "management",
+      "executives",
+      "directors",
+      "board"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "meet.*team",
+      "our.*team",
+      "team.*members",
+      "staff.*directory",
+      "leadership.*team",
+      "management.*team",
+      "executive.*team"
+    ],
+    "relatedComponents": [
+      "team-member",
+      "about-section"
+    ],
+    "semanticRole": "team-display"
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

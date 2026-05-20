@@ -1,0 +1,8 @@
+/* Glass Morphism Effects - Minimal Version */
+/* Only affects components with .glass-morphism class */
+/* This file exists to prevent 404 errors */
+
+/* Minimal glass effect - only for explicitly marked elements */
+.glass-morphism .glass-card {
+  /* Glass effect only for elements that explicitly want it */
+}

@@ -1,0 +1,189 @@
+{
+  "website": {
+    "id": "site_tonic",
+    "accountId": "acct_sample",
+    "name": "Tonic Coffee Roasters",
+    "description": "Direct-trade roastery and tasting room",
+    "category": "hospitality",
+    "metadata": {
+      "origin": "https://tonic.example.com",
+      "importSource": "ucs-demo"
+    },
+    "settings": {
+      "features": {
+        "shop": true,
+        "blog": true
+      }
+    },
+    "icon": {
+      "mediaId": "media_icon",
+      "originalUrl": "https://cdn.example.com/tonic/icon.png"
+    },
+    "isActive": true,
+    "createdAt": "2024-10-01T10:12:45.000Z",
+    "updatedAt": "2024-12-15T08:00:00.000Z"
+  },
+  "pages": {
+    "home": {
+      "id": "page_home",
+      "websiteId": "site_tonic",
+      "title": "Home",
+      "fullPath": "/",
+      "templateKey": "marketing/home-default",
+      "templateProps": {
+        "heroVariant": "split"
+      },
+      "regions": [
+        {
+          "region": "hero",
+          "componentTypes": ["HeroClassic"]
+        },
+        {
+          "region": "content",
+          "componentTypes": ["RichText", "FeatureGrid"]
+        }
+      ],
+      "components": [
+        {
+          "id": "cmp_hero",
+          "type": "hero",
+          "componentType": "HeroClassic",
+          "componentTypeId": "wct_hero",
+          "parentId": null,
+          "position": 0,
+          "props": {
+            "sharedComponentId": "shared_nav",
+            "overrides": {
+              "headline": "Peak flavor without the sugar crash"
+            }
+          },
+          "content": {},
+          "styles": {},
+          "metadata": {
+            "locked": false
+          }
+        },
+        {
+          "id": "cmp_intro",
+          "type": "rich-text",
+          "componentType": "RichText",
+          "componentTypeId": "wct_text",
+          "parentId": null,
+          "position": 1,
+          "props": {},
+          "content": {
+            "text": "We roast in small batches every Monday."
+          },
+          "styles": {},
+          "metadata": {}
+        }
+      ],
+      "metadata": {
+        "seoTitle": "Tonic Coffee Roasters",
+        "seoDescription": "Direct-trade beans roasted weekly."
+      },
+      "sharedComponentIds": ["shared_nav"]
+    }
+  },
+  "sharedComponents": [
+    {
+      "id": "shared_nav",
+      "name": "Primary Nav",
+      "componentType": "Navigation",
+      "componentTypeId": "wct_nav",
+      "content": {
+        "links": [
+          {
+            "label": "Shop",
+            "href": "/shop"
+          },
+          {
+            "label": "Visit",
+            "href": "/visit"
+          }
+        ]
+      },
+      "config": {
+        "defaultProps": {
+          "links": [
+            {
+              "label": "Shop",
+              "href": "/shop"
+            },
+            {
+              "label": "Visit",
+              "href": "/visit"
+            }
+          ]
+        },
+        "category": "navigation"
+      }
+    }
+  ],
+  "designSystems": [
+    {
+      "id": "ds_001",
+      "websiteId": "site_tonic",
+      "designConceptId": "concept_default",
+      "conceptName": "Default",
+      "version": "1.0.0",
+      "tokens": {
+        "palette": {
+          "primary": [
+            {
+              "value": "#6B4F4F",
+              "source": "import",
+              "confidence": 0.92
+            }
+          ]
+        },
+        "typography": {
+          "heading": [
+            {
+              "fontFamily": "General Sans",
+              "source": "detected",
+              "confidence": 0.87
+            }
+          ],
+          "body": [],
+          "ui": []
+        },
+        "spacing": {
+          "name": "base",
+          "values": [
+            {
+              "step": 1,
+              "value": 4
+            }
+          ],
+          "unit": "px",
+          "confidence": 0.9,
+          "source": "dom"
+        },
+        "radii": {
+          "name": "curves",
+          "values": [
+            {
+              "step": 1,
+              "value": 4
+            }
+          ],
+          "unit": "px",
+          "confidence": 0.9,
+          "source": "dom"
+        },
+        "shadows": [],
+        "effects": [],
+        "metadata": {
+          "confidence": 0.92
+        },
+        "version": "1.0.0",
+        "diagnostics": []
+      },
+      "sourceJobId": "job_capture_001",
+      "isCurrent": true,
+      "createdAt": "2024-12-01T10:00:00.000Z",
+      "updatedAt": "2024-12-01T10:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+#!/usr/bin/env sh
+
+# Check if package.json is staged and lockfile needs updating
+echo "🔍 Checking lockfile sync..."
+
+PACKAGE_JSON_STAGED=$(git diff --cached --name-only | grep "^package.json$" || true)
+if [ -n "$PACKAGE_JSON_STAGED" ]; then
+  echo "📦 package.json is staged, ensuring lockfile is synced..."
+
+  # Run pnpm install to update lockfile (--frozen-lockfile=false)
+  pnpm install --ignore-scripts 2>/dev/null
+
+  # Check if lockfile changed
+  LOCKFILE_CHANGED=$(git diff --name-only pnpm-lock.yaml || true)
+  if [ -n "$LOCKFILE_CHANGED" ]; then
+    echo "🔄 Lockfile updated, adding to commit..."
+    git add pnpm-lock.yaml
+  fi
+fi
+
+# Validate component placement
+echo "🔍 Checking component placement..."
+
+# Check for premium components outside of premium directory
+INVALID_PREMIUM=$(git diff --cached --name-only | grep -E "^components/.*premium" || true)
+if [ -n "$INVALID_PREMIUM" ]; then
+  echo "❌ Error: Premium components detected outside /lib/premium/ directory:"
+  echo "$INVALID_PREMIUM"
+  echo ""
+  echo "Premium components must be placed under /lib/premium/components/"
+  exit 1
+fi
+
+# Check for CMS components in wrong directory
+INVALID_CMS=$(git diff --cached --name-only | grep -E "^components/.*cms/" | grep -v "^lib/premium/components/cms/" || true)
+if [ -n "$INVALID_CMS" ]; then
+  echo "❌ Error: CMS components detected outside /lib/premium/components/cms/ directory:"
+  echo "$INVALID_CMS"
+  echo ""
+  echo "CMS components must be placed under /lib/premium/components/cms/"
+  exit 1
+fi
+
+# Check import paths in staged TypeScript/React files
+echo "🔍 Checking import paths..."
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "\.(ts|tsx|js|jsx)$" || true)
+
+if [ -n "$STAGED_FILES" ]; then
+  for file in $STAGED_FILES; do
+    # Check for imports from common components in premium files
+    if echo "$file" | grep -q "^lib/premium/"; then
+      INVALID_IMPORTS=$(grep -E "from ['\"](\.\.\/)*components\/(?!ui\/)" "$file" 2>/dev/null || true)
+      if [ -n "$INVALID_IMPORTS" ]; then
+        echo "❌ Error in $file: Premium components should not import from common components directory"
+        echo "$INVALID_IMPORTS"
+        exit 1
+      fi
+    fi
+    
+    # Check for relative imports that should use @ alias
+    RELATIVE_IMPORTS=$(grep -E "from ['\"]\.\.\/\.\.\/\.\.\/\.\.\/" "$file" 2>/dev/null || true)
+    if [ -n "$RELATIVE_IMPORTS" ]; then
+      echo "⚠️  Warning in $file: Consider using @ alias instead of deep relative imports"
+      echo "$RELATIVE_IMPORTS"
+    fi
+  done
+fi
+
+echo "✅ Component placement validation passed"

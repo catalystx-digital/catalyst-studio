@@ -1,0 +1,267 @@
+{
+  "examples": [
+    {
+      "name": "BlogPost",
+      "category": "page",
+      "description": "Standard blog article with rich content",
+      "fields": [
+        { "name": "title", "type": "Text", "required": true },
+        { "name": "slug", "type": "Text", "required": true },
+        { "name": "author", "type": "Text", "required": true },
+        { "name": "publishDate", "type": "DateTime", "required": true },
+        { "name": "featuredImage", "type": "Media", "required": false },
+        { "name": "excerpt", "type": "Text", "required": true },
+        { "name": "content", "type": "LongText", "required": true },
+        { "name": "category", "type": "Select", "required": true },
+        { "name": "tags", "type": "MultiSelect", "required": false },
+        { "name": "metaTitle", "type": "Text", "required": false },
+        { "name": "metaDescription", "type": "Text", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "Blog or news website content"
+    },
+    {
+      "name": "ProductPage",
+      "category": "page",
+      "description": "E-commerce product detail page",
+      "fields": [
+        { "name": "title", "type": "Text", "required": true },
+        { "name": "slug", "type": "Text", "required": true },
+        { "name": "sku", "type": "Text", "required": true },
+        { "name": "price", "type": "Decimal", "required": true },
+        { "name": "salePrice", "type": "Decimal", "required": false },
+        { "name": "description", "type": "LongText", "required": true },
+        { "name": "specifications", "type": "JSON", "required": false },
+        { "name": "images", "type": "Media", "required": true, "metadata": { "multiple": true } },
+        { "name": "inventory", "type": "Number", "required": true },
+        { "name": "featured", "type": "Boolean", "required": false },
+        { "name": "relatedProducts", "type": "ContentReference", "required": false, "metadata": { "multiple": true } },
+        { "name": "reviews", "type": "ContentArea", "required": false },
+        { "name": "metaTitle", "type": "Text", "required": false },
+        { "name": "metaDescription", "type": "Text", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "E-commerce product catalog"
+    },
+    {
+      "name": "LandingPage",
+      "category": "page",
+      "description": "Marketing landing page with flexible sections",
+      "fields": [
+        { "name": "title", "type": "Text", "required": true },
+        { "name": "slug", "type": "Text", "required": true },
+        { "name": "heroSection", "type": "ContentReference", "required": true },
+        { "name": "contentSections", "type": "ContentArea", "required": false },
+        { "name": "ctaSection", "type": "ContentReference", "required": false },
+        { "name": "trackingCode", "type": "Text", "required": false },
+        { "name": "metaTitle", "type": "Text", "required": false },
+        { "name": "metaDescription", "type": "Text", "required": false }
+      ],
+      "confidence": 95,
+      "use_case": "Marketing campaigns and promotions"
+    },
+    {
+      "name": "EventPage",
+      "category": "page",
+      "description": "Event information and registration page",
+      "fields": [
+        { "name": "title", "type": "Text", "required": true },
+        { "name": "slug", "type": "Text", "required": true },
+        { "name": "eventDate", "type": "DateTime", "required": true },
+        { "name": "endDate", "type": "DateTime", "required": false },
+        { "name": "location", "type": "Text", "required": true },
+        { "name": "locationDetails", "type": "JSON", "required": false, "metadata": { "structure": "address" } },
+        { "name": "description", "type": "LongText", "required": true },
+        { "name": "speakers", "type": "ContentReference", "required": false, "metadata": { "multiple": true } },
+        { "name": "agenda", "type": "ContentArea", "required": false },
+        { "name": "registrationUrl", "type": "URL", "required": false },
+        { "name": "capacity", "type": "Number", "required": false },
+        { "name": "price", "type": "Decimal", "required": false },
+        { "name": "image", "type": "Media", "required": false },
+        { "name": "metaTitle", "type": "Text", "required": false },
+        { "name": "metaDescription", "type": "Text", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "Conference, webinar, and event management"
+    },
+    {
+      "name": "TeamMemberPage",
+      "category": "page",
+      "description": "Individual team member profile page",
+      "fields": [
+        { "name": "name", "type": "Text", "required": true },
+        { "name": "slug", "type": "Text", "required": true },
+        { "name": "position", "type": "Text", "required": true },
+        { "name": "department", "type": "Select", "required": false },
+        { "name": "photo", "type": "Media", "required": false },
+        { "name": "bio", "type": "LongText", "required": true },
+        { "name": "email", "type": "Email", "required": false },
+        { "name": "phone", "type": "Phone", "required": false },
+        { "name": "linkedIn", "type": "URL", "required": false },
+        { "name": "twitter", "type": "URL", "required": false },
+        { "name": "expertise", "type": "MultiSelect", "required": false },
+        { "name": "joinDate", "type": "Date", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "Company team and staff directories"
+    },
+    {
+      "name": "HeroSection",
+      "category": "component",
+      "description": "Full-width hero banner component",
+      "fields": [
+        { "name": "heading", "type": "Text", "required": true },
+        { "name": "subheading", "type": "Text", "required": false },
+        { "name": "description", "type": "Text", "required": false },
+        { "name": "backgroundImage", "type": "Media", "required": false },
+        { "name": "primaryButtonText", "type": "Text", "required": false },
+        { "name": "primaryButtonUrl", "type": "URL", "required": false },
+        { "name": "secondaryButtonText", "type": "Text", "required": false },
+        { "name": "secondaryButtonUrl", "type": "URL", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "Page headers and marketing sections"
+    },
+    {
+      "name": "CallToAction",
+      "category": "component",
+      "description": "CTA block with button and messaging",
+      "fields": [
+        { "name": "heading", "type": "Text", "required": true },
+        { "name": "message", "type": "Text", "required": false },
+        { "name": "buttonText", "type": "Text", "required": true },
+        { "name": "buttonUrl", "type": "URL", "required": true },
+        { "name": "style", "type": "Select", "required": false, "metadata": { "options": ["primary", "secondary", "minimal"] } },
+        { "name": "alignment", "type": "Select", "required": false, "metadata": { "options": ["left", "center", "right"] } }
+      ],
+      "confidence": 100,
+      "use_case": "Conversion and action prompts"
+    },
+    {
+      "name": "TestimonialCard",
+      "category": "component",
+      "description": "Customer testimonial display component",
+      "fields": [
+        { "name": "quote", "type": "Text", "required": true },
+        { "name": "authorName", "type": "Text", "required": true },
+        { "name": "authorTitle", "type": "Text", "required": false },
+        { "name": "authorCompany", "type": "Text", "required": false },
+        { "name": "authorPhoto", "type": "Media", "required": false },
+        { "name": "rating", "type": "Number", "required": false, "metadata": { "min": 1, "max": 5 } }
+      ],
+      "confidence": 100,
+      "use_case": "Social proof and customer reviews"
+    },
+    {
+      "name": "FeatureBlock",
+      "category": "component",
+      "description": "Feature highlight with icon and text",
+      "fields": [
+        { "name": "icon", "type": "Media", "required": false },
+        { "name": "title", "type": "Text", "required": true },
+        { "name": "description", "type": "Text", "required": true },
+        { "name": "linkText", "type": "Text", "required": false },
+        { "name": "linkUrl", "type": "URL", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "Product features and service highlights"
+    },
+    {
+      "name": "VideoEmbed",
+      "category": "component",
+      "description": "Embedded video player component",
+      "fields": [
+        { "name": "title", "type": "Text", "required": false },
+        { "name": "videoUrl", "type": "URL", "required": true },
+        { "name": "thumbnailImage", "type": "Media", "required": false },
+        { "name": "autoplay", "type": "Boolean", "required": false },
+        { "name": "caption", "type": "Text", "required": false }
+      ],
+      "confidence": 95,
+      "use_case": "Video content embedding"
+    },
+    {
+      "name": "AccordionItem",
+      "category": "component",
+      "description": "Expandable content accordion item",
+      "fields": [
+        { "name": "title", "type": "Text", "required": true },
+        { "name": "content", "type": "LongText", "required": true },
+        { "name": "defaultExpanded", "type": "Boolean", "required": false },
+        { "name": "icon", "type": "Media", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "FAQs and expandable content sections"
+    },
+    {
+      "name": "StatisticBlock",
+      "category": "component",
+      "description": "Numeric statistic display component",
+      "fields": [
+        { "name": "value", "type": "Text", "required": true },
+        { "name": "label", "type": "Text", "required": true },
+        { "name": "description", "type": "Text", "required": false },
+        { "name": "icon", "type": "Media", "required": false },
+        { "name": "trend", "type": "Select", "required": false, "metadata": { "options": ["up", "down", "neutral"] } }
+      ],
+      "confidence": 100,
+      "use_case": "KPIs and metric displays"
+    },
+    {
+      "name": "ContactForm",
+      "category": "component",
+      "description": "Contact form configuration component",
+      "fields": [
+        { "name": "heading", "type": "Text", "required": true },
+        { "name": "description", "type": "Text", "required": false },
+        { "name": "recipientEmail", "type": "Email", "required": true },
+        { "name": "successMessage", "type": "Text", "required": true },
+        { "name": "buttonText", "type": "Text", "required": false },
+        { "name": "fields", "type": "JSON", "required": true, "metadata": { "structure": "formFields" } }
+      ],
+      "confidence": 90,
+      "use_case": "Lead generation and contact forms"
+    },
+    {
+      "name": "PricingCard",
+      "category": "component",
+      "description": "Pricing tier display component",
+      "fields": [
+        { "name": "planName", "type": "Text", "required": true },
+        { "name": "price", "type": "Decimal", "required": true },
+        { "name": "billingPeriod", "type": "Select", "required": true, "metadata": { "options": ["monthly", "yearly", "one-time"] } },
+        { "name": "description", "type": "Text", "required": false },
+        { "name": "features", "type": "MultiSelect", "required": true },
+        { "name": "buttonText", "type": "Text", "required": true },
+        { "name": "buttonUrl", "type": "URL", "required": true },
+        { "name": "highlighted", "type": "Boolean", "required": false }
+      ],
+      "confidence": 100,
+      "use_case": "SaaS pricing and subscription plans"
+    },
+    {
+      "name": "ImageGallery",
+      "category": "component",
+      "description": "Multi-image gallery component",
+      "fields": [
+        { "name": "title", "type": "Text", "required": false },
+        { "name": "images", "type": "Media", "required": true, "metadata": { "multiple": true } },
+        { "name": "layout", "type": "Select", "required": false, "metadata": { "options": ["grid", "carousel", "masonry"] } },
+        { "name": "showCaptions", "type": "Boolean", "required": false },
+        { "name": "lightboxEnabled", "type": "Boolean", "required": false }
+      ],
+      "confidence": 95,
+      "use_case": "Photo galleries and portfolios"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "total_examples": 15,
+    "categories": {
+      "page": 5,
+      "component": 10
+    },
+    "average_confidence": 97.33,
+    "last_updated": "2025-01-21"
+  }
+}

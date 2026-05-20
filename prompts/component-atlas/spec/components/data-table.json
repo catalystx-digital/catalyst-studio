@@ -1,0 +1,88 @@
+{
+  "canonicalType": "data-table",
+  "componentType": "data-table",
+  "content": {
+    "columns": [
+      {
+        "key": "metric",
+        "label": "Metric"
+      },
+      {
+        "key": "value",
+        "label": "Value"
+      }
+    ],
+    "pagination": {
+      "enabled": false
+    },
+    "rows": [
+      {
+        "id": "storage",
+        "metric": "Storage",
+        "value": "2 TB SSD"
+      },
+      {
+        "id": "bandwidth",
+        "metric": "Bandwidth",
+        "value": "Unlimited"
+      }
+    ],
+    "sorting": {
+      "enabled": false
+    },
+    "title": "Technical specifications"
+  },
+  "cues": [
+    "data table",
+    "spec sheet",
+    "feature matrix"
+  ],
+  "defaultRegion": "main",
+  "description": "Structured table with sortable columns for specifications or metrics.",
+  "fragments": [
+    "table-header",
+    "table-row"
+  ],
+  "metadata": {
+    "commonNames": [
+      "data-table",
+      "table-view",
+      "data-grid",
+      "spreadsheet",
+      "records-table",
+      "list-table"
+    ],
+    "confidence": 0.8,
+    "keywords": [
+      "table",
+      "data",
+      "grid",
+      "spreadsheet",
+      "list",
+      "data table",
+      "tabular data",
+      "rows",
+      "columns",
+      "matrix",
+      "dataset",
+      "records"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "data\\s+table",
+      "table\\s+(view|display|grid)",
+      "tabular\\s+data",
+      "spreadsheet",
+      "data\\s+grid",
+      "records?\\s+table",
+      "list\\s+view"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "pageTemplate": {
+    "templateKey": "core/generic-default",
+    "confidence": 0.9,
+    "reason": "URL /directory and page structure with navbar, simple title/CTA header, empty dynamic directory container, logo element, and comprehensive footer match generic content page layout without home hero, blog, or commerce signals.",
+    "source": "model"
+  },
+  "components": [
+    [
+      "text-block",
+      0.85,
+      {
+        "body": "We have updated our Privacy Statement. These changes are effective from 1 October 2025. For more information, you can read our full Privacy Statement <a href=\"https://www.qicre.com/privacy-policy\">here</a>."
+      }
+    ],
+    [
+      "navbar",
+      0.95,
+      {
+        "logo": {
+          "src": "https://cdn.intelligencebank.com/au/share/qyp3/dAOvp/7BoyB/original/BathurstCityCentreSVGBlackLogo",
+          "alt": "centre logo",
+          "href": "/"
+        },
+        "menuItems": [],
+        "sticky": true
+      }
+    ],
+    [
+      "hero-simple",
+      0.9,
+      {
+        "heading": "Store Directory",
+        "ctaButtons": [
+          {
+            "label": "Centre Map",
+            "href": "/Centre-Information/Centre-Map",
+            "variant": "outline",
+            "style": "primary"
+          }
+        ]
+      }
+    ],
+    [
+      "logo-cloud",
+      0.8,
+      {
+        "logos": [
+          {
+            "id": "logo-welcome-here",
+            "src": "https://cdn.intelligencebank.com/au/share/qyp3/v9k3/2Er4D/preset=yPbKN/WH_logo",
+            "alt": "Welcome Here",
+            "link": "/Articles/Welcome-Here"
+          }
+        ]
+      }
+    ],
+    [
+      "footer",
+      1,
+      {
+        "columns": [
+          {
+            "type": "columnItem",
+            "id": "columnItem-centre-information",
+            "title": "Visit us at Bathurst City Centre",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about-us",
+                "label": "About Us",
+                "href": "/Centre-Information/About-Us",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-opening-hours",
+                "label": "Opening Hours",
+                "href": "/Centre-Information/Opening-Hours",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-store-directory",
+                "label": "Store Directory",
+                "href": "/Directory",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-centre-map",
+                "label": "Centre Map",
+                "href": "/Centre-Information/Centre-Map",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-getting-here",
+                "label": "Getting Here",
+                "href": "/Centre-Information/Getting-Here",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-conditions-of-entry",
+                "label": "Conditions of Entry",
+                "href": "/Conditions-of-Entry/Centre-Conditions-of-Entry",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-contact-us",
+                "label": "Contact Us",
+                "href": "/Centre-Information/Contact-Us",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "columnItem",
+            "id": "columnItem-centre-location",
+            "title": "210 Howick St, Bathurst NSW 2795",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-view-on-map",
+                "label": "View on Map",
+                "href": "https://www.google.com/maps/dir/?api=1&destination=210+Howick+St%2c+Bathurst+NSW+2795",
+                "external": true
+              }
+            ]
+          }
+        ],
+        "socialLinks": [
+          {
+            "type": "socialLinkItem",
+            "id": "socialLinkItem-facebook",
+            "platform": "facebook",
+            "url": "https://www.facebook.com/bathurstcity/",
+            "label": "Facebook"
+          }
+        ],
+        "legalLinks": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-legal",
+            "label": "Legal",
+            "href": "/Legal/Legal",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-privacy-policy",
+            "label": "Privacy Policy",
+            "href": "https://www.qicre.com/privacy-policy",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-tenant-portal",
+            "label": "Tenant Portal",
+            "href": "https://www.qicre.com/Tenant-Portal",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-pop-up-with-us",
+            "label": "Pop-Up With Us",
+            "href": "https://www.qicre.com/Brand_iQ/Retail-solutions",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-advertise-with-us",
+            "label": "Advertise With Us",
+            "href": "https://www.qicre.com/Brand_iQ/Media-solutions",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-contractors",
+            "label": "Contractors",
+            "href": "/Contractors",
+            "external": true
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-leasing",
+            "label": "Leasing",
+            "href": "https://qicre.com/Places/Bathurst-City-Centre?enquire=leasing",
+            "external": true
+          }
+        ],
+        "newsletter": {
+          "heading": "Keep up-to-date with the latest events",
+          "placeholder": "Email Address",
+          "buttonText": "Sign up"
+        },
+        "description": "We acknowledge and respect the traditional lands and cultures of the Wiradyuri people, the Traditional Owners and Custodians of the Country on which Bathurst City Centre resides, and pay our respects to Elders past and present. We recognise their continuing connection to land, waters and community."
+      }
+    ]
+  ],
+  "pageMetadata": {
+    "title": "Store Directory",
+    "description": "Discover stores at Bathurst City Centre.",
+    "canonicalUrl": "https://bathurstcitycentre.qicre.com/directory",
+    "language": "en"
+  }
+}

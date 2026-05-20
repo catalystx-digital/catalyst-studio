@@ -1,0 +1,68 @@
+{
+  "canonicalType": "cta-simple",
+  "componentType": "cta-simple",
+  "content": {
+    "alignment": "left",
+    "backgroundVariant": "surface",
+    "body": "Ship new campaigns in days, not weeks. Talk with our team to get a tailored walkthrough.",
+    "eyebrow": "Ready to move faster?",
+    "heading": "See Catalyst Studio in action",
+    "primaryButton": {
+      "text": "Book a demo",
+      "url": "/contact",
+      "variant": "primary"
+    },
+    "secondaryButton": {
+      "text": "View pricing",
+      "url": "/pricing",
+      "variant": "outline"
+    }
+  },
+  "cues": [
+    "call to action",
+    "cta block",
+    "promo banner"
+  ],
+  "defaultRegion": "main",
+  "description": "Compact call-to-action card with headline, supporting copy, and primary action.",
+  "fragments": [
+    "eyebrow",
+    "heading",
+    "supporting-copy",
+    "primary-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "CTASimple",
+      "ActionCard",
+      "CallToAction"
+    ],
+    "confidence": 0.8,
+    "keywords": [
+      "cta",
+      "call to action",
+      "cta card",
+      "promo",
+      "action block"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar"
+    ],
+    "patterns": [
+      "simple[\\s-]?cta",
+      "cta[\\s-]?card",
+      "call[\\s-]?to[\\s-]?action",
+      "promo[\\s-]?block"
+    ],
+    "relatedComponents": [
+      "cta-banner",
+      "cta-button-group"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

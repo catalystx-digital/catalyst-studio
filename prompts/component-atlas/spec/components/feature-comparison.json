@@ -1,0 +1,68 @@
+{
+  "canonicalType": "feature-comparison",
+  "componentType": "feature-comparison",
+  "content": {
+    "features": [
+      {
+        "name": "Unlimited pages",
+        "values": [
+          true,
+          true,
+          true
+        ]
+      },
+      {
+        "name": "Custom domains",
+        "values": [
+          false,
+          true,
+          true
+        ]
+      },
+      {
+        "name": "Advanced analytics",
+        "values": [
+          false,
+          true,
+          true
+        ]
+      }
+    ],
+    "heading": "Compare plans",
+    "products": [
+      {
+        "name": "Starter",
+        "price": "$29/mo"
+      },
+      {
+        "cta": {
+          "text": "Choose Growth",
+          "url": "/pricing/growth"
+        },
+        "name": "Growth",
+        "price": "$79/mo",
+        "recommended": true
+      },
+      {
+        "name": "Enterprise",
+        "price": "Contact us"
+      }
+    ]
+  },
+  "cues": [
+    "comparison table",
+    "plan matrix",
+    "feature comparison"
+  ],
+  "defaultRegion": "main",
+  "description": "Matrix comparing plans or products across structured capabilities.",
+  "fragments": [
+    "comparison-table",
+    "plan-column"
+  ],
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": false,
+    "hasSynthesizer": false
+  }
+}

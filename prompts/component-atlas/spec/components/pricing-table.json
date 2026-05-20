@@ -1,0 +1,112 @@
+{
+  "canonicalType": "pricing-table",
+  "componentType": "pricing-table",
+  "content": {
+    "features": [
+      {
+        "name": "Unlimited editors",
+        "values": [
+          false,
+          true
+        ]
+      },
+      {
+        "name": "Custom integrations",
+        "values": [
+          false,
+          true
+        ]
+      }
+    ],
+    "plans": [
+      {
+        "ctaText": "Start Starter",
+        "ctaUrl": "/signup/starter",
+        "currency": "USD",
+        "description": "Launch a marketing site in days.",
+        "features": [
+          "5 published pages",
+          "Basic analytics"
+        ],
+        "id": "starter",
+        "name": "Starter",
+        "period": "monthly",
+        "price": 29
+      },
+      {
+        "ctaText": "Start Growth",
+        "ctaUrl": "/signup/growth",
+        "currency": "USD",
+        "description": "Collaborative workflows for growing teams.",
+        "features": [
+          "Unlimited pages",
+          "Advanced roles"
+        ],
+        "highlighted": true,
+        "id": "growth",
+        "name": "Growth",
+        "period": "monthly",
+        "price": 79
+      }
+    ],
+    "showComparison": true,
+    "subtitle": "Flexible pricing for teams of any size.",
+    "title": "Choose the plan that fits"
+  },
+  "cues": [
+    "pricing table",
+    "plans and pricing",
+    "tier comparison"
+  ],
+  "defaultRegion": "main",
+  "description": "Pricing matrix comparing subscription plans with feature availability.",
+  "fragments": [
+    "pricing-plan",
+    "plan-comparison"
+  ],
+  "metadata": {
+    "commonNames": [
+      "pricing-table",
+      "pricing-comparison",
+      "plan-selector",
+      "subscription-plans",
+      "pricing-grid",
+      "plan-comparison"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "pricing",
+      "plans",
+      "compare",
+      "subscription",
+      "tiers",
+      "packages",
+      "pricing table",
+      "pricing comparison",
+      "plan comparison",
+      "pricing plans",
+      "subscription plans",
+      "membership",
+      "pricing options"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "pricing\\s+(table|comparison|plans?|options?)",
+      "compare\\s+plans?",
+      "subscription\\s+(plans?|tiers?|options?)",
+      "choose\\s+(your\\s+)?plan",
+      "plan\\s+comparison",
+      "membership\\s+(levels?|tiers?|plans?)"
+    ],
+    "relatedComponents": [
+      "pricing-card"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

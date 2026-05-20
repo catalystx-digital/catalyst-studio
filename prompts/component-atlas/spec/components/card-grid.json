@@ -1,0 +1,116 @@
+{
+  "canonicalType": "card-grid",
+  "componentType": "card-grid",
+  "content": {
+    "cards": [
+      {
+        "type": "card-item",
+        "id": "card-item-everlake",
+        "title": "Everlake improves conversions by 28%",
+        "description": "Insurance provider rebuilt their digital quote flow in under six weeks.",
+        "image": "https://cdn.example.com/case-studies/everlake.jpg",
+        "link": "/customers/everlake"
+      },
+      {
+        "type": "card-item",
+        "id": "card-item-zenware",
+        "title": "Zenware launches 12 microsites in one quarter",
+        "description": "Integrated product marketing pipeline with automated QA gates.",
+        "link": "/customers/zenware"
+      }
+    ],
+    "columns": 2,
+    "heading": "Customer stories"
+  },
+  "cues": [
+    "cards",
+    "tile grid",
+    "resource cards"
+  ],
+  "defaultRegion": "main",
+  "description": "Grid of cards for features, case studies, or resources.",
+  "fragments": [
+    "card",
+    "image",
+    "card-cta"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Content Cards",
+      "role": "list"
+    },
+    "commonNames": [
+      "CardGrid",
+      "CardsGrid",
+      "CardList",
+      "FeatureCards",
+      "ProductCards",
+      "TeamCards",
+      "ServiceCards",
+      "PortfolioGrid",
+      "CardGallery",
+      "ContentCards",
+      "GridCards",
+      "TileGrid"
+    ],
+    "confidence": 0.86,
+    "industry": [
+      "general",
+      "ecommerce",
+      "portfolio",
+      "corporate",
+      "blog"
+    ],
+    "keywords": [
+      "card grid",
+      "card layout",
+      "grid cards",
+      "card list",
+      "feature cards",
+      "product cards",
+      "team cards",
+      "service cards",
+      "portfolio grid",
+      "card gallery",
+      "content cards",
+      "info cards",
+      "tile grid",
+      "card collection"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "class.*card-grid",
+      "class.*cards-container",
+      "class.*grid.*card",
+      "class.*card-list",
+      "class.*feature-cards",
+      "class.*product-grid",
+      "class.*team-grid",
+      "class.*portfolio",
+      "data-cards",
+      "card-wrapper",
+      "cards-row",
+      "card-deck"
+    ],
+    "relatedComponents": [
+      "feature-grid",
+      "team-grid",
+      "image-gallery"
+    ],
+    "semanticRole": "content-display",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

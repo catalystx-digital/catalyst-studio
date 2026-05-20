@@ -1,0 +1,104 @@
+{
+  "canonicalType": "feature-showcase",
+  "componentType": "feature-showcase",
+  "content": {
+    "heading": "Experience the modular workflow",
+    "sections": [
+      {
+        "type": "showcase-section",
+        "id": "showcase-section-collaborate-in-real-time",
+        "cta": {
+          "text": "See collaboration tools",
+          "url": "/platform/collaboration"
+        },
+        "description": "Invite stakeholders to comment inline and approve changes instantly.",
+        "features": [
+          {
+            "icon": "message-circle",
+            "text": "Commenting and approvals"
+          },
+          {
+            "icon": "shield-check",
+            "text": "Role-based guardrails"
+          }
+        ],
+        "image": {
+          "alt": "Cross-functional team collaborating in the editor",
+          "src": "https://cdn.example.com/showcase/editor-collaboration.jpg"
+        },
+        "imagePosition": "right",
+        "title": "Collaborate in real time"
+      },
+      {
+        "type": "showcase-section",
+        "id": "showcase-section-automate-publishing",
+        "description": "Automate QA, localization, and approvals before every launch.",
+        "features": [
+          {
+            "icon": "bolt",
+            "text": "Workflow automation"
+          },
+          {
+            "icon": "globe",
+            "text": "Localization at scale"
+          }
+        ],
+        "image": {
+          "alt": "Automated publishing pipeline",
+          "src": "https://cdn.example.com/showcase/publishing-automation.jpg"
+        },
+        "imagePosition": "left",
+        "title": "Automate publishing"
+      }
+    ],
+    "subheading": "Guide prospects through highlights with storytelling sections."
+  },
+  "cues": [
+    "feature showcase",
+    "product walkthrough",
+    "interactive sections"
+  ],
+  "defaultRegion": "main",
+  "description": "Interactive showcase with alternating media and narrative sections.",
+  "fragments": [
+    "showcase-section",
+    "media",
+    "feature-list",
+    "cta-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "FeatureShowcase",
+      "ProductShowcase",
+      "SolutionShowcase",
+      "AlternatingFeatures"
+    ],
+    "confidence": 0.82,
+    "keywords": [
+      "showcase",
+      "feature",
+      "product",
+      "solution",
+      "highlight",
+      "presentation"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "showcase",
+      "feature[\\s-]?highlight",
+      "product[\\s-]?(showcase|presentation)",
+      "solution[\\s-]?overview",
+      "alternating[\\s-]?layout"
+    ],
+    "relatedComponents": [
+      "feature-grid"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

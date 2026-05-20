@@ -1,0 +1,1396 @@
+{
+  "generatedAt": "2025-12-20T00:43:35.462Z",
+  "totalComponents": 60,
+  "components": [
+    {
+      "type": "about-section",
+      "category": "about",
+      "path": "lib/studio/components/cms/about/about-section/about-section.def.ts",
+      "description": "About page section with story, mission, values, milestones, images, and stats.",
+      "keywords": [
+        "about",
+        "about section",
+        "company history",
+        "mission vision",
+        "values",
+        "milestones",
+        "our story"
+      ],
+      "aliases": [
+        "about us",
+        "about section",
+        "company overview"
+      ]
+    },
+    {
+      "type": "accordion",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/accordion/accordion.def.ts",
+      "description": "Collapsible list of items with titles and expandable content, optionally allowing multiple open.",
+      "keywords": [
+        "accordion",
+        "faq",
+        "frequently asked questions",
+        "collapsible",
+        "expandable",
+        "toggle",
+        "dropdown content",
+        "q&a",
+        "questions and answers",
+        "disclosure",
+        "expand collapse",
+        "show hide",
+        "accordion menu",
+        "collapsible sections"
+      ],
+      "aliases": [
+        "Accordion",
+        "FAQ",
+        "FAQSection",
+        "AccordionMenu",
+        "CollapsibleList",
+        "ExpandableContent",
+        "QuestionsAnswers",
+        "Collapsible",
+        "DisclosurePanel",
+        "ToggleContent"
+      ]
+    },
+    {
+      "type": "article-header",
+      "category": "blog",
+      "path": "lib/studio/components/cms/blog/article-header/article-header.def.ts",
+      "description": "Article header with title, author, dates, categories/tags, and optional featured image.",
+      "keywords": [
+        "article title",
+        "post header",
+        "blog header",
+        "headline",
+        "article heading",
+        "post title",
+        "blog title",
+        "article meta",
+        "post metadata",
+        "article info"
+      ],
+      "aliases": [
+        "ArticleHeader",
+        "PostHeader",
+        "BlogHeader",
+        "ArticleTitle",
+        "PostTitle",
+        "ArticleHeading"
+      ]
+    },
+    {
+      "type": "author-bio",
+      "category": "blog",
+      "path": "lib/studio/components/cms/blog/author-bio/author-bio.def.ts",
+      "description": "Author bio with photo, social links, stats, expertise, and expandable text.",
+      "keywords": [
+        "author",
+        "written by",
+        "about the author",
+        "bio",
+        "profile",
+        "author bio",
+        "writer",
+        "contributor",
+        "author info",
+        "author profile"
+      ],
+      "aliases": [
+        "AuthorBio",
+        "AuthorProfile",
+        "AuthorInfo",
+        "WriterBio",
+        "ContributorProfile",
+        "AboutAuthor"
+      ]
+    },
+    {
+      "type": "blog-card",
+      "category": "blog",
+      "path": "lib/studio/components/cms/blog/blog-card/blog-card.def.ts",
+      "description": "Blog summary card with title, excerpt, author, dates, categories/tags, and stats.",
+      "keywords": [
+        "article",
+        "post",
+        "blog entry",
+        "news item",
+        "story",
+        "blog card",
+        "article card",
+        "post preview",
+        "article preview",
+        "blog preview"
+      ],
+      "aliases": [
+        "BlogCard",
+        "ArticleCard",
+        "PostCard",
+        "NewsCard",
+        "BlogItem",
+        "ArticlePreview"
+      ]
+    },
+    {
+      "type": "blog-list",
+      "category": "blog",
+      "path": "lib/studio/components/cms/blog/blog-list/blog-list.def.ts",
+      "description": "List or grid of blog posts with pagination, filters, and sorting options. Auto-filled blog feed with optional manual pins for editorial control.",
+      "keywords": [
+        "blog",
+        "articles",
+        "news",
+        "posts",
+        "latest articles",
+        "blog posts",
+        "article list",
+        "news feed",
+        "blog archive",
+        "posts archive",
+        "recent posts",
+        "all posts"
+      ],
+      "aliases": [
+        "BlogList",
+        "ArticleList",
+        "PostArchive",
+        "NewsFeed",
+        "BlogGrid",
+        "ArticleGrid"
+      ]
+    },
+    {
+      "type": "blog-post",
+      "category": "blog",
+      "path": "lib/studio/components/cms/blog/blog-post/blog-post.def.ts",
+      "description": "Long-form article component combining hero details, rich body content, and author metadata.",
+      "keywords": [
+        "blog post",
+        "article detail",
+        "news story",
+        "press release",
+        "case study",
+        "long form content",
+        "editorial"
+      ],
+      "aliases": [
+        "BlogPost",
+        "ArticleBody",
+        "StoryContent",
+        "EditorialContent",
+        "NewsArticle"
+      ]
+    },
+    {
+      "type": "breadcrumbs",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/breadcrumbs/breadcrumbs.def.ts",
+      "description": "Automatically generated breadcrumb trail reflecting the current page hierarchy with optional display tweaks.",
+      "keywords": [
+        "breadcrumbs",
+        "breadcrumb",
+        "navigation-path",
+        "trail",
+        "path"
+      ],
+      "aliases": [
+        "breadcrumbs",
+        "breadcrumb trail",
+        "navigation path"
+      ]
+    },
+    {
+      "type": "card-grid",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/card-grid/card-grid.def.ts",
+      "description": "Grid of cards with images, text, metadata, and optional actions; configurable columns and layout.",
+      "keywords": [
+        "card grid",
+        "card layout",
+        "grid cards",
+        "card list",
+        "feature cards",
+        "product cards",
+        "team cards",
+        "service cards",
+        "portfolio grid",
+        "card gallery",
+        "content cards",
+        "info cards",
+        "tile grid",
+        "card collection"
+      ],
+      "aliases": [
+        "CardGrid",
+        "CardsGrid",
+        "CardList",
+        "FeatureCards",
+        "ProductCards",
+        "TeamCards",
+        "ServiceCards",
+        "PortfolioGrid",
+        "CardGallery",
+        "ContentCards",
+        "GridCards",
+        "TileGrid"
+      ]
+    },
+    {
+      "type": "card-item",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/card-item/card-item.def.ts",
+      "description": "Basic card item with title, description, optional media and actions.",
+      "keywords": [
+        "card",
+        "card item",
+        "content card",
+        "info card",
+        "feature card",
+        "product card",
+        "article card",
+        "blog card",
+        "tile"
+      ],
+      "aliases": [
+        "Card",
+        "CardItem",
+        "ContentCard",
+        "InfoCard",
+        "FeatureCard",
+        "ProductCard",
+        "ArticleCard"
+      ]
+    },
+    {
+      "type": "chart",
+      "category": "data",
+      "path": "lib/studio/components/cms/data/chart/chart.def.ts",
+      "description": "Data visualization card supporting bar, line, and donut charts with multi-series support.",
+      "keywords": [
+        "chart",
+        "bar chart",
+        "line chart",
+        "donut chart",
+        "graph",
+        "data viz",
+        "analytics",
+        "kpi",
+        "metrics",
+        "visualization"
+      ],
+      "aliases": [
+        "chart",
+        "data-chart",
+        "metrics-chart",
+        "analytics-card",
+        "kpi-chart"
+      ]
+    },
+    {
+      "type": "contact-form",
+      "category": "contact",
+      "path": "lib/studio/components/cms/contact/contact-form/contact-form.def.ts",
+      "description": "Contact form with configurable fields, validation, endpoint, and success/error handling.",
+      "keywords": [
+        "contact form",
+        "get in touch",
+        "reach out",
+        "send message",
+        "inquiry form"
+      ],
+      "aliases": [
+        "contact form",
+        "contact us",
+        "get in touch"
+      ]
+    },
+    {
+      "type": "contact-info",
+      "category": "contact",
+      "path": "lib/studio/components/cms/contact/contact-info/contact-info.def.ts",
+      "description": "Business contact information including address, phone/email lists, social links, and hours.",
+      "keywords": [
+        "contact info",
+        "contact information",
+        "business hours",
+        "office location",
+        "reach us"
+      ],
+      "aliases": [
+        "contact information",
+        "contact details",
+        "reach us"
+      ]
+    },
+    {
+      "type": "content-feed",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/content-feed/content-feed.def.ts",
+      "description": "Dynamic provider-backed content feed that supports pinned items, sorting, and list or grid layouts.",
+      "keywords": [
+        "news",
+        "news section",
+        "news feed",
+        "latest news",
+        "recent news",
+        "news articles",
+        "blog",
+        "blog feed",
+        "blog posts",
+        "latest posts",
+        "recent posts",
+        "articles",
+        "article list",
+        "article feed",
+        "announcements",
+        "updates",
+        "whats new",
+        "content feed",
+        "listing",
+        "resource feed"
+      ],
+      "aliases": [
+        "NewsFeed",
+        "NewsSection",
+        "LatestNews",
+        "BlogFeed",
+        "BlogPosts",
+        "ArticleFeed",
+        "ArticleList",
+        "ContentFeed",
+        "Announcements"
+      ]
+    },
+    {
+      "type": "cta-banner",
+      "category": "cta",
+      "path": "lib/studio/components/cms/cta/cta-banner/cta-banner.def.ts",
+      "description": "Full-width call-to-action section with headline and primary/secondary buttons.",
+      "keywords": [
+        "cta",
+        "call to action",
+        "banner",
+        "action section",
+        "get started",
+        "sign up"
+      ],
+      "aliases": [
+        "CTABanner",
+        "CallToAction",
+        "ActionBanner"
+      ]
+    },
+    {
+      "type": "cta-button-group",
+      "category": "cta",
+      "path": "lib/studio/components/cms/cta/cta-button-group/cta-button-group.def.ts",
+      "description": "Group of call-to-action buttons with alignment, orientation, and spacing controls.",
+      "keywords": [
+        "buttons",
+        "actions",
+        "button group",
+        "cta buttons",
+        "action buttons"
+      ],
+      "aliases": [
+        "ButtonGroup",
+        "CTAButtonGroup",
+        "ActionButtons"
+      ]
+    },
+    {
+      "type": "cta-simple",
+      "category": "cta",
+      "path": "lib/studio/components/cms/cta/cta-simple/cta-simple.def.ts",
+      "description": "Compact call-to-action card with headline, supporting copy, and primary action.",
+      "keywords": [
+        "cta",
+        "call to action",
+        "cta card",
+        "promo",
+        "action block",
+        "quick exit",
+        "hotline"
+      ],
+      "aliases": [
+        "CTASimple",
+        "ActionCard",
+        "CallToAction"
+      ]
+    },
+    {
+      "type": "cta-with-form",
+      "category": "cta",
+      "path": "lib/studio/components/cms/cta/cta-newsletter/cta-newsletter.def.ts",
+      "description": "Email newsletter signup form with configurable layout and messaging.",
+      "keywords": [
+        "newsletter",
+        "subscribe",
+        "email",
+        "signup",
+        "mailing list",
+        "updates"
+      ],
+      "aliases": [
+        "Newsletter",
+        "EmailSignup",
+        "Subscribe",
+        "CTANewsletter"
+      ]
+    },
+    {
+      "type": "data-table",
+      "category": "data",
+      "path": "lib/studio/components/cms/data/data-table/data-table.def.ts",
+      "description": "Tabular data display with configurable columns, pagination, sorting, and filtering.",
+      "keywords": [
+        "table",
+        "data",
+        "grid",
+        "spreadsheet",
+        "list",
+        "data table",
+        "tabular data",
+        "rows",
+        "columns",
+        "matrix",
+        "dataset",
+        "records"
+      ],
+      "aliases": [
+        "data-table",
+        "table-view",
+        "data-grid",
+        "spreadsheet",
+        "records-table",
+        "list-table"
+      ]
+    },
+    {
+      "type": "feature-comparison",
+      "category": "features",
+      "path": "lib/studio/components/cms/features/feature-comparison/feature-comparison.def.ts",
+      "description": "Side-by-side comparison table for features/plans with optional highlights.",
+      "keywords": [
+        "comparison",
+        "compare",
+        "vs",
+        "versus",
+        "pricing",
+        "plans",
+        "tiers",
+        "matrix"
+      ],
+      "aliases": [
+        "FeatureComparison",
+        "PricingTable",
+        "ComparisonTable",
+        "PlanComparison"
+      ]
+    },
+    {
+      "type": "feature-grid",
+      "category": "features",
+      "path": "lib/studio/components/cms/features/feature-grid/feature-grid.def.ts",
+      "description": "Grid layout highlighting multiple features with optional headers and configurable columns.",
+      "keywords": [
+        "features",
+        "services",
+        "offerings",
+        "capabilities",
+        "what we do",
+        "solutions"
+      ],
+      "aliases": [
+        "FeatureGrid",
+        "ServiceGrid",
+        "CapabilitiesGrid",
+        "SolutionsGrid"
+      ]
+    },
+    {
+      "type": "feature-item",
+      "category": "features",
+      "path": "lib/studio/components/cms/features/feature-item/feature-item.def.ts",
+      "description": "Feature item with icon, title, description and optional link.",
+      "keywords": [
+        "feature",
+        "item",
+        "benefit",
+        "service",
+        "capability"
+      ],
+      "aliases": [
+        "FeatureItem",
+        "ServiceCard",
+        "BenefitCard"
+      ]
+    },
+    {
+      "type": "feature-list",
+      "category": "features",
+      "path": "lib/studio/components/cms/features/feature-list/feature-list.def.ts",
+      "description": "List-based feature presentation with icons, titles, descriptions, and optional links.",
+      "keywords": [
+        "benefits",
+        "features",
+        "list",
+        "advantages",
+        "highlights",
+        "points"
+      ],
+      "aliases": [
+        "FeatureList",
+        "BenefitsList",
+        "AdvantagesList",
+        "KeyPoints"
+      ]
+    },
+    {
+      "type": "feature-showcase",
+      "category": "features",
+      "path": "lib/studio/components/cms/features/feature-showcase/feature-showcase.def.ts",
+      "description": "Interactive showcase with multiple sections combining images, descriptive text, checklists, and CTAs.",
+      "keywords": [
+        "showcase",
+        "feature",
+        "product",
+        "solution",
+        "highlight",
+        "presentation"
+      ],
+      "aliases": [
+        "FeatureShowcase",
+        "ProductShowcase",
+        "SolutionShowcase",
+        "AlternatingFeatures"
+      ]
+    },
+    {
+      "type": "footer",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/footer/footer.def.ts",
+      "description": "Site footer with navigation columns, branding, legal links, social icons, and optional newsletter signup.",
+      "keywords": [
+        "footer",
+        "site footer",
+        "bottom",
+        "copyright",
+        "links",
+        "sitemap",
+        "legal"
+      ],
+      "aliases": [
+        "footer",
+        "site footer",
+        "page footer",
+        "bottom navigation"
+      ]
+    },
+    {
+      "type": "hero-banner",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-banner/hero-banner.def.ts",
+      "description": "Prominent top-of-page section featuring a primary message, background media, and optional call-to-action buttons.",
+      "keywords": [
+        "hero",
+        "banner",
+        "hero-banner",
+        "jumbotron",
+        "masthead",
+        "splash"
+      ],
+      "aliases": [
+        "hero banner",
+        "jumbotron",
+        "masthead",
+        "splash section",
+        "hero section"
+      ]
+    },
+    {
+      "type": "hero-carousel",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-carousel/hero-carousel.def.ts",
+      "description": "Carousel-style hero section rotating featured stories or promotions with imagery and calls to action.",
+      "keywords": [
+        "hero",
+        "carousel",
+        "slider",
+        "promotion",
+        "feature",
+        "rotating",
+        "banner"
+      ],
+      "aliases": [
+        "hero carousel",
+        "hero slider",
+        "rotating hero",
+        "featured hero carousel"
+      ]
+    },
+    {
+      "type": "hero-minimal",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-minimal/hero-minimal.def.ts",
+      "description": "Minimal hero layout with focused copy, optional CTAs, and subtle styling controls.",
+      "keywords": [
+        "hero",
+        "minimal",
+        "simple",
+        "centered",
+        "clean",
+        "text-focused"
+      ],
+      "aliases": [
+        "minimal hero",
+        "simple hero",
+        "centered hero",
+        "clean hero"
+      ]
+    },
+    {
+      "type": "hero-simple",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-simple/hero-simple.def.ts",
+      "description": "Compact hero with headline, supporting copy, and primary calls-to-action for quick conversions.",
+      "keywords": [
+        "hero",
+        "simple hero",
+        "compact hero",
+        "landing hero",
+        "headline hero",
+        "banner"
+      ],
+      "aliases": [
+        "simple hero",
+        "headline hero",
+        "landing hero",
+        "marketing hero"
+      ]
+    },
+    {
+      "type": "hero-split",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-split/hero-split.def.ts",
+      "description": "Hero section with split layout: text on one side and media (image/video/embed) on the other.",
+      "keywords": [
+        "hero",
+        "split",
+        "two-column",
+        "side-by-side",
+        "image",
+        "content"
+      ],
+      "aliases": [
+        "split hero",
+        "two-column hero",
+        "hero with image",
+        "side-by-side layout"
+      ]
+    },
+    {
+      "type": "hero-video",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-video/hero-video.def.ts",
+      "description": "Video-first hero section with optional overlay content and playback controls.",
+      "keywords": [
+        "hero",
+        "video",
+        "background",
+        "autoplay",
+        "loop",
+        "cinematic",
+        "fullscreen"
+      ],
+      "aliases": [
+        "video hero",
+        "video background",
+        "hero with video",
+        "cinematic hero"
+      ]
+    },
+    {
+      "type": "hero-with-image",
+      "category": "heroes",
+      "path": "lib/studio/components/cms/heroes/hero-with-image/hero-with-image.def.ts",
+      "description": "Primary hero section pairing marketing copy with a supporting image and optional CTA buttons.",
+      "keywords": [
+        "hero",
+        "image hero",
+        "marketing hero",
+        "headline",
+        "cta"
+      ],
+      "aliases": [
+        "hero with image",
+        "marketing hero",
+        "product hero"
+      ]
+    },
+    {
+      "type": "html-block",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/html-block/html-block.def.ts",
+      "description": "Rich HTML content block for documentation, resource pages, and information content without author/date metadata.",
+      "keywords": [
+        "html",
+        "content",
+        "page",
+        "documentation",
+        "resource",
+        "information",
+        "wysiwyg",
+        "article"
+      ],
+      "aliases": [
+        "html-block",
+        "content-page",
+        "html-content",
+        "page-content",
+        "rich-content"
+      ]
+    },
+    {
+      "type": "image-gallery",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/image-gallery/image-gallery.def.ts",
+      "description": "Responsive gallery of images with grid, carousel, or masonry layout and optional lightbox.",
+      "keywords": [
+        "gallery",
+        "images",
+        "photos",
+        "carousel",
+        "grid",
+        "slideshow",
+        "album",
+        "portfolio"
+      ],
+      "aliases": [
+        "image-gallery",
+        "photo-gallery",
+        "gallery",
+        "carousel",
+        "slider"
+      ]
+    },
+    {
+      "type": "location-map",
+      "category": "contact",
+      "path": "lib/studio/components/cms/contact/location-map/location-map.def.ts",
+      "description": "Embeddable map with address/coordinates, marker info window, and styling options.",
+      "keywords": [
+        "location map",
+        "google map",
+        "office location",
+        "find us",
+        "directions"
+      ],
+      "aliases": [
+        "location map",
+        "office map",
+        "find us"
+      ]
+    },
+    {
+      "type": "logo-cloud",
+      "category": "social-proof",
+      "path": "lib/studio/components/cms/social-proof/logo-strip/logo-strip.def.ts",
+      "description": "Row of client/partner logos with optional scrolling animation and caption.",
+      "keywords": [
+        "logo",
+        "client",
+        "partner",
+        "brand",
+        "company",
+        "trust",
+        "featured",
+        "sponsors"
+      ],
+      "aliases": [
+        "LogoStrip",
+        "ClientLogos",
+        "PartnerBanner",
+        "BrandBar",
+        "LogoCloud",
+        "TrustedBy"
+      ]
+    },
+    {
+      "type": "mobile-menu",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/mobile-menu/mobile-menu.def.ts",
+      "description": "Mobile navigation drawer with hierarchical items, supporting left/right slide or fade animations.",
+      "keywords": [
+        "mobile-menu",
+        "hamburger",
+        "burger-menu",
+        "mobile-nav",
+        "drawer",
+        "slide-menu"
+      ],
+      "aliases": [
+        "mobile menu",
+        "hamburger menu",
+        "burger menu",
+        "drawer menu"
+      ]
+    },
+    {
+      "type": "nav-menu-item",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/nav-menu-item/nav-menu-item.def.ts",
+      "description": "Navigation menu entry with optional external link, icon, and nested submenu items.",
+      "keywords": [
+        "nav item",
+        "menu item",
+        "navigation link",
+        "submenu"
+      ],
+      "aliases": [
+        "menu item",
+        "navigation item",
+        "dropdown item"
+      ]
+    },
+    {
+      "type": "navbar",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/nav-bar/nav-bar.def.ts",
+      "description": "Primary site navigation with brand logo, hierarchical menu items, and optional call-to-action.",
+      "keywords": [
+        "navigation",
+        "navbar",
+        "header",
+        "menu",
+        "nav",
+        "top bar"
+      ],
+      "aliases": [
+        "navigation bar",
+        "nav bar",
+        "header",
+        "main menu",
+        "top menu"
+      ]
+    },
+    {
+      "type": "pricing-card",
+      "category": "pricing",
+      "path": "lib/studio/components/cms/pricing/pricing-card/pricing-card.def.ts",
+      "description": "Single pricing card with price, features, and call-to-action.",
+      "keywords": [
+        "price",
+        "plan",
+        "package",
+        "subscription",
+        "tier",
+        "pricing card",
+        "pricing option",
+        "membership",
+        "cost",
+        "billing",
+        "pricing box"
+      ],
+      "aliases": [
+        "pricing-card",
+        "price-box",
+        "plan-card",
+        "subscription-card",
+        "pricing-option",
+        "package-card"
+      ]
+    },
+    {
+      "type": "pricing-table",
+      "category": "pricing",
+      "path": "lib/studio/components/cms/pricing/pricing-table/pricing-table.def.ts",
+      "description": "Pricing table with multiple plans and optional feature comparison matrix.",
+      "keywords": [
+        "pricing",
+        "plans",
+        "compare",
+        "subscription",
+        "tiers",
+        "packages",
+        "pricing table",
+        "pricing comparison",
+        "plan comparison",
+        "pricing plans",
+        "subscription plans",
+        "membership",
+        "pricing options"
+      ],
+      "aliases": [
+        "pricing-table",
+        "pricing-comparison",
+        "plan-selector",
+        "subscription-plans",
+        "pricing-grid",
+        "plan-comparison"
+      ]
+    },
+    {
+      "type": "promo-item",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/promo-item/promo-item.def.ts",
+      "description": "Promotional item with headline, body, media, and call-to-action.",
+      "keywords": [
+        "promo",
+        "promotion",
+        "promotional",
+        "offer",
+        "deal",
+        "sale",
+        "special",
+        "featured",
+        "highlight",
+        "product promo",
+        "marketing promo"
+      ],
+      "aliases": [
+        "PromoItem",
+        "Promotion",
+        "Promo",
+        "OfferCard",
+        "DealCard",
+        "SaleItem",
+        "FeaturedPromo",
+        "MarketingPromo"
+      ]
+    },
+    {
+      "type": "quote-block",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/quote-block/quote-block.def.ts",
+      "description": "Pull quote section with attribution and styles for emphasis in content pages.",
+      "keywords": [
+        "quote",
+        "blockquote",
+        "testimonial",
+        "pullquote",
+        "citation",
+        "quotation",
+        "customer review",
+        "praise",
+        "endorsement",
+        "feedback",
+        "saying",
+        "excerpt",
+        "highlight quote",
+        "callout quote"
+      ],
+      "aliases": [
+        "Quote",
+        "QuoteBlock",
+        "Blockquote",
+        "Testimonial",
+        "PullQuote",
+        "CustomerQuote",
+        "ReviewQuote",
+        "Quotation",
+        "Citation",
+        "HighlightQuote",
+        "CalloutQuote"
+      ]
+    },
+    {
+      "type": "related-posts",
+      "category": "blog",
+      "path": "lib/studio/components/cms/blog/related-posts/related-posts.def.ts",
+      "description": "Related posts section showing selected or automatically related articles. Hybrid related content module that auto-suggests posts and supports editorial overrides.",
+      "keywords": [
+        "related",
+        "you may also like",
+        "more articles",
+        "similar posts",
+        "recommended",
+        "related posts",
+        "related articles",
+        "suggested reading",
+        "more from",
+        "you might like"
+      ],
+      "aliases": [
+        "RelatedPosts",
+        "RelatedArticles",
+        "SuggestedPosts",
+        "RecommendedReading",
+        "MoreArticles",
+        "SimilarPosts"
+      ]
+    },
+    {
+      "type": "reviews",
+      "category": "social-proof",
+      "path": "lib/studio/components/cms/social-proof/review-card/review-card.def.ts",
+      "description": "Individual review with rating, author, date, and optional platform metadata.",
+      "keywords": [
+        "review",
+        "rating",
+        "star",
+        "feedback",
+        "customer",
+        "testimonial",
+        "verified",
+        "score"
+      ],
+      "aliases": [
+        "ReviewCard",
+        "RatingCard",
+        "CustomerReview",
+        "ReviewBox",
+        "ProductReview"
+      ]
+    },
+    {
+      "type": "sidebar-nav",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/sidebar-nav/sidebar-nav.def.ts",
+      "description": "Hierarchical sidebar navigation for \"In this section\" style navigation. Commonly used on documentation pages, content hubs, and service detail pages.",
+      "keywords": [
+        "sidebar",
+        "navigation",
+        "toc",
+        "in this section",
+        "on this page",
+        "table of contents",
+        "section nav"
+      ],
+      "aliases": [
+        "Sidebar Nav",
+        "Section Navigation",
+        "Table of Contents",
+        "In This Section",
+        "On This Page"
+      ]
+    },
+    {
+      "type": "sidemenu",
+      "category": "navigation",
+      "path": "lib/studio/components/cms/navigation/sidemenu/sidemenu.def.ts",
+      "description": "Vertical navigation menu for secondary pages or dashboard layouts with grouped sections or flat items.",
+      "keywords": [
+        "sidemenu",
+        "side menu",
+        "sidebar",
+        "side navigation",
+        "secondary nav",
+        "docs nav",
+        "menu"
+      ],
+      "aliases": [
+        "sidemenu",
+        "sidebar-nav",
+        "side-navigation",
+        "docs-menu",
+        "secondary-nav"
+      ]
+    },
+    {
+      "type": "simple-form",
+      "category": "contact",
+      "path": "lib/studio/components/cms/contact/simple-form/simple-form.def.ts",
+      "description": "Lightweight form with up to three fields, templates (newsletter/contact/callback), and customizable submit handling.",
+      "keywords": [
+        "simple form",
+        "newsletter",
+        "subscribe",
+        "quick contact",
+        "callback",
+        "sign up"
+      ],
+      "aliases": [
+        "simple form",
+        "newsletter signup",
+        "quick contact"
+      ]
+    },
+    {
+      "type": "statistics",
+      "category": "data",
+      "path": "lib/studio/components/cms/data/statistics/statistics.def.ts",
+      "description": "Key performance indicators and metrics displayed as stats with labels, delta trends, and optional icons.",
+      "keywords": [
+        "statistics",
+        "numbers",
+        "metrics",
+        "counter",
+        "achievements",
+        "stats",
+        "key metrics",
+        "performance",
+        "results",
+        "data points",
+        "kpis",
+        "milestones",
+        "facts",
+        "figures"
+      ],
+      "aliases": [
+        "statistics",
+        "stats-counter",
+        "metrics-display",
+        "number-counter",
+        "achievements",
+        "key-metrics"
+      ]
+    },
+    {
+      "type": "tabs",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/tabs/tabs.def.ts",
+      "description": "Tabbed content interface with labeled tabs, orientation, and alignment options.",
+      "keywords": [
+        "tabs",
+        "tab panel",
+        "tabbed content",
+        "tab navigation",
+        "tab switcher",
+        "tabbed interface",
+        "tab control",
+        "tab menu",
+        "switchable content",
+        "tab list",
+        "tabpanel",
+        "nav tabs",
+        "content tabs"
+      ],
+      "aliases": [
+        "Tabs",
+        "TabPanel",
+        "TabbedContent",
+        "TabNavigation",
+        "TabContainer",
+        "TabGroup",
+        "TabList",
+        "TabSwitcher",
+        "ContentTabs",
+        "NavigationTabs"
+      ]
+    },
+    {
+      "type": "team-grid",
+      "category": "about",
+      "path": "lib/studio/components/cms/about/team-grid/team-grid.def.ts",
+      "description": "Grid of team members with photos, titles, and optional department and profile links.",
+      "keywords": [
+        "team",
+        "team grid",
+        "staff",
+        "employees",
+        "our team",
+        "meet the team"
+      ],
+      "aliases": [
+        "team grid",
+        "staff directory",
+        "meet the team"
+      ]
+    },
+    {
+      "type": "team-member",
+      "category": "about",
+      "path": "lib/studio/components/cms/about/team-member/team-member.def.ts",
+      "description": "Detailed team member profile with bio, experience, education, and social links.",
+      "keywords": [
+        "team member",
+        "staff member",
+        "employee",
+        "profile",
+        "bio"
+      ],
+      "aliases": [
+        "team member",
+        "employee profile",
+        "staff card"
+      ]
+    },
+    {
+      "type": "testimonial-item",
+      "category": "social-proof",
+      "path": "lib/studio/components/cms/social-proof/testimonial-item/testimonial-item.def.ts",
+      "description": "Testimonial item with quote, author, and optional role/company/avatar/rating.",
+      "keywords": [
+        "testimonial",
+        "review",
+        "quote",
+        "feedback",
+        "customer"
+      ],
+      "aliases": [
+        "TestimonialItem",
+        "ReviewCard",
+        "TestimonialCard"
+      ]
+    },
+    {
+      "type": "testimonials",
+      "category": "social-proof",
+      "path": "lib/studio/components/cms/social-proof/testimonial-slider/testimonial-slider.def.ts",
+      "description": "Carousel-style slider for testimonials with autoplay and navigation controls.",
+      "keywords": [
+        "testimonial",
+        "review",
+        "customer",
+        "quote",
+        "feedback",
+        "carousel",
+        "slider",
+        "rotator"
+      ],
+      "aliases": [
+        "TestimonialSlider",
+        "ReviewCarousel",
+        "CustomerQuotes",
+        "TestimonialCarousel"
+      ]
+    },
+    {
+      "type": "testimonials",
+      "category": "social-proof",
+      "path": "lib/studio/components/cms/social-proof/testimonial-grid/testimonial-grid.def.ts",
+      "description": "Grid of short testimonials with author details and optional star ratings.",
+      "keywords": [
+        "testimonials",
+        "reviews",
+        "feedback",
+        "grid",
+        "customers",
+        "clients",
+        "ratings"
+      ],
+      "aliases": [
+        "TestimonialGrid",
+        "ReviewGrid",
+        "CustomerGrid",
+        "FeedbackGrid",
+        "TestimonialSection"
+      ]
+    },
+    {
+      "type": "text-block",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/text-block/text-block.def.ts",
+      "description": "Rich text block for headings and paragraphs, with alignment and optional columns.",
+      "keywords": [
+        "text",
+        "paragraph",
+        "article",
+        "content",
+        "body",
+        "description",
+        "prose",
+        "copy"
+      ],
+      "aliases": [
+        "text-block",
+        "content-block",
+        "text-section",
+        "article-content",
+        "body-text"
+      ]
+    },
+    {
+      "type": "timeline",
+      "category": "data",
+      "path": "lib/studio/components/cms/data/timeline/timeline.def.ts",
+      "description": "Chronological timeline of events with titles, dates, descriptions, and optional icons.",
+      "keywords": [
+        "timeline",
+        "history",
+        "milestones",
+        "roadmap",
+        "events",
+        "chronology",
+        "journey",
+        "process",
+        "steps",
+        "progress",
+        "timeline events",
+        "chronological",
+        "historical"
+      ],
+      "aliases": [
+        "timeline",
+        "history-timeline",
+        "milestone-timeline",
+        "event-timeline",
+        "roadmap",
+        "journey-map"
+      ]
+    },
+    {
+      "type": "two-column",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/two-column/two-column.def.ts",
+      "description": "Layout wrapper for side-by-side content. Use when visual separation exists between content sections (sidebar + content, image + text, or any two columns displayed horizontally). Supports nested components in each column.",
+      "keywords": [
+        "columns",
+        "split",
+        "side-by-side",
+        "layout",
+        "two-column",
+        "grid",
+        "section",
+        "half"
+      ],
+      "aliases": [
+        "two-column",
+        "split-section",
+        "two-col",
+        "columns",
+        "side-by-side"
+      ]
+    },
+    {
+      "type": "video-embed",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/video-embed/video-embed.def.ts",
+      "description": "Embeds externally hosted video players (YouTube, Vimeo, Loom, Wistia) with responsive sizing and analytics support.",
+      "keywords": [
+        "video",
+        "video embed",
+        "youtube",
+        "vimeo",
+        "loom",
+        "wistia",
+        "iframe"
+      ],
+      "aliases": [
+        "video embed",
+        "embedded video",
+        "video iframe",
+        "external video player"
+      ]
+    },
+    {
+      "type": "video-player",
+      "category": "content",
+      "path": "lib/studio/components/cms/content/video-player/video-player.def.ts",
+      "description": "Responsive video player supporting multiple sources and playback controls.",
+      "keywords": [
+        "video",
+        "player",
+        "media",
+        "mp4",
+        "youtube",
+        "vimeo",
+        "embed",
+        "movie",
+        "film",
+        "watch"
+      ],
+      "aliases": [
+        "video-player",
+        "video",
+        "player",
+        "media-player",
+        "video-embed"
+      ]
+    }
+  ]
+}

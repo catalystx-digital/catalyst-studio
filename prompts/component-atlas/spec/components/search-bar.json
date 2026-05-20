@@ -1,0 +1,94 @@
+{
+  "canonicalType": "search-bar",
+  "componentType": "search-bar",
+  "content": {
+    "placeholder": "Search the site",
+    "showIcon": true,
+    "showSuggestions": true,
+    "recentSearches": [
+      "campaign templates",
+      "component atlas",
+      "editor workflows"
+    ]
+  },
+  "cues": [
+    "site search",
+    "search bar",
+    "search form"
+  ],
+  "defaultRegion": "header",
+  "description": "Search input with optional icon, suggestions, and recent-search list for site discovery.",
+  "fragments": [
+    "search-input",
+    "search-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Site search",
+      "role": "search"
+    },
+    "commonNames": [
+      "search bar",
+      "search box",
+      "search field",
+      "site search"
+    ],
+    "confidence": 0.88,
+    "description": "Search field with optional icon display, suggestions, and recent search history.",
+    "keywords": [
+      "search",
+      "search-bar",
+      "search-box",
+      "site-search",
+      "find",
+      "query"
+    ],
+    "pageLocation": [
+      "header",
+      "main"
+    ],
+    "patterns": [
+      "search.*bar",
+      "search.*box",
+      "site.*search",
+      "find.*box"
+    ],
+    "properties": [
+      {
+        "description": "Helper text shown when the search field is empty.",
+        "name": "placeholder",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Display a search icon inside the input control.",
+        "name": "showIcon",
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "description": "Enable dynamic suggestions underneath the field.",
+        "name": "showSuggestions",
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "description": "List of preset recent search terms to surface to the user.",
+        "name": "recentSearches",
+        "required": false,
+        "type": "Array<string>"
+      }
+    ],
+    "semanticRole": "search",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

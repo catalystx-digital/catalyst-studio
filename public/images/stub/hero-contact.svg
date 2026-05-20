@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="hero-contact-gradient" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <radialGradient id="hero-contact-pulse" cx="25%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="rgba(16,185,129,0.45)"/>
+      <stop offset="100%" stop-color="rgba(16,185,129,0)"/>
+    </radialGradient>
+    <radialGradient id="hero-contact-spot" cx="80%" cy="65%" r="45%">
+      <stop offset="0%" stop-color="rgba(45,212,191,0.35)"/>
+      <stop offset="100%" stop-color="rgba(45,212,191,0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#hero-contact-gradient)"/>
+  <circle cx="400" cy="320" r="430" fill="url(#hero-contact-pulse)"/>
+  <circle cx="1220" cy="660" r="370" fill="url(#hero-contact-spot)"/>
+  <circle cx="820" cy="540" r="240" fill="rgba(45,212,191,0.18)"/>
+</svg>

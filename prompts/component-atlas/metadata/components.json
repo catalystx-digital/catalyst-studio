@@ -1,0 +1,1197 @@
+[
+  {
+    "canonicalType": "about-section",
+    "componentType": "about-section",
+    "summary": "About page section with story, mission, values, milestones, images, and stats.",
+    "description": "About page section with story, mission, values, milestones, images, and stats.",
+    "fragments": [
+      "story",
+      "values",
+      "milestones",
+      "stats"
+    ],
+    "cues": [
+      "about section",
+      "company story",
+      "our mission"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "accordion",
+    "componentType": "accordion",
+    "summary": "Expandable FAQ or detail list with accessible toggles.",
+    "description": "Collapsible list of items with titles and expandable content, optionally allowing multiple open.",
+    "fragments": [
+      "accordion-item"
+    ],
+    "cues": [
+      "faq",
+      "expandable section",
+      "accordion"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "article-header",
+    "componentType": "article-header",
+    "summary": "Article header with title, author metadata, publishing info, and hero media.",
+    "description": "Article header with title, author, dates, categories/tags, and optional featured image.",
+    "fragments": [
+      "headline",
+      "author-meta",
+      "publish-date",
+      "hero-media"
+    ],
+    "cues": [
+      "article header",
+      "post header",
+      "blog hero"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "author-bio",
+    "componentType": "author-bio",
+    "summary": "Author biography module with avatar, role, links, and optional social proof.",
+    "description": "Author bio with photo, social links, stats, expertise, and expandable text.",
+    "fragments": [
+      "author-avatar",
+      "author-name",
+      "author-links"
+    ],
+    "cues": [
+      "author bio",
+      "about the author",
+      "writer bio"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "blog-list",
+    "componentType": "blog-list",
+    "summary": "Use for blog index templates. Aggregate teaser cards into posts[] sorted chronologically with optional pagination metadata.",
+    "description": "List or grid of blog posts with pagination, filters, and sorting options.",
+    "fragments": [
+      "blog-card",
+      "card-grid",
+      "article-preview",
+      "article-teaser"
+    ],
+    "cues": [
+      "blog index",
+      "news list",
+      "resources overview",
+      "stories overview"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": true
+    }
+  },
+  {
+    "canonicalType": "blog-post",
+    "componentType": "blog-post",
+    "summary": "Use for article detail templates that combine hero, body content, and author metadata into a single component.",
+    "description": "Long-form article component combining hero details, rich body content, and author metadata.",
+    "fragments": [
+      "article-header",
+      "author-bio",
+      "text-block",
+      "rich-text",
+      "image-gallery",
+      "quote-block"
+    ],
+    "cues": [
+      "article detail",
+      "news story",
+      "blog post",
+      "press release"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": true
+    }
+  },
+  {
+    "canonicalType": "breadcrumb",
+    "componentType": "breadcrumbs",
+    "summary": "Automatically generated breadcrumb trail reflecting the current page hierarchy with optional display tweaks.",
+    "description": "Automatically generated breadcrumb trail reflecting the current page hierarchy with optional display tweaks.",
+    "fragments": [
+      "breadcrumb-trail",
+      "breadcrumb-item"
+    ],
+    "cues": [
+      "breadcrumb",
+      "navigation trail"
+    ],
+    "defaultRegion": "header",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "breadcrumbs",
+    "componentType": "breadcrumbs",
+    "summary": "Automatically generated breadcrumb trail reflecting the current page hierarchy with optional display tweaks.",
+    "description": "Automatically generated breadcrumb trail reflecting the current page hierarchy with optional display tweaks.",
+    "fragments": [
+      "breadcrumb-trail",
+      "breadcrumb-item"
+    ],
+    "cues": [
+      "breadcrumbs",
+      "navigation trail",
+      "page hierarchy"
+    ],
+    "defaultRegion": "header",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "card-grid",
+    "componentType": "card-grid",
+    "summary": "Grid of cards for features, case studies, or resources.",
+    "description": "Grid of cards with images, text, metadata, and optional actions; configurable columns and layout.",
+    "fragments": [
+      "card",
+      "image",
+      "card-cta"
+    ],
+    "cues": [
+      "cards",
+      "tile grid",
+      "resource cards"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "case-study",
+    "componentType": "case-study",
+    "summary": "Customer success spotlight with metrics, narrative, and testimonial.",
+    "description": "Customer success spotlight with metrics, narrative, and testimonial.",
+    "fragments": [
+      "customer-logo",
+      "impact-metric",
+      "testimonial"
+    ],
+    "cues": [
+      "case study",
+      "customer story",
+      "success story"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": false,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "chart",
+    "componentType": "chart",
+    "summary": "Data visualization block supporting bar, line, or pie charts driven by structured datasets.",
+    "description": "Data visualization card that normalizes chart datasets into token-aware Shadcn/Tailwind UI, supporting multi-series bar charts and graceful placeholders for other types.",
+    "fragments": [
+      "chart-area",
+      "legend",
+      "data-series"
+    ],
+    "cues": [
+      "chart",
+      "data visualization",
+      "analytics"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "contact-form",
+    "componentType": "contact-form",
+    "summary": "Contact form with configurable fields, validation, endpoint, and success/error handling.",
+    "description": "Contact form with configurable fields, validation, endpoint, and success/error handling.",
+    "fragments": [
+      "form",
+      "form-field",
+      "submit-button"
+    ],
+    "cues": [
+      "contact form",
+      "lead form",
+      "inquiry form"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "contact-info",
+    "componentType": "contact-info",
+    "summary": "Business contact information including address, phone/email lists, social links, and hours.",
+    "description": "Business contact information including address, phone/email lists, social links, and hours.",
+    "fragments": [
+      "address",
+      "phone",
+      "email"
+    ],
+    "cues": [
+      "contact info",
+      "office details",
+      "support contacts"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "cta-banner",
+    "componentType": "cta-banner",
+    "summary": "Full-width call-to-action section with headline and primary/secondary buttons.",
+    "description": "Full-width call-to-action section with headline and primary/secondary buttons.",
+    "fragments": [
+      "headline",
+      "supporting-copy",
+      "primary-button",
+      "secondary-button"
+    ],
+    "cues": [
+      "cta banner",
+      "full-width cta",
+      "promo strip"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "cta-button-group",
+    "componentType": "cta-button-group",
+    "summary": "Group of call-to-action buttons with alignment, orientation, and spacing controls.",
+    "description": "Group of call-to-action buttons with alignment, orientation, and spacing controls.",
+    "fragments": [
+      "button-group",
+      "cta-button"
+    ],
+    "cues": [
+      "button group",
+      "cta buttons",
+      "link group"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "cta-simple",
+    "componentType": "cta-simple",
+    "summary": "Compact call-to-action card with headline, supporting copy, and primary action.",
+    "description": "Compact call-to-action card with headline, supporting copy, and primary action.",
+    "fragments": [
+      "eyebrow",
+      "heading",
+      "supporting-copy",
+      "primary-button"
+    ],
+    "cues": [
+      "call to action",
+      "cta block",
+      "promo banner"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "cta-with-form",
+    "componentType": "cta-with-form",
+    "summary": "Email newsletter signup form with configurable layout and messaging.",
+    "description": "Email newsletter signup form with configurable layout and messaging.",
+    "fragments": [
+      "form-heading",
+      "input-field",
+      "submit-button"
+    ],
+    "cues": [
+      "newsletter signup",
+      "lead capture form",
+      "cta form"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "data-table",
+    "componentType": "data-table",
+    "summary": "Structured table with sortable columns for specifications or metrics.",
+    "description": "Tabular data display with configurable columns, pagination, sorting, and filtering.",
+    "fragments": [
+      "table-header",
+      "table-row"
+    ],
+    "cues": [
+      "data table",
+      "spec sheet",
+      "feature matrix"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "feature-comparison",
+    "componentType": "feature-comparison",
+    "summary": "Matrix comparing plans or products across structured capabilities.",
+    "description": "Matrix comparing plans or products across structured capabilities.",
+    "fragments": [
+      "comparison-table",
+      "plan-column"
+    ],
+    "cues": [
+      "comparison table",
+      "plan matrix",
+      "feature comparison"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": false,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "feature-grid",
+    "componentType": "feature-grid",
+    "summary": "Feature highlights arranged in a responsive grid with optional headings.",
+    "description": "Grid layout highlighting multiple features with optional headers and configurable columns.",
+    "fragments": [
+      "feature-card",
+      "icon-text",
+      "supporting-copy"
+    ],
+    "cues": [
+      "feature grid",
+      "benefit highlights",
+      "columns of features"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "feature-list",
+    "componentType": "feature-list",
+    "summary": "Vertical list of feature callouts with icons and descriptive copy.",
+    "description": "List-based feature presentation with icons, titles, descriptions, and optional links.",
+    "fragments": [
+      "feature-item",
+      "icon-list"
+    ],
+    "cues": [
+      "feature list",
+      "benefit list",
+      "bulleted features"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": true
+    }
+  },
+  {
+    "canonicalType": "feature-showcase",
+    "componentType": "feature-showcase",
+    "summary": "Interactive showcase with alternating media and narrative sections.",
+    "description": "Interactive showcase with multiple sections combining images, descriptive text, checklists, and CTAs.",
+    "fragments": [
+      "showcase-section",
+      "media",
+      "feature-list",
+      "cta-button"
+    ],
+    "cues": [
+      "feature showcase",
+      "product walkthrough",
+      "interactive sections"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "footer",
+    "componentType": "footer",
+    "summary": "Site footer with navigation columns, social links, and compliance details.",
+    "description": "Site footer with navigation columns, branding, legal links, social icons, and optional newsletter signup.",
+    "fragments": [
+      "footer-column",
+      "social-links",
+      "legal-links"
+    ],
+    "cues": [
+      "footer",
+      "copyright",
+      "contact information",
+      "bottom navigation"
+    ],
+    "defaultRegion": "footer",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": true
+    }
+  },
+  {
+    "canonicalType": "hero-banner",
+    "componentType": "hero-banner",
+    "summary": "Fullscreen banner hero with headline, subcopy, and background media.",
+    "description": "Prominent top-of-page section featuring a primary message, background media, and optional call-to-action buttons.",
+    "fragments": [
+      "hero-heading",
+      "background-image",
+      "cta-button"
+    ],
+    "cues": [
+      "hero banner",
+      "full-bleed hero"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "hero-carousel",
+    "componentType": "hero-carousel",
+    "summary": "Carousel hero rotating featured stories or promotions.",
+    "description": "Carousel-style hero section rotating featured stories or promotions with imagery and calls to action.",
+    "fragments": [
+      "hero-slide",
+      "carousel-controls"
+    ],
+    "cues": [
+      "carousel",
+      "rotating hero",
+      "slideshow"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "hero-minimal",
+    "componentType": "hero-minimal",
+    "summary": "Minimal hero with understated typography and optional supporting links.",
+    "description": "Minimal hero layout with focused copy, optional CTAs, and subtle styling controls.",
+    "fragments": [
+      "hero-heading",
+      "supporting-copy",
+      "link-group"
+    ],
+    "cues": [
+      "minimal hero",
+      "headline strip",
+      "lightweight hero"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "hero-simple",
+    "componentType": "hero-simple",
+    "summary": "Compact hero with headline, subcopy, and primary action.",
+    "description": "Compact hero with headline, supporting copy, and primary calls-to-action for quick conversions.",
+    "fragments": [
+      "hero-heading",
+      "supporting-copy",
+      "cta-button"
+    ],
+    "cues": [
+      "simple hero",
+      "compact hero",
+      "landing hero"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "hero-split",
+    "componentType": "hero-split",
+    "summary": "Split layout hero balancing narrative copy with media on either side.",
+    "description": "Hero section with split layout: text on one side and media (image/video/embed) on the other.",
+    "fragments": [
+      "hero-heading",
+      "hero-media",
+      "cta-button"
+    ],
+    "cues": [
+      "split hero",
+      "two-column hero",
+      "product spotlight"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "hero-video",
+    "componentType": "hero-video",
+    "summary": "Hero block featuring autoplay or lightboxed marketing video.",
+    "description": "Video-first hero section with optional overlay content and playback controls.",
+    "fragments": [
+      "hero-heading",
+      "video-embed",
+      "cta-button"
+    ],
+    "cues": [
+      "hero video",
+      "product demo",
+      "autoplay hero"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "hero-with-image",
+    "componentType": "hero-with-image",
+    "summary": "Hero section pairing narrative copy with a prominent supporting image.",
+    "description": "Primary hero section pairing marketing copy with a supporting image and optional CTA buttons.",
+    "fragments": [
+      "hero-heading",
+      "hero-subheading",
+      "hero-image",
+      "cta-button"
+    ],
+    "cues": [
+      "hero image",
+      "above the fold",
+      "marketing hero"
+    ],
+    "defaultRegion": "hero",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": true
+    }
+  },
+  {
+    "canonicalType": "image-gallery",
+    "componentType": "image-gallery",
+    "summary": "Responsive gallery of images with grid, carousel, or masonry layout and optional lightbox.",
+    "description": "Responsive gallery of images with grid, carousel, or masonry layout and optional lightbox.",
+    "fragments": [
+      "image",
+      "caption",
+      "lightbox"
+    ],
+    "cues": [
+      "image gallery",
+      "media grid",
+      "photo section"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "location-map",
+    "componentType": "location-map",
+    "summary": "Embeddable map with address/coordinates, marker info window, and styling options.",
+    "description": "Embeddable map with address/coordinates, marker info window, and styling options.",
+    "fragments": [
+      "map",
+      "location-pin",
+      "location-details"
+    ],
+    "cues": [
+      "map embed",
+      "location map",
+      "store locator"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "logo-cloud",
+    "componentType": "logo-cloud",
+    "summary": "Logo strip showcasing notable customers or partners.",
+    "description": "Row of client/partner logos with optional scrolling animation and caption.",
+    "fragments": [
+      "logo-strip"
+    ],
+    "cues": [
+      "logo strip",
+      "customer logos",
+      "trusted by"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "megamenu",
+    "componentType": "megamenu",
+    "summary": "Expanded navigation menu with multi-column layout and featured content.",
+    "description": "Expanded navigation menu with multi-column layout and featured content.",
+    "fragments": [
+      "menu-panel",
+      "menu-column",
+      "featured-link"
+    ],
+    "cues": [
+      "mega menu",
+      "multi-column menu",
+      "flyout navigation"
+    ],
+    "defaultRegion": "header",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": false,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "mission",
+    "componentType": "mission",
+    "summary": "Mission statement section highlighting purpose, vision, and core focus.",
+    "description": "Mission statement section highlighting purpose, vision, and core focus.",
+    "fragments": [
+      "mission-statement",
+      "vision",
+      "supporting-points"
+    ],
+    "cues": [
+      "mission statement",
+      "company mission",
+      "purpose"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": false,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "mobile-menu",
+    "componentType": "mobile-menu",
+    "summary": "Mobile navigation drawer with hierarchical items, supporting left/right slide or fade animations.",
+    "description": "Mobile navigation drawer with hierarchical items, supporting left/right slide or fade animations.",
+    "fragments": [
+      "mobile-nav",
+      "menu-links",
+      "cta-button"
+    ],
+    "cues": [
+      "mobile navigation",
+      "hamburger menu",
+      "drawer navigation"
+    ],
+    "defaultRegion": "header",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "navbar",
+    "componentType": "navbar",
+    "summary": "Primary site navigation with logo, menu items, and optional call-to-action.",
+    "description": "Primary site navigation with brand logo, hierarchical menu items, and optional call-to-action.",
+    "fragments": [
+      "logo",
+      "menu",
+      "cta-button"
+    ],
+    "cues": [
+      "navigation",
+      "menu",
+      "site header",
+      "global nav"
+    ],
+    "defaultRegion": "header",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": true
+    }
+  },
+  {
+    "canonicalType": "pricing-card",
+    "componentType": "pricing-card",
+    "summary": "Standalone pricing option card with feature checklist.",
+    "description": "Single pricing card with price, features, and call-to-action.",
+    "fragments": [
+      "pricing-card",
+      "feature-checklist"
+    ],
+    "cues": [
+      "pricing card",
+      "subscription card"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "pricing-comparison",
+    "componentType": "pricing-comparison",
+    "summary": "Side-by-side pricing comparison summarizing plan tiers and capabilities.",
+    "description": "Side-by-side pricing comparison summarizing plan tiers and capabilities.",
+    "fragments": [
+      "comparison-summary",
+      "plan-column",
+      "feature-row"
+    ],
+    "cues": [
+      "pricing comparison",
+      "plan matrix",
+      "tiered pricing"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": false,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "pricing-table",
+    "componentType": "pricing-table",
+    "summary": "Pricing matrix comparing subscription plans with feature availability.",
+    "description": "Pricing table with multiple plans and optional feature comparison matrix.",
+    "fragments": [
+      "pricing-plan",
+      "plan-comparison"
+    ],
+    "cues": [
+      "pricing table",
+      "plans and pricing",
+      "tier comparison"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "quote-block",
+    "componentType": "quote-block",
+    "summary": "Pull quote section with attribution and styles for emphasis in content pages.",
+    "description": "Pull quote section with attribution and styles for emphasis in content pages.",
+    "fragments": [
+      "quote",
+      "attribution"
+    ],
+    "cues": [
+      "quote",
+      "testimonial quote",
+      "pull quote"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "related-posts",
+    "componentType": "related-posts",
+    "summary": "Related article rail highlighting additional content to continue the reading journey.",
+    "description": "Related posts section showing selected or automatically related articles.",
+    "fragments": [
+      "related-card",
+      "card-list"
+    ],
+    "cues": [
+      "related posts",
+      "more stories",
+      "you might also like"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "reviews",
+    "componentType": "reviews",
+    "summary": "Collection of short-form customer reviews with ratings.",
+    "description": "Individual review with rating, author, date, and optional platform metadata.",
+    "fragments": [
+      "review-card",
+      "star-rating"
+    ],
+    "cues": [
+      "reviews",
+      "star rating",
+      "customer feedback"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "search-bar",
+    "componentType": "search-bar",
+    "summary": "Search input with optional icon, suggestions, and recent-search list for site discovery.",
+    "description": "Search input with optional icon, suggestions, and recent-search list for site discovery.",
+    "fragments": [
+      "search-input",
+      "search-button"
+    ],
+    "cues": [
+      "site search",
+      "search bar",
+      "search form"
+    ],
+    "defaultRegion": "header",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "sidemenu",
+    "componentType": "sidemenu",
+    "summary": "Vertical navigation menu for secondary pages or dashboard layouts.",
+    "description": "Vertical navigation menu for secondary pages or dashboard layouts.",
+    "fragments": [
+      "menu-section",
+      "menu-link"
+    ],
+    "cues": [
+      "side navigation",
+      "sidebar menu",
+      "secondary navigation"
+    ],
+    "defaultRegion": "sidebar",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": false,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "simple-form",
+    "componentType": "simple-form",
+    "summary": "Lightweight form with up to three fields, templates (newsletter/contact/callback), and customizable submit handling.",
+    "description": "Lightweight form with up to three fields, templates (newsletter/contact/callback), and customizable submit handling.",
+    "fragments": [
+      "form",
+      "input-field",
+      "submit-button"
+    ],
+    "cues": [
+      "simple form",
+      "lead capture form",
+      "newsletter form"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "statistics",
+    "componentType": "statistics",
+    "summary": "Key performance indicators and metrics displayed as stats with labels, delta trends, and optional icons.",
+    "description": "Key performance indicators and metrics displayed as stats with labels, delta trends, and optional icons.",
+    "fragments": [
+      "stat",
+      "stat-label"
+    ],
+    "cues": [
+      "statistics",
+      "kpi",
+      "metrics"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "tabs",
+    "componentType": "tabs",
+    "summary": "Tabbed interface organizing content into switchable panels.",
+    "description": "Tabbed content interface with labeled tabs, orientation, and alignment options.",
+    "fragments": [
+      "tab-list",
+      "tab-panel"
+    ],
+    "cues": [
+      "tabs",
+      "tabbed content"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "team-grid",
+    "componentType": "team-grid",
+    "summary": "Grid of team members with photos, titles, and optional department and profile links.",
+    "description": "Grid of team members with photos, titles, and optional department and profile links.",
+    "fragments": [
+      "team-member",
+      "profile-card"
+    ],
+    "cues": [
+      "team grid",
+      "team members",
+      "leadership"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "testimonials",
+    "componentType": "testimonials",
+    "summary": "Carousel or grid of customer testimonials with author metadata.",
+    "description": "Carousel-style slider for testimonials with autoplay and navigation controls.",
+    "fragments": [
+      "testimonial-quote",
+      "author-card"
+    ],
+    "cues": [
+      "testimonial",
+      "customer quote",
+      "social proof"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "text-block",
+    "componentType": "text-block",
+    "summary": "Rich text block for headings and paragraphs, with alignment and optional columns.",
+    "description": "Rich text block for headings and paragraphs, with alignment and optional columns.",
+    "fragments": [
+      "heading",
+      "subheading",
+      "rich-text"
+    ],
+    "cues": [
+      "text block",
+      "rich text",
+      "content section"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "timeline",
+    "componentType": "timeline",
+    "summary": "Chronological timeline of events with titles, dates, descriptions, and optional icons.",
+    "description": "Chronological timeline of events with titles, dates, descriptions, and optional icons.",
+    "fragments": [
+      "timeline-event",
+      "timeline-track"
+    ],
+    "cues": [
+      "company timeline",
+      "roadmap timeline",
+      "chronology"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "two-column",
+    "componentType": "two-column",
+    "summary": "Two-column layout with configurable content types per column and responsive ratios.",
+    "description": "Two-column layout with configurable content types per column and responsive ratios.",
+    "fragments": [
+      "left-column",
+      "right-column"
+    ],
+    "cues": [
+      "two column layout",
+      "split content",
+      "side-by-side"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "video-embed",
+    "componentType": "video-embed",
+    "summary": "Embed external video players such as YouTube or Vimeo with responsive aspect ratios.",
+    "description": "Embeds externally hosted video players (YouTube, Vimeo, Loom, Wistia) with responsive sizing and analytics support.",
+    "fragments": [
+      "embed-frame",
+      "responsive-wrapper"
+    ],
+    "cues": [
+      "video embed",
+      "iframe video",
+      "external video"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  },
+  {
+    "canonicalType": "video-player",
+    "componentType": "video-player",
+    "summary": "Responsive video player supporting multiple sources and playback controls.",
+    "description": "Responsive video player supporting multiple sources and playback controls.",
+    "fragments": [
+      "video-player",
+      "play-button",
+      "caption"
+    ],
+    "cues": [
+      "video player",
+      "product demo video",
+      "embedded video"
+    ],
+    "defaultRegion": "main",
+    "sources": {
+      "canonical": "registry",
+      "hasComponentRegistry": true,
+      "hasSynthesizer": false
+    }
+  }
+]

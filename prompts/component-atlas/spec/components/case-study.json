@@ -1,0 +1,46 @@
+{
+  "canonicalType": "case-study",
+  "componentType": "case-study",
+  "content": {
+    "cta": {
+      "text": "Read the full story",
+      "url": "/customers/everlake"
+    },
+    "customer": "Everlake Insurance",
+    "excerpt": "The marketing team rebuilt twelve microsites with Catalyst guardrails in under two months.",
+    "headline": "Everlake accelerated launches by 4x",
+    "logo": "https://cdn.example.com/customers/everlake.svg",
+    "metrics": [
+      {
+        "label": "Launch velocity",
+        "value": "4x faster"
+      },
+      {
+        "label": "Conversion lift",
+        "value": "+28%"
+      }
+    ],
+    "testimonial": {
+      "author": "Amelia Rogers",
+      "quote": "Catalyst Studio let us operationalize fast experiments without sacrificing governance.",
+      "title": "Director of Digital Experience"
+    }
+  },
+  "cues": [
+    "case study",
+    "customer story",
+    "success story"
+  ],
+  "defaultRegion": "main",
+  "description": "Customer success spotlight with metrics, narrative, and testimonial.",
+  "fragments": [
+    "customer-logo",
+    "impact-metric",
+    "testimonial"
+  ],
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": false,
+    "hasSynthesizer": false
+  }
+}

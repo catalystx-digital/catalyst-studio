@@ -1,0 +1,57 @@
+{
+  "id": "navigation-heroes",
+  "title": "Navigation, Search, and Hero Patterns",
+  "description": "Covers header-level navigation (navbar, mega menu, mobile menu, search) alongside full hero variants to exercise canonical top-of-page components.",
+  "regions": [
+    {
+      "region": "header",
+      "heading": "Header Navigation Shell",
+      "description": "Navigation primitives rendered inside the page header to validate menu, search, and layout guidance.",
+      "components": [
+        { "canonicalType": "navbar", "heading": "Primary navigation bar" },
+        { "canonicalType": "megamenu", "heading": "Mega menu flyout trigger" },
+        { "canonicalType": "mobile-menu", "heading": "Mobile navigation drawer" },
+        { "canonicalType": "search-bar", "heading": "Site search control" }
+      ]
+    },
+    {
+      "region": "hero",
+      "heading": "Hero Variants",
+      "description": "Every hero canonical type sequenced to confirm prompt coverage and importer handling.",
+      "components": [
+        { "canonicalType": "hero-simple", "heading": "Hero simple" },
+        { "canonicalType": "hero-banner", "heading": "Hero banner" },
+        { "canonicalType": "hero-with-image", "heading": "Hero with image" },
+        { "canonicalType": "hero-split", "heading": "Hero split" },
+        { "canonicalType": "hero-minimal", "heading": "Hero minimal" },
+        { "canonicalType": "hero-video", "heading": "Hero with background video" },
+        { "canonicalType": "hero-carousel", "heading": "Hero carousel" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Hierarchical Breadcrumb Navigation",
+      "description": "Breadcrumb aliases (singular + plural) rendered separately so importer sees both canonical strings.",
+      "components": [
+        { "canonicalType": "breadcrumbs", "heading": "Breadcrumbs (plural contract)" },
+        { "canonicalType": "breadcrumb", "heading": "Breadcrumb (singular alias)" }
+      ]
+    },
+    {
+      "region": "sidebar",
+      "heading": "Sidebar Navigation",
+      "description": "Secondary navigation tree surfaced in the sidebar slot.",
+      "components": [
+        { "canonicalType": "sidemenu", "heading": "Side navigation menu" }
+      ]
+    },
+    {
+      "region": "footer",
+      "heading": "Footer Shell",
+      "description": "Footer component verifies layout, legal links, and nested column rendering.",
+      "components": [
+        { "canonicalType": "footer", "heading": "Footer layout" }
+      ]
+    }
+  ]
+}

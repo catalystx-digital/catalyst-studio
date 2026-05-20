@@ -1,0 +1,72 @@
+{
+  "canonicalType": "feature-list",
+  "componentType": "feature-list",
+  "content": {
+    "heading": "Everything you need to launch faster",
+    "items": [
+      {
+        "type": "feature-item",
+        "id": "feature-item-visual-editor",
+        "title": "Visual editor",
+        "description": "Design responsive layouts with drag-and-drop precision.",
+        "icon": "bolt"
+      },
+      {
+        "type": "feature-item",
+        "id": "feature-item-localization-ready",
+        "title": "Localization ready",
+        "description": "Translate content to 25+ languages with built-in workflows.",
+        "icon": "globe"
+      }
+    ],
+    "layout": "vertical"
+  },
+  "cues": [
+    "feature list",
+    "benefit list",
+    "bulleted features"
+  ],
+  "defaultRegion": "main",
+  "description": "Vertical list of feature callouts with icons and descriptive copy.",
+  "fragments": [
+    "feature-item",
+    "icon-list"
+  ],
+  "metadata": {
+    "commonNames": [
+      "FeatureList",
+      "BenefitsList",
+      "AdvantagesList",
+      "KeyPoints"
+    ],
+    "confidence": 0.8,
+    "keywords": [
+      "benefits",
+      "features",
+      "list",
+      "advantages",
+      "highlights",
+      "points"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar"
+    ],
+    "patterns": [
+      "benefits?[\\s-]?(list|section)",
+      "features?[\\s-]?list",
+      "advantages?",
+      "key[\\s-]?points",
+      "highlights?",
+      "bullet[\\s-]?points"
+    ],
+    "relatedComponents": [
+      "feature-grid"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": true
+  }
+}

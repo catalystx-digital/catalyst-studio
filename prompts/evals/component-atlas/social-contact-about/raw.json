@@ -1,0 +1,341 @@
+{
+  "pageTemplate": null,
+  "components": [
+    [
+      "testimonials",
+      0.99,
+      {
+        "showNavigation": true,
+        "testimonials": [
+          {
+            "author": "Alicia Mendoza",
+            "avatar": "https://cdn.example.com/avatars/alicia.jpg",
+            "id": "testimonial-alicia-m",
+            "quote": "Catalyst cut our launch cycle from weeks to days -- our marketing team finally iterates at the pace of ideas.",
+            "role": "VP Marketing, LumaSoft",
+            "type": "testimonial-item"
+          },
+          {
+            "author": "Sam Reid",
+            "id": "testimonial-sam-r",
+            "quote": "The built-in approval workflows eliminated endless review threads and screenshots.",
+            "role": "Digital Director, Northwind Retail",
+            "type": "testimonial-item"
+          }
+        ]
+      }
+    ],
+    [
+      "reviews",
+      0.99,
+      {
+        "author": "Priya S.",
+        "date": "2024-04-12",
+        "platform": "google",
+        "rating": 5,
+        "reviewText": "Intuitive interface and fast publishing keeps our editors happy.",
+        "verified": true
+      }
+    ],
+    [
+      "logo-cloud",
+      0.99,
+      {
+        "caption": "Trusted by experience-driven teams",
+        "logos": [
+          {
+            "alt": "Acme",
+            "id": "acme",
+            "src": "https://cdn.example.com/logos/acme.svg"
+          },
+          {
+            "alt": "Northwind",
+            "id": "northwind",
+            "src": "https://cdn.example.com/logos/northwind.svg"
+          },
+          {
+            "alt": "Globex",
+            "id": "globex",
+            "src": "https://cdn.example.com/logos/globex.svg"
+          },
+          {
+            "alt": "Initech",
+            "id": "initech",
+            "src": "https://cdn.example.com/logos/initech.svg"
+          }
+        ]
+      }
+    ],
+    [
+      "case-study",
+      0.99,
+      {
+        "cta": {
+          "text": "Read the full story",
+          "url": "/customers/everlake"
+        },
+        "customer": "Everlake Insurance",
+        "excerpt": "The marketing team rebuilt twelve microsites with Catalyst guardrails in under two months.",
+        "headline": "Everlake accelerated launches by 4x",
+        "logo": "https://cdn.example.com/customers/everlake.svg",
+        "metrics": [
+          {
+            "label": "Launch velocity",
+            "value": "4x faster"
+          },
+          {
+            "label": "Conversion lift",
+            "value": "+28%"
+          }
+        ],
+        "testimonial": {
+          "author": "Amelia Rogers",
+          "quote": "Catalyst Studio let us operationalize fast experiments without sacrificing governance.",
+          "title": "Director of Digital Experience"
+        }
+      }
+    ],
+    [
+      "contact-form",
+      0.99,
+      {
+        "description": "Tell us about your upcoming project and we will reach out within one business day.",
+        "fields": [
+          {
+            "label": "Name",
+            "name": "name",
+            "required": true,
+            "type": "text"
+          },
+          {
+            "label": "Work email",
+            "name": "email",
+            "required": true,
+            "type": "email"
+          },
+          {
+            "label": "How can we help?",
+            "name": "message",
+            "required": true,
+            "type": "textarea"
+          }
+        ],
+        "submitButton": {
+          "text": "Submit inquiry"
+        },
+        "successMessage": "Thanks! We’ll be in touch shortly.",
+        "title": "Contact our team"
+      }
+    ],
+    [
+      "contact-info",
+      0.99,
+      {
+        "address": {
+          "city": "San Francisco",
+          "country": "USA",
+          "state": "CA",
+          "street": "548 Market St",
+          "zipCode": "94104"
+        },
+        "businessHours": {
+          "friday": "9am-6pm PT",
+          "monday": "9am-6pm PT",
+          "thursday": "9am-6pm PT",
+          "tuesday": "9am-6pm PT",
+          "wednesday": "9am-6pm PT"
+        },
+        "businessName": "Catalyst Studio",
+        "emailAddresses": [
+          {
+            "email": "hello@catalyststudio.com",
+            "label": "Support"
+          }
+        ],
+        "phoneNumbers": [
+          {
+            "label": "Main",
+            "number": "+1 (415) 555-1024"
+          }
+        ],
+        "socialLinks": [
+          {
+            "platform": "linkedin",
+            "url": "https://www.linkedin.com/company/catalyst-studio/"
+          },
+          {
+            "platform": "twitter",
+            "url": "https://twitter.com/catalyststudio"
+          }
+        ]
+      }
+    ],
+    [
+      "location-map",
+      0.99,
+      {
+        "address": "Level 19, 2 Chifley Square, Sydney NSW",
+        "coordinates": {
+          "lat": -33.8688,
+          "lng": 151.2093
+        },
+        "enableControls": true,
+        "infoWindow": {
+          "description": "Level 19, 2 Chifley Square, Sydney NSW",
+          "showDirections": true,
+          "title": "Sydney Office"
+        },
+        "mapType": "roadmap",
+        "markerTitle": "Sydney Office",
+        "zoom": 12
+      }
+    ],
+    [
+      "simple-form",
+      0.99,
+      {
+        "description": "We'll notify you when early access slots open up.",
+        "fields": [
+          {
+            "label": "Work email",
+            "name": "email",
+            "required": true,
+            "type": "email"
+          },
+          {
+            "label": "Company",
+            "name": "company",
+            "required": false,
+            "type": "text"
+          }
+        ],
+        "submitButton": {
+          "text": "Request invite"
+        },
+        "template": "newsletter",
+        "title": "Request access"
+      }
+    ],
+    [
+      "mission",
+      0.99,
+      {
+        "focusAreas": [
+          {
+            "description": "Enable marketing, product, and engineering to work together seamlessly.",
+            "title": "Collaboration"
+          },
+          {
+            "description": "Ensure every brand touchpoint meets enterprise-quality standards.",
+            "title": "Governance"
+          }
+        ],
+        "heading": "Our mission",
+        "mission": "Empower every team to create, launch, and scale digital experiences without friction.",
+        "vision": "A composable future where content, design, and data stay in sync."
+      }
+    ],
+    [
+      "about-section",
+      0.99,
+      {
+        "heading": "Built for modern experience teams",
+        "layout": "two-column",
+        "milestones": [
+          {
+            "title": "Seed funding and first design partners",
+            "year": "2022"
+          },
+          {
+            "title": "Launched AI-assisted editor",
+            "year": "2023"
+          }
+        ],
+        "stats": [
+          {
+            "label": "Faster publishing velocity",
+            "value": "4x"
+          },
+          {
+            "label": "Customer satisfaction",
+            "value": "98%"
+          }
+        ],
+        "story": "We founded Catalyst to help teams iterate faster without sacrificing quality.",
+        "subheading": "Catalyst Studio unifies creation, collaboration, and governance.",
+        "values": [
+          {
+            "description": "Balance speed with governance so teams can trust every release.",
+            "title": "Move fast with guardrails"
+          },
+          {
+            "description": "Prioritize accessibility and clarity in every surface.",
+            "title": "Design for humans"
+          }
+        ]
+      }
+    ],
+    [
+      "team-grid",
+      0.99,
+      {
+        "columns": {
+          "desktop": 3
+        },
+        "heading": "Meet the leadership team",
+        "manualMembers": [],
+        "members": [
+          {
+            "bio": "Previously led platform strategy at Atlassian.",
+            "id": "team-member-jonah-patel",
+            "linkedin": "https://www.linkedin.com/in/jonahpatel/",
+            "name": "Jonah Patel",
+            "photo": "https://cdn.example.com/team/jonah.jpg",
+            "photoAlt": "Portrait of Jonah Patel",
+            "title": "CEO & Co-founder",
+            "type": "team-member"
+          },
+          {
+            "bio": "Drives roadmap for collaboration and AI-assisted workflows.",
+            "id": "team-member-linh-tran",
+            "name": "Linh Tran",
+            "photo": "https://cdn.example.com/team/linh.jpg",
+            "photoAlt": "Portrait of Linh Tran",
+            "title": "VP of Product",
+            "type": "team-member"
+          }
+        ]
+      }
+    ],
+    [
+      "timeline",
+      0.99,
+      {
+        "events": [
+          {
+            "date": "2022",
+            "description": "Raised seed to build AI-first content platform.",
+            "id": "timeline-event-timeline-2022",
+            "title": "Company founded",
+            "type": "timeline-event"
+          },
+          {
+            "date": "2023",
+            "description": "Scaled to support Fortune 500 content programs.",
+            "id": "timeline-event-timeline-2023",
+            "title": "First enterprise launch",
+            "type": "timeline-event"
+          }
+        ],
+        "layout": "vertical",
+        "showConnectors": true,
+        "title": "Catalyst milestones"
+      }
+    ]
+  ],
+  "pageMetadata": {
+    "description": "Covers trust-building patterns (testimonials, reviews, case studies), primary contact interactions, and about/mission storytelling components.",
+    "tags": [],
+    "title": "Social Proof, Contact Surfaces, and About Storytelling"
+  }
+}

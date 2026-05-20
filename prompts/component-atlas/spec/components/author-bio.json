@@ -1,0 +1,87 @@
+{
+  "canonicalType": "author-bio",
+  "componentType": "author-bio",
+  "content": {
+    "photo": "https://cdn.example.com/authors/sofia-martinez.jpg",
+    "bio": "Sofia covers regional retail and community partnerships for Bathurst City Centre.",
+    "name": "Sofia Martinez",
+    "socialLinks": {
+      "linkedin": "https://www.linkedin.com/in/sofia-martinez/",
+      "twitter": "https://twitter.com/sofiawrites"
+    },
+    "title": "Community Reporter"
+  },
+  "cues": [
+    "author bio",
+    "about the author",
+    "writer bio"
+  ],
+  "defaultRegion": "main",
+  "description": "Author biography module with avatar, role, links, and optional social proof.",
+  "fragments": [
+    "author-avatar",
+    "author-name",
+    "author-links"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Author information",
+      "role": "complementary"
+    },
+    "commonNames": [
+      "AuthorBio",
+      "AuthorProfile",
+      "AuthorInfo",
+      "WriterBio",
+      "ContributorProfile",
+      "AboutAuthor"
+    ],
+    "confidence": 0.75,
+    "industry": [
+      "Publishing",
+      "Media",
+      "Technology",
+      "Business",
+      "Education"
+    ],
+    "keywords": [
+      "author",
+      "written by",
+      "about the author",
+      "bio",
+      "profile",
+      "author bio",
+      "writer",
+      "contributor",
+      "author info",
+      "author profile"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar",
+      "footer"
+    ],
+    "patterns": [
+      "author.*bio",
+      "written.*by",
+      "about.*author",
+      "author.*profile",
+      "author.*info",
+      "writer.*bio",
+      "contributor.*profile"
+    ],
+    "relatedComponents": [],
+    "semanticRole": "complementary",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

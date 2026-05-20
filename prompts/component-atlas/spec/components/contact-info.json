@@ -1,0 +1,95 @@
+{
+  "canonicalType": "contact-info",
+  "componentType": "contact-info",
+  "content": {
+    "businessName": "Catalyst Studio",
+    "address": {
+      "street": "548 Market St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zipCode": "94104",
+      "country": "USA"
+    },
+    "phoneNumbers": [
+      {
+        "label": "Main",
+        "number": "+1 (415) 555-1024"
+      }
+    ],
+    "emailAddresses": [
+      {
+        "label": "Support",
+        "email": "hello@catalyststudio.com"
+      }
+    ],
+    "businessHours": {
+      "monday": "9am-6pm PT",
+      "tuesday": "9am-6pm PT",
+      "wednesday": "9am-6pm PT",
+      "thursday": "9am-6pm PT",
+      "friday": "9am-6pm PT"
+    },
+    "socialLinks": [
+      {
+        "platform": "linkedin",
+        "url": "https://www.linkedin.com/company/catalyst-studio/"
+      },
+      {
+        "platform": "twitter",
+        "url": "https://twitter.com/catalyststudio"
+      }
+    ]
+  },
+  "cues": [
+    "contact info",
+    "office details",
+    "support contacts"
+  ],
+  "defaultRegion": "main",
+  "description": "Business contact information including address, phone/email lists, social links, and hours.",
+  "fragments": [
+    "address",
+    "phone",
+    "email"
+  ],
+  "metadata": {
+    "commonNames": [
+      "ContactInfo",
+      "ContactInformation",
+      "BusinessInfo",
+      "ContactDetails",
+      "OfficeInfo"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "contact",
+      "info",
+      "information",
+      "address",
+      "phone",
+      "email",
+      "hours",
+      "location",
+      "business"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "contact info",
+      "contact information",
+      "business info",
+      "office address",
+      "phone number",
+      "email address",
+      "opening hours",
+      "business hours"
+    ],
+    "relatedComponents": []
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

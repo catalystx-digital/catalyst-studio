@@ -1,0 +1,116 @@
+{
+  "canonicalType": "about-section",
+  "componentType": "about-section",
+  "content": {
+    "heading": "Built for modern experience teams",
+    "layout": "two-column",
+    "milestones": [
+      {
+        "title": "Seed funding and first design partners",
+        "year": "2022"
+      },
+      {
+        "title": "Launched AI-assisted editor",
+        "year": "2023"
+      }
+    ],
+    "stats": [
+      {
+        "label": "Faster publishing velocity",
+        "value": "4x"
+      },
+      {
+        "label": "Customer satisfaction",
+        "value": "98%"
+      }
+    ],
+    "story": "We founded Catalyst to help teams iterate faster without sacrificing quality.",
+    "subheading": "Catalyst Studio unifies creation, collaboration, and governance.",
+    "values": [
+      {
+        "description": "Balance speed with governance so teams can trust every release.",
+        "title": "Move fast with guardrails"
+      },
+      {
+        "description": "Prioritize accessibility and clarity in every surface.",
+        "title": "Design for humans"
+      }
+    ]
+  },
+  "cues": [
+    "about section",
+    "company story",
+    "our mission"
+  ],
+  "defaultRegion": "main",
+  "description": "About page section with story, mission, values, milestones, images, and stats.",
+  "fragments": [
+    "story",
+    "values",
+    "milestones",
+    "stats"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "About us section",
+      "role": "region"
+    },
+    "commonNames": [
+      "about-section",
+      "about-us",
+      "company-story",
+      "our-story",
+      "mission-vision",
+      "company-values"
+    ],
+    "confidence": 0.85,
+    "industry": [
+      "corporate",
+      "nonprofit",
+      "education",
+      "healthcare",
+      "technology"
+    ],
+    "keywords": [
+      "about us",
+      "our story",
+      "mission",
+      "vision",
+      "who we are",
+      "company history",
+      "our mission",
+      "our vision",
+      "our values",
+      "company values",
+      "about the company",
+      "our journey",
+      "company story"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "about.*us",
+      "our.*story",
+      "company.*history",
+      "who.*we.*are",
+      "our.*mission",
+      "our.*vision",
+      "our.*values",
+      "about.*company",
+      "our.*journey"
+    ],
+    "relatedComponents": [
+      "team-grid",
+      "team-member",
+      "timeline",
+      "mission"
+    ],
+    "semanticRole": "company-information"
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

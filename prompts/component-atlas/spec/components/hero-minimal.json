@@ -1,0 +1,78 @@
+{
+  "canonicalType": "hero-minimal",
+  "componentType": "hero-minimal",
+  "content": {
+    "heading": "Catalyst 3.0 is here",
+    "subheading": "New modular APIs and guardrails for global teams.",
+    "ctaButtons": [
+      {
+        "text": "View release notes",
+        "url": "/release-notes",
+        "variant": "outline"
+      }
+    ]
+  },
+  "cues": [
+    "minimal hero",
+    "headline strip",
+    "lightweight hero"
+  ],
+  "defaultRegion": "hero",
+  "description": "Minimal hero with understated typography and optional supporting links.",
+  "fragments": [
+    "hero-heading",
+    "supporting-copy",
+    "link-group"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Minimal hero section",
+      "role": "banner"
+    },
+    "commonNames": [
+      "minimal hero",
+      "simple hero",
+      "centered hero",
+      "clean hero"
+    ],
+    "confidence": 0.82,
+    "industry": [
+      "general",
+      "portfolio",
+      "blog",
+      "personal"
+    ],
+    "keywords": [
+      "hero",
+      "minimal",
+      "simple",
+      "centered",
+      "clean",
+      "text-focused"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "minimal.*hero",
+      "simple.*hero",
+      "centered.*hero",
+      "clean.*hero"
+    ],
+    "relatedComponents": [
+      "hero-banner",
+      "hero-split",
+      "hero-video"
+    ],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

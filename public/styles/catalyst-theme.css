@@ -1,0 +1,19 @@
+/* Catalyst X Theme Styles - Minimal Version */
+/* Only affects components with .catalyst-branding class */
+/* This file exists to prevent 404 errors */
+
+/* Catalyst brand colors as CSS variables */
+.catalyst-branding {
+  --catalyst-orange: #FF5500;
+  --catalyst-orange-light: #FF8844;
+}
+
+/* Logo animation only */
+@keyframes catalyst-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.9; }
+}
+
+.catalyst-logo {
+  animation: catalyst-pulse 3s ease-in-out infinite;
+}

@@ -1,0 +1,247 @@
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { CardGrid } from './index';
+import { CardGridProps } from './card-grid.types';
+
+const mockContent: CardGridProps['content'] = {
+  heading: 'Our Services',
+  subheading: 'Explore what we offer',
+  cards: [
+    {
+      id: '1',
+      title: 'Web Development',
+      description: 'Build modern web applications with cutting-edge technologies.',
+      image: '/images/web-dev.jpg',
+      imageAlt: 'Web Development',
+      link: '/services/web-development',
+      linkText: 'Learn More',
+      badge: 'Popular'
+    },
+    {
+      id: '2',
+      title: 'Mobile Apps',
+      description: 'Native and cross-platform mobile application development.',
+      image: '/images/mobile-apps.jpg',
+      link: '/services/mobile-apps',
+      metadata: {
+        author: 'John Doe',
+        date: '2024-01-15',
+        category: 'Development'
+      }
+    },
+    {
+      id: '3',
+      title: 'UI/UX Design',
+      description: 'Create beautiful and intuitive user experiences.',
+      icon: '🎨',
+      actions: [
+        { label: 'View Portfolio', url: '/portfolio', variant: 'primary' },
+        { label: 'Contact', url: '/contact', variant: 'outline' }
+      ]
+    }
+  ],
+  columns: 3,
+  gap: 'medium'
+};
+
+describe('CMSComponent: CardGrid', () => {
+  it('renders with required props', () => {
+    render(<CardGrid content={mockContent} />);
+    
+    expect(screen.getByText('Our Services')).toBeInTheDocument();
+    expect(screen.getByText('Explore what we offer')).toBeInTheDocument();
+    expect(screen.getByText('Web Development')).toBeInTheDocument();
+  });
+
+  it('renders all cards correctly', () => {
+    render(<CardGrid content={mockContent} />);
+    
+    mockContent.cards.forEach(card => {
+      expect(screen.getByText(card.title)).toBeInTheDocument();
+      if (card.description) {
+        expect(screen.getByText(card.description)).toBeInTheDocument();
+      }
+    });
+  });
+
+  it('renders card badges', () => {
+    render(<CardGrid content={mockContent} />);
+    
+    expect(screen.getByText('Popular')).toBeInTheDocument();
+  });
+
+  it('renders card metadata', () => {
+    render(<CardGrid content={mockContent} />);
+    
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('2024-01-15')).toBeInTheDocument();
+    expect(screen.getByText('Development')).toBeInTheDocument();
+  });
+
+  it('renders card actions', () => {
+    render(<CardGrid content={mockContent} />);
+    
+    expect(screen.getByText('View Portfolio')).toBeInTheDocument();
+    expect(screen.getByText('Contact')).toBeInTheDocument();
+  });
+
+  it('renders card icons when no image', () => {
+    render(<CardGrid content={mockContent} />);
+    
+    expect(screen.getByText('🎨')).toBeInTheDocument();
+  });
+
+  it('renders filter chips when provided', () => {
+    const contentWithFilters = {
+      ...mockContent,
+      filters: [
+        { id: 'filter-chip-events', label: 'Events', href: '/events', isActive: true },
+        { id: 'filter-chip-offers', label: 'Offers' }
+      ]
+    };
+
+    render(<CardGrid content={contentWithFilters} />);
+
+    expect(screen.getByRole('link', { name: 'Events' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByText('Offers')).toBeInTheDocument();
+  });
+
+  it('handles card click with link', () => {
+    const navigateHandler = jest.fn();
+    window.addEventListener('cms:navigate', navigateHandler);
+
+    render(<CardGrid content={mockContent} />);
+    
+    const card = screen.getByText('Web Development').closest('.cms-card-grid-card')!;
+    fireEvent.click(card);
+    
+    expect(navigateHandler).toHaveBeenCalledTimes(1);
+    expect(navigateHandler.mock.calls[0][0].detail).toBe('/services/web-development');
+
+    window.removeEventListener('cms:navigate', navigateHandler);
+  });
+
+  it('calls onCardClick callback', () => {
+    const onCardClick = jest.fn();
+    render(<CardGrid content={mockContent} onCardClick={onCardClick} />);
+
+    const card = screen.getByText('Web Development').closest('.cms-card-grid-card')!;
+    fireEvent.click(card);
+
+    expect(onCardClick).toHaveBeenCalledWith('1');
+  });
+
+  it('handles keyboard navigation', () => {
+    const onCardClick = jest.fn();
+    render(<CardGrid content={mockContent} onCardClick={onCardClick} />);
+
+    const card = screen.getByText('Web Development').closest('.cms-card-grid-card')!;
+    fireEvent.keyDown(card, { key: 'Enter' });
+
+    expect(onCardClick).toHaveBeenCalledWith('1');
+
+    onCardClick.mockClear();
+    fireEvent.keyDown(card, { key: ' ' });
+
+    expect(onCardClick).toHaveBeenCalledWith('1');
+  });
+
+  it('applies responsive grid columns', () => {
+    const { container } = render(<CardGrid content={mockContent} />);
+    
+    const grid = container.querySelector('.grid');
+    expect(grid).toHaveClass('lg:grid-cols-3');
+  });
+
+  it('applies gap spacing correctly', () => {
+    const { container } = render(<CardGrid content={mockContent} />);
+    
+    const grid = container.querySelector('.grid');
+    expect(grid).toHaveClass('ds-gap-lg');
+  });
+
+  it('handles different column configurations', () => {
+    const fourColumnContent = { ...mockContent, columns: 4 as const };
+    const { container } = render(<CardGrid content={fourColumnContent} />);
+    
+    const grid = container.querySelector('.grid');
+    expect(grid).toHaveClass('lg:grid-cols-4');
+  });
+
+  it('handles horizontal card style', () => {
+    const horizontalContent = { ...mockContent, cardStyle: 'horizontal' as const };
+    const { container } = render(<CardGrid content={horizontalContent} />);
+    
+    const card = container.querySelector('.cms-card-grid-card');
+    expect(card).toHaveClass('md:flex-row');
+  });
+
+  it('applies theme and variant classes', () => {
+    const { container } = render(
+      <CardGrid 
+        content={mockContent} 
+        theme="dark" 
+        variant="detailed"
+        className="custom-class"
+      />
+    );
+    
+    const grid = container.querySelector('.custom-class');
+    expect(grid).toBeInTheDocument();
+    
+    const cards = container.querySelectorAll('.cms-card-grid-card');
+    cards.forEach(card => {
+      expect(card).toHaveClass('variant-detailed');
+      expect(card).toHaveClass('theme-dark');
+    });
+  });
+
+  it('handles action button clicks', () => {
+    const navigateHandler = jest.fn();
+    window.addEventListener('cms:navigate', navigateHandler);
+
+    render(<CardGrid content={mockContent} />);
+    
+    const portfolioButton = screen.getByText('View Portfolio');
+    fireEvent.click(portfolioButton);
+    
+    expect(navigateHandler).toHaveBeenCalledTimes(1);
+    expect(navigateHandler.mock.calls[0][0].detail).toBe('/portfolio');
+
+    window.removeEventListener('cms:navigate', navigateHandler);
+  });
+
+  it('prevents event propagation on action clicks', () => {
+    const onCardClick = jest.fn();
+    render(<CardGrid content={mockContent} onCardClick={onCardClick} />);
+    
+    const portfolioButton = screen.getByText('View Portfolio');
+    fireEvent.click(portfolioButton);
+    
+    expect(onCardClick).not.toHaveBeenCalled();
+  });
+
+  it('performs within 50ms threshold', async () => {
+    const startTime = performance.now();
+    render(<CardGrid content={mockContent} />);
+    const endTime = performance.now();
+    
+    const renderTime = endTime - startTime;
+    expect(renderTime).toBeLessThan(50);
+  });
+
+  it('handles missing optional properties gracefully', () => {
+    const minimalContent = {
+      cards: [
+        { id: '1', title: 'Card 1' },
+        { id: '2', title: 'Card 2' }
+      ]
+    };
+    
+    render(<CardGrid content={minimalContent} />);
+    
+    expect(screen.getByText('Card 1')).toBeInTheDocument();
+    expect(screen.getByText('Card 2')).toBeInTheDocument();
+  });
+});

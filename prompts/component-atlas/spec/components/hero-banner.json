@@ -1,0 +1,117 @@
+{
+  "canonicalType": "hero-banner",
+  "componentType": "hero-banner",
+  "content": {
+    "backgroundImage": "https://cdn.example.com/hero/banner-bg.jpg",
+    "body": "Secure, composable infrastructure with prebuilt workflows for governance.",
+    "ctaButtons": [
+      {
+        "href": "/request-access",
+        "label": "Request Access",
+        "variant": "primary"
+      }
+    ],
+    "heading": "Launch with confidence",
+    "subheading": "Give every team the guardrails they need to ship on-brand experiences."
+  },
+  "cues": [
+    "hero banner",
+    "full-bleed hero"
+  ],
+  "defaultRegion": "hero",
+  "description": "Fullscreen banner hero with headline, subcopy, and background media.",
+  "fragments": [
+    "hero-heading",
+    "background-image",
+    "cta-button"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Hero banner section",
+      "role": "banner"
+    },
+    "commonNames": [
+      "hero banner",
+      "jumbotron",
+      "masthead",
+      "splash section",
+      "hero section"
+    ],
+    "confidence": 0.9,
+    "description": "Prominent top-of-page section featuring a primary message, background media, and optional call-to-action buttons.",
+    "industry": [
+      "general",
+      "marketing",
+      "corporate",
+      "startup"
+    ],
+    "keywords": [
+      "hero",
+      "banner",
+      "hero-banner",
+      "jumbotron",
+      "masthead",
+      "splash"
+    ],
+    "pageLocation": [
+      "hero"
+    ],
+    "patterns": [
+      "/hero.*banner|jumbotron|masthead|splash/i"
+    ],
+    "properties": [
+      {
+        "description": "Primary headline text.",
+        "name": "heading",
+        "required": true,
+        "type": "string"
+      },
+      {
+        "description": "Secondary supporting text.",
+        "name": "subheading",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Longer descriptive copy.",
+        "name": "body",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Hero background image URL.",
+        "name": "backgroundImage",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Buttons with labels and links.",
+        "name": "ctaButtons",
+        "required": false,
+        "type": "CTAButton[]"
+      },
+      {
+        "name": "alignment",
+        "required": false,
+        "type": "'left'|'center'|'right'"
+      },
+      {
+        "name": "height",
+        "required": false,
+        "type": "'small'|'medium'|'large'|'full'"
+      }
+    ],
+    "relatedComponents": [],
+    "semanticRole": "banner",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "../optimizely-config.schema.json",
+  "singleKey": "YOUR_SINGLE_KEY_HERE",
+  "gateway": "https://cg.optimizely.com",
+  "locale": "en",
+  "debug": false,
+  "stripLocalePrefix": true,
+  "includeRawData": false,
+  "componentTypeMap": {
+    "HeroBlock": "hero",
+    "TextBlock": "rich-text",
+    "ImageBlock": "image-with-text",
+    "CardBlock": "card",
+    "CTABlock": "cta-button",
+    "NavigationBlock": "navigation",
+    "FooterBlock": "footer",
+    "TestimonialBlock": "testimonial",
+    "FAQBlock": "faq",
+    "GalleryBlock": "gallery",
+    "FormBlock": "form",
+    "VideoBlock": "video"
+  },
+  "templateMap": {
+    "StartPage": "home",
+    "StandardPage": "content",
+    "LandingPage": "landing",
+    "ArticlePage": "article",
+    "ProductPage": "product",
+    "CategoryPage": "category",
+    "ContactPage": "contact",
+    "SearchPage": "search"
+  }
+}

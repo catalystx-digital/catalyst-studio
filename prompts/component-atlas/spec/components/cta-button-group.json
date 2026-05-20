@@ -1,0 +1,65 @@
+{
+  "canonicalType": "cta-button-group",
+  "componentType": "cta-button-group",
+  "content": {
+    "alignment": "center",
+    "buttons": [
+      {
+        "text": "Schedule a demo",
+        "url": "/contact",
+        "variant": "primary"
+      },
+      {
+        "text": "Explore docs",
+        "url": "/docs",
+        "variant": "outline"
+      }
+    ],
+    "heading": "Choose your path",
+    "orientation": "horizontal"
+  },
+  "cues": [
+    "button group",
+    "cta buttons",
+    "link group"
+  ],
+  "defaultRegion": "main",
+  "description": "Group of call-to-action buttons with alignment, orientation, and spacing controls.",
+  "fragments": [
+    "button-group",
+    "cta-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "ButtonGroup",
+      "CTAButtonGroup",
+      "ActionButtons"
+    ],
+    "confidence": 0.75,
+    "keywords": [
+      "buttons",
+      "actions",
+      "button group",
+      "cta buttons",
+      "action buttons"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "button[\\s-]?group",
+      "action[\\s-]?buttons",
+      "cta[\\s-]?buttons",
+      "multiple[\\s-]?actions"
+    ],
+    "relatedComponents": [
+      "cta-simple"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

@@ -1,0 +1,423 @@
+{
+  "pageTemplate": null,
+  "components": [
+    [
+      "text-block",
+      0.99,
+      {
+        "alignment": "left",
+        "body": "<p>Our visual editor brings structured content and styling together so teams ship faster.</p>",
+        "heading": "Build content faster",
+        "subheading": "Pair AI assistance with guardrails."
+      }
+    ],
+    [
+      "two-column",
+      0.99,
+      {
+        "columnRatio": "60-40",
+        "leftColumn": [
+          {
+            "body": "<p>Compose new pages with reusable sections and AI-suggested layouts.</p>",
+            "heading": "Launch experiences rapidly",
+            "id": "two-column-copy",
+            "type": "text-block"
+          }
+        ],
+        "rightColumn": [
+          {
+            "displayMode": "grid",
+            "id": "two-column-visual",
+            "images": [
+              {
+                "alt": "Team collaborating in the editor",
+                "url": "https://cdn.example.com/library/editor.jpg"
+              }
+            ],
+            "type": "image-gallery"
+          }
+        ]
+      }
+    ],
+    [
+      "accordion",
+      0.99,
+      {
+        "allowMultiple": false,
+        "areas": [],
+        "heading": "Frequently asked questions",
+        "items": [
+          {
+            "content": "Most teams launch their first production experience within two weeks.",
+            "id": "accordion-item-faq-implementation",
+            "title": "How long does implementation take?",
+            "type": "accordion-item"
+          },
+          {
+            "content": "We maintain SOC 2 Type II and regularly complete enterprise vendor assessments.",
+            "id": "accordion-item-faq-security",
+            "title": "What security certifications do you hold?",
+            "type": "accordion-item"
+          }
+        ]
+      }
+    ],
+    [
+      "tabs",
+      0.99,
+      {
+        "areas": [],
+        "defaultTab": "creation",
+        "heading": "Platform capabilities",
+        "tabs": [
+          {
+            "content": "Generate responsive layouts with AI-assisted starter content.",
+            "id": "tab-item-creation",
+            "label": "Create",
+            "type": "tab-item"
+          },
+          {
+            "content": "Comment, assign tasks, and capture approvals in context.",
+            "id": "tab-item-collaborate",
+            "label": "Collaborate",
+            "type": "tab-item"
+          }
+        ]
+      }
+    ],
+    [
+      "card-grid",
+      0.99,
+      {
+        "cards": [
+          {
+            "description": "Insurance provider rebuilt their digital quote flow in under six weeks.",
+            "id": "card-item-everlake",
+            "image": "https://cdn.example.com/case-studies/everlake.jpg",
+            "link": "/customers/everlake",
+            "title": "Everlake improves conversions by 28%",
+            "type": "card-item"
+          },
+          {
+            "description": "Integrated product marketing pipeline with automated QA gates.",
+            "id": "card-item-zenware",
+            "link": "/customers/zenware",
+            "title": "Zenware launches 12 microsites in one quarter",
+            "type": "card-item"
+          }
+        ],
+        "columns": 2,
+        "heading": "Customer stories"
+      }
+    ],
+    [
+      "image-gallery",
+      0.99,
+      {
+        "columns": 3,
+        "displayMode": "grid",
+        "enableLightbox": true,
+        "images": [
+          {
+            "alt": "Team working in modern office",
+            "caption": "Collaboration in Catalyst Studio.",
+            "url": "https://cdn.example.com/gallery/office-1.jpg"
+          },
+          {
+            "alt": "Product manager reviewing designs",
+            "url": "https://cdn.example.com/gallery/office-2.jpg"
+          },
+          {
+            "alt": "Developer presenting results",
+            "url": "https://cdn.example.com/gallery/office-3.jpg"
+          }
+        ]
+      }
+    ],
+    [
+      "video-player",
+      0.99,
+      {
+        "autoPlay": false,
+        "controls": true,
+        "description": "Explore the editorial workflow in two minutes.",
+        "posterImage": "https://cdn.example.com/video/poster.jpg",
+        "sources": [
+          {
+            "type": "mp4",
+            "url": "https://videos.example.com/catalyst-demo.mp4"
+          }
+        ],
+        "title": "Product walkthrough"
+      }
+    ],
+    [
+      "video-embed",
+      0.99,
+      {
+        "allowFullScreen": true,
+        "aspectRatio": "16:9",
+        "provider": "youtube",
+        "title": "Customer spotlight",
+        "url": "https://www.youtube.com/watch?v=1234567890"
+      }
+    ],
+    [
+      "quote-block",
+      0.99,
+      {
+        "attribution": {
+          "author": "Amelia Rogers",
+          "image": "https://cdn.example.com/customers/amelia.jpg",
+          "title": "Director of Digital, Everlake Insurance"
+        },
+        "heading": "Customer spotlight",
+        "quote": "Catalyst Studio helped our team ship new experiences 4x faster.",
+        "style": "testimonial"
+      }
+    ],
+    [
+      "feature-grid",
+      0.99,
+      {
+        "columns": 3,
+        "features": [
+          {
+            "description": "Convert briefs into production-ready layouts using guided prompts.",
+            "icon": "sparkles",
+            "id": "feature-item-ai-authoring",
+            "title": "AI-assisted authoring",
+            "type": "feature-item"
+          },
+          {
+            "description": "Stakeholders review inline with real-time commenting and version history.",
+            "icon": "clock",
+            "id": "feature-item-approvals",
+            "title": "Faster approvals",
+            "type": "feature-item"
+          },
+          {
+            "description": "SOC 2 Type II compliant infrastructure and continuous monitoring.",
+            "icon": "shield-check",
+            "id": "feature-item-security",
+            "title": "Enterprise security",
+            "type": "feature-item"
+          }
+        ],
+        "heading": "Why teams choose Catalyst",
+        "subheading": "From ideation to launch, we remove friction across the content lifecycle."
+      }
+    ],
+    [
+      "feature-list",
+      0.99,
+      {
+        "heading": "Everything you need to launch faster",
+        "items": [
+          {
+            "description": "Design responsive layouts with drag-and-drop precision.",
+            "icon": "bolt",
+            "id": "feature-item-visual-editor",
+            "title": "Visual editor",
+            "type": "feature-item"
+          },
+          {
+            "description": "Translate content to 25+ languages with built-in workflows.",
+            "icon": "globe",
+            "id": "feature-item-localization-ready",
+            "title": "Localization ready",
+            "type": "feature-item"
+          }
+        ],
+        "layout": "vertical"
+      }
+    ],
+    [
+      "feature-showcase",
+      0.99,
+      {
+        "heading": "Experience the modular workflow",
+        "sections": [
+          {
+            "cta": {
+              "text": "See collaboration tools",
+              "url": "/platform/collaboration"
+            },
+            "description": "Invite stakeholders to comment inline and approve changes instantly.",
+            "features": [
+              {
+                "icon": "message-circle",
+                "text": "Commenting and approvals"
+              },
+              {
+                "icon": "shield-check",
+                "text": "Role-based guardrails"
+              }
+            ],
+            "id": "showcase-section-collaborate-in-real-time",
+            "image": {
+              "alt": "Cross-functional team collaborating in the editor",
+              "src": "https://cdn.example.com/showcase/editor-collaboration.jpg"
+            },
+            "imagePosition": "right",
+            "title": "Collaborate in real time",
+            "type": "showcase-section"
+          },
+          {
+            "description": "Automate QA, localization, and approvals before every launch.",
+            "features": [
+              {
+                "icon": "bolt",
+                "text": "Workflow automation"
+              },
+              {
+                "icon": "globe",
+                "text": "Localization at scale"
+              }
+            ],
+            "id": "showcase-section-automate-publishing",
+            "image": {
+              "alt": "Automated publishing pipeline",
+              "src": "https://cdn.example.com/showcase/publishing-automation.jpg"
+            },
+            "imagePosition": "left",
+            "title": "Automate publishing",
+            "type": "showcase-section"
+          }
+        ],
+        "subheading": "Guide prospects through highlights with storytelling sections."
+      }
+    ],
+    [
+      "feature-comparison",
+      0.99,
+      {
+        "features": [
+          {
+            "name": "Unlimited pages",
+            "values": [
+              true,
+              true,
+              true
+            ]
+          },
+          {
+            "name": "Custom domains",
+            "values": [
+              false,
+              true,
+              true
+            ]
+          },
+          {
+            "name": "Advanced analytics",
+            "values": [
+              false,
+              true,
+              true
+            ]
+          }
+        ],
+        "heading": "Compare plans",
+        "products": [
+          {
+            "name": "Starter",
+            "price": "$29/mo"
+          },
+          {
+            "cta": {
+              "text": "Choose Growth",
+              "url": "/pricing/growth"
+            },
+            "name": "Growth",
+            "price": "$79/mo",
+            "recommended": true
+          },
+          {
+            "name": "Enterprise",
+            "price": "Contact us"
+          }
+        ]
+      }
+    ],
+    [
+      "cta-simple",
+      0.99,
+      {
+        "alignment": "left",
+        "backgroundVariant": "surface",
+        "body": "Ship new campaigns in days, not weeks. Talk with our team to get a tailored walkthrough.",
+        "eyebrow": "Ready to move faster?",
+        "heading": "See Catalyst Studio in action",
+        "primaryButton": {
+          "text": "Book a demo",
+          "url": "/contact",
+          "variant": "primary"
+        },
+        "secondaryButton": {
+          "text": "View pricing",
+          "url": "/pricing",
+          "variant": "outline"
+        }
+      }
+    ],
+    [
+      "cta-banner",
+      0.99,
+      {
+        "alignment": "center",
+        "fullWidth": true,
+        "heading": "Launch your next experience",
+        "primaryButton": {
+          "text": "Start free trial",
+          "url": "/signup",
+          "variant": "primary"
+        },
+        "secondaryButton": {
+          "text": "Talk to sales",
+          "url": "/contact/sales",
+          "variant": "outline"
+        },
+        "subheading": "See how teams ship new campaigns in days, not weeks."
+      }
+    ],
+    [
+      "cta-with-form",
+      0.99,
+      {
+        "buttonText": "Subscribe",
+        "heading": "Stay in the loop",
+        "layout": "horizontal",
+        "placeholder": "Enter your work email",
+        "subheading": "Join our newsletter for product updates and best practices.",
+        "successMessage": "Thanks for subscribing!"
+      }
+    ],
+    [
+      "cta-button-group",
+      0.99,
+      {
+        "alignment": "center",
+        "buttons": [
+          {
+            "text": "Schedule a demo",
+            "url": "/contact",
+            "variant": "primary"
+          },
+          {
+            "text": "Explore docs",
+            "url": "/docs",
+            "variant": "outline"
+          }
+        ],
+        "heading": "Choose your path",
+        "orientation": "horizontal"
+      }
+    ]
+  ],
+  "pageMetadata": {
+    "description": "Sequences the core content display components, feature layouts, and CTA patterns so the importer sees representative nested payloads for every canonical type.",
+    "tags": [],
+    "title": "Content Blocks, Feature Highlights, and Calls to Action"
+  }
+}

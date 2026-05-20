@@ -1,0 +1,136 @@
+{
+  "canonicalType": "blog-post",
+  "componentType": "blog-post",
+  "content": {
+    "attachments": [
+      {
+        "label": "Download market insights report",
+        "url": "/downloads/market-insights-2024.pdf"
+      }
+    ],
+    "author": {
+      "name": "Jane Smith",
+      "title": "Food Editor"
+    },
+    "bodyHtml": "<p>Opening paragraph describing the partnership.</p><p>Support details and quotes.</p>",
+    "categories": [
+      "Retail"
+    ],
+    "excerpt": "Regional retailers join forces to deliver a fresh market experience for local customers.",
+    "heroImage": {
+      "alt": "Farmgate Meats storefront",
+      "src": "https://cdn.component-atlas.dev/blog/hero.jpg"
+    },
+    "publishDate": "2024-07-12",
+    "readingTime": "6 min read",
+    "relatedLinks": [
+      {
+        "label": "Market activation recap",
+        "url": "/blog/market-activation-recap"
+      },
+      {
+        "label": "Retail partnership toolkit",
+        "url": "/resources/retail-partnership-toolkit"
+      }
+    ],
+    "subtitle": "Regional butchers partner with Bathurst City Centre to open a new farm-to-market concept.",
+    "tags": [
+      "Local news",
+      "Partnership"
+    ],
+    "title": "Barc x Farmgate Meats Launch Local Market"
+  },
+  "cues": [
+    "article detail",
+    "news story",
+    "blog post",
+    "press release"
+  ],
+  "defaultRegion": "main",
+  "description": "Use for article detail templates that combine hero, body content, and author metadata into a single component.",
+  "fragments": [
+    "article-header",
+    "author-bio",
+    "text-block",
+    "rich-text",
+    "image-gallery",
+    "quote-block"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Blog post content",
+      "role": "article"
+    },
+    "commonNames": [
+      "BlogPost",
+      "ArticleBody",
+      "StoryContent",
+      "EditorialContent",
+      "NewsArticle"
+    ],
+    "confidence": 0.93,
+    "industry": [
+      "Retail",
+      "Publishing",
+      "Corporate",
+      "Education",
+      "Hospitality"
+    ],
+    "keywords": [
+      "blog post",
+      "article detail",
+      "news story",
+      "press release",
+      "case study",
+      "long form content",
+      "editorial"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar",
+      "footer"
+    ],
+    "patterns": [
+      "blog.*post",
+      "article.*body",
+      "story.*content",
+      "news.*article",
+      "press.*release",
+      "case.*study",
+      "longform",
+      "rich.*text"
+    ],
+    "relatedComponents": [
+      "article-header",
+      "author-bio",
+      "related-posts",
+      "cta-button-group"
+    ],
+    "semanticRole": "article",
+    "suggestedVariants": [
+      "default",
+      "detailed",
+      "minimal"
+    ]
+  },
+  "props": {
+    "shareActions": [
+      {
+        "icon": "linkedin",
+        "label": "Share on LinkedIn",
+        "url": "https://www.linkedin.com/shareArticle?mini=true&url=https://component-atlas.local/blog/barc-farmgate-launch"
+      },
+      {
+        "icon": "twitter",
+        "label": "Share on X",
+        "url": "https://twitter.com/intent/tweet?url=https://component-atlas.local/blog/barc-farmgate-launch"
+      }
+    ],
+    "showShareActions": true
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": true
+  }
+}

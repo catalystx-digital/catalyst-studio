@@ -1,0 +1,125 @@
+{
+  "canonicalType": "blog-list",
+  "componentType": "blog-list",
+  "content": {
+    "description": "Fresh stories from Bathurst City Centre.",
+    "posts": [
+      {
+        "type": "blog-card",
+        "id": "blog-card-barc-x-farmgate-meats",
+        "title": "Barc x Farmgate Meats Launch Local Market",
+        "excerpt": "Regional butchers partner with the centre to open a new farm-to-market concept.",
+        "author": {
+          "name": "Jane Smith"
+        },
+        "publishDate": "2024-07-12",
+        "categories": [
+          "Retail"
+        ],
+        "tags": [
+          "Food"
+        ],
+        "slug": "barc-x-farmgate-meats",
+        "featured": true
+      },
+      {
+        "type": "blog-card",
+        "id": "blog-card-school-holiday-guide",
+        "title": "School Holiday Guide",
+        "excerpt": "Activities and offers to entertain the family this winter.",
+        "author": {
+          "name": "Team Bathurst"
+        },
+        "publishDate": "2024-06-22",
+        "categories": [
+          "Lifestyle"
+        ],
+        "tags": [
+          "Family"
+        ],
+        "slug": "school-holiday-guide",
+        "featured": false
+      }
+    ],
+    "manualPosts": [],
+    "showPagination": false,
+    "title": "Latest Articles"
+  },
+  "cues": [
+    "blog index",
+    "news list",
+    "resources overview",
+    "stories overview"
+  ],
+  "defaultRegion": "main",
+  "description": "Use for blog index templates. Aggregate teaser cards into posts[] sorted chronologically with optional pagination metadata.",
+  "fragments": [
+    "blog-card",
+    "card-grid",
+    "article-preview",
+    "article-teaser"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Blog posts list",
+      "role": "feed"
+    },
+    "commonNames": [
+      "BlogList",
+      "ArticleList",
+      "PostArchive",
+      "NewsFeed",
+      "BlogGrid",
+      "ArticleGrid"
+    ],
+    "confidence": 0.85,
+    "description": "Auto-filled blog feed with optional manual pins for editorial control.",
+    "industry": [
+      "Publishing",
+      "Media",
+      "Technology",
+      "Business",
+      "Education"
+    ],
+    "keywords": [
+      "blog",
+      "articles",
+      "news",
+      "posts",
+      "latest articles",
+      "blog posts",
+      "article list",
+      "news feed",
+      "blog archive",
+      "posts archive",
+      "recent posts",
+      "all posts"
+    ],
+    "pageLocation": [
+      "main",
+      "sidebar"
+    ],
+    "patterns": [
+      "blog.*list",
+      "article.*grid",
+      "post.*archive",
+      "news.*feed",
+      "latest.*articles",
+      "recent.*posts",
+      "all.*blogs"
+    ],
+    "relatedComponents": [],
+    "semanticRole": "article-list",
+    "suggestedVariants": [
+      "default",
+      "minimal",
+      "detailed",
+      "compact"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": true
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "blog-pricing-data",
+  "title": "Editorial, Pricing, and Data Visualization Components",
+  "description": "Exercises the editorial/blog canon, pricing tables, and data visualization blocks to ensure importer parity across structured datasets.",
+  "regions": [
+    {
+      "region": "main",
+      "heading": "Editorial Storytelling",
+      "components": [
+        { "canonicalType": "article-header", "heading": "Article header" },
+        { "canonicalType": "blog-post", "heading": "Blog post body" },
+        { "canonicalType": "blog-list", "heading": "Blog list / index" },
+        { "canonicalType": "author-bio", "heading": "Author bio sidebar" },
+        { "canonicalType": "related-posts", "heading": "Related posts module" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Pricing Matrices",
+      "components": [
+        { "canonicalType": "pricing-table", "heading": "Pricing table" },
+        { "canonicalType": "pricing-card", "heading": "Pricing card deck" },
+        { "canonicalType": "pricing-comparison", "heading": "Pricing comparison" }
+      ]
+    },
+    {
+      "region": "main",
+      "heading": "Data Visualizations",
+      "components": [
+        { "canonicalType": "statistics", "heading": "Statistics highlights" },
+        { "canonicalType": "data-table", "heading": "Data table" },
+        { "canonicalType": "chart", "heading": "Chart visual" }
+      ]
+    }
+  ]
+}

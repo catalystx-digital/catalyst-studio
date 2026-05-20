@@ -1,0 +1,86 @@
+{
+  "canonicalType": "two-column",
+  "componentType": "two-column",
+  "content": {
+    "columnRatio": "60-40",
+    "leftColumn": [
+      {
+        "type": "text-block",
+        "id": "two-column-copy",
+        "heading": "Launch experiences rapidly",
+        "body": "<p>Compose new pages with reusable sections and AI-suggested layouts.</p>"
+      }
+    ],
+    "rightColumn": [
+      {
+        "type": "image-gallery",
+        "id": "two-column-visual",
+        "displayMode": "grid",
+        "images": [
+          {
+            "url": "https://cdn.example.com/library/editor.jpg",
+            "alt": "Team collaborating in the editor"
+          }
+        ]
+      }
+    ]
+  },
+  "cues": [
+    "two column layout",
+    "split content",
+    "side-by-side"
+  ],
+  "defaultRegion": "main",
+  "description": "Two-column layout with configurable content types per column and responsive ratios.",
+  "fragments": [
+    "left-column",
+    "right-column"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Two column content section",
+      "role": "region"
+    },
+    "commonNames": [
+      "two-column",
+      "split-section",
+      "two-col",
+      "columns",
+      "side-by-side"
+    ],
+    "confidence": 0.85,
+    "keywords": [
+      "columns",
+      "split",
+      "side-by-side",
+      "layout",
+      "two-column",
+      "grid",
+      "section",
+      "half"
+    ],
+    "pageLocation": [
+      "main",
+      "hero"
+    ],
+    "patterns": [
+      "two column",
+      "side by side",
+      "split layout",
+      "left right",
+      "50/50",
+      "half and half"
+    ],
+    "semanticRole": "section",
+    "suggestedVariants": [
+      "default",
+      "compact",
+      "expanded"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

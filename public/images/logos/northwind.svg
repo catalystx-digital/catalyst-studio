@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 56" role="img" aria-labelledby="title">
+  <title>Northwind Retail</title>
+  <g fill="none" stroke-width="3" stroke-linecap="round">
+    <path d="M24 34c40-20 64-20 112 0" stroke="#1d4ed8" opacity="0.45" />
+    <path d="M24 42c40-20 64-20 112 0" stroke="#0ea5e9" opacity="0.8" />
+  </g>
+  <circle cx="36" cy="40" r="5" fill="#0ea5e9" />
+  <circle cx="164" cy="40" r="5" fill="#1d4ed8" />
+  <text x="100" y="44" font-family="Inter, 'Segoe UI', sans-serif" font-size="24" font-weight="600" text-anchor="middle" fill="#1e293b">
+    NORTHWIND
+  </text>
+</svg>

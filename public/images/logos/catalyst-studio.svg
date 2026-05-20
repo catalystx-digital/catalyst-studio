@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="224" height="64" viewBox="0 0 224 64" role="img" aria-labelledby="title desc">
+  <title id="title">Catalyst Studio</title>
+  <desc id="desc">Wordmark for Catalyst Studio featuring a rotated square monogram and brand typography.</desc>
+  <defs>
+    <linearGradient id="catalyst-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF5500" />
+      <stop offset="100%" stop-color="#FF8844" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(8 8)">
+    <rect x="4" y="4" width="48" height="48" rx="14" transform="rotate(45 28 28)" fill="url(#catalyst-gradient)" />
+    <rect x="24" y="10" width="8" height="36" rx="4" transform="rotate(45 28 28)" fill="#FFFFFF" />
+    <rect x="24" y="10" width="8" height="36" rx="4" transform="rotate(-45 28 28)" fill="#FFE4D3" />
+    <rect x="22" y="22" width="12" height="12" rx="3" transform="rotate(45 28 28)" fill="#0F172A" opacity="0.2" />
+  </g>
+  <text x="78" y="36" fill="#0F172A" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="26" font-weight="700">Catalyst<tspan fill="#FF5500" dx="8">Studio</tspan></text>
+  <text x="78" y="52" fill="#475569" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="14" font-weight="500">AI Website Platform</text>
+</svg>

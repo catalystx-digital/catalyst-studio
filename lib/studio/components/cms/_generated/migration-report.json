@@ -1,0 +1,134 @@
+{
+  "timestamp": "2025-12-20T01:53:47.143Z",
+  "totalComponents": 64,
+  "migrated": 60,
+  "notMigrated": 0,
+  "partial": 4,
+  "migrationPercentage": "100.0%",
+  "migratedComponents": [
+    "about/about-section",
+    "about/team-grid",
+    "about/team-member",
+    "blog/article-header",
+    "blog/author-bio",
+    "blog/blog-card",
+    "blog/blog-list",
+    "blog/blog-post",
+    "blog/related-posts",
+    "contact/contact-form",
+    "contact/contact-info",
+    "contact/location-map",
+    "contact/simple-form",
+    "content/accordion",
+    "content/card-grid",
+    "content/card-item",
+    "content/content-feed",
+    "content/html-block",
+    "content/image-gallery",
+    "content/promo-item",
+    "content/quote-block",
+    "content/tabs",
+    "content/text-block",
+    "content/two-column",
+    "content/video-embed",
+    "content/video-player",
+    "cta/cta-banner",
+    "cta/cta-button-group",
+    "cta/cta-newsletter",
+    "cta/cta-simple",
+    "data/chart",
+    "data/data-table",
+    "data/statistics",
+    "data/timeline",
+    "features/feature-comparison",
+    "features/feature-grid",
+    "features/feature-item",
+    "features/feature-list",
+    "features/feature-showcase",
+    "heroes/hero-banner",
+    "heroes/hero-carousel",
+    "heroes/hero-minimal",
+    "heroes/hero-simple",
+    "heroes/hero-split",
+    "heroes/hero-video",
+    "heroes/hero-with-image",
+    "navigation/breadcrumbs",
+    "navigation/footer",
+    "navigation/mobile-menu",
+    "navigation/nav-bar",
+    "navigation/nav-menu-item",
+    "navigation/sidebar-nav",
+    "navigation/sidemenu",
+    "pricing/pricing-card",
+    "pricing/pricing-table",
+    "social-proof/logo-strip",
+    "social-proof/review-card",
+    "social-proof/testimonial-grid",
+    "social-proof/testimonial-item",
+    "social-proof/testimonial-slider"
+  ],
+  "notMigratedComponents": [],
+  "partialComponents": [
+    "about/utils",
+    "blog/utils",
+    "heroes/_shared",
+    "navigation/utils"
+  ],
+  "statusByCategory": {
+    "about": {
+      "total": 4,
+      "migrated": 3,
+      "notMigrated": 0
+    },
+    "blog": {
+      "total": 7,
+      "migrated": 6,
+      "notMigrated": 0
+    },
+    "contact": {
+      "total": 4,
+      "migrated": 4,
+      "notMigrated": 0
+    },
+    "content": {
+      "total": 13,
+      "migrated": 13,
+      "notMigrated": 0
+    },
+    "cta": {
+      "total": 4,
+      "migrated": 4,
+      "notMigrated": 0
+    },
+    "data": {
+      "total": 4,
+      "migrated": 4,
+      "notMigrated": 0
+    },
+    "features": {
+      "total": 5,
+      "migrated": 5,
+      "notMigrated": 0
+    },
+    "heroes": {
+      "total": 8,
+      "migrated": 7,
+      "notMigrated": 0
+    },
+    "navigation": {
+      "total": 8,
+      "migrated": 7,
+      "notMigrated": 0
+    },
+    "pricing": {
+      "total": 2,
+      "migrated": 2,
+      "notMigrated": 0
+    },
+    "social-proof": {
+      "total": 5,
+      "migrated": 5,
+      "notMigrated": 0
+    }
+  }
+}

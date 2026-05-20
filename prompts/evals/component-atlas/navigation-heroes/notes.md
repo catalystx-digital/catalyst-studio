@@ -1,0 +1,4 @@
+- Spec: `prompts/component-atlas/spec/pages/navigation-heroes.json` (header primitives + hero variants + breadcrumb sidebar/footer coverage).
+- Fixtures regenerated with `pnpm tsx scripts/eval/build-component-atlas-fixtures.ts --generate-data --update-expected` (2025-11-01).
+- Passing eval report: `reports/eval/detection/2025-11-01T05-06-34-501Z.json` (prompt chars: 89734, importer diffs: 0).
+- Schema alignment: navigation subcomponents now provide canonical ids/labels; hero payloads rely on contract fields only (CTA arrays, overlay configs); header/sidebar/footer specs no longer emit manual `region` flags.

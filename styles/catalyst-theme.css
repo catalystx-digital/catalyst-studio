@@ -1,0 +1,161 @@
+/**
+ * Catalyst X Visual Identity
+ * Story 1.1b - Brand colors, fonts, and patterns
+ */
+
+:root {
+  /* Catalyst X Brand Colors */
+  --catalyst-orange: #FF5500;
+  --carbon-black: #212121;
+  --adaptive-blue: #0077CC;
+  --human-green: #00AA55;
+  --light-gray: #F5F5F5;
+  --medium-gray: #9E9E9E;
+  --dark-bg: #1B1B1B;
+  
+  /* Semantic Colors */
+  --primary: var(--catalyst-orange);
+  --primary-hover: #E64A00;
+  --secondary: var(--adaptive-blue);
+  --success: var(--human-green);
+  --background: var(--dark-bg);
+  --surface: #2A2A2A;
+  --text-primary: #FFFFFF;
+  --text-secondary: #B0B0B0;
+  --border: #3A3A3A;
+}
+
+/* Inter Font Import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600;700&display=swap');
+
+/* Global Font Override when Catalyst branding is enabled */
+.catalyst-branding {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Catalyst X Background Pattern */
+.catalyst-pattern {
+  position: relative;
+  background: linear-gradient(135deg, var(--catalyst-orange) 0%, var(--adaptive-blue) 100%);
+}
+
+.catalyst-pattern::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 100px,
+      rgba(255, 255, 255, 0.03) 100px,
+      rgba(255, 255, 255, 0.03) 200px
+    );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Dark Theme for Main Layout */
+.catalyst-dark {
+  background-color: var(--dark-bg);
+  color: var(--text-primary);
+}
+
+.catalyst-dark .border-gray-200 {
+  border-color: var(--border) !important;
+}
+
+.catalyst-dark .bg-card {
+  background-color: var(--surface) !important;
+}
+
+.catalyst-dark .text-muted-foreground {
+  color: var(--text-secondary) !important;
+}
+
+/* Catalyst Orange Accent */
+.catalyst-accent {
+  color: var(--catalyst-orange);
+}
+
+.catalyst-accent-bg {
+  background-color: var(--catalyst-orange);
+}
+
+.catalyst-accent-border {
+  border-color: var(--catalyst-orange);
+}
+
+/* Button Overrides */
+.catalyst-branding button[type="submit"],
+.catalyst-branding .btn-primary {
+  background-color: var(--catalyst-orange) !important;
+  border-color: var(--catalyst-orange) !important;
+}
+
+.catalyst-branding button[type="submit"]:hover,
+.catalyst-branding .btn-primary:hover {
+  background-color: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+/* Input Focus State */
+.catalyst-branding input:focus,
+.catalyst-branding textarea:focus {
+  border-color: var(--catalyst-orange) !important;
+  box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.1) !important;
+}
+
+/* Scrollbar Styling */
+.catalyst-branding ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.catalyst-branding ::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+.catalyst-branding ::-webkit-scrollbar-thumb {
+  background: var(--catalyst-orange);
+  border-radius: 4px;
+}
+
+.catalyst-branding ::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-hover);
+}
+
+/* Logo Animation */
+@keyframes catalyst-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.catalyst-logo {
+  animation: catalyst-pulse 2s ease-in-out infinite;
+}
+
+/* Geometric Decoration Elements */
+.catalyst-geometric {
+  position: relative;
+}
+
+.catalyst-geometric::after {
+  content: '';
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background: var(--catalyst-orange);
+  transform: rotate(45deg);
+  opacity: 0.1;
+  top: -20px;
+  right: -20px;
+  z-index: -1;
+}

@@ -1,0 +1,97 @@
+{
+  "canonicalType": "breadcrumbs",
+  "componentType": "breadcrumbs",
+  "content": {
+    "items": [
+      {
+        "label": "Home",
+        "url": "/"
+      },
+      {
+        "label": "Blog",
+        "url": "/blog"
+      },
+      {
+        "label": "Article",
+        "url": "/blog/article"
+      }
+    ]
+  },
+  "cues": [
+    "breadcrumbs",
+    "navigation trail",
+    "page hierarchy"
+  ],
+  "defaultRegion": "header",
+  "description": "Automatically generated breadcrumb trail reflecting the current page hierarchy with optional display tweaks.",
+  "fragments": [
+    "breadcrumb-trail",
+    "breadcrumb-item"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Breadcrumb navigation",
+      "role": "navigation"
+    },
+    "commonNames": [
+      "breadcrumbs",
+      "breadcrumb trail",
+      "navigation path"
+    ],
+    "confidence": 0.9,
+    "description": "Hierarchical breadcrumb trail automatically derived from the site structure, with optional presentation tweaks.",
+    "keywords": [
+      "breadcrumbs",
+      "breadcrumb",
+      "navigation-path",
+      "trail",
+      "path"
+    ],
+    "pageLocation": [
+      "header",
+      "main"
+    ],
+    "patterns": [
+      "breadcrumb",
+      "navigation.*path",
+      "trail",
+      "page.*path"
+    ],
+    "properties": [
+      {
+        "description": "System-provided ancestor pages. Shown for completeness; typically not edited manually.",
+        "name": "items",
+        "required": false,
+        "type": "Array<{ label:string; href:string }>"
+      },
+      {
+        "description": "Character or symbol displayed between breadcrumb items.",
+        "name": "separator",
+        "required": false,
+        "type": "'/'|'>'|'→'|'•'"
+      },
+      {
+        "description": "Toggle to automatically include a home breadcrumb at the start.",
+        "name": "showHome",
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "description": "Text label used for the optional home breadcrumb.",
+        "name": "homeLabel",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "semanticRole": "navigation",
+    "suggestedVariants": [
+      "default",
+      "minimal"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

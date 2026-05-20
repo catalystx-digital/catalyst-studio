@@ -1,0 +1,617 @@
+{
+  "pageTemplate": {
+    "templateKey": "marketing/home-default",
+    "confidence": 0.95,
+    "reason": "Homepage URL '/', with preload hero image, primary navbar, CTAs for complaints, and marketing sections like reports and news.",
+    "source": "model"
+  },
+  "components": [
+    [
+      "navbar",
+      0.98,
+      {
+        "logo": {
+          "src": "https://www.tio.com.au/themes/custom/tio/logo.svg",
+          "alt": "Telecommunication Industry Ombudsman",
+          "href": "/"
+        },
+        "menuItems": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-complaints",
+            "label": "Complaints",
+            "href": "/complaints",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-who-we-can-help",
+                "label": "Who we can help",
+                "href": "/complaints/who-we-can-help",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-what-we-can-help-with",
+                "label": "What we can help with",
+                "href": "/complaints/what-we-can-help-with",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-what-expect",
+                "label": "What to expect",
+                "href": "/complaints/what-expect",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-making-complaint-someone-else",
+                "label": "Making a complaint for someone else",
+                "href": "/complaints/making-complaint-someone-else",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-help-for-people-and-businesses-at-risk",
+                "label": "Help for people and businesses at risk",
+                "href": "/complaints/help-for-people-and-businesses-at-risk",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-update-your-complaint",
+                "label": "Update your complaint",
+                "href": "https://www.tioonline.com.au/update",
+                "external": true
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-how-work-your-telco",
+                "label": "How to work with your telco",
+                "href": "/complaints/how-work-your-telco",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-other-complaint-bodies",
+            "label": "Other complaint bodies",
+            "href": "/other-complaint-bodies",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-common-issues",
+            "label": "Common issues",
+            "href": "/common-issues",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-billing",
+                "label": "Billing",
+                "href": "/common-issues/billing",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-compensation",
+                "label": "Compensation",
+                "href": "/common-issues/compensation",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-credit-management",
+                "label": "Credit Management",
+                "href": "/common-issues/credit-management",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-customer-service",
+                "label": "Customer Service",
+                "href": "/common-issues/customer-service",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-domestic-family-violence",
+                "label": "Domestic, Family and Sexual Violence",
+                "href": "/common-issues/domestic-family-violence",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-faults",
+                "label": "Faults",
+                "href": "/common-issues/faults",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-financial-hardship",
+                "label": "Financial Hardship",
+                "href": "/common-issues/financial-hardship",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-privacy",
+                "label": "Privacy",
+                "href": "/common-issues/privacy",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-sales",
+                "label": "Sales",
+                "href": "/common-issues/sales",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-scam-spam-fraud",
+                "label": "Scams, Spam and Fraud",
+                "href": "/common-issues/scam-spam-fraud",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-members",
+            "label": "Members",
+            "href": "/members",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-joining-scheme",
+                "label": "Joining the scheme",
+                "href": "/joining-scheme",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-industry-codes",
+                "label": "Industry codes and resources",
+                "href": "/members/industry-codes",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-good-industry-practice-guides",
+                "label": "Good Industry Practice Guides",
+                "href": "/members/good-industry-practice-guides",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-who-we-work-with",
+                "label": "Who we work with",
+                "href": "/members/who-we-work-with",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-members-portal",
+                "label": "Members Portal",
+                "href": "https://members.tioonline.com.au/",
+                "external": true
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-about-us",
+            "label": "About us",
+            "href": "/about-us",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about-tio",
+                "label": "About TIO",
+                "href": "/about-tio",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-board",
+                "label": "Board",
+                "href": "/about-us/board",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-ombudsman",
+                "label": "Ombudsman and Executive Leadership Team",
+                "href": "/about-us/ombudsman",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-terms-of-reference",
+                "label": "Terms of Reference and Company Constitution",
+                "href": "/about-us/terms-of-reference-and-company-constitution",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-policies-and-procedures",
+                "label": "Complaint handling procedures",
+                "href": "/about-us/policies-and-procedures",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-independent-review",
+                "label": "Independent Review",
+                "href": "/about-tio/independent-review",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-fairness-commitment",
+                "label": "Our fairness commitment",
+                "href": "/our-fairness-commitment",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-reports",
+                "label": "Reports",
+                "href": "/about-us/reports",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-resources",
+            "label": "Resources",
+            "href": "/resources",
+            "external": false,
+            "children": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-submissions",
+                "label": "Submissions",
+                "href": "/submissions",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-work-with-us",
+                "label": "Work with us",
+                "href": "/work-with-us",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-systemic-issues",
+                "label": "Systemic Issues",
+                "href": "/systemic-issues",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-factsheets",
+                "label": "Factsheets",
+                "href": "/factsheets",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-outreach",
+                "label": "Outreach",
+                "href": "/outreach",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-reconciliation-action-plan",
+                "label": "Reconciliation Action Plan",
+                "href": "/about-us/reconciliation-action-plan",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-consumer-panel",
+                "label": "Consumer Panel",
+                "href": "/about-us/consumer-panel",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-help-consumers-impacted-natural-disasters",
+                "label": "Help for consumers impacted by natural disasters",
+                "href": "/help-consumers-impacted-natural-disasters",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-media-enquiries",
+                "label": "Media enquiries",
+                "href": "/media-enquiries",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-our-performance",
+                "label": "Our performance",
+                "href": "/our-performance",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-telco-accessibility-task-force",
+                "label": "Telco Accessibility Task Force",
+                "href": "/about-us/telco-accessibility-task-force",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-reports",
+            "label": "Reports",
+            "href": "/reports",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-news",
+            "label": "News",
+            "href": "/news",
+            "external": false
+          }
+        ],
+        "cta": {
+          "text": "Call on 1800 062 058",
+          "href": "tel:1800062058",
+          "variant": "primary"
+        },
+        "sticky": true
+      }
+    ],
+    [
+      "search-bar",
+      0.95,
+      {
+        "placeholder": "",
+        "showIcon": true,
+        "showSuggestions": true
+      }
+    ],
+    [
+      "hero-with-image",
+      0.92,
+      {
+        "eyebrow": "",
+        "heading": "Telecommunications Industry Ombudsman",
+        "subheading": "Free, fair and independent help for phone and internet complaints",
+        "body": "We help people resolve complaints about telephone and internet services from their telco.",
+        "layout": "image-right",
+        "image": {
+          "src": "https://www.tio.com.au/sites/default/files/styles/home/public/2023-09/Telecommunications-Industry-Ombudsman.jpg?itok=aU0gBTgJ",
+          "alt": "Telecommunications Industry Ombudsman"
+        },
+        "ctaButtons": [
+          {
+            "label": "Make a complaint",
+            "href": "/complaints",
+            "variant": "primary",
+            "style": "primary"
+          }
+        ]
+      }
+    ],
+    [
+      "feature-list",
+      0.9,
+      {
+        "heading": "Why choose TIO?",
+        "items": [
+          {
+            "type": "feature-item",
+            "icon": "https://www.tio.com.au/sites/default/files/styles/icon/public/2023-05/Free%20internet%20and%20phone%20resolution%20service_0.jpg?itok=Tx3IZCEl",
+            "title": "Free internet and phone resolution service",
+            "description": "We provide a free service to help resolve complaints about telephone and internet services."
+          },
+          {
+            "type": "feature-item",
+            "icon": "https://www.tio.com.au/sites/default/files/styles/icon/public/2023-05/Free%2C%20fair%20and%20independent%20help%20for%20phone%20and%20internet%20complaints_0.jpg?itok=jF9BNIdM",
+            "title": "Free, fair and independent help for phone and internet complaints",
+            "description": "Our service is free, fair, and independent, ensuring impartial resolution."
+          },
+          {
+            "type": "feature-item",
+            "icon": "https://www.tio.com.au/sites/default/files/styles/icon/public/2023-05/Telecommunications%20Industry%20Ombudsman_0.jpg?itok=094kEUmS",
+            "title": "Telecommunications Industry Ombudsman",
+            "description": "As the Telecommunications Industry Ombudsman, we oversee the industry."
+          }
+        ]
+      }
+    ],
+    [
+      "video-embed",
+      0.85,
+      {
+        "provider": "youtube",
+        "url": "",
+        "title": "How the TIO can help",
+        "description": "Learn how we can assist with your telco complaints.",
+        "allowFullScreen": true
+      }
+    ],
+    [
+      "cta-simple",
+      0.88,
+      {
+        "heading": "Make a complaint",
+        "body": "Start your complaint process today.",
+        "primaryButton": {
+          "text": "Make a complaint",
+          "url": "/complaints",
+          "variant": "primary"
+        }
+      }
+    ],
+    [
+      "card-grid",
+      0.9,
+      {
+        "heading": "Latest News",
+        "cards": [
+          {
+            "type": "card-item",
+            "id": "card-item-annual-report-2024-25",
+            "title": "Annual report reveals telco complaints remained steady, but mobile problems and financial stress rising",
+            "description": "Read the latest annual report.",
+            "image": {
+              "src": "",
+              "alt": ""
+            },
+            "link": "/news/annual-report-reveals-telco-complaints-remained-steady-mobile-problems-and-financial-stress",
+            "linkText": "Read more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-tio-welcomes-online-safety",
+            "title": "TIO welcomes important online safety measures",
+            "description": "New measures to enhance online safety.",
+            "image": {
+              "src": "",
+              "alt": ""
+            },
+            "link": "/news/tio-welcomes-important-online-safety-measures",
+            "linkText": "Read more"
+          },
+          {
+            "type": "card-item",
+            "id": "card-item-keeping-connected",
+            "title": "Keeping connected – Experiences of telco consumers in financial hardship",
+            "description": "Report on financial hardship experiences.",
+            "image": {
+              "src": "",
+              "alt": ""
+            },
+            "link": "/reports/keeping-connected-experiences-telco-consumers-financial-hardship",
+            "linkText": "Read more"
+          }
+        ],
+        "columns": 3
+      }
+    ],
+    [
+      "footer",
+      0.95,
+      {
+        "columns": [
+          {
+            "type": "columnItem",
+            "id": "columnItem-about-us",
+            "title": "About Us",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-about-us-footer",
+                "label": "About Us",
+                "href": "/about-us",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-media-enquiries-footer",
+                "label": "Media Enquiries",
+                "href": "/media-enquiries",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-work-with-us-footer",
+                "label": "Work With Us",
+                "href": "/work-with-us",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "columnItem",
+            "id": "columnItem-legal",
+            "title": "Legal",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-disclaimer",
+                "label": "Disclaimer",
+                "href": "/disclaimer",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-privacy",
+                "label": "Privacy Policy",
+                "href": "/privacy",
+                "external": false
+              },
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-sitemap",
+                "label": "Sitemap",
+                "href": "/sitemap",
+                "external": false
+              }
+            ]
+          },
+          {
+            "type": "columnItem",
+            "id": "columnItem-members",
+            "title": "Members",
+            "links": [
+              {
+                "type": "nav-menu-item",
+                "id": "nav-menu-item-members-footer",
+                "label": "Members",
+                "href": "/members",
+                "external": false
+              }
+            ]
+          }
+        ],
+        "logo": "https://www.tio.com.au/themes/custom/tio/logo.svg",
+        "logoAlt": "Telecommunication Industry Ombudsman",
+        "description": "Telecommunications Industry Ombudsman",
+        "socialLinks": [],
+        "legalLinks": [
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-languages",
+            "label": "Languages",
+            "href": "/languages",
+            "external": false
+          },
+          {
+            "type": "nav-menu-item",
+            "id": "nav-menu-item-accessibility",
+            "label": "Accessibility",
+            "href": "/accessibility",
+            "external": false
+          }
+        ],
+        "copyright": "© Telecommunications Industry Ombudsman"
+      }
+    ]
+  ],
+  "pageMetadata": {
+    "title": "Telecommunications Industry Ombudsman",
+    "description": "",
+    "canonical": "https://www.tio.com.au/",
+    "language": "en",
+    "viewport": "width=device-width, initial-scale=1.0"
+  }
+}

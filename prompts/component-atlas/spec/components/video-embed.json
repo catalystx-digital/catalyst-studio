@@ -1,0 +1,77 @@
+{
+  "canonicalType": "video-embed",
+  "componentType": "video-embed",
+  "content": {
+    "allowFullScreen": true,
+    "aspectRatio": "16:9",
+    "provider": "youtube",
+    "title": "Customer spotlight",
+    "url": "https://www.youtube.com/watch?v=1234567890"
+  },
+  "cues": [
+    "video embed",
+    "iframe video",
+    "external video"
+  ],
+  "defaultRegion": "main",
+  "description": "Embed external video players such as YouTube or Vimeo with responsive aspect ratios.",
+  "fragments": [
+    "embed-frame",
+    "responsive-wrapper"
+  ],
+  "metadata": {
+    "accessibility": {
+      "ariaLabel": "Embedded video player",
+      "role": "region"
+    },
+    "commonNames": [
+      "video embed",
+      "embedded video",
+      "video iframe",
+      "external video player"
+    ],
+    "confidence": 0.86,
+    "description": "Responsive wrapper for embedding external video providers such as YouTube, Vimeo, Loom, or Wistia.",
+    "industry": [
+      "general",
+      "marketing",
+      "education",
+      "support"
+    ],
+    "keywords": [
+      "video",
+      "video embed",
+      "youtube",
+      "vimeo",
+      "loom",
+      "wistia",
+      "iframe"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "video.*embed",
+      "embedded.*video",
+      "youtube.*player",
+      "vimeo.*player",
+      "loom.*video",
+      "wistia.*video"
+    ],
+    "relatedComponents": [
+      "video-player",
+      "hero-video"
+    ],
+    "semanticRole": "complementary",
+    "suggestedVariants": [
+      "default",
+      "portrait",
+      "square"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

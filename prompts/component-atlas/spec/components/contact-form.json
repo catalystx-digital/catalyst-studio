@@ -1,0 +1,87 @@
+{
+  "canonicalType": "contact-form",
+  "componentType": "contact-form",
+  "content": {
+    "description": "Tell us about your upcoming project and we will reach out within one business day.",
+    "fields": [
+      {
+        "label": "Name",
+        "name": "name",
+        "required": true,
+        "type": "text"
+      },
+      {
+        "label": "Work email",
+        "name": "email",
+        "required": true,
+        "type": "email"
+      },
+      {
+        "label": "How can we help?",
+        "name": "message",
+        "required": true,
+        "type": "textarea"
+      }
+    ],
+    "submitButton": {
+      "text": "Submit inquiry"
+    },
+    "successMessage": "Thanks! We’ll be in touch shortly.",
+    "title": "Contact our team"
+  },
+  "cues": [
+    "contact form",
+    "lead form",
+    "inquiry form"
+  ],
+  "defaultRegion": "main",
+  "description": "Contact form with configurable fields, validation, endpoint, and success/error handling.",
+  "fragments": [
+    "form",
+    "form-field",
+    "submit-button"
+  ],
+  "metadata": {
+    "commonNames": [
+      "ContactForm",
+      "ContactUs",
+      "GetInTouch",
+      "InquiryForm",
+      "ContactSection"
+    ],
+    "confidence": 0.9,
+    "keywords": [
+      "contact",
+      "form",
+      "email",
+      "message",
+      "inquiry",
+      "get in touch",
+      "reach out",
+      "submit",
+      "question"
+    ],
+    "pageLocation": [
+      "main"
+    ],
+    "patterns": [
+      "contact us",
+      "contact form",
+      "contact page",
+      "get in touch",
+      "send message",
+      "inquiry form",
+      "reach out",
+      "contact information",
+      "email us"
+    ],
+    "relatedComponents": [
+      "simple-form"
+    ]
+  },
+  "source": {
+    "canonical": "registry",
+    "hasComponentRegistry": true,
+    "hasSynthesizer": false
+  }
+}

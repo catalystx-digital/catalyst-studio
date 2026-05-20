@@ -1,0 +1,106 @@
+# Dependencies
+node_modules/
+
+# Build outputs (will be built on Vercel)
+.next/
+out/
+dist/
+coverage/
+
+# Development files
+.git/
+.github/
+.husky/
+.storybook/
+storybook-static/
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+tests/
+playwright-report/
+test-results/
+
+# Temporary files
+tmp/
+.cache/
+*.log
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (handled separately)
+.env
+.env.local
+.env.*.local
+.env.local.backup
+
+# Scripts not needed for runtime
+scripts/eval/
+scripts/design-system/
+scripts/generate-head/
+scripts/coverage-analysis.js
+scripts/test-benchmark.js
+
+# Generated head projects
+tmp/head*/
+
+# Large files (keeping tar.gz for sandbox template)
+*.pdf
+*.zip
+
+# Prisma migrations (deploy uses push)
+prisma/migrations/
+
+# Debug files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Benchmark and test data
+benchmark/
+fixtures/
+mocks/
+
+# CI/CD
+.circleci/
+.travis.yml
+Jenkinsfile
+
+# Media cache (use S3 in production)
+.media-cache/
+
+# Temporary test files (in project root only, not subdirectories)
+/*.json.bak
+/check-*.js
+/check-*.ts
+/test-*.js
+/test-*.ts
+/inspect-*.js
+/deep-inspect-*.js
+/final-report.js
+/verify-*.ts
+/query-*.ts
+/find-*.ts
+/fix-*.ts
+/batch*.json
+/*-report.*
+/problematic-*.json
+/cms-*.txt
+/cms-*.html
+/nul

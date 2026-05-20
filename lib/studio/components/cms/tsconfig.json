@@ -1,0 +1,21 @@
+{
+  "extends": "../../../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "allowJs": false,
+    "types": ["node", "react", "react-dom"]
+  },
+  "include": [
+    "./**/*"
+  ],
+  "exclude": [
+    "**/__tests__/**",
+    "**/_tests/**",
+    "**/_docs/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.stories.tsx"
+  ]
+}

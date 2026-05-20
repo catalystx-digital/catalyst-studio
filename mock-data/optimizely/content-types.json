@@ -1,0 +1,344 @@
+{
+  "contentTypes": [
+    {
+      "id": "ct_article",
+      "name": "Article",
+      "description": "Standard article content type with rich text support",
+      "baseType": "Page",
+      "properties": [
+        {
+          "name": "title",
+          "type": "string",
+          "displayName": "Title",
+          "required": true,
+          "maxLength": 200,
+          "helpText": "The main title of the article"
+        },
+        {
+          "name": "slug",
+          "type": "string",
+          "displayName": "URL Slug",
+          "required": true,
+          "pattern": "^[a-z0-9-]+$",
+          "helpText": "URL-friendly version of the title"
+        },
+        {
+          "name": "author",
+          "type": "string",
+          "displayName": "Author",
+          "required": true,
+          "helpText": "Article author name"
+        },
+        {
+          "name": "publishDate",
+          "type": "datetime",
+          "displayName": "Publish Date",
+          "required": true,
+          "defaultValue": "now",
+          "helpText": "When the article should be published"
+        },
+        {
+          "name": "heroImage",
+          "type": "contentReference",
+          "displayName": "Hero Image",
+          "allowedTypes": ["Image"],
+          "required": false,
+          "helpText": "Main article image"
+        },
+        {
+          "name": "summary",
+          "type": "longString",
+          "displayName": "Summary",
+          "required": true,
+          "maxLength": 500,
+          "helpText": "Brief summary for listings and SEO"
+        },
+        {
+          "name": "content",
+          "type": "xhtmlString",
+          "displayName": "Main Content",
+          "required": true,
+          "helpText": "The main article content with rich text formatting"
+        },
+        {
+          "name": "categories",
+          "type": "stringList",
+          "displayName": "Categories",
+          "required": false,
+          "helpText": "Article categories for organization"
+        },
+        {
+          "name": "tags",
+          "type": "stringList",
+          "displayName": "Tags",
+          "required": false,
+          "helpText": "Tags for improved searchability"
+        },
+        {
+          "name": "relatedArticles",
+          "type": "contentReferenceList",
+          "displayName": "Related Articles",
+          "allowedTypes": ["Article"],
+          "required": false,
+          "maxItems": 5,
+          "helpText": "Links to related articles"
+        },
+        {
+          "name": "seoMetadata",
+          "type": "block",
+          "displayName": "SEO Metadata",
+          "blockType": "SEOBlock",
+          "required": false,
+          "helpText": "Search engine optimization settings"
+        }
+      ],
+      "settings": {
+        "availability": {
+          "languages": ["en", "es", "fr"],
+          "channels": ["web", "mobile"]
+        },
+        "versioning": {
+          "enabled": true,
+          "maxVersions": 10
+        },
+        "workflow": {
+          "enabled": true,
+          "states": ["draft", "review", "published", "archived"]
+        }
+      }
+    },
+    {
+      "id": "ct_product",
+      "name": "Product",
+      "description": "E-commerce product with variants and pricing",
+      "baseType": "Page",
+      "properties": [
+        {
+          "name": "productName",
+          "type": "string",
+          "displayName": "Product Name",
+          "required": true,
+          "maxLength": 150,
+          "helpText": "The name of the product"
+        },
+        {
+          "name": "sku",
+          "type": "string",
+          "displayName": "SKU",
+          "required": true,
+          "pattern": "^[A-Z0-9-]+$",
+          "helpText": "Stock Keeping Unit identifier"
+        },
+        {
+          "name": "price",
+          "type": "decimal",
+          "displayName": "Price",
+          "required": true,
+          "min": 0,
+          "precision": 2,
+          "helpText": "Product price in default currency"
+        },
+        {
+          "name": "description",
+          "type": "xhtmlString",
+          "displayName": "Description",
+          "required": true,
+          "helpText": "Detailed product description"
+        },
+        {
+          "name": "images",
+          "type": "contentReferenceList",
+          "displayName": "Product Images",
+          "allowedTypes": ["Image"],
+          "required": true,
+          "minItems": 1,
+          "maxItems": 10,
+          "helpText": "Product image gallery"
+        },
+        {
+          "name": "specifications",
+          "type": "propertyList",
+          "displayName": "Specifications",
+          "required": false,
+          "helpText": "Technical specifications as key-value pairs"
+        },
+        {
+          "name": "inventory",
+          "type": "integer",
+          "displayName": "Stock Quantity",
+          "required": true,
+          "min": 0,
+          "defaultValue": 0,
+          "helpText": "Current inventory level"
+        },
+        {
+          "name": "variants",
+          "type": "blockList",
+          "displayName": "Product Variants",
+          "blockType": "ProductVariant",
+          "required": false,
+          "helpText": "Different versions of the product (size, color, etc.)"
+        }
+      ]
+    },
+    {
+      "id": "ct_landingpage",
+      "name": "LandingPage",
+      "description": "Flexible landing page with content areas",
+      "baseType": "Page",
+      "properties": [
+        {
+          "name": "title",
+          "type": "string",
+          "displayName": "Page Title",
+          "required": true,
+          "helpText": "The main title of the landing page"
+        },
+        {
+          "name": "heroSection",
+          "type": "contentArea",
+          "displayName": "Hero Section",
+          "allowedTypes": ["HeroBlock", "CarouselBlock", "VideoBlock"],
+          "required": false,
+          "helpText": "Top section of the landing page"
+        },
+        {
+          "name": "mainContent",
+          "type": "contentArea",
+          "displayName": "Main Content Area",
+          "allowedTypes": ["TextBlock", "ImageBlock", "CTABlock", "FormBlock"],
+          "required": true,
+          "helpText": "Primary content area with flexible blocks"
+        },
+        {
+          "name": "sidebar",
+          "type": "contentArea",
+          "displayName": "Sidebar",
+          "allowedTypes": ["TextBlock", "PromoBlock", "NavigationBlock"],
+          "required": false,
+          "helpText": "Optional sidebar content"
+        },
+        {
+          "name": "footer",
+          "type": "contentArea",
+          "displayName": "Footer Section",
+          "allowedTypes": ["TextBlock", "LinkListBlock", "NewsletterBlock"],
+          "required": false,
+          "helpText": "Page-specific footer content"
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "blk_seo",
+      "name": "SEOBlock",
+      "description": "SEO metadata block",
+      "properties": [
+        {
+          "name": "metaTitle",
+          "type": "string",
+          "displayName": "Meta Title",
+          "maxLength": 60,
+          "helpText": "Title for search engines"
+        },
+        {
+          "name": "metaDescription",
+          "type": "longString",
+          "displayName": "Meta Description",
+          "maxLength": 160,
+          "helpText": "Description for search engines"
+        },
+        {
+          "name": "metaKeywords",
+          "type": "stringList",
+          "displayName": "Meta Keywords",
+          "helpText": "Keywords for search engines"
+        },
+        {
+          "name": "ogImage",
+          "type": "contentReference",
+          "displayName": "Open Graph Image",
+          "allowedTypes": ["Image"],
+          "helpText": "Image for social media sharing"
+        }
+      ]
+    },
+    {
+      "id": "blk_hero",
+      "name": "HeroBlock",
+      "description": "Hero section with image and text",
+      "properties": [
+        {
+          "name": "heading",
+          "type": "string",
+          "displayName": "Heading",
+          "required": true
+        },
+        {
+          "name": "subheading",
+          "type": "string",
+          "displayName": "Subheading",
+          "required": false
+        },
+        {
+          "name": "backgroundImage",
+          "type": "contentReference",
+          "displayName": "Background Image",
+          "allowedTypes": ["Image"],
+          "required": true
+        },
+        {
+          "name": "ctaButton",
+          "type": "block",
+          "displayName": "Call to Action",
+          "blockType": "CTAButton",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "blk_productvariant",
+      "name": "ProductVariant",
+      "description": "Product variant with specific attributes",
+      "properties": [
+        {
+          "name": "variantName",
+          "type": "string",
+          "displayName": "Variant Name",
+          "required": true
+        },
+        {
+          "name": "variantSKU",
+          "type": "string",
+          "displayName": "Variant SKU",
+          "required": true
+        },
+        {
+          "name": "attributes",
+          "type": "propertyList",
+          "displayName": "Variant Attributes",
+          "helpText": "Size, color, material, etc."
+        },
+        {
+          "name": "priceModifier",
+          "type": "decimal",
+          "displayName": "Price Modifier",
+          "helpText": "Price adjustment for this variant"
+        },
+        {
+          "name": "inventory",
+          "type": "integer",
+          "displayName": "Variant Stock",
+          "min": 0
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2025-01-19T10:00:00Z",
+    "provider": "optimizely",
+    "mockData": true
+  }
+}

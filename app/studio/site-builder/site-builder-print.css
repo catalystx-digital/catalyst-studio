@@ -1,0 +1,248 @@
+/* Glass morphism and visual polish styles */
+.site-builder-canvas {
+  position: relative;
+  background: linear-gradient(135deg, var(--ds-surface, #1a1a2e) 0%, var(--ds-neutral, #0f0f1e) 100%);
+}
+
+.site-builder-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle at 20% 50%,
+    rgba(255, 85, 0, 0.08) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+/* Glass morphism panels - Enhanced */
+.glass-panel {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: linear-gradient(135deg,
+    var(--ds-surface, rgba(31, 41, 55, 0.6)) 0%,
+    var(--ds-neutral, rgba(17, 24, 39, 0.5)) 100%);
+  border: 1px solid var(--ds-neutral, rgba(255, 255, 255, 0.08));
+  box-shadow:
+    var(--ds-shadow-md, 0 8px 32px 0 rgba(0, 0, 0, 0.37)),
+    inset 0 1px 0 0 var(--ds-surface, rgba(255, 255, 255, 0.05));
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.06) 0%, 
+    transparent 60%);
+  pointer-events: none;
+}
+
+.glass-panel:hover {
+  background: linear-gradient(135deg,
+    var(--ds-surface, rgba(31, 41, 55, 0.7)) 0%,
+    var(--ds-neutral, rgba(17, 24, 39, 0.6)) 100%);
+  border-color: var(--ds-neutral, rgba(255, 255, 255, 0.12));
+  box-shadow:
+    var(--ds-shadow-lg, 0 10px 40px 0 rgba(0, 0, 0, 0.45)),
+    inset 0 1px 0 0 var(--ds-surface, rgba(255, 255, 255, 0.08));
+  transform: translateY(-1px);
+}
+
+/* Node card styles - cleaner without excessive transparency */
+.node-card {
+  /* Removed backdrop-filter and excessive transparency */
+  transition: all 0.2s ease-out;
+  position: relative;
+  z-index: 1;
+}
+
+.node-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Override ReactFlow's default node borders */
+.react-flow__node {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.react-flow__node-default {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.react-flow__node-page {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.react-flow__node-folder {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Remove border on selection */
+.react-flow__node.selected {
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.react-flow__node.selected .node-card {
+  /* Selection styles handled in component */
+}
+
+/* Distinct folder node styling */
+.react-flow__node-folder .node-card {
+  /* Styles handled in component */
+}
+
+.react-flow__node-folder .node-card:hover {
+  /* Hover styles handled in component */
+}
+
+/* Page node styling */
+.react-flow__node-page .node-card {
+  /* Styles handled in component */
+}
+
+.react-flow__node-page .node-card:hover {
+  /* Hover styles handled in component */
+}
+
+/* Collapsed node indicator */
+.node-collapsed::after {
+  content: '...';
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 18px;
+  letter-spacing: 4px;
+}
+
+/* Smooth transitions for all interactive elements */
+button, .button, [role="button"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced zoom controls */
+.zoom-control {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Cursor states for panning */
+.pan-mode {
+  cursor: grab !important;
+}
+
+.pan-mode:active {
+  cursor: grabbing !important;
+}
+
+/* Section drag and drop visual feedback */
+.dragging-section {
+  opacity: 0.5;
+  transform: scale(1.05);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  position: relative;
+}
+
+.drag-over {
+  background: rgba(255, 85, 0, 0.1);
+  border-color: rgba(255, 85, 0, 0.3);
+}
+
+/* Inline editing styles */
+.inline-editing {
+  outline: 2px solid rgba(255, 85, 0, 0.5);
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+/* Status color coding with glow effect */
+.status-published {
+  box-shadow:
+    0 0 20px var(--ds-accent, rgba(16, 185, 129, 0.15)),
+    inset 0 0 10px var(--ds-accent, rgba(16, 185, 129, 0.05));
+}
+
+.status-draft {
+  box-shadow:
+    0 0 20px var(--ds-secondary, rgba(245, 158, 11, 0.15)),
+    inset 0 0 10px var(--ds-secondary, rgba(245, 158, 11, 0.05));
+}
+
+.status-archived {
+  box-shadow:
+    0 0 20px var(--ds-neutral, rgba(107, 114, 128, 0.15)),
+    inset 0 0 10px var(--ds-neutral, rgba(107, 114, 128, 0.05));
+}
+
+/* Minimap enhancement */
+.react-flow__minimap {
+  background: var(--ds-surface, rgba(0, 0, 0, 0.6)) !important;
+  border: 1px solid var(--ds-neutral, rgba(255, 255, 255, 0.1)) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Controls enhancement */
+.react-flow__controls {
+  background: var(--ds-surface, rgba(255, 255, 255, 0.05)) !important;
+  border: 1px solid var(--ds-neutral, rgba(255, 255, 255, 0.1)) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--ds-shadow-sm, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+  z-index: 5 !important;
+}
+
+/* Ensure nodes can be interacted with properly */
+.react-flow__node {
+  z-index: 2 !important;
+}
+
+.react-flow__node.selected {
+  z-index: 3 !important;
+}
+
+/* Ensure panels don't block node interactions */
+.react-flow__panel {
+  z-index: 4 !important;
+}
+
+.react-flow__controls button {
+  background: var(--ds-surface, rgba(255, 255, 255, 0.05)) !important;
+  border: 1px solid var(--ds-neutral, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--ds-surface-foreground, rgba(255, 255, 255, 0.8)) !important;
+}
+
+.react-flow__controls button:hover {
+  background: var(--ds-surface, rgba(255, 255, 255, 0.1)) !important;
+  border-color: var(--ds-neutral, rgba(255, 255, 255, 0.2)) !important;
+  color: var(--ds-surface-foreground, white) !important;
+}
+
+/* Animate pulse slow for background */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Print styles removed for this view by request */
