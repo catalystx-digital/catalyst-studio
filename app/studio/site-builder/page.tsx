@@ -833,10 +833,10 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     setHistoryIndex(newHistory.length - 1)
   }, [nodes, edges, history, historyIndex, computeStateHash])
 
-  // EC-01: Handle missing websiteId - redirect to website selection
+  // EC-01: Handle missing websiteId - redirect to dashboard selection
   useEffect(() => {
     if (!websiteId) {
-      router.push('/studio/websites?message=select-website')
+      router.push('/dashboard?message=select-website')
     }
   }, [websiteId, router])
 
@@ -2506,7 +2506,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
             {isNotFoundError && (
               <Button
                 variant="default"
-                onClick={() => router.push('/studio/websites')}
+                onClick={() => router.push('/dashboard')}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Select Website
