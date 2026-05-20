@@ -6,7 +6,7 @@ import { useChatPersistence } from '@/hooks/use-chat-persistence';
 import { useChatTranscript } from '@/hooks/use-chat-transcript';
 import { useWebsiteId } from '@/lib/hooks/use-website-id';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 
 interface ChatWithPersistenceProps {
   children: ReactNode;

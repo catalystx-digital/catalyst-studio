@@ -14,7 +14,6 @@ datasource db {
 model Account {
   id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                    String
-  supabaseOrgId           String?              @unique @db.Uuid
   plan                    String               @default("free")
   limits                  Json?
   createdAt               DateTime             @default(now())
@@ -98,13 +97,38 @@ model AccountApiKeyEvent {
 }
 
 model User {
-  id          String              @id @db.Uuid
-  email       String?
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String              @unique
   name        String?
+  passwordHash String
+  passwordSalt String
+  passwordParams Json
+  emailVerifiedAt DateTime?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  sessions    AuthSession[]
   memberships AccountMembership[]
   systemAdmin SystemAdmin?
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String    @db.Uuid
+  sessionTokenHash String    @unique
+  activeAccountId  String    @db.Uuid
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastSeenAt       DateTime?
+  userAgent        String?
+  ipAddress        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([activeAccountId])
 }
 
 model AccountMembership {

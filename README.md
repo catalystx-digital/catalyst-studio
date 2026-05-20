@@ -9,7 +9,7 @@ Catalyst Studio is an open-source AI-assisted website and CMS studio built with 
 - CMS component library and component registry generation
 - Universal content and page structure models
 - Headless preview and generated-head tooling
-- Prisma-backed persistence with Supabase-compatible configuration
+- Prisma-backed persistence with app-owned authentication
 
 ## Getting Started
 
@@ -17,7 +17,7 @@ Requirements:
 
 - Node.js 20 or newer
 - npm
-- PostgreSQL, or a Supabase project with Postgres enabled
+- PostgreSQL for local development, or Neon Postgres for hosted deployments
 
 ```bash
 npm ci

@@ -4,7 +4,7 @@
  * Allows system admins to impersonate users for support purposes.
  */
 
-import { PrismaClient, AuditAction } from '@/lib/generated/prisma';
+import { AuditAction } from '@/lib/generated/prisma';
 import { ApiError } from '@/lib/api/errors';
 import {
   AuditService,
@@ -39,7 +39,7 @@ export interface StartImpersonationInput {
 export class ImpersonationService {
   private auditService: AuditService;
 
-  constructor(private prisma: PrismaClient) {
+  constructor(private prisma: any) {
     this.auditService = new AuditService(prisma);
   }
 
@@ -283,7 +283,7 @@ export class ImpersonationService {
       orderBy: { grantedAt: 'desc' },
     });
 
-    return admins.map((admin) => ({
+    return admins.map((admin: any) => ({
       userId: admin.userId,
       email: admin.user.email,
       name: admin.user.name,

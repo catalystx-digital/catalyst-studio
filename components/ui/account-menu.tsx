@@ -15,7 +15,7 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useSupabaseClient } from '@/lib/supabase/hooks';
+import { useAuthActions, useUser } from '@/lib/auth/hooks';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -40,15 +40,15 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export function AccountMenu() {
   const user = useUser();
-  const supabase = useSupabaseClient();
+  const { signOut } = useAuthActions();
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const handleSignOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await signOut();
     queryClient.clear();
     router.replace('/sign-in');
-  }, [queryClient, router, supabase]);
+  }, [queryClient, router, signOut]);
 
   const handleOpenSettings = useCallback(() => {
     router.push('/studio/settings');

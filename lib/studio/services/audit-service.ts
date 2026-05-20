@@ -4,7 +4,7 @@
  * Logs all RBAC-related actions for compliance and troubleshooting.
  */
 
-import { PrismaClient, AuditAction, Prisma } from '@/lib/generated/prisma';
+import { AuditAction, Prisma } from '@/lib/generated/prisma';
 import { NextRequest } from 'next/server';
 
 // =============================================================================
@@ -34,7 +34,7 @@ export interface AuditLogOptions {
 // =============================================================================
 
 export class AuditService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: any) {}
 
   /**
    * Log an audit event

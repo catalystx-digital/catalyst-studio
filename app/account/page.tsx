@@ -1,6 +1,6 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 import type { AccountUsageSummary, AccountQuotaItem } from '@/lib/api/hooks/use-account-usage';
 import type { QuotaKind } from '@/lib/usage/limits';
 

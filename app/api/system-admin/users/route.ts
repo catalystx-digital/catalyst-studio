@@ -99,12 +99,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       data: {
-        users: users.map((user) => ({
+        users: users.map((user: any) => ({
           id: user.id,
           email: user.email,
           name: user.name,
           createdAt: user.createdAt.toISOString(),
-          accounts: user.memberships.map((m) => ({
+          accounts: user.memberships.map((m: any) => ({
             accountId: m.accountId,
             accountName: m.account.name,
             role: m.role,

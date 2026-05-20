@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 import { AIPromptProcessor } from '@/lib/services/ai-prompt-processor';
 import { useImportTrackerStore } from '@/lib/studio/stores/import-tracker-store';
 import type { ImportJobSnapshot } from '@/lib/services/ai-prompt-processor';

@@ -242,7 +242,7 @@ export class UcsGraphqlHeadDataProvider implements HeadDataProvider {
       const endpoint = new URL(options.graphql.endpoint ?? '')
       const client = new ApiAccessClient({
         baseUrl: endpoint.origin,
-        supabaseUserHeader: options.graphql.apiAccess?.encodedUser ?? null,
+        authUserHeader: options.graphql.apiAccess?.encodedUser ?? null,
         cookies: options.graphql.apiAccess?.cookies ?? null
       })
       this.apiKeyManager = new ApiKeyManager(client, {

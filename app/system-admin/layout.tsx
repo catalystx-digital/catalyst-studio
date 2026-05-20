@@ -1,7 +1,8 @@
-import { headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { readUserFromHeaders } from '@/lib/supabase/user-header';
 import { prisma } from '@/lib/prisma';
+import { AUTH_SESSION_COOKIE } from '@/lib/auth/session-cookie';
+import { getSessionByCookieValue } from '@/lib/auth/session-store';
 
 /**
  * System Admin Layout with Server-Side Authorization
@@ -15,17 +16,17 @@ export default async function SystemAdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const headersList = await headers();
-  const user = readUserFromHeaders(headersList);
+  const cookieStore = await cookies();
+  const session = await getSessionByCookieValue(cookieStore.get(AUTH_SESSION_COOKIE)?.value ?? null);
 
   // No user = redirect to sign-in
-  if (!user) {
+  if (!session) {
     redirect('/sign-in?redirect_url=/system-admin');
   }
 
   // Check if user is an active system admin
   const systemAdmin = await prisma.systemAdmin.findUnique({
-    where: { userId: user.id },
+    where: { userId: session.userId },
     select: { isActive: true },
   });
 

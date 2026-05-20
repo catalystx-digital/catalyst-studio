@@ -4,7 +4,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Plus, Upload, X, Settings, Users, LogOut, Sparkles } from 'lucide-react';
-import { useUser, useSupabaseClient } from '@/lib/supabase/hooks';
+import { useAuthActions, useUser } from '@/lib/auth/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,7 @@ export function DashboardTopBar({
 }: DashboardTopBarProps) {
   const router = useRouter();
   const user = useUser();
-  const supabase = useSupabaseClient();
+  const { signOut } = useAuthActions();
   const queryClient = useQueryClient();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -64,10 +64,10 @@ export function DashboardTopBar({
   }, [searchQuery]);
 
   const handleSignOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await signOut();
     queryClient.clear();
     router.replace('/sign-in');
-  }, [queryClient, router, supabase]);
+  }, [queryClient, router, signOut]);
 
   const handleClearSearch = useCallback(() => {
     setLocalSearch('');

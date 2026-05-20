@@ -10,7 +10,6 @@ import { generateHeadProject } from './core/generator'
 import type { DataSourceKind, GeneratorOptions } from './core/types'
 import { ensureInstallCache } from './utils/install-cache'
 import type { InstallCacheResult } from './utils/install-cache'
-import { encodeSerializedUser, type SerializedSupabaseUser } from '@/lib/supabase/user-header'
 import { ensureCliEnvLoaded } from './utils/env'
 import type { ApiKeyEvent } from './utils/api-key-manager'
 
@@ -109,44 +108,39 @@ function resolveGraphqlEndpoint(value?: string): string {
   return DEFAULT_GRAPHQL_ENDPOINT
 }
 
-async function readSupabaseUserFromFile(filePath: string): Promise<string> {
+async function readAuthUserFromFile(filePath: string): Promise<string> {
   const absolutePath = resolvePath(process.cwd(), filePath)
   if (!existsSync(absolutePath)) {
-    throw new Error(`Supabase user file not found at ${absolutePath}`)
+    throw new Error(`Auth user file not found at ${absolutePath}`)
   }
   const contents = await readFile(absolutePath, 'utf-8')
   return contents
 }
 
-function encodeSupabaseUserPayload(raw: string): string {
+function encodeAuthUserPayload(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) {
-    throw new Error('Supabase user payload is empty')
+    throw new Error('Auth user payload is empty')
   }
   if (trimmed.startsWith('{')) {
     try {
-      const parsed = JSON.parse(trimmed) as SerializedSupabaseUser
-      const encoded = encodeSerializedUser(parsed)
-      if (!encoded) {
-        throw new Error('Failed to encode Supabase user payload')
-      }
-      return encoded
+      return encodeURIComponent(JSON.stringify(JSON.parse(trimmed)))
     } catch (error) {
-      throw new Error(`Invalid Supabase user JSON payload: ${(error as Error).message}`)
+      throw new Error(`Invalid auth user JSON payload: ${(error as Error).message}`)
     }
   }
   return trimmed
 }
 
-async function resolveSupabaseUserHeader(options: CliOptions): Promise<string | null> {
+async function resolveAuthUserHeader(options: CliOptions): Promise<string | null> {
   if (options.apiAccessUserFile) {
-    const filePayload = await readSupabaseUserFromFile(options.apiAccessUserFile)
-    return encodeSupabaseUserPayload(filePayload)
+    const filePayload = await readAuthUserFromFile(options.apiAccessUserFile)
+    return encodeAuthUserPayload(filePayload)
   }
 
-  const envPayload = process.env.CATALYST_SUPABASE_USER
+  const envPayload = process.env.CATALYST_AUTH_USER
   if (typeof envPayload === 'string' && envPayload.trim().length > 0) {
-    return encodeSupabaseUserPayload(envPayload)
+    return encodeAuthUserPayload(envPayload)
   }
   return null
 }
@@ -211,7 +205,7 @@ program
   .option('--auto-manage-keys', 'Automatically manage website-scoped API keys via API Access endpoints', false)
   .option('--api-key-label <label>', 'Custom label to apply when minting API keys')
   .option('--persist-key-path <path>', 'Persist minted API keys to a file during the run (0600 permissions)')
-  .option('--api-access-user-file <path>', 'Path to a serialized Supabase user payload used for API Access authentication')
+  .option('--api-access-user-file <path>', 'Path to a serialized auth user payload used for API Access authentication')
   .option('--api-access-cookies <cookie>', 'Cookie header value to forward to API Access endpoints')
   .option('--graphql-max-retries <count>', 'Maximum GraphQL retry attempts (default 3)', value => parseInt(value, 10))
   .option('--include-static-snapshot', 'Include data/site.ts static snapshot for debugging (default: false for UCS)', false)
@@ -292,7 +286,7 @@ async function run(): Promise<void> {
   }
 
   const websiteId = options.websiteId
-  let supabaseUserHeader: string | null = null
+  let authUserHeader: string | null = null
   const graphqlMaxRetries = sanitizeRetryCount(options.graphqlMaxRetries)
   const apiKeyEvents: ApiKeyEvent[] = []
   const manualApiKey =
@@ -305,7 +299,7 @@ async function run(): Promise<void> {
     typeof options.persistKeyPath === 'string' && options.persistKeyPath.trim()
       ? resolvePath(process.cwd(), options.persistKeyPath)
       : undefined
-  const apiAccessCookies = options.apiAccessCookies?.trim() || process.env.CATALYST_SUPABASE_COOKIES?.trim()
+  const apiAccessCookies = options.apiAccessCookies?.trim() || process.env.CATALYST_AUTH_COOKIES?.trim()
 
   if (dataSource === 'graphql') {
     if (!websiteId) {
@@ -317,10 +311,10 @@ async function run(): Promise<void> {
     }
 
     if (autoManageKeys) {
-      supabaseUserHeader = await resolveSupabaseUserHeader(options)
-      if (!supabaseUserHeader) {
+      authUserHeader = await resolveAuthUserHeader(options)
+      if (!authUserHeader) {
         throw new Error(
-          'Auto key management requires a serialized Supabase user payload via --api-access-user-file or CATALYST_SUPABASE_USER'
+          'Auto key management requires a serialized auth user payload via --api-access-user-file or CATALYST_AUTH_USER'
         )
       }
     }
@@ -419,9 +413,9 @@ async function run(): Promise<void> {
             maxRetries: graphqlMaxRetries,
             onApiKeyEvent: event => apiKeyEvents.push(event),
             apiAccess:
-              supabaseUserHeader || apiAccessCookies
+              authUserHeader || apiAccessCookies
                 ? {
-                    encodedUser: supabaseUserHeader ?? undefined,
+                    encodedUser: authUserHeader ?? undefined,
                     cookies: apiAccessCookies ?? undefined
                   }
                 : undefined

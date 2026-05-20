@@ -1,120 +1,96 @@
 import { NextRequest } from 'next/server';
 import { ErrorHandlers } from '@/lib/api/errors';
 import { prisma } from '@/lib/prisma';
-import { getRouteSupabaseClient } from '@/lib/supabase/server';
 import {
-  ensureAccountForUser,
-  getAccountIdForUser,
-} from '@/lib/auth/account';
-import {
-  SUPABASE_USER_COOKIE,
-  SUPABASE_USER_HEADER,
-  decodeSerializedUser,
-  readUserFromCookieHeader,
-  toSupabaseUser,
-} from '@/lib/supabase/user-header';
-import {
-  getCachedAuthContext,
-  storeAuthContext,
-} from '@/lib/auth/auth-context-cache';
+  AUTH_BYPASS_USER_HEADER,
+  AUTH_SESSION_COOKIE,
+  hashSessionToken,
+  verifySessionCookie,
+} from '@/lib/auth/session-cookie';
+import { readCookieValue } from '@/lib/auth/session-store';
+import { getCachedAuthContext, storeAuthContext } from '@/lib/auth/auth-context-cache';
 
-const HEADER_BYPASS_ENABLED = process.env.ALLOW_SUPABASE_HEADER_BYPASS === 'true';
+const HEADER_BYPASS_ENABLED =
+  process.env.ALLOW_AUTH_HEADER_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
 
 export type AuthContext = {
   accountId: string;
   userId?: string;
 };
 
-function extractSerializedUser(req?: Request | NextRequest): ReturnType<typeof decodeSerializedUser> {
-  if (!req) {
+function readBypassUser(req?: Request | NextRequest): AuthContext | null {
+  if (!HEADER_BYPASS_ENABLED || !req) {
     return null;
   }
 
-  const headerValue = req.headers?.get?.(SUPABASE_USER_HEADER) ?? null;
-  const headerUser = decodeSerializedUser(headerValue);
-  if (headerUser) {
-    return headerUser;
+  const value = req.headers?.get?.(AUTH_BYPASS_USER_HEADER);
+  if (!value) {
+    return null;
   }
 
-  if (req instanceof NextRequest) {
-    const cookieValue = req.cookies.get(SUPABASE_USER_COOKIE)?.value ?? null;
-    return decodeSerializedUser(cookieValue);
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value)) as { id?: string; accountId?: string };
+    if (parsed.id && parsed.accountId) {
+      return { userId: parsed.id, accountId: parsed.accountId };
+    }
+  } catch {
+    return null;
   }
 
-  const cookieHeader = req.headers?.get?.('cookie') ?? null;
-  return readUserFromCookieHeader(cookieHeader);
+  return null;
 }
 
 export async function getAuthContext(
   req?: Request | NextRequest,
   options?: { requireFresh?: boolean },
 ): Promise<AuthContext> {
-  const forceFresh = options?.requireFresh ?? false;
-
-  if (!forceFresh) {
-    const serializedUser = extractSerializedUser(req);
-    if (serializedUser) {
-      const user = toSupabaseUser(serializedUser);
-
-      // 1. Check cache first
-      const cached = getCachedAuthContext(user.id);
-      if (cached) {
-        return cached;
-      }
-
-      // 2. Try read-only lookup (single query)
-      const existingAccountId = await getAccountIdForUser(prisma, user.id);
-      if (existingAccountId) {
-        storeAuthContext(user.id, existingAccountId);
-        return { accountId: existingAccountId, userId: user.id };
-      }
-
-      // 3. Fallback: ensure account exists (first-time user)
-      const accountId = await ensureAccountForUser(prisma, user);
-      storeAuthContext(user.id, accountId);
-      return { accountId, userId: user.id };
-    }
+  const bypass = readBypassUser(req);
+  if (bypass) {
+    return bypass;
   }
 
-  const supabase = await getRouteSupabaseClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) {
+  const cookieValue = readCookieValue(req, AUTH_SESSION_COOKIE);
+  const token = verifySessionCookie(cookieValue);
+  if (!token) {
     throw ErrorHandlers.unauthorized('Sign in required');
   }
 
-  if (!user) {
+  const sessionTokenHash = hashSessionToken(token);
+  const session = await prisma.authSession.findUnique({
+    where: { sessionTokenHash },
+    include: { user: true },
+  });
+
+  if (!session || session.revokedAt || session.expiresAt <= new Date()) {
     throw ErrorHandlers.unauthorized('Sign in required');
   }
 
-  // Check cache first (for fresh auth too, unless forceFresh)
-  if (!forceFresh) {
-    const cached = getCachedAuthContext(user.id);
-    if (cached) {
+  if (!options?.requireFresh) {
+    const cached = getCachedAuthContext(session.userId);
+    if (cached && cached.accountId === session.activeAccountId) {
       return cached;
     }
   }
 
-  // Try read-only lookup first
-  const existingAccountId = await getAccountIdForUser(prisma, user.id);
-  if (existingAccountId) {
-    storeAuthContext(user.id, existingAccountId);
-    return { accountId: existingAccountId, userId: user.id };
+  const membership = await prisma.accountMembership.findUnique({
+    where: {
+      accountId_userId: {
+        accountId: session.activeAccountId,
+        userId: session.userId,
+      },
+    },
+    select: { accountId: true },
+  });
+
+  if (!membership) {
+    throw ErrorHandlers.unauthorized('Sign in required');
   }
 
-  // Fallback: ensure account (first-time user)
-  const accountId = await ensureAccountForUser(prisma, user);
-  storeAuthContext(user.id, accountId);
-  return { accountId, userId: user.id };
+  const context = { accountId: membership.accountId, userId: session.userId };
+  storeAuthContext(session.userId, membership.accountId);
+  return context;
 }
 
 export function requireFreshAuthContext(req?: Request | NextRequest): Promise<AuthContext> {
-  if (HEADER_BYPASS_ENABLED) {
-    return getAuthContext(req);
-  }
-
   return getAuthContext(req, { requireFresh: true });
 }

@@ -120,7 +120,7 @@ export class ApiKeyManager {
     } catch (error) {
       if (error instanceof ApiAccessClientError) {
         throw new Error(
-          `API key automation failed (${error.status} ${error.code ?? ''}). Re-run with --api-key or refresh Supabase auth.`
+          `API key automation failed (${error.status} ${error.code ?? ''}). Re-run with --api-key or refresh app auth.`
         )
       }
       throw error

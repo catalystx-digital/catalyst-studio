@@ -46,7 +46,7 @@ jest.mock('@/lib/hooks/use-website-id', () => ({
   useWebsiteId: jest.fn(() => 'site-mock'),
 }));
 
-jest.mock('@/lib/supabase/hooks', () => ({
+jest.mock('@/lib/auth/hooks', () => ({
   useUser: jest.fn(() => ({ id: 'user-1' })),
 }));
 

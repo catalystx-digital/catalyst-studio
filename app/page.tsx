@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 import {
   LandingHeader,
   HeroSection,

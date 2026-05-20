@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { createBrowserClient } from '@/lib/supabase/client';
+import { useSession, useUser } from '@/lib/auth/hooks';
 import {
   Permission,
   ROLE_PERMISSIONS,
@@ -68,6 +68,8 @@ export function usePermissions(): UsePermissionsReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissionInfo, setPermissionInfo] = useState<UserPermissionInfo | null>(null);
+  const user = useUser();
+  const session = useSession();
 
   // Fetch user's role and permissions from the server
   const fetchPermissions = useCallback(async () => {
@@ -75,9 +77,6 @@ export function usePermissions(): UsePermissionsReturn {
     setError(null);
 
     try {
-      const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
       if (!user) {
         setPermissionInfo(null);
         setIsLoading(false);
@@ -85,7 +84,8 @@ export function usePermissions(): UsePermissionsReturn {
       }
 
       // Fetch membership info from API
-      const res = await fetch(`/api/studio/accounts/${user.id}/members/me`);
+      const accountId = session?.activeAccountId ?? user.id;
+      const res = await fetch(`/api/studio/accounts/${accountId}/members/me`);
 
       if (!res.ok) {
         // If 404, user might not have a membership yet - default to admin for owner account
@@ -123,7 +123,7 @@ export function usePermissions(): UsePermissionsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [session?.activeAccountId, user]);
 
   // Fetch on mount
   useEffect(() => {

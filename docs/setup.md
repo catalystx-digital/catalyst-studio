@@ -6,7 +6,7 @@ This guide gets Catalyst Studio running locally from a fresh clone.
 
 - Node.js 20 or newer
 - npm, using the checked-in `package-lock.json`
-- PostgreSQL 14 or newer, or a Supabase project with Postgres enabled
+- PostgreSQL 14 or newer for local development, or Neon Postgres for hosted deployments
 - Optional: an OpenRouter API key for AI-assisted import and generation
 
 ## 1. Install Dependencies
@@ -28,16 +28,11 @@ Update at least these values in `.env.local`:
 ```bash
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/catalyst_studio"
 DIRECT_URL="postgresql://postgres:postgres@localhost:5432/catalyst_studio"
-NEXTAUTH_SECRET="replace-with-a-random-secret"
+AUTH_SECRET="replace-with-a-random-secret"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
-For Supabase, use the pooled connection string for `DATABASE_URL` and the direct connection string for `DIRECT_URL`. Also set:
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL="https://your-project-id.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
-```
+For Neon, use the pooled connection string for `DATABASE_URL` and the direct non-pooler connection string for `DIRECT_URL`.
 
 AI features require:
 
@@ -84,6 +79,12 @@ Open:
 
 ```text
 http://localhost:3000/studio/site-builder
+```
+
+Create the first user at:
+
+```text
+http://localhost:3000/sign-up
 ```
 
 ## Verification

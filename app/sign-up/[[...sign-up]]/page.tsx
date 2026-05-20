@@ -7,13 +7,13 @@ import { Loader2, Sparkles } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useSupabaseClient, useUser } from "@/lib/supabase/hooks";
+import { useAuthActions, useUser } from "@/lib/auth/hooks";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const signUpSchema = z
   .object({
@@ -30,7 +30,7 @@ const signUpSchema = z
 type SignUpValues = z.infer<typeof signUpSchema>;
 
 export default function SignUpPage() {
-  const supabase = useSupabaseClient();
+  const { signUp } = useAuthActions();
   const user = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,7 +39,6 @@ export default function SignUpPage() {
   const prefilledEmail = searchParams?.get("email") ?? "";
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [confirmation, setConfirmation] = useState(false);
 
   const form = useForm<SignUpValues>({
     resolver: zodResolver(signUpSchema),
@@ -60,31 +59,16 @@ export default function SignUpPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
     setPending(true);
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: values.email,
-      password: values.password,
-      options: {
-        data: {
-          full_name: values.name,
-        },
-      },
-    });
-
-    if (signUpError) {
-      setError(signUpError.message);
+    try {
+      await signUp({ name: values.name, email: values.email, password: values.password });
+    } catch (signUpError) {
+      setError(signUpError instanceof Error ? signUpError.message : "Unable to create account");
       setPending(false);
       return;
     }
 
-    if (data.session) {
-      setPending(false);
-      router.replace(redirect);
-      return;
-    }
-
-    setConfirmation(true);
     setPending(false);
-    form.reset({ name: values.name, email: values.email, password: "", confirmPassword: "" });
+    router.replace(redirect);
   });
 
   return (
@@ -109,9 +93,9 @@ export default function SignUpPage() {
               </p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
-              <p className="font-medium text-white">Supabase powered</p>
+              <p className="font-medium text-white">Self-host ready</p>
               <p className="mt-1 text-xs text-white/60">
-                Secure authentication, row level access, and instant database migrations out of the box.
+                App-owned authentication and Prisma migrations keep setup portable.
               </p>
             </div>
           </div>
@@ -124,14 +108,6 @@ export default function SignUpPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {confirmation ? (
-              <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
-                <AlertTitle>Check your inbox</AlertTitle>
-                <AlertDescription>
-                  We&apos;ve sent a confirmation email to <span className="font-semibold">{form.getValues("email")}</span>. Follow the link to verify your account and sign in.
-                </AlertDescription>
-              </Alert>
-            ) : null}
             {error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

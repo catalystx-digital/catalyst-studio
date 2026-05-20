@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 import { WebsiteCreator } from '../website-creator';
 import { AIPromptProcessor } from '@/lib/services/ai-prompt-processor';
 import { useToast } from '@/components/ui/use-toast';
@@ -14,13 +14,13 @@ import { adoptDashboardChatSession, createPromptIdempotencyKey, getDashboardSess
 import { monitoring } from '@/lib/monitoring';
 
 jest.mock('next/navigation');
-jest.mock('@/lib/supabase/hooks', () => ({
+jest.mock('@/lib/auth/hooks', () => ({
   useUser: jest.fn(),
-  useSupabaseClient: jest.fn(() => ({
-    auth: {
-      signInWithPassword: jest.fn(),
-      signUp: jest.fn(),
-    },
+  useAuthActions: jest.fn(() => ({
+    signIn: jest.fn(),
+    signUp: jest.fn(),
+    signOut: jest.fn(),
+    refreshSession: jest.fn(),
   })),
 }));
 jest.mock('@/lib/services/ai-prompt-processor');

@@ -4,7 +4,7 @@ import { CatalystBranding } from "@/components/catalyst-branding";
 import { headers } from "next/headers";
 import { Providers } from "@/components/providers";
 import { QueryProvider } from "@/lib/cms-export/query-provider";
-import { SupabaseProvider } from "@/lib/supabase/provider";
+import { AuthProvider } from "@/lib/auth/provider";
 import { AccountMenu } from "@/components/ui/account-menu";
 // HelpMenu removed - consolidated into AccountMenu (DASH-001 fix)
 import { DesignSystemProvider } from "@/lib/studio/design-system";
@@ -108,7 +108,7 @@ export default async function RootLayout({
           Skip to main content
         </a>
         <QueryProvider>
-          <SupabaseProvider initialSession={null}>
+          <AuthProvider>
             {isAuthPage ? (
               <main id="main-content">{children}</main>
             ) : (
@@ -127,7 +127,7 @@ export default async function RootLayout({
                 </DesignSystemProvider>
               </Providers>
             )}
-          </SupabaseProvider>
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

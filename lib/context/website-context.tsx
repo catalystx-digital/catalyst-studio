@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 import { useWebsite, useUpdateWebsite, useDeleteWebsite, DeleteWebsiteResult } from '@/lib/api/hooks/use-websites';
 import { Website, UpdateWebsiteRequest } from '@/types/api';
 

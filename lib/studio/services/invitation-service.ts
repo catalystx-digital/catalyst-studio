@@ -178,7 +178,7 @@ export class InvitationService {
     // Get invitation with details for response
     const invitationWithDetails = await this.getById(accountId, invitation.id);
 
-    // Generate action link (this will be the Supabase invite URL in production)
+    // Generate action link for the app-owned invitation flow.
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
     const actionLink = `${baseUrl}/invite/accept?token=${token}`;
 

@@ -142,7 +142,7 @@ function addOriginPatterns(
 }
 
 export interface CollectRemoteImagePatternsOptions {
-  /** Optional media storage base URL (e.g., Supabase storage URL) */
+  /** Optional media storage base URL */
   mediaStorageUrl?: string
 }
 
@@ -160,7 +160,7 @@ export function collectRemoteImagePatterns(
     }
   }
 
-  // Add media storage URL hostname (e.g., Supabase storage)
+  // Add media storage URL hostname
   if (options.mediaStorageUrl) {
     try {
       const url = new URL(options.mediaStorageUrl)

@@ -889,7 +889,7 @@ describe('normalizeComponentContent through extractComponentProps', () => {
           href: '/home',
           src: {
             mediaId: 'nav-logo-asset',
-            signedUrl: 'https://supabasecdn.example.com/object/sign/logos/nav-logo-asset.png',
+            signedUrl: 'https://cdn.example.com/object/sign/logos/nav-logo-asset.png',
             originalUrl: 'https://cdn.example.com/assets/nav-logo.svg'
           }
         }
@@ -901,7 +901,7 @@ describe('normalizeComponentContent through extractComponentProps', () => {
     expect(props.content?.logo).toEqual(
       expect.objectContaining({
         mediaId: 'nav-logo-asset',
-        src: 'https://supabasecdn.example.com/object/sign/logos/nav-logo-asset.png',
+        src: 'https://cdn.example.com/object/sign/logos/nav-logo-asset.png',
         originalUrl: 'https://cdn.example.com/assets/nav-logo.svg',
         href: '/home'
       })

@@ -7,6 +7,7 @@ import { createStory184Components } from './story-18.4-components'
 import { createSampleWebsites } from './basic/sample-websites'
 import { createImportTestData } from './basic/import-test-data'
 import { performance } from 'perf_hooks'
+import { hashPassword } from '../../lib/auth/password'
 
 const prisma = new PrismaClient()
 
@@ -283,16 +284,23 @@ async function ensureSeedAccount() {
     }
   })
 
+  const seedPassword = await hashPassword('SeedUser!234')
   const user = await prisma.user.upsert({
     where: { id: SEED_USER_ID },
     update: {
       name: 'Seed User',
-      email: 'seed@example.com'
+      email: 'seed@example.com',
+      passwordHash: seedPassword.passwordHash,
+      passwordSalt: seedPassword.passwordSalt,
+      passwordParams: seedPassword.passwordParams
     },
     create: {
       id: SEED_USER_ID,
       name: 'Seed User',
-      email: 'seed@example.com'
+      email: 'seed@example.com',
+      passwordHash: seedPassword.passwordHash,
+      passwordSalt: seedPassword.passwordSalt,
+      passwordParams: seedPassword.passwordParams
     }
   })
 
@@ -608,4 +616,3 @@ if (require.main === module) {
 }
 
 export { seed, createTestWebsite }
-

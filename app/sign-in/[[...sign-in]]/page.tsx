@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useSupabaseClient, useUser } from "@/lib/supabase/hooks";
+import { useAuthActions, useUser } from "@/lib/auth/hooks";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,7 @@ const signInSchema = z.object({
 type SignInValues = z.infer<typeof signInSchema>;
 
 export default function SignInPage() {
-  const supabase = useSupabaseClient();
+  const { signIn } = useAuthActions();
   const user = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,15 +49,10 @@ export default function SignInPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
     setPending(true);
-    const {
-      error: signInError,
-    } = await supabase.auth.signInWithPassword({
-      email: values.email,
-      password: values.password,
-    });
-
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      await signIn({ email: values.email, password: values.password });
+    } catch (signInError) {
+      setError(signInError instanceof Error ? signInError.message : "Invalid email or password");
       setPending(false);
       return;
     }

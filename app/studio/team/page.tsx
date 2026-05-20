@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Plus, Users, Mail, RefreshCw } from 'lucide-react';
-import { createBrowserClient } from '@/lib/supabase/client';
+import { useSession, useUser } from '@/lib/auth/hooks';
 import { useWebsiteContext } from '@/lib/context/website-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,8 +43,8 @@ export const dynamic = 'force-dynamic';
 export default function StudioTeamManagementPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const websiteId = searchParams.get('websiteId');
-  const context = searchParams.get('context');
+  const websiteId = searchParams?.get('websiteId');
+  const context = searchParams?.get('context');
 
   // Determine if we're in account-wide mode
   const isAccountWide = context === 'account' || !websiteId;
@@ -64,6 +64,8 @@ export default function StudioTeamManagementPage() {
 
   const [memberToEdit, setMemberToEdit] = useState<MemberToEdit | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const user = useUser();
+  const session = useSession();
 
   // Get website from context (provides name for display)
   const { website: contextWebsite } = useWebsiteContext();
@@ -128,23 +130,10 @@ export default function StudioTeamManagementPage() {
     }
   }, [accountId]);
 
-  // Initial load
   useEffect(() => {
-    const loadAuthInfo = async () => {
-      try {
-        const supabase = createBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setCurrentUserId(user.id);
-          setAccountId(user.id);
-        }
-      } catch {
-        // Silent fail
-      }
-    };
-
-    loadAuthInfo();
-  }, []);
+    setCurrentUserId(user?.id ?? '');
+    setAccountId(session?.activeAccountId ?? user?.id ?? '');
+  }, [session?.activeAccountId, user?.id]);
 
   useEffect(() => {
     if (accountId) {

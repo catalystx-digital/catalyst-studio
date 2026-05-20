@@ -16,7 +16,7 @@ interface UseWebsitesOptions {
   enabled?: boolean;
   /**
    * Base interval to use when refetching while active.
-   * Defaults to 60s to reduce Supabase auth egress.
+   * Defaults to 60s to reduce repeated auth and website fetches.
    */
   refetchInterval?: number;
 }

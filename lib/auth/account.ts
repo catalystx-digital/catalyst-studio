@@ -1,6 +1,6 @@
-import type { User } from '@supabase/supabase-js';
 import { PrismaClient, InvitationStatus } from '@/lib/generated/prisma';
 import { invalidateAuthContext } from '@/lib/auth/auth-context-cache';
+import type { AppUser } from './types';
 
 // Account roles - these match the string values in the database
 export const AccountRole = {
@@ -28,7 +28,7 @@ export async function ensureAccount(
   });
 }
 
-export async function ensureAccountForUser(prisma: PrismaClient, user: User): Promise<string> {
+export async function ensureAccountForUser(prisma: PrismaClient, user: AppUser): Promise<string> {
   const accountId = user.id;
   const displayName =
     (user.user_metadata?.full_name as string | undefined) ||
@@ -39,10 +39,9 @@ export async function ensureAccountForUser(prisma: PrismaClient, user: User): Pr
 
   await ensureAccount(prisma, accountId, { name: displayName });
 
-  await (prisma as any).user?.upsert?.({
+  await (prisma as any).user?.updateMany?.({
     where: { id: user.id },
-    create: { id: user.id, email: user.email, name: displayName },
-    update: { email: user.email, name: displayName },
+    data: { email: user.email, name: displayName },
   });
 
   // Account creators get admin role with access to all websites
@@ -70,7 +69,7 @@ export async function ensureAccountForUser(prisma: PrismaClient, user: User): Pr
  * Auto-accept pending invitations for a newly signed-up user.
  * This creates memberships in the accounts they were invited to.
  */
-async function autoAcceptPendingInvitations(
+export async function autoAcceptPendingInvitations(
   prisma: PrismaClient,
   userId: string,
   userEmail: string

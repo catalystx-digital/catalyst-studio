@@ -9,7 +9,7 @@ import type {
 export interface ApiAccessClientOptions {
   baseUrl: string
   accountParam?: string
-  supabaseUserHeader?: string | null
+  authUserHeader?: string | null
   cookies?: string | null
   fetchImpl?: typeof fetch
 }
@@ -105,8 +105,8 @@ export class ApiAccessClient {
       'content-type': 'application/json',
       accept: 'application/json'
     }
-    if (this.options.supabaseUserHeader) {
-      headers['x-supabase-user'] = this.options.supabaseUserHeader
+    if (this.options.authUserHeader) {
+      headers['x-catalyst-user'] = this.options.authUserHeader
     }
     if (this.options.cookies) {
       headers.cookie = this.options.cookies

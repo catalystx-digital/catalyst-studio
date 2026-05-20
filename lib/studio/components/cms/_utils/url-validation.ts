@@ -6,9 +6,6 @@
 const SAFE_URL_PROTOCOLS = ['http:', 'https:', 'data:'];
 const SAFE_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 const SAFE_IMAGE_TRUSTED_HOSTS: Array<string | RegExp> = [
-  /(^|\.)supabase\.co$/i,
-  /(^|\.)supabase\.in$/i,
-  /(^|\.)supabase\.net$/i,
   /(^|\.)intelligencebank\.com$/i,
 ];
 export const SAFE_VIDEO_EXTENSIONS = [

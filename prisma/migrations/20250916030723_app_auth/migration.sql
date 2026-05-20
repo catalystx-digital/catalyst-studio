@@ -30,7 +30,6 @@ DROP TABLE "public"."SyncState";
 CREATE TABLE "public"."Account" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "name" TEXT NOT NULL,
-    "supabaseOrgId" UUID,
     "plan" TEXT NOT NULL DEFAULT 'free',
     "limits" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -84,9 +83,6 @@ CREATE TABLE "public"."AccountQuota" (
 
     CONSTRAINT "AccountQuota_pkey" PRIMARY KEY ("id")
 );
-
--- CreateIndex
-CREATE UNIQUE INDEX "Account_supabaseOrgId_key" ON "public"."Account"("supabaseOrgId");
 
 -- CreateIndex
 CREATE INDEX "AccountMembership_userId_idx" ON "public"."AccountMembership"("userId");

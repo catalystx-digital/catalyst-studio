@@ -6,9 +6,8 @@
  * This script is run during the build process to create a website-agnostic
  * tarball that can be quickly deployed to Vercel Sandbox instances.
  *
- * TKT-084: Vercel Blob Storage Migration
- * - Uploads to Vercel Blob for cheaper data transfer ($0.06/GB vs $0.15/GB)
- * - Falls back to Supabase S3 if BLOB_READ_WRITE_TOKEN not set
+ * Uploads to Vercel Blob when configured.
+ * Falls back to a generic S3-compatible bucket if BLOB_READ_WRITE_TOKEN is not set.
  *
  * Usage:
  *   pnpm tsx scripts/build-sandbox-tarball.ts
@@ -175,11 +174,11 @@ async function uploadToVercelBlob(filePath: string): Promise<string> {
 }
 
 /**
- * Upload tarball to Supabase S3 (fallback)
+ * Upload tarball to generic S3-compatible storage (fallback)
  * Returns the public URL of the uploaded file
  */
 async function uploadToS3(filePath: string): Promise<string> {
-  log('Uploading tarball to Supabase S3 (fallback)...')
+  log('Uploading tarball to S3-compatible storage (fallback)...')
   const uploadStart = Date.now()
 
   const s3Client = new S3Client({
@@ -440,8 +439,7 @@ DIRECT_URL=""
     log(`VERCEL_BLOB_TARBALL_URL=${publicUrl}`)
     log('='.repeat(70))
   } else if (S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY) {
-    log('WARNING: BLOB_READ_WRITE_TOKEN not set, falling back to Supabase S3')
-    log('For cheaper transfer costs ($0.06/GB vs $0.15/GB), set BLOB_READ_WRITE_TOKEN')
+    log('WARNING: BLOB_READ_WRITE_TOKEN not set, falling back to S3-compatible storage')
     publicUrl = await uploadToS3(OUTPUT_FILE)
   } else {
     log('WARNING: No storage credentials found, skipping upload')

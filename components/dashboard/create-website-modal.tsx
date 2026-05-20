@@ -9,7 +9,7 @@ import {
   getAcceptedFileTypes,
   type ExtractionResult,
 } from '@/lib/services/file-text-extractor';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 import { AIPromptProcessor } from '@/lib/services/ai-prompt-processor';
 import { useImportTrackerStore } from '@/lib/studio/stores/import-tracker-store';
 import type { ImportJobSnapshot } from '@/lib/services/ai-prompt-processor';

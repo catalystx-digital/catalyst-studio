@@ -18,11 +18,8 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 const TARBALL_PATH = path.join(process.cwd(), 'tmp', 'sandbox-template.tar.gz')
-// Use Supabase S3 URL (or override via env var for testing)
-// Note: Bucket name has a space, so we need to URL-encode it
-const S3_PUBLIC_BASE_URL = (process.env.STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL?.replace(/ /g, '%20')) ||
-  'https://qnkkfqdqjtzllohufcjs.supabase.co/storage/v1/object/public/Catalyst%20Studio'
-const TARBALL_URL = process.env.TARBALL_URL || `${S3_PUBLIC_BASE_URL}/sandbox-templates/sandbox-template.tar.gz`
+const S3_PUBLIC_BASE_URL = process.env.STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL?.replace(/ /g, '%20')
+const TARBALL_URL = process.env.TARBALL_URL || (S3_PUBLIC_BASE_URL ? `${S3_PUBLIC_BASE_URL}/sandbox-templates/sandbox-template.tar.gz` : '')
 const TEST_WEBSITE_ID = 'cmk0ywhtq003dkbnyvkudd8d9' // Test website
 
 function log(message: string): void {
@@ -31,6 +28,10 @@ function log(message: string): void {
 
 async function main(): Promise<void> {
   log('Starting sandbox test...')
+
+  if (!TARBALL_URL) {
+    throw new Error('Set TARBALL_URL or STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL before testing tarball sandboxes')
+  }
 
   // Check credentials
   const teamId = process.env.VERCEL_TEAM_ID

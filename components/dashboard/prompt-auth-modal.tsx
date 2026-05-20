@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useSupabaseClient } from '@/lib/supabase/hooks';
+import { useAuthActions } from '@/lib/auth/hooks';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const signInSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -53,11 +53,10 @@ type SubmissionState = { mode: AuthMode; pending: boolean } | { pending: false; 
 const initialSubmissionState: SubmissionState = { pending: false, mode: null };
 
 export function PromptAuthModal({ open, onClose, onAuthenticated }: PromptAuthModalProps) {
-  const supabase = useSupabaseClient();
+  const { signIn, signUp } = useAuthActions();
   const [mode, setMode] = useState<AuthMode>('sign-in');
   const [submission, setSubmission] = useState<SubmissionState>(initialSubmissionState);
   const [error, setError] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState(false);
 
   const signInForm = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
@@ -77,7 +76,6 @@ export function PromptAuthModal({ open, onClose, onAuthenticated }: PromptAuthMo
   useEffect(() => {
     if (!open) {
       setError(null);
-      setConfirmation(false);
       setSubmission(initialSubmissionState);
       signInForm.reset();
       signUpForm.reset();
@@ -88,20 +86,16 @@ export function PromptAuthModal({ open, onClose, onAuthenticated }: PromptAuthMo
   const handleModeChange = useCallback((next: AuthMode) => {
     setMode(next);
     setError(null);
-    setConfirmation(false);
   }, []);
 
   const handleSignIn = signInForm.handleSubmit(async (values) => {
     setError(null);
     setSubmission({ mode: 'sign-in', pending: true });
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: values.email,
-      password: values.password,
-    });
-
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      await signIn({ email: values.email, password: values.password });
+    } catch (signInError) {
+      setError(signInError instanceof Error ? signInError.message : 'Invalid email or password');
       setSubmission(initialSubmissionState);
       return;
     }
@@ -113,32 +107,19 @@ export function PromptAuthModal({ open, onClose, onAuthenticated }: PromptAuthMo
 
   const handleSignUp = signUpForm.handleSubmit(async (values) => {
     setError(null);
-    setConfirmation(false);
     setSubmission({ mode: 'sign-up', pending: true });
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: values.email,
-      password: values.password,
-      options: {
-        data: { full_name: values.name },
-      },
-    });
-
-    if (signUpError) {
-      setError(signUpError.message);
+    try {
+      await signUp({ name: values.name, email: values.email, password: values.password });
+    } catch (signUpError) {
+      setError(signUpError instanceof Error ? signUpError.message : 'Unable to create account');
       setSubmission(initialSubmissionState);
       return;
     }
 
-    if (data.session) {
-      setSubmission(initialSubmissionState);
-      onAuthenticated();
-      onClose();
-      return;
-    }
-
-    setConfirmation(true);
     setSubmission(initialSubmissionState);
+    onAuthenticated();
+    onClose();
   });
 
   const isSubmitting = submission.pending;
@@ -231,14 +212,6 @@ export function PromptAuthModal({ open, onClose, onAuthenticated }: PromptAuthMo
             </form>
           ) : (
             <form onSubmit={handleSignUp} className="space-y-4">
-              {confirmation ? (
-                <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
-                  <AlertTitle>Check your inbox</AlertTitle>
-                  <AlertDescription>
-                    We sent a verification email to <span className="font-semibold">{signUpForm.getValues('email')}</span>. Confirm your address to continue.
-                  </AlertDescription>
-                </Alert>
-              ) : null}
               {error ? (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>

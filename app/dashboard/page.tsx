@@ -3,7 +3,7 @@ import { Metadata } from 'next';
 import { headers } from 'next/headers';
 
 import { DashboardHome } from '@/components/dashboard/dashboard-home';
-import { readUserFromHeaders } from '@/lib/supabase/user-header';
+import { AUTHENTICATED_HEADER } from '@/lib/auth/constants';
 
 export const metadata: Metadata = {
   title: 'Dashboard - Catalyst Studio',
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function DashboardPage() {
   const headersList = await headers();
-  const serializedUser = readUserFromHeaders(headersList);
+  const isAuthenticated = headersList.get(AUTHENTICATED_HEADER) === '1';
 
-  return <DashboardHome isAuthenticated={Boolean(serializedUser)} />;
+  return <DashboardHome isAuthenticated={isAuthenticated} />;
 }

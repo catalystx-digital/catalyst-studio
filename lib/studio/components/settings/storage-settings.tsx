@@ -25,7 +25,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useChatPersistence } from '@/hooks/use-chat-persistence';
 import { useWebsiteId } from '@/lib/hooks/use-website-id';
-import { useUser } from '@/lib/supabase/hooks';
+import { useUser } from '@/lib/auth/hooks';
 
 interface StorageSettingsProps {
   sessionId?: string;

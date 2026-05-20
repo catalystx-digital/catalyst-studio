@@ -5,19 +5,12 @@ const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? APP_BASE_URL;
 
 test.describe('Unified chat thread continuity', () => {
   test('dashboard prompt appears inside builder assistant history', async ({ page, request }) => {
-    const headerPayload = process.env.PLAYWRIGHT_SUPABASE_HEADER_USER ?? null;
+    const headerPayload = process.env.PLAYWRIGHT_AUTH_HEADER_USER ?? null;
     const encodedUser = headerPayload ? encodeURIComponent(headerPayload) : null;
-    const authHeaders = encodedUser ? { 'x-supabase-user': encodedUser } : undefined;
+    const authHeaders = encodedUser ? { 'x-catalyst-user': encodedUser } : undefined;
 
     if (encodedUser) {
-      await page.context().addCookies([
-        {
-          name: 'sb-user-meta',
-          value: encodedUser,
-          url: APP_BASE_URL,
-        },
-      ]);
-      await page.setExtraHTTPHeaders({ 'x-supabase-user': encodedUser });
+      await page.setExtraHTTPHeaders({ 'x-catalyst-user': encodedUser });
     }
 
     const websiteResponse = await request.post(`${API_BASE_URL}/api/websites`, {

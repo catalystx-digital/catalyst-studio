@@ -16,9 +16,7 @@
  * - Content synchronization via file writes
  * - Design system token injection
  *
- * TKT-084: Vercel Blob Storage Migration
- * - Tarball served from Vercel Blob for cheaper data transfer costs
- * - $0.06/GB (Vercel Blob) vs $0.15/GB (external Supabase S3) = 60% savings
+ * Tarball can be served from Vercel Blob or a configured generic S3-compatible public URL.
  */
 
 import { Sandbox, type Command } from '@vercel/sandbox'
@@ -64,12 +62,11 @@ const DEFAULT_CONFIG: Partial<SandboxConfig> = {
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000
 
 // URL to pre-built tarball
-// TKT-084: Priority order for tarball URL:
-// 1. VERCEL_BLOB_TARBALL_URL - Vercel Blob (cheapest, $0.06/GB)
+// Priority order for tarball URL:
+// 1. VERCEL_BLOB_TARBALL_URL - Vercel Blob
 // 2. SANDBOX_TARBALL_URL - Custom/testing URL
-// 3. Supabase S3 - Legacy fallback ($0.15/GB)
+// 3. STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL - Generic S3-compatible public base URL
 function getTarballUrl(): string {
-  // Priority 1: Vercel Blob (cheapest transfer cost)
   if (process.env.VERCEL_BLOB_TARBALL_URL) {
     return process.env.VERCEL_BLOB_TARBALL_URL
   }
@@ -77,11 +74,11 @@ function getTarballUrl(): string {
   if (process.env.SANDBOX_TARBALL_URL) {
     return process.env.SANDBOX_TARBALL_URL
   }
-  // Priority 3: Supabase S3 fallback (legacy)
-  // Note: Bucket name has a space, so we need to URL-encode it
-  const baseUrl = process.env.STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL?.replace(/ /g, '%20') ||
-    'https://qnkkfqdqjtzllohufcjs.supabase.co/storage/v1/object/public/Catalyst%20Studio'
-  return `${baseUrl}/sandbox-templates/sandbox-template.tar.gz`
+  const baseUrl = process.env.STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL?.replace(/ /g, '%20')
+  if (baseUrl) {
+    return `${baseUrl}/sandbox-templates/sandbox-template.tar.gz`
+  }
+  throw new Error('Preview sandbox tarball URL is not configured. Set VERCEL_BLOB_TARBALL_URL, SANDBOX_TARBALL_URL, or STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL.')
 }
 
 /**
