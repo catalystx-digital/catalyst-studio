@@ -25,6 +25,7 @@ import { getMediaStorageProvider } from '@/lib/studio/media/storage/media-storag
 import { MediaIngestService, type MediaIngestResult } from './media-ingest-service';
 import {
   consumeNormalizationWarnings,
+  isFatalNormalizationWarning,
   recordNormalizationWarning,
   type NormalizationWarning as ContentNormalizationWarning
 } from './page-builder/normalization-telemetry';
@@ -45,6 +46,37 @@ interface HandlerDependencies {
   progressManager: ImportProgressManager;
   orchestrator: ImportOrchestrator;
   prisma: PrismaClient;
+}
+
+function formatFatalNormalizationError(warnings: ContentNormalizationWarning[]): string {
+  const grouped = new Map<string, {
+    pageUrl: string;
+    parentType: string;
+    field: string;
+    issue: string;
+    count: number;
+  }>();
+
+  for (const warning of warnings) {
+    const pageUrl = warning.pageUrl ?? 'unknown';
+    const parentType = warning.parentType || 'unknown';
+    const field = warning.field ?? warning.childType ?? 'unknown';
+    const issue = warning.issue;
+    const key = `${pageUrl}\u0000${parentType}\u0000${field}\u0000${issue}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      grouped.set(key, { pageUrl, parentType, field, issue, count: 1 });
+    }
+  }
+
+  const entries = Array.from(grouped.values());
+  const rendered = entries.slice(0, 10).map(entry =>
+    `pageUrl=${entry.pageUrl} parentType=${entry.parentType} field=${entry.field} issue=${entry.issue} count=${entry.count}`
+  );
+  const remainder = entries.length > rendered.length ? `; ... ${entries.length - rendered.length} more` : '';
+  return `Fatal content normalization warnings recorded: ${rendered.join('; ')}${remainder}`;
 }
 
 export class ImportResultHandler {
@@ -602,6 +634,7 @@ export class ImportResultHandler {
         });
 
         const normalizationWarnings = consumeNormalizationWarnings();
+        const fatalNormalizationWarnings = normalizationWarnings.filter(isFatalNormalizationWarning);
         if (normalizationWarnings.length > 0) {
           console.log(`[ImportResultHandler] Processing ${normalizationWarnings.length} normalization warnings...`);
           const warningsByPage = new Map<string, ContentNormalizationWarning[]>();
@@ -686,6 +719,16 @@ export class ImportResultHandler {
 
             detectionSummary.mediaMissingSrc = mediaSrcMissingWarnings.length;
             detectionSummary.mediaMissingSrcPages = mediaDiagnostics.missingSrcByPage.length;
+          }
+
+          if (fatalNormalizationWarnings.length > 0) {
+            const fatalMessage = formatFatalNormalizationError(fatalNormalizationWarnings);
+            await this.repository.update(jobId, {
+              status: ImportJobStatus.FAILED,
+              errorMessage: fatalMessage,
+              detectionResults: detectionRecord as Prisma.JsonValue,
+            });
+            throw new Error(fatalMessage);
           }
         }
 
@@ -803,9 +846,11 @@ export class ImportResultHandler {
       } catch (error) {
         consumeNormalizationWarnings();
         console.error('Failed to orchestrate import:', error);
+        const message = error instanceof Error ? error.message : String(error);
+        const isFatalNormalizationFailure = message.startsWith('Fatal content normalization warnings recorded:');
         await this.repository.update(jobId, {
           status: ImportJobStatus.FAILED,
-          errorMessage: 'Import orchestration failed: ' + (error instanceof Error ? error.message : String(error)),
+          errorMessage: isFatalNormalizationFailure ? message : 'Import orchestration failed: ' + message,
         });
         throw error;
       }

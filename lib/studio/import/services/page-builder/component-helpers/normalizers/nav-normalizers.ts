@@ -19,6 +19,93 @@ import {
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
 
+const LOGO_IMAGE_SHAPE_KEYS = new Set([
+  'src',
+  'url',
+  'href',
+  'link',
+  'path',
+  'value',
+  'mediaId',
+  'originalUrl',
+  'signedUrl',
+  'publicUrl',
+  'image',
+  'imageUrl',
+  'imageSrc',
+  'asset',
+  'media',
+  'file',
+  'picture',
+  'photo',
+  'thumbnail',
+  'logo',
+  'logoImage',
+  'logoSrc',
+  'logoUrl',
+  'logoMedia',
+  'brandLogo'
+])
+const STRONG_LOGO_IMAGE_SHAPE_KEYS = new Set([
+  'src',
+  'url',
+  'mediaId',
+  'originalUrl',
+  'signedUrl',
+  'publicUrl',
+  'image',
+  'imageUrl',
+  'imageSrc',
+  'asset',
+  'media',
+  'file',
+  'picture',
+  'photo',
+  'thumbnail',
+  'logoImage',
+  'logoSrc',
+  'logoUrl',
+  'logoMedia',
+  'brandLogo'
+])
+
+function isLogoImageShaped(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return false
+  }
+  if (Array.isArray(value)) {
+    return value.some(entry => isLogoImageShaped(entry))
+  }
+  if (!isRecord(value)) {
+    return value != null
+  }
+  const keys = Object.keys(value)
+  const hasTextOnlyBrand =
+    Boolean(normalizeString(value.text) ?? normalizeString(value.label) ?? normalizeString(value.name)) &&
+    !keys.some(key => STRONG_LOGO_IMAGE_SHAPE_KEYS.has(key))
+  if (hasTextOnlyBrand) {
+    return false
+  }
+  return keys.some(key => LOGO_IMAGE_SHAPE_KEYS.has(key))
+}
+
+function extractTextLogo(
+  value: Record<string, any>,
+  fallbackAlt: string | undefined,
+  fallbackText?: string
+): Record<string, any> | undefined {
+  const text = normalizeString(value.text) ?? normalizeString(value.label) ?? normalizeString(value.name) ?? fallbackText
+  if (!text) {
+    return undefined
+  }
+  const logo: Record<string, any> = { text }
+  const alt = normalizeString(value.alt) ?? normalizeString(value.altText) ?? fallbackAlt
+  if (alt) {
+    logo.alt = alt
+  }
+  return logo
+}
+
 /**
  * Normalizes navbar component content.
  * Handles logo resolution and normalization from various field formats.
@@ -50,6 +137,12 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
     normalizeString(flattened.brand) ??
     normalizeString(flattened.heading) ??
     normalizeString(flattened.title)
+  const logoTextFallback =
+    normalizeString(baseLogo.text) ??
+    normalizeString(baseLogo.label) ??
+    normalizeString(baseLogo.name) ??
+    normalizeString(flattened.logoText) ??
+    normalizeString(flattened.brand)
 
   const logoCandidates: unknown[] = []
   if (Object.keys(baseLogo).length > 0) {
@@ -65,11 +158,26 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   }
 
   let resolvedLogoImage: NormalizedImageValue | undefined
-  for (const candidate of logoCandidates) {
+  let malformedLogoCandidate = false
+  for (let index = 0; index < logoCandidates.length; index += 1) {
+    const candidate = logoCandidates[index]
     const normalizedLogo = normalizeImage(candidate, fallbackAlt)
     if (normalizedLogo) {
       resolvedLogoImage = normalizedLogo
       break
+    }
+    if (isLogoImageShaped(candidate)) {
+      malformedLogoCandidate = true
+      warnings.push({
+        issue: 'invalid-subcomponent',
+        message: 'Dropped navbar logo image payload because it did not contain a usable image source.',
+        field: 'logo',
+        childType: 'navbar',
+        details: {
+          index,
+          valueType: Array.isArray(candidate) ? 'array' : typeof candidate
+        }
+      })
     }
   }
 
@@ -88,6 +196,9 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
         ...baseLogo,
         ...resolvedLogoImage
       }
+    }
+    if (malformedLogoCandidate) {
+      return extractTextLogo(baseLogo, fallbackAlt, logoTextFallback)
     }
     if (Object.keys(baseLogo).length > 0) {
       return baseLogo
@@ -118,6 +229,8 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
       resolvedLogoObject.alt = fallbackAlt
     }
     normalized.logo = resolvedLogoObject
+  } else if (malformedLogoCandidate) {
+    delete normalized.logo
   }
 
   const logoAliasKeys = [

@@ -1,5 +1,9 @@
 import { extractComponentProps } from '../page-builder/component-helpers'
-import { consumeNormalizationWarnings } from '../page-builder/normalization-telemetry'
+import {
+  consumeNormalizationWarnings,
+  getNormalizationWarningSeverity,
+  isFatalNormalizationIssue
+} from '../page-builder/normalization-telemetry'
 import { SUBCOMPONENT_NORMALIZERS } from '../page-builder/subcomponent-normalizers'
 import type { DetectionResult, ComponentType as ImportComponentType } from '../interfaces'
 
@@ -29,6 +33,18 @@ const createComponentType = (type: string): ImportComponentType =>
 describe('normalizeComponentContent through extractComponentProps', () => {
   beforeEach(() => {
     consumeNormalizationWarnings()
+  })
+
+  it('classifies fatal and nonfatal normalization issues', () => {
+    expect(isFatalNormalizationIssue('media-src-missing')).toBe(true)
+    expect(isFatalNormalizationIssue('missing-required-field')).toBe(true)
+    expect(isFatalNormalizationIssue('invalid-subcomponent')).toBe(true)
+    expect(isFatalNormalizationIssue('unsupported-subcomponent')).toBe(true)
+    expect(isFatalNormalizationIssue('normalizer-missing')).toBe(true)
+    expect(isFatalNormalizationIssue('invalid-value')).toBe(true)
+    expect(isFatalNormalizationIssue('unknown-field')).toBe(true)
+    expect(isFatalNormalizationIssue('suspicious-value')).toBe(false)
+    expect(getNormalizationWarningSeverity({ issue: 'suspicious-value' })).toBe('warning')
   })
 
   it('normalizes hero-simple CTA and supporting link payloads', () => {
@@ -398,6 +414,39 @@ describe('normalizeComponentContent through extractComponentProps', () => {
         })
       ])
     )
+  })
+
+  it('emits fatal-classified warnings for malformed hero image payloads', () => {
+    const detection: DetectionResult = {
+      id: 'hero-with-image-malformed-object',
+      type: 'hero-with-image',
+      bounds: baseBounds,
+      content: {
+        heading: 'Broken media payload',
+        image: {
+          asset: {
+            id: 'asset-without-url'
+          }
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-with-image'))
+
+    expect(props.content?.image).toBeUndefined()
+
+    const warnings = consumeNormalizationWarnings()
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'hero-with-image',
+          field: 'image',
+          issue: 'invalid-subcomponent'
+        })
+      ])
+    )
+    expect(warnings.some(warning => getNormalizationWarningSeverity(warning) === 'fatal')).toBe(true)
   })
 
   it('warns on malformed hero-with-image entries while keeping valid detector data', () => {
@@ -877,6 +926,36 @@ describe('normalizeComponentContent through extractComponentProps', () => {
     const warnings = consumeNormalizationWarnings()
     expect(warnings).toHaveLength(0)
   })
+
+  it('omits article-header placeholders and warns for missing required fields', () => {
+    const detection: DetectionResult = {
+      id: 'article-header-empty',
+      type: 'article-header',
+      bounds: baseBounds,
+      content: {
+        subtitle: 'A short deck'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('article-header'))
+
+    expect(props.content?.title).toBeUndefined()
+    expect(props.content?.author).toBeUndefined()
+    expect(props.content?.publishDate).toBeUndefined()
+    expect(JSON.stringify(props.content)).not.toContain('Article')
+    expect(JSON.stringify(props.content)).not.toContain('Guest author')
+    expect(JSON.stringify(props.content)).not.toContain('TBD')
+
+    const warnings = consumeNormalizationWarnings()
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ parentType: 'article-header', field: 'title', issue: 'missing-required-field' }),
+        expect.objectContaining({ parentType: 'article-header', field: 'author', issue: 'missing-required-field' }),
+        expect.objectContaining({ parentType: 'article-header', field: 'publishDate', issue: 'missing-required-field' })
+      ])
+    )
+  })
 })
   it('normalizes navbar logos with nested media payloads', () => {
     const detection: DetectionResult = {
@@ -907,6 +986,44 @@ describe('normalizeComponentContent through extractComponentProps', () => {
       })
     )
     expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('emits fatal-classified warnings and drops malformed navbar logo image payloads', () => {
+    consumeNormalizationWarnings()
+    const malformedLogo = {
+      asset: {
+        id: 'nav-logo-without-url'
+      },
+      alt: 'Broken logo asset'
+    }
+    const detection: DetectionResult = {
+      id: 'navbar-logo-malformed-object',
+      type: 'navbar',
+      bounds: baseBounds,
+      content: {
+        title: 'Site title is not a logo fallback',
+        menuItems: [{ label: 'Home', href: '/' }],
+        logo: malformedLogo
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('navbar'))
+
+    expect(props.content?.logo).toBeUndefined()
+    expect(props.content?.logo).not.toEqual(malformedLogo)
+
+    const warnings = consumeNormalizationWarnings()
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'navbar',
+          field: 'logo',
+          issue: 'invalid-subcomponent'
+        })
+      ])
+    )
+    expect(warnings.some(warning => getNormalizationWarningSeverity(warning) === 'fatal')).toBe(true)
   })
 
   it('hydrates card-grid cards with nested media references so mediaId is preserved', () => {

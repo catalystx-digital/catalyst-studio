@@ -23,6 +23,25 @@ import {
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
 
+function createMalformedImageWarning(params: {
+  field: string
+  childType: string
+  index: number
+  message: string
+  valueType?: string
+}): LocalNormalizationWarning {
+  return {
+    issue: 'invalid-subcomponent',
+    message: params.message,
+    field: params.field,
+    childType: params.childType,
+    details: {
+      index: params.index,
+      ...(params.valueType ? { valueType: params.valueType } : {})
+    }
+  }
+}
+
 /**
  * Collects and normalizes CTA button payloads from hero components.
  */
@@ -256,12 +275,30 @@ function normalizeHeroSimpleBackground(
   ])
 
   let normalizedImage: NormalizedImageValue | undefined
-  for (const candidate of imageCandidates) {
+  for (let index = 0; index < imageCandidates.length; index += 1) {
+    const candidate = imageCandidates[index]
     const normalizedAsset = normalizeImage(candidate, fallbackAlt)
     if (normalizedAsset && (normalizedAsset.src || normalizedAsset.mediaId)) {
       normalizedImage = { ...normalizedAsset }
+      if (normalizedAsset.mediaId && !normalizedAsset.src) {
+        warnings.push({
+          issue: 'media-src-missing',
+          message: 'Hero background image mediaId detected without a usable src.',
+          field: 'background.image',
+          childType: 'hero-simple-background-image',
+          details: { index, mediaId: normalizedAsset.mediaId }
+        })
+      }
       break
     }
+
+    warnings.push(createMalformedImageWarning({
+      field: 'background.image',
+      childType: 'hero-simple-background-image',
+      index,
+      message: 'Dropped hero background image payload because it did not contain a usable image source.',
+      valueType: Array.isArray(candidate) ? 'array' : typeof candidate
+    }))
   }
 
   if (normalizedImage) {
@@ -475,18 +512,17 @@ function normalizeHeroWithImageImageCandidate(
   }
 
   if (typeof candidate === 'string') {
-    const src = extractLinkUrl(candidate)
-    if (src) {
-      return { image: { src } }
+    const normalizedAsset = normalizeImage(candidate)
+    if (normalizedAsset?.src) {
+      return { image: { ...normalizedAsset } }
     }
     return {
-      warning: {
-        issue: 'invalid-subcomponent',
-        message: 'Dropped hero image missing src.',
+      warning: createMalformedImageWarning({
         field: 'image',
         childType: 'hero-with-image-image',
-        details: { index: options.index }
-      }
+        index: options.index,
+        message: 'Dropped hero image missing src.'
+      })
     }
   }
 
@@ -508,7 +544,15 @@ function normalizeHeroWithImageImageCandidate(
   }
 
   if (!isRecord(candidate)) {
-    return {}
+    return {
+      warning: createMalformedImageWarning({
+        field: 'image',
+        childType: 'hero-with-image-image',
+        index: options.index,
+        message: 'Dropped hero image payload because it is not an object or URL.',
+        valueType: typeof candidate
+      })
+    }
   }
 
   const expanded = expandSourceRecord(candidate, {
@@ -538,13 +582,12 @@ function normalizeHeroWithImageImageCandidate(
 
   if (!src && !(normalizedAsset?.mediaId && normalizedAsset.mediaId.trim().length > 0)) {
     return {
-      warning: {
-        issue: 'invalid-subcomponent',
-        message: 'Dropped hero image missing src.',
+      warning: createMalformedImageWarning({
         field: 'image',
         childType: 'hero-with-image-image',
-        details: { index: options.index }
-      }
+        index: options.index,
+        message: 'Dropped hero image missing src.'
+      })
     }
   }
 

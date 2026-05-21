@@ -87,9 +87,19 @@ export const normalizeArticleHeaderContent: ComponentContentNormalizer = (
     normalizeString(flattened.heading) ??
     normalizeString(flattened.label) ??
     normalizeString(flattened.name) ??
-    (metadata ? normalizeString(metadata.title) : undefined) ??
-    'Article'
-  normalized.title = resolvedTitle
+    (metadata ? normalizeString(metadata.title) : undefined)
+  if (resolvedTitle) {
+    normalized.title = resolvedTitle
+  } else {
+    delete normalized.title
+    warnings.push({
+      issue: 'missing-required-field',
+      message: 'Article header is missing required title field.',
+      field: 'title',
+      childType: 'article-header',
+      details: { field: 'title' }
+    })
+  }
 
   const coerceAuthorObject = (value: unknown): Record<string, any> | undefined => {
     if (!value) {
@@ -112,19 +122,45 @@ export const normalizeArticleHeaderContent: ComponentContentNormalizer = (
     coerceAuthorObject(flattened.byline) ??
     coerceAuthorObject(metadata?.author)
 
-  if (!author || !normalizeString(author.name)) {
+  const authorName = author ? normalizeString(author.name) : undefined
+  if (!authorName) {
     const placeholderName =
       normalizeString(flattened.authorName ?? flattened.authorTitle) ??
       normalizeString(metadata?.authorName)
-    author = { ...(author || {}), name: placeholderName ?? 'Guest author' }
+    if (placeholderName) {
+      author = { ...(author || {}), name: placeholderName }
+    } else {
+      warnings.push({
+        issue: 'missing-required-field',
+        message: 'Article header is missing required author field.',
+        field: 'author',
+        childType: 'article-header',
+        details: { field: 'author' }
+      })
+    }
   }
-  normalized.author = author
+  if (author && normalizeString(author.name)) {
+    normalized.author = author
+  } else {
+    delete normalized.author
+  }
 
   const publishDate =
     normalizeString(flattened.publishDate) ??
     normalizeString(flattened.date) ??
     (metadata ? normalizeString((metadata as Record<string, unknown>).publishDate ?? (metadata as Record<string, unknown>).date) : undefined)
-  normalized.publishDate = publishDate ?? 'TBD'
+  if (publishDate) {
+    normalized.publishDate = publishDate
+  } else {
+    delete normalized.publishDate
+    warnings.push({
+      issue: 'missing-required-field',
+      message: 'Article header is missing required publishDate field.',
+      field: 'publishDate',
+      childType: 'article-header',
+      details: { field: 'publishDate' }
+    })
+  }
 
   return { content: normalized, warnings }
 }
