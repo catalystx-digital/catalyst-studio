@@ -211,6 +211,41 @@ async function verifySandboxAlive(websiteId: string): Promise<boolean> {
   }
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function commandExitCode(command: Command): number | undefined {
+  return (command as Command & { exitCode?: number }).exitCode
+}
+
+function assertCommandSucceeded(command: Command, label: string): void {
+  const exitCode = commandExitCode(command)
+  if (exitCode !== undefined && exitCode !== 0) {
+    throw new Error(`${label} failed with exit code ${exitCode}`)
+  }
+}
+
+async function cleanupExistingHandleBeforeCreate(websiteId: string, instance: SandboxInstance): Promise<void> {
+  const sandbox = sandboxHandles.get(websiteId)
+  if (!sandbox) return
+
+  try {
+    await sandbox.stop()
+  } catch (error) {
+    const message = errorMessage(error)
+    const previousError = instance.error ? ` Previous error: ${instance.error}` : ''
+    instance.status = 'error'
+    instance.error = `Failed to cleanup existing sandbox before retry: ${message}.${previousError}`
+    throw new Error(
+      `Cannot create sandbox for ${websiteId} because existing sandbox${instance.id ? ` ${instance.id}` : ''} could not be stopped: ${message}`
+    )
+  }
+
+  sandboxHandles.delete(websiteId)
+  activeSandboxes.delete(websiteId)
+}
+
 /**
  * Create a new sandbox for a website
  */
@@ -229,19 +264,21 @@ export async function createSandbox(websiteId: string): Promise<SandboxInstance>
     activeSandboxes.delete(websiteId)
     sandboxHandles.delete(websiteId)
   }
+  if (existing && existing.status !== 'ready') {
+    await cleanupExistingHandleBeforeCreate(websiteId, existing)
+  }
 
   const config = getConfig()
 
   // Create placeholder instance
   const instance: SandboxInstance = {
-    id: '', // Will be set after creation
     websiteId,
     status: 'creating',
-    previewUrl: '',
     createdAt: new Date(),
     lastActivityAt: new Date(),
   }
   activeSandboxes.set(websiteId, instance)
+  let createdSandbox: Sandbox | undefined
 
   try {
     // TKT-066: New tarball-based approach
@@ -269,6 +306,8 @@ export async function createSandbox(websiteId: string): Promise<SandboxInstance>
       ports: [3000], // CRITICAL: Exposes port to public URL
       runtime: 'node24',
     })
+    createdSandbox = sandbox
+    instance.id = sandbox.sandboxId
 
     // Store sandbox handle
     sandboxHandles.set(websiteId, sandbox)
@@ -281,9 +320,7 @@ export async function createSandbox(websiteId: string): Promise<SandboxInstance>
       cmd: 'chmod',
       args: ['-R', '+x', 'node_modules/.bin'],
     })
-    if (chmodResult.exitCode !== 0) {
-      console.warn(`[sandbox-manager] chmod failed with exitCode=${chmodResult.exitCode}`)
-    }
+    assertCommandSucceeded(chmodResult, 'chmod node_modules/.bin')
 
     // NOTE: Prisma generate is NO LONGER needed here!
     // The tarball now includes pre-generated Linux Prisma binaries (rhel-openssl-3.0.x)
@@ -331,6 +368,7 @@ HEAD_RUNTIME_REVALIDATE_SECONDS=0
       },
       detached: true,
     })
+    assertCommandSucceeded(serverCommand, 'npm start')
 
     // Stream server logs in background for observability (goes to Vercel Logs)
     streamSandboxLogs(websiteId, serverCommand).catch((err) => {
@@ -351,7 +389,6 @@ HEAD_RUNTIME_REVALIDATE_SECONDS=0
     console.log(`[sandbox-manager] Sandbox created at ${previewUrl} (server starting in background)`)
 
     // Update instance
-    instance.id = sandbox.sandboxId
     instance.status = 'ready'
     instance.previewUrl = previewUrl
 
@@ -360,10 +397,24 @@ HEAD_RUNTIME_REVALIDATE_SECONDS=0
     instance.status = 'error'
     const response = (error as { response?: Response } | null)?.response
     const isForbidden = response?.status === 403
-    instance.error = isForbidden
+    const creationErrorMessage = isForbidden
       ? 'Vercel Sandbox returned 403 Forbidden. The token or OIDC identity is not authorized for this team/project, or the Vercel account does not have Sandbox access. Use the default local preview mode or fix the Vercel Sandbox credentials.'
       : error instanceof Error ? error.message : 'Unknown error'
+    instance.error = creationErrorMessage
     console.error(`[sandbox-manager] Error creating sandbox:`, error)
+
+    if (createdSandbox) {
+      try {
+        await createdSandbox.stop()
+        sandboxHandles.delete(websiteId)
+      } catch (cleanupError) {
+        const cleanupMessage = errorMessage(cleanupError)
+        instance.error = `${creationErrorMessage}; cleanup failed: ${cleanupMessage}`
+        console.error(`[sandbox-manager] Error cleaning up failed sandbox for ${websiteId}:`, cleanupError)
+        throw new Error(instance.error)
+      }
+    }
+
     if (isForbidden) {
       throw new Error(instance.error)
     }
@@ -376,7 +427,7 @@ HEAD_RUNTIME_REVALIDATE_SECONDS=0
  */
 export function getSandbox(websiteId: string): SandboxInstance | undefined {
   const instance = activeSandboxes.get(websiteId)
-  if (instance) {
+  if (instance?.status === 'ready' || instance?.status === 'updating') {
     instance.lastActivityAt = new Date()
   }
   return instance
@@ -394,6 +445,11 @@ export async function stopSandbox(websiteId: string): Promise<void> {
       await sandbox.stop()
     } catch (error) {
       console.error(`Error stopping sandbox for ${websiteId}:`, error)
+      if (instance) {
+        instance.status = 'error'
+        instance.error = `Failed to stop sandbox: ${errorMessage(error)}`
+      }
+      throw error
     }
     sandboxHandles.delete(websiteId)
   }
@@ -410,13 +466,22 @@ export async function stopSandbox(websiteId: string): Promise<void> {
  */
 export async function cleanupIdleSandboxes(): Promise<void> {
   const now = Date.now()
+  const failures: string[] = []
 
   for (const [websiteId, instance] of activeSandboxes.entries()) {
     const idleTime = now - instance.lastActivityAt.getTime()
     if (idleTime > IDLE_TIMEOUT_MS) {
       console.log(`Cleaning up idle sandbox for website ${websiteId}`)
-      await stopSandbox(websiteId)
+      try {
+        await stopSandbox(websiteId)
+      } catch (error) {
+        failures.push(`${websiteId}: ${errorMessage(error)}`)
+      }
     }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Failed to cleanup ${failures.length} idle sandbox(es): ${failures.join('; ')}`)
   }
 }
 

@@ -19,13 +19,13 @@ export type SandboxStatus =
  */
 export interface SandboxInstance {
   /** Unique sandbox ID from Vercel */
-  id: string
+  id?: string
   /** Website ID this sandbox is for */
   websiteId: string
   /** Current status */
   status: SandboxStatus
   /** Preview URL (port 3000 domain) */
-  previewUrl: string
+  previewUrl?: string
   /** When the sandbox was created */
   createdAt: Date
   /** Last activity timestamp (for idle detection) */
