@@ -55,6 +55,103 @@ const getDepthStyle = (depth: number): string => {
   return DEPTH_STYLES[Math.min(depth, DEPTH_STYLES.length - 1)] || DEPTH_STYLES[DEPTH_STYLES.length - 1]
 }
 
+const parseContentObject = (value: any): Record<string, any> | undefined => {
+  if (value == null) return undefined
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : undefined
+    } catch {
+      return undefined
+    }
+  }
+  return typeof value === 'object' && !Array.isArray(value) ? value : undefined
+}
+
+const hasKeys = (value: Record<string, any> | undefined): value is Record<string, any> =>
+  !!value && Object.keys(value).length > 0
+
+const deepMergeRecords = (base: Record<string, any>, override: Record<string, any>): Record<string, any> => {
+  const result: Record<string, any> = { ...base }
+  for (const [key, value] of Object.entries(override)) {
+    if (value === null) {
+      delete result[key]
+      continue
+    }
+    const existing = result[key]
+    if (
+      existing &&
+      typeof existing === 'object' &&
+      !Array.isArray(existing) &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    ) {
+      result[key] = deepMergeRecords(existing, value)
+    } else if (value !== undefined) {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+const readCanonicalContent = (component: ComponentInstance): Record<string, any> | undefined => {
+  if (component.content == null) return undefined
+  const parsed = parseContentObject(component.content)
+  if (!parsed) {
+    throw new Error('Component canonical content must be an object')
+  }
+  return parsed
+}
+
+export const getCanonicalComponentProperties = (component: ComponentInstance | null): Record<string, any> => {
+  if (!component) return {}
+
+  const isShared = !!component.props?.sharedComponentId
+  const resolvedSharedContent = component.props?._resolvedSharedContent as Record<string, unknown> | undefined
+  const instanceOverrides = (parseContentObject(component.props?.overrides) || {}) as Record<string, any>
+  const canonicalContent = readCanonicalContent(component)
+
+  if (canonicalContent && (!isShared || hasKeys(canonicalContent))) {
+    return canonicalContent
+  }
+
+  if (isShared && resolvedSharedContent) {
+    return deepMergeRecords(resolvedSharedContent as Record<string, any>, instanceOverrides)
+  }
+
+  if (component.content != null) {
+    return canonicalContent || {}
+  }
+
+  return {}
+}
+
+export const buildCanonicalComponentProps = (
+  component: ComponentInstance,
+  nextContent: Record<string, any>
+): Record<string, unknown> => {
+  const updatedProps: Record<string, unknown> = {
+    text: nextContent,
+    content: nextContent,
+  }
+
+  if (component.props?.metadata) {
+    updatedProps.metadata = component.props.metadata
+  }
+
+  if (component.props?.sharedComponentId) {
+    updatedProps.sharedComponentId = component.props.sharedComponentId
+    if (component.props._resolvedSharedContent) {
+      updatedProps._resolvedSharedContent = component.props._resolvedSharedContent
+    }
+    updatedProps.overrides = nextContent
+    updatedProps.hasOverrides = true
+  }
+
+  return updatedProps
+}
+
 export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> = ({
   isOpen,
   component,
@@ -178,39 +275,21 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
 
     // Parse the props/content JSON to get actual properties
     try {
-      let parsedProps = {}
-      const tryParse = (val: any): any => {
-        if (val == null) return undefined
-        if (typeof val === 'string') {
-          try { return JSON.parse(val) } catch { return undefined }
-        }
-        if (typeof val === 'object') return val
-        return undefined
-      }
-
       // Check if this is a shared component - data is in _resolvedSharedContent
       const isShared = !!component.props?.sharedComponentId
-      const resolvedSharedContent = component.props?._resolvedSharedContent as Record<string, unknown> | undefined
-      const instanceOverrides = (component.props?.overrides || {}) as Record<string, unknown>
+      const parsedProps = getCanonicalComponentProperties(component)
+      const usedSharedResolvedContent = isShared &&
+        !!component.props?._resolvedSharedContent &&
+        !hasKeys(parseContentObject(component.content))
 
-      if (isShared && resolvedSharedContent) {
-        // For shared components: merge resolved content with any instance overrides
-        // Use simple shallow merge for display - deep merge happens on save
-        parsedProps = { ...resolvedSharedContent, ...instanceOverrides }
+      if (usedSharedResolvedContent) {
         if (process.env.NODE_ENV === 'development') {
           console.log('[ComponentPropertiesPanel] Shared component detected, using resolved content:', {
             sharedComponentId: component.props?.sharedComponentId,
-            resolvedKeys: Object.keys(resolvedSharedContent),
-            overrideKeys: Object.keys(instanceOverrides),
+            resolvedKeys: Object.keys(component.props._resolvedSharedContent),
+            overrideKeys: Object.keys(component.props?.overrides || {}),
           })
         }
-      } else {
-        // Canonical content lives on component.content. props.content/text are legacy mirrors.
-        parsedProps =
-          tryParse(component.content) ??
-          tryParse(component.props?.content) ??
-          tryParse(component.props?.text) ??
-          {}
       }
 
       if (!parsedProps || (typeof parsedProps === 'object' && Object.keys(parsedProps).length === 0)) {
@@ -339,25 +418,7 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
     setProperties(newProperties)
     // TKT-041 FIX: Don't spread component.props - it may contain recursively nested data
     // from prior save cycles. Only include metadata (for schema) and shared component fields.
-    const jsonContent = JSON.stringify(newProperties)
-    const updatedProps: Record<string, unknown> = {
-      text: jsonContent,
-      content: jsonContent,
-    }
-    // Preserve metadata for schema definitions
-    if (component.props?.metadata) {
-      updatedProps.metadata = component.props.metadata
-    }
-    // Preserve shared component fields if this is a shared component
-    if (component.props?.sharedComponentId) {
-      updatedProps.sharedComponentId = component.props.sharedComponentId
-      if (component.props._resolvedSharedContent) {
-        updatedProps._resolvedSharedContent = component.props._resolvedSharedContent
-      }
-      if (component.props.overrides) {
-        updatedProps.overrides = component.props.overrides
-      }
-    }
+    const updatedProps = buildCanonicalComponentProps(component, newProperties)
     onPropertyChange(component.id, 'content', newProperties)
     onPropertyChange(component.id, 'props', updatedProps)
   }, [component, onPropertyChange, setByPathImmutable])
@@ -1983,11 +2044,7 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
                           const parsed = JSON.parse(e.target.value)
                           setProperties(parsed)
                           if (component) {
-                            const updatedProps = {
-                              ...component.props,
-                              text: e.target.value,
-                              content: e.target.value
-                            }
+                            const updatedProps = buildCanonicalComponentProps(component, parsed)
                             onPropertyChange(component.id, 'content', parsed)
                             onPropertyChange(component.id, 'props', updatedProps)
                           }
@@ -2026,10 +2083,6 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
     </>
   )
 }
-
-
-
-
 
 
 

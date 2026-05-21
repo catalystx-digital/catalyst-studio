@@ -79,6 +79,89 @@ function setByPathImmutable(base: any, path: string, value: any): any {
   return clone
 }
 
+const parseContentObject = (value: any): Record<string, any> | null => {
+  if (value == null) return null
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+}
+
+const hasKeys = (value: Record<string, any> | null): value is Record<string, any> =>
+  !!value && Object.keys(value).length > 0
+
+const deepMergeRecords = (base: Record<string, any>, override: Record<string, any>): Record<string, any> => {
+  const result: Record<string, any> = { ...base }
+  for (const [key, value] of Object.entries(override)) {
+    if (value === null) {
+      delete result[key]
+      continue
+    }
+    const existing = result[key]
+    if (
+      existing &&
+      typeof existing === 'object' &&
+      !Array.isArray(existing) &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    ) {
+      result[key] = deepMergeRecords(existing, value)
+    } else if (value !== undefined) {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+const readCanonicalContent = (component: any): Record<string, any> | null => {
+  if (component?.content == null) return null
+  const parsed = parseContentObject(component.content)
+  if (!parsed) {
+    throw new Error('Component canonical content must be an object')
+  }
+  return parsed
+}
+
+export const getCanonicalPropertyEditorContent = (component: any): Record<string, any> => {
+  if (!component) return {}
+  const isShared = !!component.props?.sharedComponentId
+  const canonicalContent = readCanonicalContent(component)
+
+  if (canonicalContent && (!isShared || hasKeys(canonicalContent))) {
+    return canonicalContent
+  }
+
+  if (isShared && component.props?._resolvedSharedContent) {
+    return deepMergeRecords(
+      component.props._resolvedSharedContent as Record<string, any>,
+      parseContentObject(component.props.overrides) || {}
+    )
+  }
+
+  return canonicalContent || {}
+}
+
+export const buildCanonicalPropertyEditorUpdate = (
+  component: any,
+  nextContent: Record<string, any>
+) => ({
+  content: nextContent,
+  props: {
+    ...(component?.props || {}),
+    text: nextContent,
+    content: nextContent,
+    ...(component?.props?.sharedComponentId
+      ? { overrides: nextContent, hasOverrides: true }
+      : {}),
+  },
+})
+
 export interface PropertyEditorPanelProps {
   isOpen: boolean
   componentId: string | null
@@ -234,17 +317,7 @@ export const PropertyEditorPanel: React.FC<PropertyEditorPanelProps> = ({
   // Get current content values
   const content = useMemo(() => {
     if (isEditingComponent && selectedComponent) {
-      // Canonical content lives on component.content. props.content/text are legacy mirrors.
-      const tryParse = (val: any) => {
-        if (typeof val === 'string') {
-          try { return JSON.parse(val) } catch { return null }
-        }
-        return typeof val === 'object' ? val : null
-      }
-      return tryParse(selectedComponent.content) ||
-        tryParse(selectedComponent.props?.content) ||
-        tryParse(selectedComponent.props?.text) ||
-        {}
+      return getCanonicalPropertyEditorContent(selectedComponent)
     }
     return selectedNode?.data || {}
   }, [isEditingComponent, selectedComponent, selectedNode?.data])
@@ -270,14 +343,7 @@ export const PropertyEditorPanel: React.FC<PropertyEditorPanelProps> = ({
       if (containingNode) {
         // Update content path in component
         const nextContent = setByPathImmutable(content, propertyName, sanitizedValue)
-        updateComponentInNode(containingNode.id, selectedComponentId, {
-          content: nextContent,
-          props: {
-            ...selectedComponent?.props,
-            text: JSON.stringify(nextContent),
-            content: JSON.stringify(nextContent)
-          }
-        })
+        updateComponentInNode(containingNode.id, selectedComponentId, buildCanonicalPropertyEditorUpdate(selectedComponent, nextContent))
       }
     } else if (componentId) {
       // Update page node in local state
