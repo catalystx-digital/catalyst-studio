@@ -785,15 +785,21 @@ function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] 
   return urls
 }
 
+function normalizeImportHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/^www\./, '')
+}
+
 /**
  * Checks if a URL is external to the source website.
- * A URL is considered external if it has a different origin (protocol + host).
+ * Canonical redirects between apex and www hostnames are treated as same-site
+ * so imports continue against the fetched final URL instead of becoming
+ * redirect-only imports.
  */
-function isExternalUrl(targetUrl: string, sourceUrl: string): boolean {
+export function isExternalUrl(targetUrl: string, sourceUrl: string): boolean {
   try {
     const target = new URL(targetUrl, sourceUrl)
     const source = new URL(sourceUrl)
-    return target.origin !== source.origin
+    return normalizeImportHostname(target.hostname) !== normalizeImportHostname(source.hostname)
   } catch {
     // If we can't parse, assume it's not external (relative URL)
     return false
@@ -1471,4 +1477,3 @@ export function getWebFetchTools(baseUrl?: string): WebFetchTools {
   else if (baseUrl) _webFetchTools.setBaseUrl(baseUrl)
   return _webFetchTools
 }
-

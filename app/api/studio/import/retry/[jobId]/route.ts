@@ -3,6 +3,7 @@ import { start } from 'workflow/api'
 import { prisma } from '@/lib/prisma'
 import { getAuthContext } from '@/lib/auth/context'
 import { importWebsiteWorkflow } from '@/lib/studio/workflows/import-website.workflow'
+import { randomUUID } from 'node:crypto'
 
 const importDb = prisma as any
 
@@ -35,9 +36,12 @@ export async function POST(
         status: { in: ['failed_retryable'] },
       },
       data: {
-        status: 'pending',
+        status: 'queued',
         phase: 'queued',
         error: null,
+        detectionPayload: null,
+        attemptToken: randomUUID(),
+        attempts: { increment: 1 },
         lastAttemptAt: new Date(),
       },
     })

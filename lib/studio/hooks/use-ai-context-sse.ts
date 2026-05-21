@@ -19,7 +19,7 @@
 import * as React from 'react'
 import type { AIMessage } from '@/types/ai-context'
 import { sseMetrics } from '@/lib/studio/utils/sse-metrics'
-import { isSSESupported } from './use-import-progress-sse'
+import { isSSESupported } from './use-import-progress-hybrid'
 
 export interface AIContextSSEState {
   /** Current messages in the context */

@@ -6,8 +6,10 @@ import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api/errors';
 import { getAuthContext } from '@/lib/auth/context';
 import { checkAndRecordUsage } from '@/lib/usage/limits';
+import { normalizeImportUrl } from '@/lib/studio/import/services/import-run-service';
 
 type ImportMode = 'new' | 'merge';
+const ACTIVE_RUN_STATUSES = ['queued', 'discovering', 'importing', 'running', 'detecting', 'normalizing', 'staged', 'committing'];
 
 /**
  * Extended request body for import start.
@@ -163,13 +165,11 @@ export async function POST(request: NextRequest) {
 
     const auth = await getAuthContext(request);
 
-    // Enforce per-account import limit (counted as import starts)
-    await checkAndRecordUsage(prisma, auth.accountId, 'import_page', 1, { metadata: { mode } });
-
     let websiteId: string;
 
     // Get primary URL for website creation
     const primaryUrl = url || (urls && urls.length > 0 ? urls[0] : '');
+    const idempotencyKey = buildImportIdempotencyKey({ primaryUrl, urls, importRequest, followSubpages, maxDepth });
 
     if (mode === 'merge') {
       if (!targetWebsiteId) {
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const existingWebsite = await prisma.website.findUnique({
+      const existingWebsite = await (prisma as any).website.findUnique({
         where: { id: targetWebsiteId },
         select: { id: true, accountId: true },
       });
@@ -192,7 +192,35 @@ export async function POST(request: NextRequest) {
       }
 
       websiteId = existingWebsite.id;
+
+      const existingRun = await (prisma as any).importRun.findFirst({
+        where: {
+          websiteId,
+          status: { in: ACTIVE_RUN_STATUSES },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { importJobId: true, idempotencyKey: true },
+      });
+
+      if (existingRun) {
+        if (existingRun.idempotencyKey === idempotencyKey) {
+          return NextResponse.json({
+            jobId: existingRun.importJobId,
+            websiteId,
+            mode,
+            replayed: true,
+            message: 'Import is already running',
+            initialSitemap: [],
+          });
+        }
+        return NextResponse.json(
+          { error: 'An import is already running for this website' },
+          { status: 409 }
+        );
+      }
+      await checkAndRecordUsage(prisma as any, auth.accountId, 'import_page', 1, { metadata: { mode } });
     } else {
+      await checkAndRecordUsage(prisma as any, auth.accountId, 'import_page', 1, { metadata: { mode } });
       const newWebsite = await prisma.website.create({
         data: {
           name: websiteName || new URL(primaryUrl).hostname,
@@ -218,6 +246,7 @@ export async function POST(request: NextRequest) {
       accountId: auth.accountId,
       followSubpages,
       maxDepth,
+      idempotencyKey,
     });
 
     // Start durable workflow
@@ -265,4 +294,22 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function buildImportIdempotencyKey(input: {
+  primaryUrl: string;
+  urls?: string[];
+  importRequest?: string;
+  followSubpages: boolean;
+  maxDepth: number;
+}): string {
+  const normalizedUrls = (input.urls && input.urls.length > 0 ? input.urls : [input.primaryUrl])
+    .map(normalizeImportUrl)
+    .sort();
+  return JSON.stringify({
+    urls: normalizedUrls,
+    request: input.importRequest?.trim() ?? '',
+    followSubpages: input.followSubpages,
+    maxDepth: input.maxDepth,
+  });
 }

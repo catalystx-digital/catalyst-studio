@@ -148,12 +148,13 @@ export class ContentOrchestrator implements IContentOrchestrator {
    * Note: WebsitePage contains actual pages - ContentItem table doesn't exist
    */
   private async fetchPages(websiteId: string): Promise<any[]> {
-    return this.prisma.websitePage.findMany({
+    const pages = await this.prisma.websitePage.findMany({
       where: { 
         websiteId,
         type: { in: ['page', 'folder'] } // Get both pages and folders
       }
     })
+    return pages.filter((page: any) => !isHiddenImportContent(page.metadata))
   }
 
   /**
@@ -184,6 +185,7 @@ export class ContentOrchestrator implements IContentOrchestrator {
     // Fetch from database
     const structures = await this.prisma.websiteStructure.findMany({
       where: { websiteId },
+      include: { websitePage: { select: { metadata: true } } },
       orderBy: [
         { pathDepth: 'asc' },
         { position: 'asc' }
@@ -191,9 +193,10 @@ export class ContentOrchestrator implements IContentOrchestrator {
     })
 
     // Cache the result
-    this.structureCache.set(cacheKey, structures)
+    const visibleStructures = structures.filter((structure: any) => !isHiddenImportContent(structure.websitePage?.metadata))
+    this.structureCache.set(cacheKey, visibleStructures)
     
-    return structures
+    return visibleStructures
   }
 
   /**
@@ -622,4 +625,9 @@ export class ContentOrchestrator implements IContentOrchestrator {
   }
 }
 
-
+function isHiddenImportContent(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false
+  const record = metadata as Record<string, unknown>
+  if (record.importVisibility === 'visible') return false
+  return record.isImportDraft === true || record.importVisibility === 'draft' || record.importVisibility === 'cancelled' || record.importVisibility === 'failed'
+}

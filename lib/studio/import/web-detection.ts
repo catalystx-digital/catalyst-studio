@@ -33,7 +33,8 @@ import {
   ConfidenceConfig,
   LoggingConfig,
   DetectionConfig,
-  OpenRouterConfig
+  OpenRouterConfig,
+  WebToolsConfig
 } from './config'
 import { safeStringify } from './utils/json-parsing'
 import { jsonrepair } from 'jsonrepair'
@@ -69,6 +70,72 @@ function logWebToolCall(
   console.log(`[ImportWebTool][${phase}] ${name}: ${truncateForLog(payload)}`)
 }
 
+function selectForceFetchSections(sectionKeys: string[], fetchedKeys: Set<string>, limit: number): string[] {
+  const missing = sectionKeys.filter(key => !fetchedKeys.has(key))
+  if (limit <= 0 || missing.length <= limit) return missing.slice(0, Math.max(0, limit))
+
+  const selected: string[] = []
+  const footer = missing.find(key => key.toLowerCase().includes('footer'))
+  const header = missing.find(key => key.toLowerCase().includes('header'))
+  if (header) selected.push(header)
+
+  const reserveFooter = footer && !selected.includes(footer) ? 1 : 0
+  const mainLimit = Math.max(0, limit - selected.length - reserveFooter)
+  for (const key of missing) {
+    if (selected.length >= limit - reserveFooter) break
+    if (key === header || key === footer) continue
+    if (key.toLowerCase().includes('main') || selected.length < mainLimit) {
+      selected.push(key)
+    }
+  }
+  for (const key of missing) {
+    if (selected.length >= limit - reserveFooter) break
+    if (!selected.includes(key) && key !== footer) selected.push(key)
+  }
+  if (footer && selected.length < limit && !selected.includes(footer)) selected.push(footer)
+  return selected.slice(0, limit)
+}
+
+function truncateStringsForPrompt(value: unknown, maxStringLength: number): unknown {
+  if (typeof value === 'string') {
+    return value.length > maxStringLength
+      ? `${value.slice(0, maxStringLength)}...[truncated ${value.length - maxStringLength} chars]`
+      : value
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => truncateStringsForPrompt(item, maxStringLength))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, truncateStringsForPrompt(item, maxStringLength)])
+    )
+  }
+  return value
+}
+
+function compactToolContentForPrompt(toolContent: Record<string, unknown>, maxChars: number): Record<string, unknown> {
+  let stringLimit = 12000
+  let compacted: Record<string, unknown> = toolContent
+  while (stringLimit >= 1000) {
+    compacted = truncateStringsForPrompt(toolContent, stringLimit) as Record<string, unknown>
+    if (JSON.stringify(compacted).length <= maxChars) return compacted
+    stringLimit = Math.floor(stringLimit / 2)
+  }
+
+  const result: Record<string, unknown> = {}
+  let used = 2
+  for (const [key, value] of Object.entries(compacted)) {
+    const entry = JSON.stringify({ [key]: value })
+    if (used + entry.length > maxChars) {
+      result[key] = { omitted: true, reason: 'IMPORT_DIRECT_PROMPT_MAX_CHARS exceeded' }
+      break
+    }
+    result[key] = value
+    used += entry.length + 1
+  }
+  return result
+}
+
 // Use centralized configuration
 const CONFIDENCE_THRESHOLD = ConfidenceConfig.detection
 const TEMPERATURE = ModelConfig.temperature.detection
@@ -78,6 +145,8 @@ const MIN_COMPLETION_BUDGET = TokenConfig.minCompletionBudget
 const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max (from env)
 const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
 const TOOL_LOOP_GUARD = DetectionConfig.toolLoopGuard
+const MAX_FORCE_FETCH_SECTIONS = WebToolsConfig.maxForceFetchSections
+const DIRECT_PROMPT_MAX_CHARS = WebToolsConfig.directPromptMaxChars
 
 let registryInitialization: Promise<void> | null = null
 
@@ -766,10 +835,11 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
   // This prevents LLM from prematurely stopping and missing page content
   if (outlineResult && outlineResult.sections.length > 0) {
     const allSectionKeys = outlineResult.sections.map(s => s.key)
-    const missingSections = allSectionKeys.filter(key => !fetchedSectionKeys.has(key))
+    const allMissingSections = allSectionKeys.filter(key => !fetchedSectionKeys.has(key))
+    const missingSections = selectForceFetchSections(allSectionKeys, fetchedSectionKeys, MAX_FORCE_FETCH_SECTIONS)
 
     if (missingSections.length > 0) {
-      console.log(`[SectionTracker] LLM skipped ${missingSections.length} sections. Force-fetching: ${missingSections.join(', ')}`)
+      console.log(`[SectionTracker] LLM skipped ${allMissingSections.length} sections. Force-fetching ${missingSections.length}/${allMissingSections.length}: ${missingSections.join(', ')}`)
 
       // Generate unique IDs for fake tool calls
       let fakeToolCallId = Date.now()
@@ -878,7 +948,8 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
     // Modify messages array IN PLACE (createRequest closes over this array)
     params.messages.length = 0
     params.messages.push(systemPrompt)
-    const freshUserContent = `Extract components from: ${params.url}\n\nPage data:\n${JSON.stringify(toolContent)}`
+    const compactedToolContent = compactToolContentForPrompt(toolContent, DIRECT_PROMPT_MAX_CHARS)
+    const freshUserContent = `Extract components from: ${params.url}\n\nPage data:\n${JSON.stringify(compactedToolContent)}`
     params.messages.push({
       role: 'user',
       content: freshUserContent
@@ -1426,12 +1497,17 @@ export class DetectionService {
         }
 
         const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
-          return await Promise.race([
-            promise,
-            new Promise<T>((_, reject) =>
-              setTimeout(() => reject(new Error(`web detection timeout after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS)
-            )
-          ])
+          let timeout: ReturnType<typeof setTimeout> | null = null
+          try {
+            return await Promise.race([
+              promise,
+              new Promise<T>((_, reject) => {
+                timeout = setTimeout(() => reject(new Error(`web detection timeout after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS)
+              })
+            ])
+          } finally {
+            if (timeout) clearTimeout(timeout)
+          }
         }
 
         const normalizedModelId = endpointModel.toLowerCase()
@@ -1618,4 +1694,3 @@ export type {
 } from './detection/types'
 
 export { detectionParserInternals } from './detection/response-parser'
-

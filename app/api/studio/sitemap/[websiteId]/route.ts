@@ -12,6 +12,14 @@ import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 
 // Use threshold from layout constants (single source of truth)
 const LARGE_SITE_THRESHOLD = LAYOUT_CONSTANTS.LARGE_SITE_THRESHOLD;
+const db = prisma as any;
+
+type StructureWithPageMeta = {
+  id: string;
+  parentId: string | null;
+  websitePageId: string | null;
+  websitePage?: { metadata: unknown } | null;
+};
 
 /**
  * GET /api/studio/sitemap/[websiteId]
@@ -48,7 +56,7 @@ export async function GET(
     }
 
     // Verify ownership
-    await assertWebsiteOwnership(prisma as any, auth.accountId, websiteId);
+    await assertWebsiteOwnership(db, auth.accountId, websiteId);
 
     // Ensure positions are calculated and persisted
     const positionsWereCalculated = await unifiedLayoutService.ensurePositionsExist(websiteId);
@@ -56,8 +64,7 @@ export async function GET(
       console.info('[SitemapAPI] Positions were calculated for website:', websiteId);
     }
 
-    // Get total node count
-    const totalNodes = await prisma.websiteStructure.count({ where: { websiteId } });
+    const totalNodes = await countVisibleStructures(websiteId);
 
     // Determine load mode
     const shouldUseSkeleton =
@@ -102,14 +109,15 @@ async function getSkeletonSitemap(
   startTime: number,
   totalNodes: number
 ) {
+  const websiteRevision = await getWebsiteRevision(websiteId);
   // Get all positions from database (single source of truth)
   const positions = await viewportQueryService.getAllPositions(websiteId);
 
   // Build edges from structure
-  const allStructures = await prisma.websiteStructure.findMany({
+  const allStructures = await db.websiteStructure.findMany({
     where: { websiteId },
-    select: { id: true, parentId: true, websitePageId: true },
-  });
+    select: { id: true, parentId: true, websitePageId: true, websitePage: { select: { metadata: true } } },
+  }) as StructureWithPageMeta[];
 
   // Filter out orphan nodes (structure entries without websitePageId)
   // These are created by ensureStructureChain during import but have no page content
@@ -122,7 +130,7 @@ async function getSkeletonSitemap(
     });
   }
 
-  const structures = allStructures.filter((s) => s.websitePageId);
+  const structures = allStructures.filter((s) => s.websitePageId && !isHiddenImportPage(s.websitePage?.metadata));
   const validStructureIds = new Set(structures.map((s) => s.id));
 
   const edges = structures
@@ -138,7 +146,7 @@ async function getSkeletonSitemap(
   const structureMap = new Map(structures.map((s) => [s.id, s]));
 
   // Filter positions to only include nodes with valid structure (has websitePageId)
-  const validPositions = positions.filter((pos) => validStructureIds.has(pos.structureId));
+  const validPositions = positions.filter((pos: any) => validStructureIds.has(pos.structureId));
 
   const nodes = validPositions.map((pos) => {
     const structure = structureMap.get(pos.structureId);
@@ -181,9 +189,11 @@ async function getSkeletonSitemap(
       nodes,
       edges,
       websiteId,
+      revision: websiteRevision,
       timestamp: new Date().toISOString(),
       meta: {
         totalNodes,
+        confirmedEmpty: totalNodes === 0,
         loadMode: 'skeleton',
         supportsViewportSync: true,
         viewportEndpoint: `/api/studio/sitemap/${websiteId}/viewport`,
@@ -204,8 +214,9 @@ async function getSkeletonSitemap(
  * Positions still come from database for consistency
  */
 async function getFullSitemap(websiteId: string, startTime: number, totalNodes: number) {
+  const websiteRevision = await getWebsiteRevision(websiteId);
   // Get tree for hierarchy
-  const tree = await siteStructureService.getTree(websiteId);
+  const tree = pruneHiddenImportNodes(await siteStructureService.getTree(websiteId));
 
   // Collect all page IDs and track nodes without page IDs
   const pageIds: string[] = [];
@@ -230,11 +241,11 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
   });
 
   // Batch fetch all pages
-  const pages = await prisma.websitePage.findMany({
+  const pages = await db.websitePage.findMany({
     where: { id: { in: pageIds } },
     select: { id: true, title: true, status: true, content: true, metadata: true },
-  });
-  const pageMap = new Map(pages.map((p) => [p.id, p]));
+  }) as Array<{ id: string; title: string; status: string; content: unknown; metadata: unknown }>;
+  const pageMap = new Map<string, { id: string; title: string; status: string; content: unknown; metadata: unknown }>(pages.map((p) => [p.id, p]));
 
   // Log component statistics
   let totalComponents = 0;
@@ -270,16 +281,16 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
 
   const shared =
     sharedIds.size > 0
-      ? await prisma.websiteSharedComponent.findMany({
+      ? await db.websiteSharedComponent.findMany({
           where: { id: { in: Array.from(sharedIds) } },
         })
       : [];
-  const sharedMap = new Map(shared.map((s) => [s.id, s]));
+  const sharedMap = new Map((shared as any[]).map((s: any) => [s.id, s]));
 
   // Get positions from database (single source of truth, includes dynamic heights)
   const positions = await viewportQueryService.getAllPositions(websiteId);
   const positionMap = new Map(
-    positions.map((p) => [p.structureId, { x: p.x, y: p.y, width: p.width, height: p.height }])
+    positions.map((p: any) => [p.structureId, { x: p.x, y: p.y, width: p.width, height: p.height }])
   );
 
   // Transform tree to React Flow format with full data
@@ -389,9 +400,11 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
       nodes,
       edges,
       websiteId,
+      revision: websiteRevision,
       timestamp: new Date().toISOString(),
       meta: {
         totalNodes,
+        confirmedEmpty: totalNodes === 0,
         loadMode: 'full',
         supportsViewportSync: false,
         nodeWidth: LAYOUT_CONSTANTS.NODE_WIDTH,
@@ -403,4 +416,53 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
       headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
     }
   );
+}
+
+async function getWebsiteRevision(websiteId: string): Promise<number> {
+  const website = await db.website.findUnique({
+    where: { id: websiteId },
+    select: { revision: true },
+  });
+  return website?.revision ?? 0;
+}
+
+async function countVisibleStructures(websiteId: string): Promise<number> {
+  const structures = await db.websiteStructure.findMany({
+    where: { websiteId },
+    select: { websitePageId: true, websitePage: { select: { metadata: true } } },
+  }) as Array<{ websitePageId: string | null; websitePage?: { metadata: unknown } | null }>;
+  return structures.filter((structure) => structure.websitePageId && !isHiddenImportPage(structure.websitePage?.metadata)).length;
+}
+
+function pruneHiddenImportNodes(node: any): any {
+  if (!node || isHiddenImportPage(node.websitePage?.metadata)) {
+    return {
+      id: 'root',
+      websiteId: node?.websiteId || '',
+      title: 'Root',
+      slug: '',
+      fullPath: '/',
+      pathDepth: 0,
+      position: 0,
+      weight: 0,
+      parentId: null,
+      websitePageId: null,
+      children: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+  return {
+    ...node,
+    children: (node.children || [])
+      .map(pruneHiddenImportNodes)
+      .filter((child: any) => child.websitePageId || (child.children && child.children.length > 0)),
+  };
+}
+
+function isHiddenImportPage(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
+  const record = metadata as Record<string, unknown>;
+  if (record.importVisibility === 'visible') return false;
+  return record.isImportDraft === true || record.importVisibility === 'draft' || record.importVisibility === 'cancelled' || record.importVisibility === 'failed';
 }

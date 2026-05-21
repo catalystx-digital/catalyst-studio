@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { updateSystemEvent, finalizeProgressEvent } from '@/lib/studio/import/utils/update-system-event';
+import { isAuthorizedInternalWorkflowRequest } from '@/lib/studio/workflows/internal-auth';
 
 // ============================================================================
 // Request Validation
@@ -56,45 +57,12 @@ type RequestBody = z.infer<typeof RequestSchema>;
 // Security
 // ============================================================================
 
-/**
- * Verify request is internal (from same server or workflow step).
- */
-function isInternalRequest(request: NextRequest): boolean {
-  const host = request.headers.get('host');
-  const origin = request.headers.get('origin');
-
-  // Accept localhost requests
-  if (host?.includes('localhost') || host?.includes('127.0.0.1')) {
-    return true;
-  }
-
-  // In production on Vercel, accept requests from same origin
-  if (origin && host && new URL(origin).host === host) {
-    return true;
-  }
-
-  // Check for internal workflow header
-  const workflowHeader = request.headers.get('x-workflow-internal');
-  if (workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
-    return true;
-  }
-
-  // Accept requests with valid Vercel automation bypass token
-  // This allows Vercel Workflow steps to call internal APIs
-  const bypassToken = request.nextUrl.searchParams.get('x-vercel-protection-bypass');
-  if (bypassToken && bypassToken === process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-    return true;
-  }
-
-  return false;
-}
-
 // ============================================================================
 // Route Handler
 // ============================================================================
 
 export async function POST(request: NextRequest) {
-  if (!isInternalRequest(request)) {
+  if (!isAuthorizedInternalWorkflowRequest(request)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

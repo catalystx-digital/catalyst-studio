@@ -10,6 +10,7 @@ import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 import { unifiedLayoutService } from '@/lib/studio/services/layout/unified-layout-service';
 import { calculateLevelHeight } from '@/lib/studio/constants/layout-constants';
 import { redirectService } from '@/lib/services/redirect-service';
+import { studioEventBus, type StudioEventRecord } from '@/lib/studio/activity/studio-event-bus';
 
 // Input validation schemas with enhanced security
 const MAX_METADATA_SIZE = 100000; // 100KB limit for metadata (imported pages can be large)
@@ -181,7 +182,8 @@ const OperationSchema = z.object({
 
 const SaveRequestSchema = z.object({
   websiteId: z.string().min(1).max(100), // Basic validation for websiteId format
-  operations: z.array(OperationSchema).min(1).max(50) // Limit batch size to prevent DoS
+  operations: z.array(OperationSchema).min(1).max(50), // Limit batch size to prevent DoS
+  baseWebsiteRevision: z.number().int().min(0).nullable().optional()
 });
 
 // Error type mapping for Prisma errors
@@ -219,7 +221,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { websiteId, operations } = validation.data;
+    const { websiteId, operations, baseWebsiteRevision } = validation.data;
 
     // Verify ownership of the website
     try {
@@ -228,9 +230,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Process operations in a transaction with Serializable isolation
+    const eventsToPublish: StudioEventRecord[] = [];
+    const actorSessionId = request.headers.get('x-studio-session-id');
+    let currentWebsiteRevision = 0;
+
+    // Process operations in a transaction with optimistic website revision checks.
     const results = await prisma.$transaction(
       async (tx) => {
+        const revisionUpdate =
+          typeof baseWebsiteRevision === 'number'
+            ? await tx.website.updateMany({
+                where: { id: websiteId, revision: baseWebsiteRevision },
+                data: { revision: { increment: 1 } },
+              })
+            : await tx.website.updateMany({
+                where: { id: websiteId },
+                data: { revision: { increment: 1 } },
+              });
+
+        if (revisionUpdate.count !== 1) {
+          const current = await tx.website.findUnique({
+            where: { id: websiteId },
+            select: { revision: true },
+          });
+          throw Object.assign(new Error('Website changed in another session'), {
+            statusCode: 409,
+            currentWebsiteRevision: current?.revision ?? null,
+          });
+        }
+
+        const revisionRecord = await tx.website.findUnique({
+          where: { id: websiteId },
+          select: { revision: true },
+        });
+        currentWebsiteRevision = revisionRecord?.revision ?? 0;
+
         const operationResults = [];
         
         for (const op of operations) {
@@ -361,12 +395,13 @@ export async function POST(request: NextRequest) {
                 // If components were provided, update the WebsitePage
                 if (op.data?.components !== undefined) {
                   if (existingNode.websitePageId) {
-                    await prisma.websitePage.update({
+                    await (prisma as any).websitePage.update({
                       where: { id: existingNode.websitePageId },
                       data: {
                         content: {
                           components: op.data.components
-                        } as Prisma.InputJsonValue
+                        } as Prisma.InputJsonValue,
+                        revision: { increment: 1 }
                       }
                     });
                   }
@@ -409,10 +444,11 @@ export async function POST(request: NextRequest) {
                     }
                   }
 
-                  await prisma.websitePage.update({
+                  await (prisma as any).websitePage.update({
                     where: { id: existingNode.websitePageId },
                     data: {
-                      metadata: updatedMetadata as Prisma.InputJsonValue
+                      metadata: updatedMetadata as Prisma.InputJsonValue,
+                      revision: { increment: 1 }
                     }
                   });
 
@@ -532,13 +568,29 @@ export async function POST(request: NextRequest) {
               }
             }
             
-            operationResults.push({
-              success: false,
+            throw Object.assign(new Error(clientError), {
               operation: op.type,
-              error: clientError
+              cause: opError,
             });
           }
         }
+
+        const event = await studioEventBus.publishInTransaction(tx, {
+          websiteId,
+          type: 'website.graph.changed',
+          source: 'builder',
+          actorUserId: auth.userId ?? null,
+          actorSessionId,
+          resourceType: 'website',
+          resourceId: websiteId,
+          revision: currentWebsiteRevision,
+          payload: {
+            operationTypes: operations.map((operation) => operation.type),
+            operationCount: operations.length,
+            layoutMayChange: operations.some((operation) => operation.type === 'CREATE' || operation.type === 'DELETE' || operation.type === 'MOVE'),
+          },
+        });
+        eventsToPublish.push(event);
         
         return operationResults;
       },
@@ -550,6 +602,9 @@ export async function POST(request: NextRequest) {
         timeout: 15000 // 15s max - Prisma Accelerate hard limit for interactive transactions
       }
     );
+
+    await Promise.all(eventsToPublish.map((event) => studioEventBus.publishAfterCommit(event)));
+    eventsToPublish.length = 0;
 
     // Run deferred cleanup tasks (redirect removal, layout invalidation)
     // These are non-critical and run AFTER transaction commits
@@ -607,6 +662,19 @@ export async function POST(request: NextRequest) {
             });
             await unifiedLayoutService.calculateAndPersistLayout(websiteId);
             layoutRecalculated = true;
+            await studioEventBus.publish({
+              websiteId,
+              type: 'website.layout.changed',
+              source: 'builder',
+              actorUserId: auth.userId ?? null,
+              actorSessionId,
+              resourceType: 'website',
+              resourceId: websiteId,
+              revision: currentWebsiteRevision,
+              payload: {
+                reason: 'component_height_changed',
+              },
+            });
             break; // Only need to recalculate once
           }
         }
@@ -620,6 +688,7 @@ export async function POST(request: NextRequest) {
       success: allSucceeded,
       results,
       layoutRecalculated,
+      currentWebsiteRevision,
       timestamp: new Date().toISOString()
     });
     
@@ -635,6 +704,30 @@ export async function POST(request: NextRequest) {
           { status: errorInfo.status }
         );
       }
+    }
+
+    const statusCode = typeof (error as { statusCode?: unknown }).statusCode === 'number'
+      ? (error as { statusCode: number }).statusCode
+      : null;
+    if (statusCode === 409) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Website changed in another session',
+          currentWebsiteRevision: (error as { currentWebsiteRevision?: number | null }).currentWebsiteRevision ?? undefined,
+        },
+        { status: 409 }
+      );
+    }
+
+    if ((error as { operation?: unknown }).operation) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Save operation failed',
+        },
+        { status: 400 }
+      );
     }
     
     // Handle transaction conflicts specifically
@@ -701,4 +794,3 @@ async function getDefaultContentTypeId(websiteId: string, category: 'page' | 'co
   
   return contentType.id;
 }
-

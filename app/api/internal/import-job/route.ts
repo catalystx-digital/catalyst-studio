@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ImportJobStatus } from "@/lib/studio/import/types/import-job.types";
 import { ImportRunService, normalizeImportUrl } from "@/lib/studio/import/services/import-run-service";
+import { isAuthorizedInternalWorkflowRequest } from "@/lib/studio/workflows/internal-auth";
 
 const importDb = prisma as any;
 const TERMINAL_IMPORT_JOB_STATUSES = [
@@ -22,35 +23,6 @@ const TERMINAL_IMPORT_JOB_STATUSES = [
   ImportJobStatus.CANCELLED,
 ];
 
-// Verify request is internal (from same server)
-function isInternalRequest(request: NextRequest): boolean {
-  const host = request.headers.get("host");
-  const origin = request.headers.get("origin");
-
-  // Accept localhost requests
-  if (host?.includes("localhost") || host?.includes("127.0.0.1")) {
-    return true;
-  }
-
-  // Check for internal workflow header
-  const workflowHeader = request.headers.get("x-workflow-internal");
-  if (process.env.WORKFLOW_INTERNAL_SECRET && workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
-    return true;
-  }
-
-  // Accept requests with valid Vercel automation bypass token
-  // This allows Vercel Workflow steps to call internal APIs
-  const bypassToken = request.nextUrl.searchParams.get(
-    "x-vercel-protection-bypass"
-  );
-  if (bypassToken && bypassToken === process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-    return true;
-  }
-
-  // Reject unknown requests
-  return false;
-}
-
 interface UpdateProgressRequest {
   action: "updateProgress";
   jobId: string;
@@ -58,8 +30,9 @@ interface UpdateProgressRequest {
   message: string;
   details?: {
     totalPages?: number;
-    currentUrl?: string | null;
-    processedCount?: number;
+  currentUrl?: string | null;
+  processedCount?: number;
+  attemptToken?: string | null;
   };
 }
 
@@ -77,6 +50,12 @@ interface MarkCompletedRequest {
 interface GetRunPlanRequest {
   action: "getRunPlan";
   jobId: string;
+}
+
+interface GetSuccessfulDetectionsRequest {
+  action: "getSuccessfulDetections";
+  jobId: string;
+  attemptTokens?: string[];
 }
 
 interface AssertRunActiveRequest {
@@ -97,6 +76,7 @@ interface UpsertPageStageRequest {
   structureCandidate?: unknown;
   committedPageId?: string | null;
   error?: unknown;
+  attemptToken?: string | null;
 }
 
 type RequestBody =
@@ -104,11 +84,12 @@ type RequestBody =
   | MarkFailedRequest
   | MarkCompletedRequest
   | GetRunPlanRequest
+  | GetSuccessfulDetectionsRequest
   | AssertRunActiveRequest
   | UpsertPageStageRequest;
 
 export async function POST(request: NextRequest) {
-  if (!isInternalRequest(request)) {
+  if (!isAuthorizedInternalWorkflowRequest(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -124,6 +105,8 @@ export async function POST(request: NextRequest) {
         return handleMarkCompleted(body);
       case "getRunPlan":
         return handleGetRunPlan(body);
+      case "getSuccessfulDetections":
+        return handleGetSuccessfulDetections(body);
       case "assertRunActive":
         return handleAssertRunActive(body);
       case "upsertPageStage":
@@ -180,18 +163,17 @@ async function handleUpdateProgress(body: UpdateProgressRequest) {
   const currentRun = await runService.findByJobId(jobId);
   const runStatus = typeof currentRun?.status === "string" ? currentRun.status.toLowerCase() : null;
   const isTerminalRun =
-    runStatus === "success" ||
-    runStatus === "partial_success" ||
     runStatus === "completed" ||
     runStatus === "completed_with_warnings" ||
-    runStatus === "failed" ||
+    runStatus === "completed_with_redirects" ||
+    runStatus === "failed_retryable" ||
+    runStatus === "failed_terminal" ||
     runStatus === "cancelled" ||
-    runStatus === "recoverable_stuck" ||
     runStatus === "unknown";
 
   if (!isTerminalRun) {
     await runService.updateProgressForJob(jobId, {
-      status: progress >= 85 ? "committing" : "detecting",
+      status: progress >= 85 ? "committing" : "importing",
       phase: progress >= 85 ? "commit_page" : "detect_page",
       progress,
       message,
@@ -222,17 +204,16 @@ async function handleMarkFailed(body: MarkFailedRequest) {
   const run = await runService.findByJobId(jobId);
   const runStatus = typeof run?.status === "string" ? run.status.toLowerCase() : null;
   if (
-    runStatus !== "success" &&
-    runStatus !== "partial_success" &&
     runStatus !== "completed" &&
     runStatus !== "completed_with_warnings" &&
-    runStatus !== "failed" &&
+    runStatus !== "completed_with_redirects" &&
+    runStatus !== "failed_retryable" &&
+    runStatus !== "failed_terminal" &&
     runStatus !== "cancelled" &&
-    runStatus !== "recoverable_stuck" &&
     runStatus !== "unknown"
   ) {
     await runService.updateProgressForJob(jobId, {
-      status: "failed",
+      status: "failed_retryable",
       phase: "failed",
       message: errorMessage,
       lastError: {
@@ -261,21 +242,22 @@ async function handleMarkCompleted(body: MarkCompletedRequest) {
   const run = await runService.findByJobId(jobId);
   const runStatus = typeof run?.status === "string" ? run.status.toLowerCase() : null;
   if (
-    runStatus !== "success" &&
-    runStatus !== "partial_success" &&
     runStatus !== "completed" &&
     runStatus !== "completed_with_warnings" &&
-    runStatus !== "failed" &&
+    runStatus !== "completed_with_redirects" &&
+    runStatus !== "failed_retryable" &&
+    runStatus !== "failed_terminal" &&
     runStatus !== "cancelled" &&
-    runStatus !== "recoverable_stuck" &&
     runStatus !== "unknown"
   ) {
     const finalStatus = await runService.deriveFinalStatusForJob(jobId);
-    const runFinalStatus = finalStatus?.status ?? "success";
+    const runFinalStatus = finalStatus?.status ?? "completed";
     const jobFinalStatus =
-      runFinalStatus === "partial_success"
+      runFinalStatus === "completed_with_redirects"
         ? ImportJobStatus.COMPLETED_WITH_WARNINGS
-        : runFinalStatus === "success"
+        : runFinalStatus === "completed_with_warnings"
+          ? ImportJobStatus.COMPLETED_WITH_WARNINGS
+        : runFinalStatus === "completed"
           ? ImportJobStatus.COMPLETED
           : runFinalStatus === "cancelled"
             ? ImportJobStatus.CANCELLED
@@ -301,7 +283,12 @@ async function handleMarkCompleted(body: MarkCompletedRequest) {
       totalPages: finalStatus?.totalPages,
       committedPages: finalStatus?.committedPages,
       failedPages: finalStatus?.failedPages,
-      recoverableActions: runFinalStatus === "partial_success" ? ["retry_failed_pages", "continue_with_successful_pages"] : [],
+      recoverableActions:
+        runFinalStatus === "completed_with_redirects"
+          ? ["continue_with_redirects"]
+          : runFinalStatus === "completed_with_warnings"
+            ? ["retry_failed_pages"]
+            : [],
       completedAt: new Date(),
     });
   }
@@ -319,6 +306,7 @@ async function handleGetRunPlan(body: GetRunPlanRequest) {
           sourceUrl: true,
           normalizedPageUrl: true,
           status: true,
+          attemptToken: true,
         },
       },
     },
@@ -332,12 +320,17 @@ async function handleGetRunPlan(body: GetRunPlanRequest) {
       ? plan.urls.filter((url): url is string => typeof url === "string")
       : [];
     const pendingStages = run.pageStages.filter((stage: { status: string }) =>
-      ["pending", "failed_retryable"].includes(String(stage.status).toLowerCase())
+      ["discovered", "queued", "pending", "failed_retryable"].includes(String(stage.status).toLowerCase())
     );
-    const sourceStages = pendingStages.length > 0 ? pendingStages : run.pageStages;
+    const sourceStages = pendingStages;
     const stagedUrls = sourceStages.map((stage: { sourceUrl: string }) => stage.sourceUrl);
     const stagedNormalizedUrls = sourceStages.map((stage: { normalizedPageUrl: string }) => stage.normalizedPageUrl);
-    const urls = stagedUrls.length > 0 ? stagedUrls : planUrls.length > 0 ? planUrls : [run.sourceUrl];
+    const stagePlans = sourceStages.map((stage: { sourceUrl: string; normalizedPageUrl: string; attemptToken?: string | null }) => ({
+      url: stage.sourceUrl,
+      normalizedUrl: stage.normalizedPageUrl,
+      attemptToken: stage.attemptToken ?? null,
+    }));
+    const urls = stagedUrls.length > 0 ? stagedUrls : run.pageStages.length === 0 && planUrls.length > 0 ? planUrls : [];
 
     return NextResponse.json({
       success: true,
@@ -345,6 +338,7 @@ async function handleGetRunPlan(body: GetRunPlanRequest) {
         runId: run.id,
         urls,
         normalizedUrls: stagedNormalizedUrls.length > 0 ? stagedNormalizedUrls : urls.map(normalizeImportUrl),
+        stagePlans,
         importPlan: run.importPlan,
       },
     });
@@ -371,6 +365,62 @@ async function handleGetRunPlan(body: GetRunPlanRequest) {
   });
 }
 
+async function handleGetSuccessfulDetections(body: GetSuccessfulDetectionsRequest) {
+  const runService = new ImportRunService();
+  const run = await importDb.importRun.findUnique({
+    where: { importJobId: body.jobId },
+    include: {
+      pageStages: {
+        where: {
+          status: { in: ["detected", "staged", "committed"] },
+          ...(body.attemptTokens && body.attemptTokens.length > 0 ? { attemptToken: { in: body.attemptTokens } } : {}),
+        },
+        orderBy: [{ firstSeenAt: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          sourceUrl: true,
+          status: true,
+          detectionPayload: true,
+          attemptToken: true,
+        },
+      },
+    },
+  });
+
+  if (!run) {
+    return NextResponse.json({ success: true, data: { detections: [] } });
+  }
+
+  const detections: unknown[] = [];
+  for (const stage of run.pageStages) {
+    if (stage.detectionPayload) {
+      detections.push(stage.detectionPayload);
+      continue;
+    }
+
+    await runService.upsertPageStageForJob(body.jobId, {
+      pageUrl: stage.sourceUrl,
+      status: "failed_retryable",
+      phase: "detect_page",
+      attemptToken: stage.attemptToken,
+      error: {
+        code: "PAGE_DETECTION_PAYLOAD_MISSING",
+        category: "workflow_orchestration",
+        retryable: true,
+        scope: "page",
+        phase: "detect_page",
+        pageUrl: stage.sourceUrl,
+        message: "Detected page stage is missing detectionPayload",
+        attempts: 1,
+        firstSeenAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  return NextResponse.json({ success: true, data: { detections } });
+}
+
 async function handleAssertRunActive(body: AssertRunActiveRequest) {
   const run = await importDb.importRun.findUnique({
     where: { importJobId: body.jobId },
@@ -389,7 +439,7 @@ async function handleAssertRunActive(body: AssertRunActiveRequest) {
     );
   }
 
-  if (["success", "partial_success", "completed", "completed_with_warnings", "failed", "recoverable_stuck", "unknown"].includes(status)) {
+  if (["completed", "completed_with_warnings", "completed_with_redirects", "failed_retryable", "failed_terminal", "unknown"].includes(status)) {
     return NextResponse.json(
       { success: false, error: `Import run is terminal: ${status}`, data: { active: false, status } },
       { status: 409 }
@@ -412,6 +462,7 @@ async function handleUpsertPageStage(body: UpsertPageStageRequest) {
     structureCandidate: body.structureCandidate as any,
     committedPageId: body.committedPageId,
     error: body.error as any,
+    attemptToken: body.attemptToken,
   });
 
   if (!stage) {

@@ -208,6 +208,7 @@ model Website {
   agencyBranding          Json? /// Agency white-label branding for proposals
   proposalTemplate        Json? /// Custom Word template for proposal exports (base64 content + metadata)
   isActive                Boolean                    @default(true)
+  revision                Int                        @default(0)
   createdAt               DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
   accountId               String?                    @db.Uuid
@@ -235,6 +236,8 @@ model Website {
   redirects               Redirect[]
   contentReferences       ContentReference[]
   failedReferences        FailedReference[]
+  studioEvents            StudioEvent[]
+  eventCursor             WebsiteEventCursor?
 
   @@index([accountId])
 }
@@ -268,6 +271,7 @@ model WebsitePage {
   metadata      Json?
   contentTypeId String
   status        String             @default("draft")
+  revision      Int                @default(0)
   publishedAt   DateTime?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -276,6 +280,34 @@ model WebsitePage {
   contentType   ContentType        @relation(fields: [contentTypeId], references: [id])
   website       Website            @relation(fields: [websiteId], references: [id])
   structures    WebsiteStructure[]
+}
+
+model WebsiteEventCursor {
+  websiteId String   @id
+  sequence  Int      @default(0)
+  updatedAt DateTime @updatedAt
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+}
+
+model StudioEvent {
+  id             String   @id @default(cuid())
+  websiteId      String
+  sequence       Int
+  type           String
+  source         String
+  actorUserId    String?
+  actorSessionId String?
+  resourceType   String?
+  resourceId     String?
+  revision       Int?
+  payload        Json?
+  createdAt      DateTime @default(now())
+  website        Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, sequence])
+  @@index([websiteId, createdAt])
+  @@index([websiteId, type])
+  @@index([resourceType, resourceId])
 }
 
 model WebsiteCustomContentData {
@@ -545,6 +577,7 @@ model ImportRun {
   websiteId           String
   sourceUrl           String
   normalizedSourceUrl String
+  idempotencyKey      String?
   status              String            @default("queued")
   phase               String            @default("queued")
   progress            Int               @default(0)
@@ -570,6 +603,7 @@ model ImportRun {
   @@index([status])
   @@index([phase])
   @@index([updatedAt])
+  @@unique([websiteId, idempotencyKey])
 }
 
 /// Per-URL staging row for detected and normalized import content.
@@ -589,9 +623,12 @@ model ImportPageStage {
   pageContent        Json?
   structureCandidate Json?
   contentFingerprint String?
+  draftPageId        String?
+  draftStructureId   String?
   committedPageId    String?
   error              Json?
   attempts           Int       @default(0)
+  attemptToken       String    @default(cuid())
   firstSeenAt        DateTime  @default(now())
   lastAttemptAt      DateTime?
   committedAt        DateTime?
@@ -600,9 +637,13 @@ model ImportPageStage {
   run                ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@unique([runId, normalizedPageUrl])
+  @@unique([runId, normalizedPath])
   @@index([runId])
   @@index([websiteId])
   @@index([status])
+  @@index([attemptToken])
+  @@index([draftPageId])
+  @@index([draftStructureId])
   @@index([committedPageId])
 }
 

@@ -38,6 +38,8 @@ type ActivityRun = {
     status: string
     phase: string
     error: unknown
+    draftPageId: string | null
+    draftStructureId: string | null
     committedPageId: string | null
   }>
   importJob: {
@@ -102,7 +104,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const clampProgress = (raw: unknown, status: string): number => {
-  if (status === 'success' || status === 'partial_success' || status === 'completed' || status === 'completed_with_warnings') {
+  if (status === 'success' || status === 'partial_success' || status === 'completed' || status === 'completed_with_warnings' || status === 'completed_with_redirects') {
     return 100
   }
   if (typeof raw === 'number' && Number.isFinite(raw)) return Math.min(100, Math.max(0, Math.round(raw)))
@@ -134,9 +136,13 @@ function normalizeRunProductStatus(status: string | null | undefined, run?: Pick
       return 'success'
     case 'partial_success':
     case 'completed_with_warnings':
+    case 'completed_with_redirects':
       return 'partial_success'
     case 'failed':
+    case 'failed_terminal':
       return run && run.committedPages > 0 ? 'partial_success' : 'failed'
+    case 'failed_retryable':
+      return run && run.committedPages > 0 ? 'partial_success' : 'recoverable_stuck'
     case 'cancelled':
       return 'cancelled'
     case 'recoverable_stuck':
@@ -144,6 +150,7 @@ function normalizeRunProductStatus(status: string | null | undefined, run?: Pick
     case 'queued':
     case 'running':
     case 'discovering':
+    case 'importing':
     case 'detecting':
     case 'normalizing':
     case 'staged':
@@ -247,6 +254,7 @@ function mapPageStageStatus(status: string | null | undefined, phase?: string | 
   switch (value) {
     case 'pending':
     case 'queued':
+    case 'discovered':
       return 'pending'
     case 'detecting':
     case 'detected':
@@ -255,6 +263,7 @@ function mapPageStageStatus(status: string | null | undefined, phase?: string | 
     case 'normalizing':
     case 'normalized':
     case 'staged':
+    case 'draft_created':
       return 'processing'
     case 'committing':
       return 'processing'
@@ -271,7 +280,10 @@ function mapPageStageStatus(status: string | null | undefined, phase?: string | 
     case 'unknown':
       return 'invalid'
     case 'skipped':
+    case 'skipped_existing':
       return 'skipped'
+    case 'redirect_created':
+      return 'ready'
     default:
       return phase === 'commit_page' ? 'processing' : 'pending'
   }
@@ -398,18 +410,20 @@ function pageStageMetadata(run: ActivityRun): ImportJobMetadata {
     phase: stage.phase,
     title: stage.title,
     committedPageId: stage.committedPageId,
+    draftPageId: stage.draftPageId,
+    draftStructureId: stage.draftStructureId,
     ...(stage.error ? { error: typeof stage.error === 'string' ? stage.error : JSON.stringify(stage.error) } : {}),
   }))
   const current = stages.find((stage) => {
     const uiStatus = mapPageStageStatus(stage.status, stage.phase)
     return uiStatus === 'processing'
   })
-  const processedPages = pages.filter(page =>
-    page.status === 'ready' ||
-    page.status === 'failed' ||
-    page.status === 'skipped' ||
-    page.status === 'invalid'
+  const processedPages = stages.filter(stage =>
+    ['detected', 'staged', 'committed', 'failed_retryable', 'failed_terminal', 'skipped', 'skipped_existing', 'redirect', 'redirect_created'].includes(stage.status)
   ).length
+  const detectedPages = stages.filter(stage => stage.status === 'detected').length
+  const processingPages = stages.filter(stage => ['processing', 'normalizing', 'normalized', 'draft_created'].includes(stage.status)).length
+  const skippedPages = stages.filter(stage => ['skipped', 'skipped_existing'].includes(stage.status)).length
   return {
     importRun: {
       runId: run.id,
@@ -421,13 +435,25 @@ function pageStageMetadata(run: ActivityRun): ImportJobMetadata {
         staged: run.stagedPages,
         committed: run.committedPages,
         failed: run.failedPages,
+        skipped: skippedPages,
+        discovered: stages.length,
+        processed: processedPages,
+        detected: detectedPages,
+        processing: processingPages,
       },
     },
     pages,
     progressSummary: {
-      processedCount: Math.max(run.committedPages, run.stagedPages, processedPages),
+      processedCount: processedPages,
       totalCount: run.totalPages,
       currentUrl: current?.sourceUrl ?? null,
+      discoveredCount: stages.length,
+      processingCount: processingPages,
+      detectedCount: detectedPages,
+      stagedCount: run.stagedPages,
+      committedCount: run.committedPages,
+      failedCount: run.failedPages,
+      skippedCount: skippedPages,
     },
     ...(run.lastError ? { lastError: run.lastError } : {}),
   }
@@ -484,6 +510,23 @@ export class ImportActivityReadService {
     return job ? this.toLegacyViewModel(job) : null
   }
 
+  async getForJobByWebsite(websiteId: string, jobId: string): Promise<ImportJobViewModel | null> {
+    if (typeof importDb.importRun?.findFirst !== 'function') {
+      return null
+    }
+    const run = await importDb.importRun.findFirst({
+      where: { importJobId: jobId, websiteId },
+      include: this.runInclude(true),
+    })
+    if (run) return this.toRunViewModel(run)
+
+    const job = await importDb.importJob.findFirst({
+      where: { id: jobId, websiteId },
+      include: this.jobInclude(),
+    })
+    return job ? this.toLegacyViewModel(job) : null
+  }
+
   async getProgressSnapshot(accountId: string, jobId: string): Promise<ImportProgressSnapshot | null> {
     const view = await this.getForJob(accountId, jobId)
     if (!view) return null
@@ -534,6 +577,8 @@ export class ImportActivityReadService {
           status: true,
           phase: true,
           error: true,
+          draftPageId: true,
+          draftStructureId: true,
           committedPageId: true,
         },
       }

@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ImportJobStatus } from "@/lib/studio/import/types/import-job.types";
 import type { PrismaClient } from "@/lib/generated/prisma";
+import { isAuthorizedInternalWorkflowRequest } from "@/lib/studio/workflows/internal-auth";
 
 const TERMINAL_IMPORT_JOB_STATUSES = [
   ImportJobStatus.COMPLETED,
@@ -20,33 +21,6 @@ const TERMINAL_IMPORT_JOB_STATUSES = [
 ];
 const importDb = prisma as any;
 
-// Verify request is internal (from same server or workflow step)
-function isInternalRequest(request: NextRequest): boolean {
-  const host = request.headers.get("host");
-
-  // Accept localhost requests
-  if (host?.includes("localhost") || host?.includes("127.0.0.1")) {
-    return true;
-  }
-
-  // Check for internal workflow header
-  const workflowHeader = request.headers.get("x-workflow-internal");
-  if (process.env.WORKFLOW_INTERNAL_SECRET && workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
-    return true;
-  }
-
-  // Accept requests with valid Vercel automation bypass token
-  // This allows Vercel Workflow steps to call internal APIs
-  const bypassToken = request.nextUrl.searchParams.get(
-    "x-vercel-protection-bypass"
-  );
-  if (bypassToken && bypassToken === process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-    return true;
-  }
-
-  // Reject unknown requests
-  return false;
-}
 import { ImportResultHandler } from "@/lib/studio/import/services/import-result-handler";
 import { ImportJobRepository } from "@/lib/studio/import/repositories/import-job.repository";
 import { ImportProgressManager } from "@/lib/studio/import/services/import-progress-manager";
@@ -85,17 +59,18 @@ interface PersistRequest {
   detections: ImportDetectionResult[];
   sharedResult: SharedComponentsResult;
   designResult: DesignSystemResult;
+  attemptTokens?: string[];
   sitemapResult: SitemapResult;
 }
 
 export async function POST(request: NextRequest) {
-  if (!isInternalRequest(request)) {
+  if (!isAuthorizedInternalWorkflowRequest(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
     const body = (await request.json()) as PersistRequest;
-    const { jobId, websiteId, detections, sharedResult, designResult, sitemapResult } = body;
+    const { jobId, websiteId, detections, sharedResult, designResult, attemptTokens, sitemapResult } = body;
 
     // Validate required fields
     if (!jobId || typeof jobId !== "string") {
@@ -121,6 +96,51 @@ export async function POST(request: NextRequest) {
 
     const runService = new ImportRunService();
     await runService.assertRunNotCancelled(jobId);
+    const run = await importDb.importRun.findUnique({
+      where: { importJobId: jobId },
+      include: {
+        pageStages: {
+          where: {
+            status: { in: ["detected", "staged", "committed"] },
+            ...(attemptTokens && attemptTokens.length > 0 ? { attemptToken: { in: attemptTokens } } : {}),
+          },
+          orderBy: [{ firstSeenAt: "asc" }, { createdAt: "asc" }],
+          select: {
+            sourceUrl: true,
+            detectionPayload: true,
+            attemptToken: true,
+          },
+        },
+      },
+    });
+    const durableDetections: ImportDetectionResult[] = [];
+    if (run) {
+      for (const stage of run.pageStages) {
+        if (stage.detectionPayload) {
+          durableDetections.push(stage.detectionPayload as ImportDetectionResult);
+        } else {
+          await runService.upsertPageStageForJob(jobId, {
+            pageUrl: stage.sourceUrl,
+            status: "failed_retryable",
+            phase: "commit_page",
+            attemptToken: stage.attemptToken,
+            error: {
+              code: "PAGE_DETECTION_PAYLOAD_MISSING",
+              category: "workflow_orchestration",
+              retryable: true,
+              scope: "page",
+              phase: "commit_page",
+              pageUrl: stage.sourceUrl,
+              message: "Detected page stage is missing detectionPayload",
+              attempts: 1,
+              firstSeenAt: new Date().toISOString(),
+              lastSeenAt: new Date().toISOString(),
+            },
+          });
+        }
+      }
+    }
+    const detectionsToPersist = run ? durableDetections : detections;
 
     const repository = new ImportJobRepository();
     const progressManager = new ImportProgressManager(repository);
@@ -149,7 +169,7 @@ export async function POST(request: NextRequest) {
     const pipelineResult = {
       success: true,
       data: {
-        detectedComponents: detections,
+        detectedComponents: detectionsToPersist,
         navigation: sharedResult.navigation,
         templates: sharedResult.templates,
         designTokens: sharedResult.designTokens,
@@ -171,11 +191,13 @@ export async function POST(request: NextRequest) {
     });
 
     const finalStatus = await runService.deriveFinalStatusForJob(jobId);
-    const runFinalStatus = finalStatus?.status ?? "success";
+    const runFinalStatus = finalStatus?.status ?? "completed";
     const jobFinalStatus =
-      runFinalStatus === "partial_success"
+      runFinalStatus === "completed_with_redirects"
         ? ImportJobStatus.COMPLETED_WITH_WARNINGS
-        : runFinalStatus === "success"
+        : runFinalStatus === "completed_with_warnings"
+          ? ImportJobStatus.COMPLETED_WITH_WARNINGS
+        : runFinalStatus === "completed"
           ? ImportJobStatus.COMPLETED
           : runFinalStatus === "cancelled"
             ? ImportJobStatus.CANCELLED
@@ -201,7 +223,12 @@ export async function POST(request: NextRequest) {
       totalPages: finalStatus?.totalPages,
       committedPages: finalStatus?.committedPages,
       failedPages: finalStatus?.failedPages,
-      recoverableActions: runFinalStatus === "partial_success" ? ["retry_failed_pages", "continue_with_successful_pages"] : [],
+      recoverableActions:
+        runFinalStatus === "completed_with_redirects"
+          ? ["continue_with_redirects"]
+          : runFinalStatus === "completed_with_warnings"
+            ? ["retry_failed_pages"]
+            : [],
       completedAt: new Date(),
     });
 

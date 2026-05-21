@@ -498,8 +498,13 @@ export class PageBuilderService implements IPageBuilderService {
     const preparedMetadata =
       prepared.metadata && typeof prepared.metadata === 'object' && !Array.isArray(prepared.metadata)
         ? {
+            ...asImportRecord(existing?.metadata),
             ...(prepared.metadata as Record<string, unknown>),
             importSourceNormalized: normalizedImportSource,
+            isImportDraft: false,
+            importVisibility: 'visible',
+            importStatus: 'committed',
+            importCommittedAt: new Date().toISOString(),
           }
         : prepared.metadata
 
@@ -612,4 +617,8 @@ export class PageBuilderService implements IPageBuilderService {
     }
     return determinePageTypeUtil(pageData)
   }
+}
+
+function asImportRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }

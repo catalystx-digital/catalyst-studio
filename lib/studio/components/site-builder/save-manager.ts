@@ -19,6 +19,26 @@ export interface SaveManagerCallbacks {
   onSaveComplete?: (result: SaveResponse) => void;
   /** Called when server indicates layout was recalculated due to component changes affecting node heights */
   onLayoutRecalculated?: () => void;
+  getWebsiteRevision?: () => number | null | undefined;
+  onWebsiteRevisionChange?: (revision: number) => void;
+}
+
+const STUDIO_SESSION_STORAGE_KEY = 'studio-builder-session-id';
+
+export function getStudioSessionId(): string {
+  if (typeof window === 'undefined') {
+    return 'server';
+  }
+  const existing = window.localStorage.getItem(STUDIO_SESSION_STORAGE_KEY);
+  if (existing) {
+    return existing;
+  }
+  const generated =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  window.localStorage.setItem(STUDIO_SESSION_STORAGE_KEY, generated);
+  return generated;
 }
 
 /**
@@ -35,6 +55,7 @@ class SaveManager {
   private callbacks: SaveManagerCallbacks = {};
   private currentStatus: SaveStatus = 'idle';
   private abortController: AbortController | null = null;
+  private websiteRevision: number | null = null;
 
   // Component-specific debounce configuration
   private readonly componentDebounceMs = 500;  // Faster for component changes
@@ -47,7 +68,12 @@ class SaveManager {
   initialize(websiteId: string, callbacks?: SaveManagerCallbacks) {
     this.websiteId = websiteId;
     this.callbacks = callbacks || {};
+    this.websiteRevision = callbacks?.getWebsiteRevision?.() ?? null;
     this.updateStatus('idle');
+  }
+
+  setWebsiteRevision(revision: number | null | undefined) {
+    this.websiteRevision = typeof revision === 'number' ? revision : null;
   }
   
   /**
@@ -107,7 +133,7 @@ class SaveManager {
         await Promise.all(globalOps.map(op =>
           fetch(`/api/studio/site-builder/global-components/${op.globalComponentId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-studio-session-id': getStudioSessionId() },
             body: JSON.stringify({ content: op.data })
           })
         ));
@@ -118,7 +144,7 @@ class SaveManager {
         await Promise.all(pageOps.map(op =>
           fetch(`/api/studio/site-builder/page-components/${op.componentId}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-studio-session-id': getStudioSessionId() },
             body: JSON.stringify({
               pageId: op.nodeId,
               overrides: op.data
@@ -267,11 +293,13 @@ class SaveManager {
       const response = await fetch('/api/studio/sitemap/save', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-studio-session-id': getStudioSessionId(),
         },
         body: JSON.stringify({
           websiteId: this.websiteId,
-          operations
+          operations,
+          baseWebsiteRevision: this.callbacks.getWebsiteRevision?.() ?? this.websiteRevision,
         } as SaveRequest),
         signal: this.abortController.signal
       });
@@ -279,6 +307,10 @@ class SaveManager {
       if (!response || !response.ok) {
         if (response) {
           const errorData = await response.json();
+          if (typeof errorData.currentWebsiteRevision === 'number') {
+            this.websiteRevision = errorData.currentWebsiteRevision;
+            this.callbacks.onWebsiteRevisionChange?.(errorData.currentWebsiteRevision);
+          }
           
           // Check if this is a retryable error
           if (errorData.retryable || response.status === 409) {
@@ -292,6 +324,14 @@ class SaveManager {
       }
       
       const result: SaveResponse = await response.json();
+      if (!result.success) {
+        throw new SaveError(result.error || 'Save failed');
+      }
+
+      if (typeof result.currentWebsiteRevision === 'number') {
+        this.websiteRevision = result.currentWebsiteRevision;
+        this.callbacks.onWebsiteRevisionChange?.(result.currentWebsiteRevision);
+      }
 
       // Reset retry count on success
       this.retryCount = 0;

@@ -32,7 +32,10 @@ function parseEnvBool(key: string, defaultValue: boolean): boolean {
 }
 
 function parseEnvString(key: string, defaultValue: string): string {
-  return process.env[key] || defaultValue
+  const raw = process.env[key]
+  if (!raw) return defaultValue
+  const trimmed = raw.trim()
+  return trimmed || defaultValue
 }
 
 // =============================================================================
@@ -118,8 +121,8 @@ export const TimeoutConfig = {
   /** Per-request timeout for LLM API calls */
   perRequestMs: parseEnvInt('IMPORT_DETECT_TIMEOUT_MS', 60_000),
 
-  /** Per-page processing estimate (used to calculate total timeout) */
-  perPageMs: parseEnvInt('IMPORT_PER_PAGE_TIMEOUT_MS', 60_000),
+  /** Whole-page detection budget */
+  perPageMs: parseEnvInt('IMPORT_PER_PAGE_TIMEOUT_MS', 120_000),
 
   /** Maximum total import job timeout (30 minutes default) */
   totalMaxMs: parseEnvInt('IMPORT_MAX_TIMEOUT_MS', 1_800_000),
@@ -220,7 +223,7 @@ export const CircuitBreakerConfig = {
  */
 export const ConcurrencyConfig = {
   /** Max URLs to process in single import */
-  maxUrls: parseEnvInt('IMPORT_MAX_URLS', 5),
+  maxUrls: parseEnvInt('IMPORT_MAX_URLS', 4),
 
   /** Concurrent detection requests */
   detection: parseEnvInt('IMPORT_CONCURRENCY', 2),
@@ -296,6 +299,12 @@ export const SitemapConfig = {
 export const WebToolsConfig = {
   /** Maximum bytes per section */
   sectionMaxBytes: parseEnvInt('IMPORT_SECTION_MAX_BYTES', 50000),
+
+  /** Maximum missed DOM sections to force-fetch after tool use */
+  maxForceFetchSections: parseEnvInt('IMPORT_MAX_FORCE_FETCH_SECTIONS', 10),
+
+  /** Maximum characters for direct-content retry payloads */
+  directPromptMaxChars: parseEnvInt('IMPORT_DIRECT_PROMPT_MAX_CHARS', 150000),
 
   /** Use simple web tools mode */
   simpleMode: parseEnvBool('IMPORT_WEBTOOLS_SIMPLE', false)

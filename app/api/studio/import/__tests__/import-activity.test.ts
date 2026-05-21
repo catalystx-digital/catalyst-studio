@@ -361,6 +361,96 @@ describe('GET /api/studio/import/activity', () => {
     ])
   })
 
+  it('surfaces completed-with-warnings runs as partial success', async () => {
+    const prismaMock = prisma as unknown as {
+      importRun: { findMany: jest.Mock }
+      importJob: { findMany: jest.Mock }
+    }
+
+    prismaMock.importRun.findMany.mockResolvedValueOnce([
+      {
+        id: 'run-warn',
+        importJobId: 'job-warn',
+        websiteId: 'site-warn',
+        sourceUrl: 'https://example.com',
+        status: 'completed_with_warnings',
+        phase: 'completed',
+        progress: 100,
+        message: 'Import completed with 1 page warning',
+        totalPages: 2,
+        stagedPages: 1,
+        committedPages: 1,
+        failedPages: 1,
+        recoverableActions: ['retry_failed_pages'],
+        lastError: null,
+        startedAt: new Date('2025-09-17T09:00:00.000Z'),
+        completedAt: new Date('2025-09-17T09:05:00.000Z'),
+        createdAt: new Date('2025-09-17T09:00:00.000Z'),
+        updatedAt: new Date('2025-09-17T09:05:00.000Z'),
+        importJob: {
+          id: 'job-warn',
+          errorMessage: null,
+          startedAt: new Date('2025-09-17T09:00:00.000Z'),
+          completedAt: new Date('2025-09-17T09:05:00.000Z'),
+          createdAt: new Date('2025-09-17T09:00:00.000Z'),
+          updatedAt: new Date('2025-09-17T09:05:00.000Z'),
+        },
+        website: {
+          id: 'site-warn',
+          name: 'Warning Site',
+          icon: null,
+        },
+        pageStages: [
+          {
+            sourceUrl: 'https://example.com/a',
+            canonicalUrl: null,
+            normalizedPageUrl: 'https://example.com/a',
+            title: 'A',
+            status: 'committed',
+            phase: 'commit_page',
+            error: null,
+            committedPageId: 'page-a',
+          },
+          {
+            sourceUrl: 'https://example.com/b',
+            canonicalUrl: null,
+            normalizedPageUrl: 'https://example.com/b',
+            title: 'B',
+            status: 'failed_retryable',
+            phase: 'detect_page',
+            error: { message: 'Timeout' },
+            committedPageId: null,
+          },
+        ],
+      },
+    ])
+    prismaMock.importJob.findMany.mockResolvedValueOnce([])
+
+    const request = new NextRequest('http://localhost:3000/api/studio/import/activity')
+    const response = await getImportActivity(request)
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.data[0]).toMatchObject({
+      id: 'job-warn',
+      status: 'partial_success',
+      rawStatus: 'completed_with_warnings',
+      productStatus: 'partial_success',
+      state: 'completed',
+      metadata: {
+        importRun: {
+          productStatus: 'partial_success',
+          recoverableActions: ['retry_failed_pages'],
+        },
+        progressSummary: {
+          processedCount: 2,
+          committedCount: 1,
+          failedCount: 1,
+        },
+      },
+    })
+  })
+
   it('handles errors gracefully', async () => {
     const prismaMock = prisma as unknown as {
       importRun: { findMany: jest.Mock }

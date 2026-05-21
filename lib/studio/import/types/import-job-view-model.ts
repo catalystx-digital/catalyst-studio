@@ -19,6 +19,8 @@ export interface ImportJobMetadata {
     rawStatus?: string
     phase?: string
     title?: string | null
+    draftPageId?: string | null
+    draftStructureId?: string | null
     committedPageId?: string | null
     error?: string
   }>
@@ -26,6 +28,13 @@ export interface ImportJobMetadata {
     processedCount?: number
     totalCount?: number
     currentUrl?: string | null
+    discoveredCount?: number
+    processingCount?: number
+    detectedCount?: number
+    stagedCount?: number
+    committedCount?: number
+    failedCount?: number
+    skippedCount?: number
   }
   media?: {
     assetsDetected?: number

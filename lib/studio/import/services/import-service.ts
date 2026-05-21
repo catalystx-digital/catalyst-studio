@@ -8,6 +8,7 @@ import { ImportPlannerService } from './import-planner';
 import type { ImportPlannerInput, ImportPlan } from '../types/import-planner.types';
 import { ConcurrencyConfig, LoggingConfig } from '../config';
 import { ImportRunService } from './import-run-service';
+import { ImportDraftMaterializer } from './import-draft-materializer';
 
 const importDb = prisma as unknown as PrismaClient;
 
@@ -28,6 +29,7 @@ export interface ImportServiceOptions {
   followSubpages?: boolean;
   /** Max link depth (default: 3) */
   maxDepth?: number;
+  idempotencyKey?: string;
 }
 
 interface StartImportResult {
@@ -36,12 +38,65 @@ interface StartImportResult {
   initialSitemap?: Array<{ url: string; order: number; status: 'pending' | 'processing' | 'ready' | 'failed' | 'skipped'; error?: string }>;
 }
 
+function mergeDiscoveredUrls(primary: ExpandedImportUrls, fallback: ExpandedImportUrls): ExpandedImportUrls {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const url of [...primary.urls, ...fallback.urls]) {
+    const key = normalizeUrlForMerge(url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    urls.push(url);
+  }
+  const sitemapMetaByUrl = new Map(primary.sitemapMetaByUrl);
+  fallback.sitemapMetaByUrl.forEach((value, key) => {
+    if (!sitemapMetaByUrl.has(key)) sitemapMetaByUrl.set(key, value);
+  });
+  return {
+    urls,
+    sitemapMetaByUrl,
+    detectedPlatform: primary.detectedPlatform ?? fallback.detectedPlatform,
+    skipped: [...(primary.skipped ?? []), ...(fallback.skipped ?? [])],
+    injectedPriorityUrls: [
+      ...(primary.injectedPriorityUrls ?? []),
+      ...(fallback.injectedPriorityUrls ?? []),
+    ],
+  };
+}
+
+function normalizeUrlForMerge(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    url.hostname = url.hostname.toLowerCase();
+    if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+      url.pathname = url.pathname.slice(0, -1);
+    }
+    return url.toString();
+  } catch {
+    return value.trim().toLowerCase();
+  }
+}
+
+function shouldUseCrawlFallback(sourceUrl: string, discoveredUrls: string[]): boolean {
+  if (discoveredUrls.length === 0) return true;
+  if (discoveredUrls.length > 1) return false;
+  try {
+    const source = new URL(sourceUrl);
+    const discovered = new URL(discoveredUrls[0]);
+    const isRoot = (value: URL) => value.pathname === '' || value.pathname === '/';
+    return source.host === discovered.host && isRoot(source) && isRoot(discovered);
+  } catch {
+    return discoveredUrls.length <= 1;
+  }
+}
+
 export class ImportService {
   private readonly repository: ImportJobRepository;
   private readonly progressManager: ImportProgressManager;
   private readonly sitemapDiscovery: SitemapDiscoveryService;
   private readonly planner: ImportPlannerService;
   private readonly runService: ImportRunService;
+  private readonly draftMaterializer: ImportDraftMaterializer;
 
   constructor() {
     this.repository = new ImportJobRepository();
@@ -49,6 +104,7 @@ export class ImportService {
     this.sitemapDiscovery = new SitemapDiscoveryService();
     this.planner = new ImportPlannerService();
     this.runService = new ImportRunService();
+    this.draftMaterializer = new ImportDraftMaterializer();
   }
 
   /**
@@ -61,7 +117,7 @@ export class ImportService {
    * - Natural language request
    */
   async startImport(options: ImportServiceOptions): Promise<StartImportResult> {
-    const { accountId, websiteId, url, urls, request, followSubpages, maxDepth } = options;
+    const { accountId, websiteId, url, urls, request, followSubpages, maxDepth, idempotencyKey } = options;
 
     if (!accountId) {
       throw new Error('accountId is required to start an import job');
@@ -132,6 +188,14 @@ export class ImportService {
       if (plan.strategy === 'sitemap') {
         // Use existing sitemap discovery for root domains
         precomputed = await this.sitemapDiscovery.expandUrlsForImport(plan.urls[0], maxUrlsCap);
+        if (shouldUseCrawlFallback(plan.urls[0], precomputed.urls)) {
+          const crawlFallback = await this.sitemapDiscovery.expandUrlsFromCrawl(plan.urls, {
+            maxUrls: maxUrlsCap,
+            followLinks: true,
+            linkScope: 'same_domain',
+          });
+          precomputed = mergeDiscoveredUrls(precomputed, crawlFallback);
+        }
       } else {
         // Use new crawl method for crawl_from_root or specific_urls
         precomputed = await this.sitemapDiscovery.expandUrlsFromCrawl(plan.urls, {
@@ -212,6 +276,7 @@ export class ImportService {
       job,
       sourceUrl: primaryUrl,
       urls: precomputed.urls,
+      idempotencyKey,
       message,
       importPlan: {
         strategy: plan.strategy,
@@ -224,6 +289,7 @@ export class ImportService {
         skipped: precomputed.skipped ?? [],
       },
     });
+    await this.draftMaterializer.materializeForJob(job.id);
 
     return { job, message, initialSitemap };
   }

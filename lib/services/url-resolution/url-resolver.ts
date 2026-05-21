@@ -184,7 +184,13 @@ export class UrlResolver {
       }
 
       // Cache the result (including null for 404s)
-      const result = siteStructure ? {
+      const metadata = siteStructure?.websitePage?.metadata;
+      const isImportDraft =
+        metadata &&
+        typeof metadata === 'object' &&
+        !Array.isArray(metadata) &&
+        (metadata as Record<string, unknown>).isImportDraft === true;
+      const result = siteStructure && !isImportDraft ? {
         siteStructure: siteStructure,
         contentItem: siteStructure.websitePage
       } : null;

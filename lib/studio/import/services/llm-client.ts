@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { ModelConfig, OpenRouterConfig } from '../config'
+import { ModelConfig, OpenRouterConfig, TimeoutConfig } from '../config'
 
 interface ApiKeyValidationMessages {
   missing?: string
@@ -67,6 +67,7 @@ export function createLLMClient(options: CreateLLMClientOptions): OpenAI {
   return new OpenAI({
     apiKey: options.apiKey,
     baseURL: options.baseURL || OpenRouterConfig.baseUrl,
+    timeout: TimeoutConfig.perRequestMs,
     defaultHeaders: headers
   })
 }

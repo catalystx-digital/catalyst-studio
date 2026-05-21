@@ -25,6 +25,7 @@ function deepCloneNodes<T>(items: T[]): T[] {
 // Forward declare the store type for circular reference
 // eslint-disable-next-line prefer-const
 let storeStateUpdater: ((canUndo: boolean, canRedo: boolean) => void) | undefined;
+let loadStructureRequestSeq = 0;
 
 // Create undoManager instance with proper initialization
 const undoManager = new UndoManager({
@@ -466,6 +467,7 @@ interface SiteBuilderState {
   nodes: SitemapNode[];
   edges: SitemapEdge[];
   websiteId: string | null;
+  websiteRevision: number | null;
   pageTypes: PageTypeOption[];
   pageTypesLoaded: boolean;
   pageTypesLoading: boolean;
@@ -569,6 +571,7 @@ interface SiteBuilderState {
   
   // Save management
   setSaveStatus: (status: SaveStatus) => void;
+  setWebsiteRevision: (revision: number | null) => void;
   setError: (error: { message: string; retry?: () => void } | null) => void;
   
   // History management
@@ -637,6 +640,7 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
     nodes: [],
     edges: [],
     websiteId: null,
+    websiteRevision: null,
     pageTypes: [],
     pageTypesLoaded: false,
     pageTypesLoading: false,
@@ -709,6 +713,7 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
     
     // Load structure from API
     loadStructure: async (websiteId: string, signal?: AbortSignal) => {
+      const requestSeq = ++loadStructureRequestSeq;
       set((state) => {
         state.isLoading = true;
         state.errorState = null;
@@ -778,6 +783,12 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
         }
 
         const data = await response.json();
+        if (requestSeq !== loadStructureRequestSeq) {
+          return;
+        }
+        const incomingNodes = Array.isArray(data.nodes) ? data.nodes : [];
+        const incomingEdges = Array.isArray(data.edges) ? data.edges : [];
+        const confirmedEmpty = data.meta?.confirmedEmpty === true;
 
         // Check if viewport sync is supported (large site with skeleton load)
         const supportsViewportSync = data.meta?.supportsViewportSync === true;
@@ -788,28 +799,33 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
         const defaultNodeHeight = 120; // Note: dynamicHeights means per-node heights are used
 
         set((state) => {
-          state.nodes = data.nodes || [];
-          state.edges = data.edges || [];
+          if (incomingNodes.length === 0 && state.nodes.length > 0 && !confirmedEmpty) {
+            state.isLoading = false;
+            return;
+          }
+          state.nodes = incomingNodes;
+          state.edges = incomingEdges;
+          state.websiteRevision = typeof data.revision === 'number' ? data.revision : null;
           // BUG-003 FIX: Deep clone to ensure previousNodes doesn't share references with nodes
-          state.previousNodes = deepCloneNodes(data.nodes || []);
-          state.previousEdges = deepCloneNodes(data.edges || []);
+          state.previousNodes = deepCloneNodes(incomingNodes);
+          state.previousEdges = deepCloneNodes(incomingEdges);
           state.isLoading = false;
           state.viewportSyncEnabled = supportsViewportSync;
 
           // Initialize detail levels based on load mode
           if (loadMode === 'skeleton') {
-            for (const node of data.nodes || []) {
+            for (const node of incomingNodes) {
               state.loadedNodeDetails.set(node.id, 'skeleton');
             }
           } else {
-            for (const node of data.nodes || []) {
+            for (const node of incomingNodes) {
               state.loadedNodeDetails.set(node.id, 'full');
             }
           }
 
           // Build position index from nodes - use per-node dimensions when available (dynamic heights)
           const positionIndex = new Map<string, { x: number; y: number; width: number; height: number }>();
-          for (const node of data.nodes || []) {
+          for (const node of incomingNodes) {
             positionIndex.set(node.id, {
               x: node.position.x,
               y: node.position.y,
@@ -822,10 +838,14 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
         });
 
         // Initialize undoManager with loaded state
-        undoManager.initialize(data.nodes || [], data.edges || []);
+        if (incomingNodes.length > 0 || confirmedEmpty) {
+          undoManager.initialize(incomingNodes, incomingEdges);
+        }
         
         // Initialize save manager
         saveManager.initialize(websiteId, {
+          getWebsiteRevision: () => get().websiteRevision,
+          onWebsiteRevisionChange: (revision) => get().setWebsiteRevision(revision),
           onStatusChange: (status) => get().setSaveStatus(status),
           onError: (error) => get().setError({
             message: error.message,
@@ -881,6 +901,11 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
         });
       }
     },
+
+    setWebsiteRevision: (revision) => set((state) => {
+      state.websiteRevision = revision;
+      saveManager.setWebsiteRevision(revision);
+    }),
     
     // Add a new node
     // TKT-001: Updated to support position-based weight calculation for correct sibling placement

@@ -3,14 +3,11 @@
 /**
  * useImportProgressHybrid Hook
  *
- * Hybrid hook that uses SSE when available, falls back to polling.
- * This ensures 100% browser compatibility while preferring the more efficient SSE.
+ * Hybrid hook that reads import progress from real-time website activity.
  *
  * Decision flow:
- * 1. Check if browser supports EventSource (99%+ do)
- * 2. Check if SSE is enabled via feature flag
- * 3. Check if job is NOT a greenfield job (bootstrap-* prefix)
- * 4. If all true, use SSE; otherwise read from ImportTrackerStore (for greenfield)
+ * Regular imports are hydrated by useWebsiteActivityStream into ImportTrackerStore.
+ * Greenfield jobs are hydrated separately by useGreenfieldHydration.
  *
  * For greenfield jobs (bootstrap-* prefix):
  * - Reads progress from ImportTrackerStore (hydrated by useGreenfieldHydration)
@@ -23,23 +20,40 @@
 
 import * as React from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useImportProgressSSE, isSSESupported, type ImportProgressState } from './use-import-progress-sse'
-import { usePolledImportProgress } from './use-import-progress-state'
 import { useImportTrackerStore, type ImportJobEntry, type ImportLifecycleState } from '@/lib/studio/stores/import-tracker-store'
 import type { ImportStage } from '@/lib/studio/import/types/progress.types'
+import type { AIMessage } from '@/types/ai-context'
+
+export function isSSESupported(): boolean {
+  return typeof EventSource !== 'undefined'
+}
+
+export interface ImportProgressState {
+  hasActiveImport: boolean
+  jobId: string | null
+  stage: ImportStage
+  progress: number
+  stageProgress: number
+  message: string
+  description?: string
+  processedCount: number
+  totalCount: number
+  currentUrl: string | null
+  startedAt: Date | null
+  estimatedTimeRemaining: number | null
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial_success' | 'cancelled' | 'recoverable_stuck' | 'unknown'
+  queuePosition: number | null
+  estimatedStartSeconds: number | null
+  skippedPages: string[]
+  errorCount: number
+  rawMessage: AIMessage | null
+  isGreenfield?: boolean
+}
 
 /**
  * Check if SSE is enabled via feature flag.
  * Set NEXT_PUBLIC_ENABLE_SSE_PROGRESS=false to disable SSE.
  */
-function isSSEEnabled(): boolean {
-  // Check environment variable (must be NEXT_PUBLIC_ for client access)
-  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ENABLE_SSE_PROGRESS === 'false') {
-    return false
-  }
-  return true
-}
-
 /**
  * Check if a jobId is a greenfield/bootstrap job.
  * Greenfield jobs use a different progress system (polling via /api/studio/greenfield/activity)
@@ -131,6 +145,13 @@ function jobEntryToProgressState(job: ImportJobEntry | null, isGreenfieldJob: bo
 
   const mappedStatus = mapJobStatus(job.status, job.state)
   const isActive = job.state === 'active' || job.state === 'queued'
+  const progressSummary = job.metadata?.progressSummary as
+    | {
+        processedCount?: number
+        totalCount?: number
+        currentUrl?: string | null
+      }
+    | undefined
 
   return {
     hasActiveImport: isActive,
@@ -140,9 +161,9 @@ function jobEntryToProgressState(job: ImportJobEntry | null, isGreenfieldJob: bo
     stageProgress: job.progress,
     message: job.message ?? '',
     description: job.stage ?? undefined,
-    processedCount: 0, // Not tracked at job level
-    totalCount: 0,
-    currentUrl: null,
+    processedCount: progressSummary?.processedCount ?? 0,
+    totalCount: progressSummary?.totalCount ?? 0,
+    currentUrl: progressSummary?.currentUrl ?? null,
     startedAt: job.startedAt ? new Date(job.startedAt) : null,
     estimatedTimeRemaining: null,
     status: mappedStatus,
@@ -152,6 +173,30 @@ function jobEntryToProgressState(job: ImportJobEntry | null, isGreenfieldJob: bo
     errorCount: job.error ? 1 : 0,
     rawMessage: null,
     isGreenfield: isGreenfieldJob,
+  }
+}
+
+function importRealtimeUnavailableState(jobId: string | null | undefined, reason: string): ImportProgressState {
+  return {
+    hasActiveImport: Boolean(jobId),
+    jobId: jobId ?? null,
+    stage: 'queued',
+    progress: 0,
+    stageProgress: 0,
+    message: reason,
+    description: reason,
+    processedCount: 0,
+    totalCount: 0,
+    currentUrl: null,
+    startedAt: null,
+    estimatedTimeRemaining: null,
+    status: 'unknown',
+    queuePosition: null,
+    estimatedStartSeconds: null,
+    skippedPages: [],
+    errorCount: 1,
+    rawMessage: null,
+    isGreenfield: false,
   }
 }
 
@@ -246,114 +291,19 @@ function useGreenfieldProgress(
   return progressState
 }
 
-function useDbPolledImportProgress(
-  jobId: string | null | undefined,
-  enabled: boolean = true,
-): ImportProgressState {
-  const [state, setState] = React.useState<ImportProgressState>(() => jobEntryToProgressState(null, false))
-
-  React.useEffect(() => {
-    if (!enabled || !jobId) {
-      setState(jobEntryToProgressState(null, false))
-      return
-    }
-
-    let cancelled = false
-    let timer: NodeJS.Timeout | null = null
-
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/studio/import/jobs/${encodeURIComponent(jobId)}/progress`, {
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          throw new Error(`Failed to load import progress: ${response.status}`)
-        }
-        const data = await response.json()
-        if (cancelled) return
-
-        const status = mapStatusFromProgress(data.status)
-        const active = status === 'pending' || status === 'running'
-        setState({
-          hasActiveImport: active,
-          jobId: data.jobId ?? jobId,
-          stage: mapJobStage(data.stage),
-          progress: typeof data.progress === 'number' ? data.progress : 0,
-          stageProgress: typeof data.progress === 'number' ? data.progress : 0,
-          message: typeof data.error === 'string' && data.error ? data.error : typeof data.stage === 'string' ? data.stage : '',
-          description: typeof data.currentUrl === 'string' ? data.currentUrl : undefined,
-          processedCount: typeof data.processedCount === 'number' ? data.processedCount : 0,
-          totalCount: typeof data.totalCount === 'number' ? data.totalCount : 0,
-          currentUrl: typeof data.currentUrl === 'string' || data.currentUrl === null ? data.currentUrl : null,
-          startedAt: data.timestamp ? new Date(data.timestamp) : null,
-          estimatedTimeRemaining: null,
-          status,
-          queuePosition: null,
-          estimatedStartSeconds: null,
-          skippedPages: [],
-          errorCount: data.error ? 1 : 0,
-          rawMessage: null,
-          isGreenfield: false,
-        })
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[ImportProgress] DB polling failed', error)
-        }
-      }
-    }
-
-    void load()
-    timer = setInterval(load, 3000)
-
-    return () => {
-      cancelled = true
-      if (timer) clearInterval(timer)
-    }
-  }, [enabled, jobId])
-
-  return state
-}
-
-function mapStatusFromProgress(status: string | undefined): ImportProgressState['status'] {
-  switch ((status ?? '').toLowerCase()) {
-    case 'pending':
-    case 'queued':
-      return 'pending'
-    case 'success':
-    case 'completed':
-      return 'completed'
-    case 'partial_success':
-    case 'completed_with_warnings':
-      return 'partial_success'
-    case 'recoverable_stuck':
-      return 'recoverable_stuck'
-    case 'unknown':
-      return 'unknown'
-    case 'cancelled':
-      return 'cancelled'
-    case 'failed':
-      return 'failed'
-    default:
-      return 'running'
-  }
-}
-
 /**
- * Hybrid hook that uses SSE when available, falls back to store (for greenfield) or polling.
- * This ensures 100% browser compatibility while preferring the more efficient SSE.
+ * Hybrid hook that reads progress from stores hydrated by real-time streams.
  *
  * NOTE: Greenfield jobs (bootstrap-* prefix) read from ImportTrackerStore instead of polling.
  * The store is hydrated by useGreenfieldHydration which polls /api/studio/greenfield/activity.
  * This is the fix for BUG-CW-02: Assistant shows no progress without refresh.
  *
- * @param jobId - The import job ID to track (for SSE or store)
- * @param websiteId - Website ID (for polling fallback)
- * @param sessionId - Session ID (for polling fallback)
+ * @param jobId - The import job ID to track
  */
 export function useImportProgressHybrid(
   jobId: string | null | undefined,
-  websiteId: string | null | undefined,
-  sessionId: string | null | undefined
+  _websiteId: string | null | undefined,
+  _sessionId: string | null | undefined
 ): ImportProgressState {
   const trackedJobData = useImportTrackerStore(
     useShallow((state) => {
@@ -403,22 +353,10 @@ export function useImportProgressHybrid(
     }
   }, [trackedJobData])
 
-  // Check if SSE is supported and enabled (static check, doesn't change)
-  const sseCapable = React.useMemo(() => isSSESupported() && isSSEEnabled(), [])
-
   // Check if this is a greenfield job (needs to react to jobId changes)
   const isGreenfield = isGreenfieldJob(jobId)
   const trackedTerminal =
     trackedJob?.state === 'completed' || (trackedJob ? TRACKED_TERMINAL_STATUSES.has(trackedJob.status) : false)
-
-  // Use SSE only if capable AND not a greenfield job
-  const useSSE = sseCapable && !isGreenfield && !trackedTerminal
-
-  // SSE-based progress (preferred for regular import jobs)
-  const sseProgress = useImportProgressSSE(
-    jobId,
-    useSSE && !!jobId
-  )
 
   // Greenfield progress from store (for bootstrap-* jobs)
   // This reads from ImportTrackerStore which is hydrated by useGreenfieldHydration
@@ -427,29 +365,16 @@ export function useImportProgressHybrid(
     isGreenfield
   )
 
-  // Polling-based progress (fallback when SSE not supported and not greenfield)
-  // Note: No longer used for greenfield jobs - they read from store instead
-  const legacyPollingProgress = usePolledImportProgress(
-    websiteId,
-    sessionId,
-    !useSSE && !isGreenfield && !jobId // Only poll legacy AI context if no import job id exists
-  )
-
-  const dbPollingProgress = useDbPolledImportProgress(
-    jobId,
-    !useSSE && !isGreenfield && !trackedTerminal && !!jobId
-  )
-
   // Log which method is being used (development only)
   React.useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       if (isGreenfield) {
         console.log(`[ImportProgress] Using store for greenfield job (${jobId})`)
       } else {
-        console.log(`[ImportProgress] Using ${useSSE ? 'SSE' : 'polling'} for updates`)
+        console.log('[ImportProgress] Using website activity stream for updates')
       }
     }
-  }, [useSSE, isGreenfield, jobId])
+  }, [isGreenfield, jobId])
 
   // Debug: Log when greenfield progress changes
   React.useEffect(() => {
@@ -465,22 +390,24 @@ export function useImportProgressHybrid(
     }
   }, [isGreenfield, jobId, greenfieldProgress])
 
-  // Return progress based on job type:
-  // 1. Greenfield jobs → read from store (ImportTrackerStore)
-  // 2. Regular imports with SSE support → use SSE
-  // 3. Regular imports without SSE → poll AI context
   if (isGreenfield) {
     return greenfieldProgress
   }
   if (trackedTerminal) {
     return jobEntryToProgressState(trackedJob, false)
   }
-  return useSSE ? sseProgress : (jobId ? dbPollingProgress : legacyPollingProgress)
+  if (trackedJob) {
+    return jobEntryToProgressState(trackedJob, false)
+  }
+  if (jobId) {
+    return importRealtimeUnavailableState(jobId, 'Waiting for website real-time updates')
+  }
+  return jobEntryToProgressState(null, false)
 }
 
 /**
  * Hook that combines SSE progress with local message state.
- * Use this as a drop-in replacement for useImportProgressWithPolling.
+ * Use this as the real-time import progress adapter.
  *
  * @param messages - Local AI messages array
  * @param jobId - The import job ID (for SSE)

@@ -20,17 +20,35 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
  * - For OpenRouter: needs provider prefix (x-ai/grok-4)
  * - For xAI direct: just the model name (grok-4)
  */
+function cleanEnvValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed || undefined
+}
+
+function firstModel(value: string | undefined): string | undefined {
+  return cleanEnvValue(value)?.split('|')[0]?.trim() || undefined
+}
+
+function isXaiDirect(baseURL: string | undefined): boolean {
+  return Boolean(cleanEnvValue(baseURL)?.includes('api.x.ai'))
+}
+
 function getModelId(modelEnvVar?: string): string {
-  const model = modelEnvVar || process.env.IMPORT_MODEL_CHAIN || process.env.OPENROUTER_MODEL || 'grok-4-1-fast-non-reasoning'
-  const baseURL = process.env.OPENROUTER_BASE_URL
+  const baseURL = cleanEnvValue(process.env.OPENROUTER_BASE_URL)
+  const model =
+    firstModel(modelEnvVar) ||
+    (isXaiDirect(baseURL)
+      ? firstModel(process.env.OPENROUTER_MODEL)
+      : firstModel(process.env.IMPORT_MODEL_CHAIN) || firstModel(process.env.OPENROUTER_MODEL)) ||
+    'grok-4-1-fast-non-reasoning'
 
   // If using xAI direct (baseURL points to api.x.ai), strip provider prefix
-  if (baseURL?.includes('api.x.ai') && model.includes('/')) {
+  if (isXaiDirect(baseURL) && model.includes('/')) {
     return model.split('/').pop() || model
   }
 
   // If using OpenRouter and model has no prefix, add x-ai/ prefix
-  if (!baseURL?.includes('api.x.ai') && !model.includes('/')) {
+  if (!isXaiDirect(baseURL) && !model.includes('/')) {
     return `x-ai/${model}`
   }
 
@@ -56,8 +74,8 @@ function getModelId(modelEnvVar?: string): string {
  * ```
  */
 export function createAIModel(modelOverride?: string) {
-  const apiKey = process.env.OPENROUTER_API_KEY
-  const baseURL = process.env.OPENROUTER_BASE_URL
+  const apiKey = cleanEnvValue(process.env.OPENROUTER_API_KEY)
+  const baseURL = cleanEnvValue(process.env.OPENROUTER_BASE_URL)
 
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY is not configured')
@@ -69,7 +87,7 @@ export function createAIModel(modelOverride?: string) {
   // When baseURL points to xAI, this effectively becomes an xAI client
   const openrouter = createOpenRouter({ apiKey, baseURL })
 
-  const mode = baseURL?.includes('api.x.ai') ? 'xAI direct' : 'OpenRouter'
+  const mode = isXaiDirect(baseURL) ? 'xAI direct' : 'OpenRouter'
   console.info(`[ai-sdk-provider] Using ${mode}`, {
     model: modelId,
     baseURL: baseURL || 'default (openrouter.ai)'
@@ -84,7 +102,12 @@ export function createAIModel(modelOverride?: string) {
  */
 export function createWorkflowRouterModel() {
   // For workflow routing, prefer a fast model
-  const routerModel = process.env.WORKFLOW_ROUTER_MODEL || process.env.IMPORT_MODEL_CHAIN || process.env.OPENROUTER_MODEL
+  const baseURL = cleanEnvValue(process.env.OPENROUTER_BASE_URL)
+  const routerModel = isXaiDirect(baseURL)
+    ? cleanEnvValue(process.env.WORKFLOW_ROUTER_MODEL) || cleanEnvValue(process.env.OPENROUTER_MODEL)
+    : cleanEnvValue(process.env.WORKFLOW_ROUTER_MODEL) ||
+      cleanEnvValue(process.env.IMPORT_MODEL_CHAIN) ||
+      cleanEnvValue(process.env.OPENROUTER_MODEL)
 
   return createAIModel(routerModel)
 }

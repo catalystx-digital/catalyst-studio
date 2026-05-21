@@ -17,7 +17,7 @@ import { sleep, FatalError } from "workflow";
 // Vercel Workflow bundles step code separately and Prisma's generated client paths break.
 // See: app/api/internal/import-job/route.ts, import-persist/route.ts, design-system/route.ts
 import { ImportJobStatus } from "@/lib/studio/import/types/import-job.types";
-import { ConcurrencyConfig } from "@/lib/studio/import/config/import-config";
+import { ConcurrencyConfig, TimeoutConfig } from "@/lib/studio/import/config/import-config";
 import type { ImportDetectionResult } from "@/lib/studio/import/web-detection";
 import type { ExpandedImportUrls } from "@/lib/studio/import/services/sitemap-discovery.service";
 import type { NavigationHierarchy, Template, DesignTokens, NavigationPage, TemplateRegion } from "@/lib/studio/import/types";
@@ -51,7 +51,18 @@ interface PageProcessingResult {
   url: string;
   detection: ImportDetectionResult | null;
   error?: string;
+  attemptToken?: string | null;
 }
+
+interface PlannedImportUrl {
+  url: string;
+  normalizedUrl?: string;
+  attemptToken?: string | null;
+}
+
+type WorkflowImportUrls = ExpandedImportUrls & {
+  stagePlans?: PlannedImportUrl[];
+};
 
 interface SharedComponentsResult {
   navigation: NavigationHierarchy;
@@ -109,16 +120,21 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
       const batchNum = Math.floor(batchStart / batchSize) + 1;
       const totalBatches = Math.ceil(totalPages / batchSize);
 
-      // Process batch in parallel using Promise.all
-      const batchResults = await Promise.all(
-        batchUrls.map((pageUrl) => processPageStep(jobId, pageUrl, websiteId, options?.model))
+      const batchPlans = batchUrls.map((pageUrl) =>
+        sitemapResult.stagePlans?.find((plan) => plan.url === pageUrl)
       );
+      const settledResults = await Promise.allSettled(
+        batchUrls.map((pageUrl, index) =>
+          processPageStep(jobId, pageUrl, websiteId, options?.model, batchPlans[index]?.attemptToken ?? null)
+        )
+      );
+      const batchResults = settledResults.map((result, index): PageProcessingResult => {
+        if (result.status === "fulfilled") return result.value;
+        const error = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        return { url: batchUrls[index], detection: null, error, attemptToken: batchPlans[index]?.attemptToken ?? null };
+      });
 
       pageResults.push(...batchResults);
-
-      await Promise.all(
-        batchResults.map((result) => persistPageStageStep(jobId, result))
-      );
 
       // Update progress after each batch
       const progress = 10 + Math.floor((batchEnd / totalPages) * 50);
@@ -139,10 +155,10 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
       }
     }
 
-    // Filter successful detections
-    const successfulDetections = pageResults
-      .filter((r): r is PageProcessingResult & { detection: ImportDetectionResult } => r.detection !== null)
-      .map((r) => r.detection);
+    const activeAttemptTokens = sitemapResult.stagePlans
+      ?.map((plan) => plan.attemptToken)
+      .filter((token): token is string => typeof token === "string" && token.length > 0) ?? [];
+    const successfulDetections = await loadSuccessfulDetectionsStep(jobId, activeAttemptTokens);
 
     // Collect errors from failed pages
     for (const result of pageResults) {
@@ -181,7 +197,8 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
       successfulDetections,
       sharedResult,
       designResult,
-      sitemapResult
+      sitemapResult,
+      activeAttemptTokens
     );
 
     // Calculate totals
@@ -224,7 +241,7 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
  * Step 1: Discover sitemap and expand URLs for import.
  * Wraps SitemapDiscoveryService.expandUrlsForImport()
  */
-async function loadImportUrlsStep(jobId: string, url: string, maxUrls: number): Promise<ExpandedImportUrls> {
+async function loadImportUrlsStep(jobId: string, url: string, maxUrls: number): Promise<WorkflowImportUrls> {
   "use step";
 
   try {
@@ -242,11 +259,19 @@ async function loadImportUrlsStep(jobId: string, url: string, maxUrls: number): 
       const urls = Array.isArray(result.data?.urls)
         ? result.data.urls.filter((candidate: unknown): candidate is string => typeof candidate === "string")
         : [];
-      if (urls.length > 0) {
+      const stagePlans = Array.isArray(result.data?.stagePlans)
+        ? result.data.stagePlans.filter((candidate: unknown): candidate is PlannedImportUrl =>
+            Boolean(candidate) &&
+            typeof candidate === "object" &&
+            typeof (candidate as { url?: unknown }).url === "string"
+          )
+        : [];
+      if (urls.length > 0 || result.data?.runId) {
         return {
           urls: urls.slice(0, maxUrls),
           sitemapMetaByUrl: new Map(),
           detectedPlatform: null,
+          stagePlans,
         };
       }
     }
@@ -277,12 +302,20 @@ async function processPageStep(
   jobId: string,
   pageUrl: string,
   websiteId: string,
-  model?: string
+  model?: string,
+  attemptToken?: string | null
 ): Promise<PageProcessingResult> {
   "use step";
 
   try {
     await assertRunActiveHttp(jobId);
+    await upsertPageStageHttp(jobId, {
+      pageUrl,
+      status: "processing",
+      phase: "detect_page",
+      title: deriveFallbackPageTitle(pageUrl),
+      attemptToken,
+    });
 
     const { getDetectionService } = await import("@/lib/studio/import/web-detection");
     const detectionService = getDetectionService();
@@ -293,13 +326,26 @@ async function processPageStep(
       throw new FatalError("OPENROUTER_API_KEY not configured");
     }
 
-    const detection = await detectionService.detectComponentsFromUrl(pageUrl, {
-      model,
-      apiKey,
-      includeContent: true,
+    const detection = await withPageBudget(
+      detectionService.detectComponentsFromUrl(pageUrl, {
+        model,
+        apiKey,
+        includeContent: true,
+      }),
+      TimeoutConfig.perPageMs,
+      pageUrl
+    );
+
+    await upsertPageStageHttp(jobId, {
+      pageUrl,
+      status: "detected",
+      phase: "detect_page",
+      title: derivePageTitle(detection),
+      detectionPayload: detection,
+      attemptToken,
     });
 
-    return { url: pageUrl, detection };
+    return { url: pageUrl, detection, attemptToken };
   } catch (error) {
     // Re-throw FatalErrors as-is
     if (error instanceof FatalError) {
@@ -309,48 +355,68 @@ async function processPageStep(
     // Log and continue for transient errors (let workflow handle retries for the step)
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[ImportWorkflow] Page detection failed for ${pageUrl}:`, errorMessage);
-    return { url: pageUrl, detection: null, error: errorMessage };
+    const isTimeout = error instanceof Error && error.name === "PageDetectionTimeoutError";
+    await upsertPageStageHttp(jobId, {
+      pageUrl,
+      status: "failed_retryable",
+      phase: "detect_page",
+      title: deriveFallbackPageTitle(pageUrl),
+      attemptToken,
+      error: {
+        code: isTimeout ? "PAGE_DETECTION_TIMEOUT" : "PAGE_DETECTION_FAILED",
+        category: "llm_retryable",
+        retryable: true,
+        scope: "page",
+        phase: "detect_page",
+        pageUrl,
+        message: errorMessage,
+        attempts: 1,
+        firstSeenAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+      },
+    });
+    return { url: pageUrl, detection: null, error: errorMessage, attemptToken };
   }
 }
 
-/**
- * Persist each page detection as a durable stage row immediately.
- * This makes workflow retries resume from DB state rather than an in-memory payload.
- */
-async function persistPageStageStep(jobId: string, result: PageProcessingResult): Promise<void> {
+async function loadSuccessfulDetectionsStep(jobId: string, attemptTokens: string[]): Promise<ImportDetectionResult[]> {
   "use step";
+  const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
+    method: "POST",
+    headers: getInternalApiHeaders(),
+    body: JSON.stringify({
+      action: "getSuccessfulDetections",
+      jobId,
+      attemptTokens,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to load successful detections: ${error}`);
+  }
+  const result = await response.json();
+  return Array.isArray(result.data?.detections) ? result.data.detections : [];
+}
 
-  await assertRunActiveHttp(jobId);
-
-  const detection = result.detection;
-  const title = detection ? derivePageTitle(detection) : null;
-  const status = detection ? "detected" : "failed_retryable";
-
+async function upsertPageStageHttp(jobId: string, input: {
+  pageUrl: string;
+  title?: string | null;
+  status: string;
+  phase?: string;
+  detectionPayload?: unknown;
+  pageContent?: unknown;
+  structureCandidate?: unknown;
+  committedPageId?: string | null;
+  error?: unknown;
+  attemptToken?: string | null;
+}): Promise<void> {
   const response = await fetch(getInternalApiUrl("/api/internal/import-job"), {
     method: "POST",
     headers: getInternalApiHeaders(),
     body: JSON.stringify({
       action: "upsertPageStage",
       jobId,
-      pageUrl: result.url,
-      title,
-      status,
-      phase: "detect_page",
-      detectionPayload: detection,
-      error: result.error
-        ? {
-            code: "PAGE_DETECTION_FAILED",
-            category: "llm_retryable",
-            retryable: true,
-            scope: "page",
-            phase: "detect_page",
-            pageUrl: result.url,
-            message: result.error,
-            attempts: 1,
-            firstSeenAt: new Date().toISOString(),
-            lastSeenAt: new Date().toISOString(),
-          }
-        : null,
+      ...input,
     }),
   });
 
@@ -358,6 +424,20 @@ async function persistPageStageStep(jobId: string, result: PageProcessingResult)
     const error = await response.text();
     throw new Error(`Failed to persist page stage: ${error}`);
   }
+}
+
+function withPageBudget<T>(promise: Promise<T>, timeoutMs: number, pageUrl: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeout = setTimeout(() => {
+      const error = new Error(`Page detection timeout after ${timeoutMs}ms: ${pageUrl}`);
+      error.name = "PageDetectionTimeoutError";
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
 }
 
 /**
@@ -432,7 +512,8 @@ async function persistResultsStep(
   detections: ImportDetectionResult[],
   sharedResult: SharedComponentsResult,
   designResult: DesignSystemResult,
-  sitemapResult: ExpandedImportUrls
+  sitemapResult: ExpandedImportUrls,
+  attemptTokens: string[]
 ): Promise<void> {
   "use step";
 
@@ -455,6 +536,7 @@ async function persistResultsStep(
       detections,
       sharedResult,
       designResult,
+      attemptTokens,
       sitemapResult: {
         sitemapMetaByUrl: Object.fromEntries(sitemapResult.sitemapMetaByUrl),
       },
@@ -628,6 +710,16 @@ function derivePageTitle(result: ImportDetectionResult): string {
   if (hero?.content?.heading) return String(hero.content.heading);
   try {
     return new URL(result.pageUrl).pathname.replace(/\//g, " ").trim() || "Home";
+  } catch {
+    return "Page";
+  }
+}
+
+function deriveFallbackPageTitle(pageUrl: string): string {
+  try {
+    const pathname = new URL(pageUrl).pathname;
+    if (!pathname || pathname === "/") return "Home";
+    return pathname.split("/").filter(Boolean).pop()?.replace(/[-_]+/g, " ") || "Page";
   } catch {
     return "Page";
   }

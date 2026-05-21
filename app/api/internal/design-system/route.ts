@@ -9,34 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { DomProbeService } from "@/lib/studio/design-system/dom-probe/service";
 import { importDesignSystemFromUrl } from "@/lib/studio/design-system/import-design-system";
 import { isDomProbeEnabledForWebsite } from "@/lib/studio/import/utils/dom-probe-flags";
+import { isAuthorizedInternalWorkflowRequest } from "@/lib/studio/workflows/internal-auth";
 
 export const maxDuration = 300;
-
-// Verify request is internal (from same server or workflow step)
-function isInternalRequest(request: NextRequest): boolean {
-  const host = request.headers.get("host");
-
-  // Accept localhost requests
-  if (host?.includes("localhost") || host?.includes("127.0.0.1")) {
-    return true;
-  }
-
-  // Check for internal workflow header
-  const workflowHeader = request.headers.get("x-workflow-internal");
-  if (process.env.WORKFLOW_INTERNAL_SECRET && workflowHeader === process.env.WORKFLOW_INTERNAL_SECRET) {
-    return true;
-  }
-
-  // Accept requests with valid Vercel automation bypass token
-  // This allows Vercel Workflow steps to call internal APIs
-  const bypassToken = request.nextUrl.searchParams.get("x-vercel-protection-bypass");
-  if (bypassToken && bypassToken === process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-    return true;
-  }
-
-  // Reject unknown requests
-  return false;
-}
 
 interface GenerateDesignSystemRequest {
   websiteId: string;
@@ -44,7 +19,7 @@ interface GenerateDesignSystemRequest {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isInternalRequest(request)) {
+  if (!isAuthorizedInternalWorkflowRequest(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

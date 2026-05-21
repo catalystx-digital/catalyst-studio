@@ -9,17 +9,12 @@
  * @module sse-hooks
  */
 
-// Import Progress SSE Hooks
+// Import progress hooks
 export {
-  useImportProgressSSE,
   isSSESupported,
-  type ImportProgressState,
-} from './use-import-progress-sse'
-
-// Hybrid Hook (SSE with polling fallback)
-export {
   useImportProgressHybrid,
   useImportProgressWithSSE,
+  type ImportProgressState,
 } from './use-import-progress-hybrid'
 
 // AI Context SSE Hooks

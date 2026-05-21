@@ -8,8 +8,8 @@ import { useSiteBuilderStore } from '@/lib/studio/stores/site-builder-store'
 import { isHomeLike, isHomeNode } from '@/lib/studio/utils/home-page-utils'
 import { useAutoSave } from '@/lib/studio/hooks/use-auto-save'
 import { useUndoRedoShortcuts } from '@/lib/studio/hooks/use-undo-redo-shortcuts'
-import { useImportHydration } from '@/lib/studio/hooks/use-import-hydration'
 import { useGreenfieldHydration } from '@/lib/studio/hooks/use-greenfield-hydration'
+import { useWebsiteActivityStream } from '@/lib/studio/hooks/use-website-activity-stream'
 import { useViewportSync } from '@/lib/studio/hooks/use-viewport-sync'
 import { SaveStatusIndicator } from '@/lib/studio/components/site-builder/save-status-indicator'
 import ReactFlow, {
@@ -3280,10 +3280,9 @@ function SitemapBuilderContent() {
   // Both hooks hydrate into the same ImportTrackerStore, so currentImportJob will find either type
   const isGreenfieldJob = importJobId?.startsWith('bootstrap-') ?? false
 
-  // Import hydration - enabled for import URLs and website reloads so active jobs can resume without importJobId.
-  // Greenfield jobs are handled by useGreenfieldHydration below
-  const isImportJob = !!websiteId && !isGreenfieldJob
-  useImportHydration({ jobId: importJobId, websiteId, pollInterval: 2000, idlePollInterval: 120_000, enabled: isImportJob })
+  // Regular imports are hydrated exclusively by the website activity SSE stream.
+  // Greenfield jobs are handled by useGreenfieldHydration below.
+  useWebsiteActivityStream({ websiteId, enabled: !!websiteId })
   useGreenfieldHydration({
     jobId: importJobId,
     websiteId: websiteId,

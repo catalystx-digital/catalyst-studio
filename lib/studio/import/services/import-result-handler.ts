@@ -188,6 +188,17 @@ export class ImportResultHandler {
 
           if (redirectResult.success) {
             redirectsCreated++;
+            await this.runService.upsertPageStageForJob(job.id, {
+              pageUrl: redirectPage.pageUrl,
+              title: pageTitle,
+              status: 'redirect_created',
+              phase: 'commit_page',
+              structureCandidate: {
+                sourcePath,
+                targetUrl,
+                redirectType: redirectPage.redirectInfo.type,
+              } as Prisma.InputJsonValue,
+            });
             redirectSummary.push({
               sourcePath,
               targetUrl,
@@ -883,8 +894,8 @@ export class ImportResultHandler {
       });
     }
 
-    await this.runService.updateProgressForJob(job.id, {
-      status: importResult.failedPages.length > 0 ? 'partial_success' : 'success',
+      await this.runService.updateProgressForJob(job.id, {
+      status: 'completed',
       phase: 'completed',
       progress: 100,
       message:

@@ -136,13 +136,22 @@ export async function generateDesignSystemFromPrompt(
   }
 
   // TKT-088: Use env model to support xAI direct API (which doesn't have openai/gpt-4o-mini)
-  const resolvedModel = model || process.env.IMPORT_MODEL_CHAIN || process.env.OPENROUTER_MODEL || ModelConfig.typeExtraction
+  const baseUrl = OpenRouterConfig.baseUrl
+  const isXaiDirect = baseUrl.includes('api.x.ai')
+  const configuredModel =
+    model?.trim() ||
+    (isXaiDirect ? process.env.OPENROUTER_MODEL?.trim() : process.env.IMPORT_MODEL_CHAIN?.split('|')[0]?.trim()) ||
+    process.env.OPENROUTER_MODEL?.trim() ||
+    ModelConfig.typeExtraction
+  const resolvedModel = isXaiDirect && configuredModel.includes('/')
+    ? configuredModel.split('/').pop() || configuredModel
+    : configuredModel
 
   try {
     const validatedKey = validateLLMApiKey(resolvedApiKey)
     const client = createLLMClient({
       apiKey: validatedKey,
-      baseURL: OpenRouterConfig.baseUrl,
+      baseURL: baseUrl,
       title: 'Catalyst Design System Generator',
     })
 

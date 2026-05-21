@@ -98,6 +98,7 @@ export interface Operation {
 export interface SaveRequest {
   websiteId: string;
   operations: Operation[];
+  baseWebsiteRevision?: number | null;
 }
 
 export interface OperationResult {
@@ -111,4 +112,5 @@ export interface SaveResponse {
   success: boolean;
   results?: OperationResult[];
   error?: string;
+  currentWebsiteRevision?: number;
 }

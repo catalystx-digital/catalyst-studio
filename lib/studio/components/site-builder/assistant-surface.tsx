@@ -196,6 +196,8 @@ const extractImportProgressMetadata = (message: Message): ImportProgressMetadata
   return metadata as ImportProgressMetadata
 }
 
+const TERMINAL_IMPORT_CARD_STATUSES = new Set(['failed', 'cancelled', 'recoverable_stuck', 'unknown'])
+
 // AI SDK v5: serializeScope is no longer needed since we don't send scope via annotations
 // Keeping for potential future use with transport body customization
 
@@ -508,6 +510,9 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
 
   // Use the new SSE-based progress hook with polling fallback
   const { progressState, filteredMessages } = useImportProgressWithSSE(aiMessages, activeJobId, websiteId, sessionKey)
+  const shouldShowImportStatusCard =
+    progressState.hasActiveImport ||
+    (!!activeJobId && TERMINAL_IMPORT_CARD_STATUSES.has(progressState.status))
 
   const importGroups = useMemo(() => {
     const groups = new Map<
@@ -642,7 +647,7 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
               </div>
 
               {/* Active Import Status Card - FIXED at top, always visible */}
-              {progressState.hasActiveImport && (
+              {shouldShowImportStatusCard && (
                 <div className="px-4 py-3 border-b border-white/10 bg-black/60 backdrop-blur-sm">
                   <ImportStatusCard
                     stage={progressState.stage}
@@ -682,7 +687,7 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
 
                     // Skip rendering import progress messages inline - they're shown in ImportStatusCard
                     // But NEVER skip user messages - they should always be visible
-                    if (importProgress && progressState.hasActiveImport && !isUser) {
+                    if (importProgress && shouldShowImportStatusCard && !isUser) {
                       return null
                     }
 
