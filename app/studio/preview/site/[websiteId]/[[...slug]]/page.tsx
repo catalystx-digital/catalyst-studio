@@ -19,7 +19,11 @@ export default async function StudioLocalPreviewPage(props: PageProps) {
   try {
     await assertStudioWebsiteAccess(undefined, params.websiteId)
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : 'Preview access denied'
+    if (!(error instanceof ApiError)) {
+      throw error
+    }
+
+    const message = error.message
     return (
       <main className="flex min-h-screen items-center justify-center bg-white p-8 text-slate-900">
         <div className="max-w-md text-center">

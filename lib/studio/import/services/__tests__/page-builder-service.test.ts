@@ -282,7 +282,7 @@ describe('PageBuilderService', () => {
       )).rejects.toThrow()
     })
 
-    it('injects a fallback main component when the template requires one', async () => {
+    it('throws when a required main region is missing instead of injecting a fallback component', async () => {
       const summaryWithRequirement = buildCatalogSummary()
       const marketingTemplate = summaryWithRequirement.templates.find(
         template => template.templateKey === 'marketing/home-default'
@@ -349,19 +349,13 @@ describe('PageBuilderService', () => {
         }
       }
 
-      await service.createPage(pageData, fallbackComponentTypes, 'website-1', 'content-type-1')
-
-      const createCall = prisma.websitePage.create.mock.calls[0][0]
-      const createdComponents = (createCall.data.content?.components ?? []) as ComponentInstance[]
-      const mainComponents = createdComponents.filter(component => component?.props?.region === 'main')
-
-      expect(mainComponents.length).toBeGreaterThanOrEqual(1)
-      const fallback = mainComponents.find(component => component.type === 'text-block')
-      expect(fallback).toBeDefined()
-      expect(fallback?.props?.metadata?.source).toBe('fallback')
+      await expect(service.createPage(pageData, fallbackComponentTypes, 'website-1', 'content-type-1'))
+        .rejects
+        .toThrow('Required region "main"')
+      expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
-    it('injects a blog-post fallback when an article template requires it', async () => {
+    it('throws when an article template requires a missing blog-post instead of injecting fallback content', async () => {
       const summaryWithRequirement = buildCatalogSummary()
       const articleTemplate = summaryWithRequirement.templates.find(
         template => template.templateKey === 'core/generic-default'
@@ -425,24 +419,13 @@ describe('PageBuilderService', () => {
         }
       }
 
-      await service.createPage(pageData, componentTypes, 'website-1', 'content-type-1')
-
-      const createCall = prisma.websitePage.create.mock.calls[0][0]
-      const createdComponents = (createCall.data.content?.components ?? []) as ComponentInstance[]
-      const mainComponents = createdComponents.filter(component => component?.props?.region === 'main')
-
-      const fallback = mainComponents.find(component => component.type === 'blog-post')
-      expect(fallback).toBeDefined()
-      expect(fallback?.props?.content?.title).toBe('Test Page')
-      expect(fallback?.props?.content?.bodyHtml).toBe('<p>Imported description for blog article fallback.</p>')
-      expect(fallback?.props?.content?.excerpt).toBe('Imported description for blog article fallback.')
-      expect(fallback?.props?.content?.sourceUrl).toBe(pageData.url)
-      expect(fallback?.props?.content?.heroImage).toEqual({ src: 'https://example.com/images/article-hero.jpg' })
-      expect(fallback?.props?.metadata?.source).toBe('fallback')
-      expect(fallback?.props?.metadata?.fallbackReason).toBe('missing-required-blog-post')
+      await expect(service.createPage(pageData, componentTypes, 'website-1', 'content-type-1'))
+        .rejects
+        .toThrow('Required region "main"')
+      expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
-    it('ensures header/footer fallbacks exist and removes disallowed region components', async () => {
+    it('throws when required header/footer regions are missing instead of injecting fallbacks', async () => {
       const summaryWithRegions = buildCatalogSummary()
       const targetTemplate = summaryWithRegions.templates[0]
       targetTemplate.requiredRegions = [
@@ -564,22 +547,10 @@ describe('PageBuilderService', () => {
         ]
       }
 
-      await service.createPage(pageData, enrichedComponentTypes, 'website-1', 'content-type-1')
-
-      const createCall = prisma.websitePage.create.mock.calls[0][0]
-      const createdComponents = (createCall.data.content?.components ?? []) as ComponentInstance[]
-
-      const headerComponents = createdComponents.filter(component => component?.props?.region === 'header')
-      const footerComponents = createdComponents.filter(component => component?.props?.region === 'footer')
-
-      expect(headerComponents.length).toBeGreaterThanOrEqual(1)
-      expect(footerComponents.length).toBeGreaterThanOrEqual(1)
-      expect(headerComponents.some(component => component.props?.metadata?.source === 'fallback')).toBe(true)
-      expect(footerComponents.some(component => component.props?.metadata?.source === 'fallback')).toBe(true)
-
-      const quoteInstance = createdComponents.find(component => component.id.startsWith('quote-block'))
-      expect(quoteInstance).toBeDefined()
-      expect(quoteInstance?.props?.region).toBeUndefined()
+      await expect(service.createPage(pageData, enrichedComponentTypes, 'website-1', 'content-type-1'))
+        .rejects
+        .toThrow('Required region "header"')
+      expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
     it('rehydrates shared navbar regions before region normalization', async () => {
@@ -825,7 +796,7 @@ describe('PageBuilderService', () => {
 
       expect(result).toBeDefined()
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Component type \'unknown-component\' not found in provided types, skipping component')
+        expect.stringContaining('Dropped canonical detection "unknown-component"')
       )
       
       // Verify that the content structure is valid and contains the hero-banner
@@ -1591,8 +1562,8 @@ describe('PageBuilderService', () => {
       expect(prisma.$transaction).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
-          maxWait: 15000,
-          timeout: 180000,
+          maxWait: 10000,
+          timeout: 14000,
           isolationLevel: expect.anything()
         })
       )

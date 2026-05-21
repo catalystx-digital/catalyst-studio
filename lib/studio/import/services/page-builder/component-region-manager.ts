@@ -1,4 +1,3 @@
-import { createFallbackComponentInstance as buildFallbackComponentInstance } from './fallback-component-factory'
 import type {
   ComponentInstance,
   ComponentTree,
@@ -7,8 +6,6 @@ import type {
 } from '../interfaces'
 import {
   canonicalizeComponentType,
-  extractComponentProps,
-  generateComponentId
 } from './component-helpers'
 import {
   buildComponentTypeIndex,
@@ -17,7 +14,6 @@ import {
   collectComponentInstanceTypes,
   countComponentInstances
 } from './component-tree-utils'
-import { generatePageTitle } from './page-metadata'
 import { ComponentType as CmsComponentType } from '@/lib/studio/components/cms/_core/types'
 import { PageTemplateRegionConfig } from '@/lib/studio/pages/_core/types'
 import { type PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
@@ -64,6 +60,29 @@ interface RegionSanitizeResult {
   modified: boolean
 }
 
+export class RequiredRegionCoverageError extends Error {
+  constructor({
+    pageUrl,
+    templateKey,
+    region,
+    currentCount,
+    minRequired,
+    allowedComponents
+  }: {
+    pageUrl: string
+    templateKey: string
+    region: string
+    currentCount: number
+    minRequired: number
+    allowedComponents?: unknown[]
+  }) {
+    super(
+      `[ComponentRegionManager] Required region "${region}" for template "${templateKey}" has ${currentCount} component(s), expected at least ${minRequired}. Allowed components: ${JSON.stringify(allowedComponents ?? [])}. Page: ${pageUrl}`
+    )
+    this.name = 'RequiredRegionCoverageError'
+  }
+}
+
 export class ComponentRegionManager {
   ensureRequiredRegionCoverage({
     tree,
@@ -89,8 +108,7 @@ export class ComponentRegionManager {
     }
 
     const components = [...sanitized.components]
-    let additions = 0
-    let modified = sanitized.modified
+    const modified = sanitized.modified
 
     for (const regionConfig of requiredRegions) {
       const minRequired = typeof regionConfig.min === 'number' ? regionConfig.min : 0
@@ -98,42 +116,16 @@ export class ComponentRegionManager {
         continue
       }
 
-      let currentCount = this.countComponentsInRegion(components, regionConfig.region)
-      while (currentCount < minRequired) {
-        const fallback = buildFallbackComponentInstance({
-          regionConfig,
-          componentTypes,
-          pageData,
-          insertionIndex: components.length + additions,
-          deps: {
-            canonicalizeComponentType,
-            generateComponentId,
-            extractComponentProps,
-            derivePlacementBucket: region => this.derivePlacementBucket(region),
-            generatePageTitle
-          }
-        })
-
-        if (!fallback) {
-          console.warn('[PageBuilderService] Unable to synthesize fallback component for required region', {
-            url: pageData.url,
-            region: regionConfig.region,
-            allowedComponents: regionConfig.allowedComponents
-          })
-          break
-        }
-
-        components.push(fallback)
-        console.warn('[ComponentRegionManager] fallback-synthesized', {
+      const currentCount = this.countComponentsInRegion(components, regionConfig.region)
+      if (currentCount < minRequired) {
+        throw new RequiredRegionCoverageError({
           pageUrl: pageData.url,
           templateKey: template.templateKey,
           region: regionConfig.region,
-          synthesizedType: fallback.type,
+          currentCount,
+          minRequired,
           allowedComponents: regionConfig.allowedComponents
         })
-        additions += 1
-        currentCount += 1
-        modified = true
       }
     }
 
