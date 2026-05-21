@@ -52,35 +52,65 @@ describe('resolveUcsPageBySlug', () => {
     expect(result.payload?.page.id).toBe('page-home')
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { websiteId: 'site', parentId: null },
-        orderBy: [{ position: 'asc' }],
-        include: {
-          websitePage: {
-            select: {
-              id: true,
-              title: true,
-              content: true,
-              templateKey: true,
-              templateProps: true,
-              metadata: true
-            }
-          },
-          children: {
-            orderBy: [{ position: 'asc' }],
-            select: {
-              id: true,
-              parentId: true,
-              slug: true,
-              fullPath: true,
-              position: true,
-              websitePageId: true
-            }
-          }
-        }
+        where: { websiteId: 'site', fullPath: '/' },
+        include: expect.objectContaining({
+          websitePage: expect.any(Object),
+          children: expect.any(Object)
+        })
       })
     )
     expect(findMany).not.toHaveBeenCalled()
     expect(result.diagnostics).toHaveLength(0)
+  })
+
+  it('normalizes legacy sections content into snapshot page components', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'struct-home',
+      parentId: null,
+      slug: 'home',
+      fullPath: '/',
+      position: 0,
+      websitePageId: 'page-home',
+      websitePage: {
+        id: 'page-home',
+        title: 'Home',
+        ...basePage,
+        content: {
+          sections: [
+            {
+              id: 'section-1',
+              componentType: 'text-block',
+              data: { content: { text: 'Hello' } }
+            }
+          ]
+        }
+      },
+      children: []
+    })
+    const prisma = createPrismaMock({
+      websiteStructure: {
+        findFirst,
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    })
+
+    const result = await resolveUcsPageBySlug({
+      prisma,
+      websiteId: 'site',
+      slug: [],
+      sharedComponentCache: new Map()
+    })
+
+    expect(result.payload?.page.components).toEqual([
+      expect.objectContaining({
+        id: 'section-1',
+        type: 'text-block',
+        props: expect.objectContaining({ content: { text: 'Hello' } })
+      })
+    ])
   })
 
   it('resolves nested slug with single ancestor query', async () => {

@@ -5,8 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { UrlResolver } from '@/lib/services/url-resolution/url-resolver'
 import { generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
 import {
-  normalizeComponents,
-  normalizeRegionSummary,
+  normalizePageContent,
   normalizeMetadata,
   normalizeTemplateProps,
 } from '@/lib/studio/page-content'
@@ -27,10 +26,6 @@ interface RenderLocalPreviewOptions {
   websiteId: string
   slug?: string[]
   designConcept?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function clone<T>(value: T): T {
@@ -153,23 +148,8 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
       .split('/')
       .filter(Boolean)
 
-    const rawContent = isRecord(contentItem.content)
-      ? contentItem.content
-      : typeof contentItem.content === 'string'
-        ? (() => {
-            try {
-              return JSON.parse(contentItem.content) as Record<string, unknown>
-            } catch {
-              return {}
-            }
-          })()
-        : {}
-
-    const componentCandidates = Array.isArray(rawContent.components)
-      ? rawContent.components
-      : []
-
-    let componentInstances = normalizeComponents(componentCandidates)
+    const { pageContent } = normalizePageContent(contentItem.content)
+    let componentInstances = pageContent.components
 
     const sharedIds = Array.from(
       new Set(
@@ -213,7 +193,7 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
     }
 
     const templateProps = normalizeTemplateProps(contentItem.templateProps)
-    const regions = normalizeRegionSummary(rawContent.regions)
+    const regions = pageContent.regions ?? []
 
     const snapshotPage: SnapshotPage = {
       id: contentItem.id,

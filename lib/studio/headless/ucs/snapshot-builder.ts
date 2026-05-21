@@ -9,6 +9,7 @@ import {
   normalizeComponent,
   normalizeComponents,
   normalizeMetadata,
+  normalizePageContent,
   normalizeProps,
   normalizeRegionSummary,
   normalizeTemplateProps,
@@ -387,9 +388,9 @@ class PrismaSiteSnapshotBuilder {
   }
 
   private toSnapshotPage(page: PrismaPageWithStructure): SnapshotPage {
-    const rawContent = isRecord(page.content) ? page.content : {}
-    const regions = normalizeRegionSummary(rawContent.regions)
-    const components = normalizeComponents(rawContent.components)
+    const { pageContent } = normalizePageContent(page.content)
+    const regions = pageContent.regions ?? []
+    const components = pageContent.components
       .map(component => {
         if (!component) {
           return component

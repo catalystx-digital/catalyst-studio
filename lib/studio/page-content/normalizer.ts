@@ -306,8 +306,18 @@ function extractComponentCandidates(content: unknown, diagnostics: PageContentDi
 
 export function normalizePageContent(content: unknown): NormalizePageContentResult {
   const diagnostics: PageContentDiagnostic[] = []
-  const source = isRecord(content) ? content : {}
-  const componentCandidates = extractComponentCandidates(content, diagnostics)
+  const parsedContent = parseJsonString(content)
+  if (typeof content === 'string' && parsedContent !== content) {
+    addDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_JSON_STRING',
+      severity: 'info',
+      message: 'JSON string page content was parsed before normalization.',
+      path: '$',
+    })
+  }
+
+  const source = isRecord(parsedContent) ? parsedContent : {}
+  const componentCandidates = extractComponentCandidates(parsedContent, diagnostics)
   const pageContent: PageContentV1 = {
     version: PAGE_CONTENT_VERSION,
     components: normalizeComponents(componentCandidates, diagnostics),

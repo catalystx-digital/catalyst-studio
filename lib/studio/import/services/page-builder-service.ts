@@ -24,6 +24,7 @@ import {
 import { calculatePositions, deduplicateComponents } from './page-builder/component-tree-utils'
 import { generateComponentId, extractComponentProps } from './page-builder/component-helpers'
 import { normalizeImportUrl } from './import-run-service'
+import { toCanonicalPageContent } from '@/lib/studio/page-content'
 
 const PageDataSchema = z.object({
   title: z.string().min(1, 'Page title is required'),
@@ -179,10 +180,10 @@ export class PageBuilderService implements IPageBuilderService {
   }
 
   formatPageContent(tree: ComponentTree, primaryFieldName: string): Record<string, any> {
-    return {
+    return toCanonicalPageContent({
       [primaryFieldName]: tree.components,
       metadata: tree.metadata
-    }
+    }, tree.components)
   }
 
   async createPagesInBatch(

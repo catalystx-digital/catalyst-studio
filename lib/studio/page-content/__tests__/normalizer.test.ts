@@ -67,6 +67,29 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('parses JSON string page content before adapting components', () => {
+    const result = normalizePageContent(JSON.stringify({
+      sections: [
+        {
+          id: 'section-1',
+          componentType: 'text-block',
+          data: { content: { text: 'Hello' } },
+        },
+      ],
+    }))
+
+    expect(result.pageContent.components).toHaveLength(1)
+    expect(result.pageContent.components[0]).toMatchObject({
+      id: 'section-1',
+      type: 'text-block',
+      props: { content: { text: 'Hello' } },
+    })
+    expect(result.diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+      'PAGE_CONTENT_JSON_STRING',
+      'PAGE_CONTENT_LEGACY_SECTIONS',
+    ])
+  })
+
   it('parses JSON content from props.text without overwriting non-empty content', () => {
     const props = normalizeProps({
       text: JSON.stringify({

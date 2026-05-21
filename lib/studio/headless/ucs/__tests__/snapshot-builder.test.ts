@@ -1,4 +1,4 @@
-import { normalizeAssetUrl } from '../snapshot-builder'
+import { buildUcsSiteSnapshot, normalizeAssetUrl } from '../snapshot-builder'
 
 describe('normalizeAssetUrl', () => {
   const origin = 'https://example.com'
@@ -32,3 +32,73 @@ describe('normalizeAssetUrl', () => {
   })
 })
 
+describe('buildUcsSiteSnapshot', () => {
+  it('normalizes legacy sections content into snapshot page components', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'site',
+          name: 'Site',
+          description: null,
+          metadata: {},
+          settings: {}
+        })
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websitePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'page-1',
+            title: 'Home',
+            content: {
+              sections: [
+                {
+                  id: 'section-1',
+                  componentType: 'text-block',
+                  data: { content: { text: 'Hello' } }
+                }
+              ]
+            },
+            templateKey: null,
+            templateProps: {},
+            metadata: {},
+            structures: [
+              {
+                id: 'structure-1',
+                fullPath: '/',
+                slug: 'home',
+                parentId: null,
+                position: 0
+              }
+            ]
+          }
+        ])
+      },
+      websiteStructure: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      redirect: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const { snapshot } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.pages[0].components).toEqual([
+      expect.objectContaining({
+        id: 'section-1',
+        type: 'text-block',
+        props: expect.objectContaining({ content: { text: 'Hello' } })
+      })
+    ])
+  })
+})

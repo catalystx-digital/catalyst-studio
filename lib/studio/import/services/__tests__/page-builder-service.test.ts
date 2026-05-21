@@ -1199,7 +1199,52 @@ describe('PageBuilderService', () => {
       const result = service.formatPageContent(tree, 'components')
 
       expect(result).toEqual({
-        components: tree.components,
+        version: 1,
+        components: [
+          expect.objectContaining({
+            id: 'comp-1',
+            type: 'hero-banner',
+            typeId: 'type-1',
+            componentTypeId: 'type-1',
+            parentId: null,
+            position: 0,
+            props: { title: 'Hero' },
+            content: {},
+            styles: {},
+            metadata: {}
+          })
+        ],
+        metadata: tree.metadata
+      })
+    })
+
+    it('canonicalizes non-components primary content fields for WebsitePage storage', () => {
+      const tree: ComponentTree = {
+        components: [
+          {
+            id: 'section-1',
+            type: 'text-block',
+            typeId: 'type-1',
+            parentId: null,
+            position: 0,
+            props: { content: { text: 'Hello' } }
+          }
+        ],
+        metadata: { totalComponents: 1, maxDepth: 0, componentTypes: ['text-block'] }
+      }
+
+      const result = service.formatPageContent(tree, 'sections')
+
+      expect(result).toMatchObject({
+        version: 1,
+        sections: tree.components,
+        components: [
+          expect.objectContaining({
+            id: 'section-1',
+            type: 'text-block',
+            props: { content: { text: 'Hello' } }
+          })
+        ],
         metadata: tree.metadata
       })
     })
@@ -1718,4 +1763,3 @@ describe('PageBuilderService', () => {
     })
   })
 })
-

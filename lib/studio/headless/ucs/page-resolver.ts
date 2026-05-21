@@ -2,12 +2,11 @@ import { Prisma, PrismaClient } from '@/lib/generated/prisma'
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import {
   enrichComponentFromShared,
-  normalizeComponents,
   normalizeMetadata,
-  normalizeRegionSummary,
   normalizeTemplateProps,
   extractSiteOriginFromMetadata
 } from '@/lib/studio/headless/ucs/snapshot-builder'
+import { normalizePageContent } from '@/lib/studio/page-content'
 import type {
   SnapshotPage,
   SnapshotSharedComponent,
@@ -332,9 +331,9 @@ export async function resolveUcsPageBySlug(
   }
 
   const pageRecord = structureRecord.websitePage
-  const rawContent = isRecord(pageRecord.content) ? pageRecord.content : {}
-  const regions = normalizeRegionSummary(rawContent.regions)
-  const components = normalizeComponents(rawContent.components)
+  const { pageContent } = normalizePageContent(pageRecord.content)
+  const regions = pageContent.regions ?? []
+  const components = pageContent.components
   const sharedComponentIds = Array.from(
     new Set(
       components
