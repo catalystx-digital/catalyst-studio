@@ -36,14 +36,15 @@ export async function PATCH(
     }
 
     // Get page to find website
-    const page = await prisma.websitePage.findUnique({
+    const db = prisma as any;
+    const page = await db.websitePage.findUnique({
       where: { id: pageId },
       select: { websiteId: true }
     });
     if (!page) {
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
-    await assertWebsiteOwnership(prisma as any, auth.accountId, page.websiteId);
+    await assertWebsiteOwnership(db, auth.accountId, page.websiteId);
 
     // TKT-040 FIX: Unwrap overrides BEFORE validation
     // Client sends { props: { text: JSON, content: JSON } } wrapper
@@ -94,4 +95,3 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to save overrides' }, { status: 500 });
   }
 }
-

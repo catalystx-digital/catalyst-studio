@@ -4,8 +4,22 @@ import { NextRequest } from 'next/server'
 // Mock the prisma client
 jest.mock('@/lib/prisma', () => ({
   prisma: {
+    websitePage: {
+      findUnique: jest.fn()
+    },
+    websiteCustomContentData: {
+      findUnique: jest.fn()
+    },
     $transaction: jest.fn()
   }
+}))
+
+jest.mock('@/lib/auth/context', () => ({
+  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1' })
+}))
+
+jest.mock('@/lib/auth/ownership', () => ({
+  assertWebsiteOwnership: jest.fn().mockResolvedValue(undefined)
 }))
 
 // Get prisma from the mock for TypeScript
@@ -16,6 +30,8 @@ describe('/api/studio/site-builder/components/reorder', () => {
   
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({ websiteId: 'website-1' })
+    ;(prisma.websiteCustomContentData.findUnique as jest.Mock).mockResolvedValue(null)
     ;(prisma.$transaction as jest.Mock).mockImplementation((fn) => fn(mockTransaction))
   })
 
@@ -62,10 +78,11 @@ describe('/api/studio/site-builder/components/reorder', () => {
         where: { id: 'page-123' },
         data: {
           content: expect.objectContaining({
+            version: 1,
             components: expect.arrayContaining([
-              expect.objectContaining({ id: 'comp1', position: 2 }),
-              expect.objectContaining({ id: 'comp2', position: 0 }),
-              expect.objectContaining({ id: 'comp3', position: 1 })
+              expect.objectContaining({ id: 'comp1', position: 2, props: {}, content: {}, styles: {}, metadata: {} }),
+              expect.objectContaining({ id: 'comp2', position: 0, props: {}, content: {}, styles: {}, metadata: {} }),
+              expect.objectContaining({ id: 'comp3', position: 1, props: {}, content: {}, styles: {}, metadata: {} })
             ])
           })
         }
@@ -113,6 +130,7 @@ describe('/api/studio/site-builder/components/reorder', () => {
         where: { id: 'page-123' },
         data: {
           content: expect.objectContaining({
+            version: 1,
             components: expect.arrayContaining([
               expect.objectContaining({ id: 'child1', parentId: 'parent2', position: 0 })
             ])
@@ -203,6 +221,9 @@ describe('/api/studio/site-builder/components/reorder', () => {
     })
 
     it('should handle WebsiteCustomContentData fallback', async () => {
+      ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(null)
+      ;(prisma.websiteCustomContentData.findUnique as jest.Mock).mockResolvedValue({ websiteId: 'website-1' })
+
       const mockComponents = [
         { id: 'comp1', parentId: null, position: 0, type: 'widget' },
         { id: 'comp2', parentId: null, position: 1, type: 'widget' }
@@ -242,6 +263,7 @@ describe('/api/studio/site-builder/components/reorder', () => {
         where: { id: 'custom-123' },
         data: {
           data: expect.objectContaining({
+            version: 1,
             components: expect.arrayContaining([
               expect.objectContaining({ id: 'comp1', position: 1 }),
               expect.objectContaining({ id: 'comp2', position: 0 })
@@ -252,6 +274,8 @@ describe('/api/studio/site-builder/components/reorder', () => {
     })
 
     it('should return 404 when content item not found', async () => {
+      ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(null)
+      ;(prisma.websiteCustomContentData.findUnique as jest.Mock).mockResolvedValue(null)
       mockTransaction.websitePage = {
         findUnique: jest.fn().mockResolvedValue(null)
       }

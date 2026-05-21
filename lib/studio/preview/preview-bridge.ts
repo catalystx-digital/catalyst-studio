@@ -6,7 +6,19 @@
  * Eliminates manual postMessage construction and ensures type safety.
  */
 
-import { PreviewMessage } from '@/lib/preview/types'
+interface PreviewMessage {
+  type: 'UPDATE_CONTENT' | 'UPDATE_COMPONENT' | 'CHANGE_DEVICE' | 'NAVIGATE' | 'REFRESH'
+  payload: {
+    content?: string
+    device?: 'desktop' | 'tablet' | 'mobile'
+    page?: number
+    styles?: string
+    html?: string
+    css?: string
+    darkCss?: string
+  }
+  timestamp: number
+}
 
 /**
  * Send UPDATE_COMPONENT message to preview iframe

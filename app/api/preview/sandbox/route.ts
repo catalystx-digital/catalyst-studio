@@ -49,8 +49,6 @@ import {
   isSandboxConfigured,
   type CreateSandboxRequest,
   type SandboxResponse,
-  type PreviewDesignTokens,
-  type PreviewComponentConfig,
 } from '@/lib/studio/preview/sandbox'
 
 /**
@@ -104,9 +102,7 @@ interface AsyncJobResponse {
  */
 async function backgroundCreateSandbox(
   jobId: string,
-  websiteId: string,
-  designSystem?: PreviewDesignTokens,
-  components?: PreviewComponentConfig[]
+  websiteId: string
 ): Promise<void> {
   console.log(`[PreviewJob ${jobId}] Background worker started for website ${websiteId}`)
 
@@ -143,7 +139,7 @@ async function backgroundCreateSandbox(
 
     let sandbox
     try {
-      sandbox = await createSandbox(websiteId, designSystem, components)
+      sandbox = await createSandbox(websiteId)
       const duration = ((Date.now() - startTime) / 1000).toFixed(1)
       console.log(`[PreviewJob ${jobId}] Step 2 complete: Sandbox created in ${duration}s - ${sandbox.previewUrl}`)
     } catch (sandboxError) {
@@ -200,7 +196,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AsyncJobR
   }
 
   // Validate request
-  const { websiteId, designSystem, components } = body
+  const { websiteId } = body
 
   if (!websiteId) {
     return NextResponse.json(
@@ -307,7 +303,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AsyncJobR
     })
 
     // Trigger background worker via waitUntil
-    waitUntil(backgroundCreateSandbox(job.id, websiteId, designSystem, components))
+    waitUntil(backgroundCreateSandbox(job.id, websiteId))
 
     // Return 202 Accepted with jobId
     return NextResponse.json(

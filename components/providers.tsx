@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { ProjectContextProvider } from '@/lib/context/project-context'
-import { PreviewProvider } from '@/lib/context/preview-context'
 import { ContentTypeProvider } from '@/lib/context/content-type-context'
 import { WebsiteContextProvider } from '@/lib/context/website-context'
 import { ProviderContextProvider } from '@/lib/cms-export/context'
@@ -21,9 +20,7 @@ export function Providers({ children, initialWebsiteId }: ProvidersProps) {
       <ProjectContextProvider>
         <WebsiteContextProvider websiteId={initialWebsiteId ?? null}>
           <ContentTypeProvider>
-            <PreviewProvider>
-              {children}
-            </PreviewProvider>
+            {children}
           </ContentTypeProvider>
         </WebsiteContextProvider>
       </ProjectContextProvider>

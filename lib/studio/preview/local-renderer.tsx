@@ -6,10 +6,12 @@ import { UrlResolver } from '@/lib/services/url-resolution/url-resolver'
 import { generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
 import {
   normalizeComponents,
-  enrichComponentFromShared,
   normalizeRegionSummary,
   normalizeMetadata,
   normalizeTemplateProps,
+} from '@/lib/studio/page-content'
+import {
+  enrichComponentFromShared,
   extractSiteOriginFromMetadata,
 } from '@/lib/studio/headless/ucs/snapshot-builder'
 import { loadSharedComponentsById } from '@/lib/studio/headless/ucs/page-resolver'

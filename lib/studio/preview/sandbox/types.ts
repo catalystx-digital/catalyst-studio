@@ -48,10 +48,26 @@ export interface PreviewDesignTokens {
  * Component configuration for preview
  */
 export interface PreviewComponentConfig {
+  /** Component instance ID */
+  id?: string
   /** Component type (e.g., 'hero-simple') */
   type: string
+  /** Parent component ID for nested layouts */
+  parentId?: string | null
+  /** Component order within its parent */
+  position?: number
   /** Component props */
   props: Record<string, unknown>
+  /** Normalized component content */
+  content?: Record<string, unknown>
+  /** Normalized responsive styles */
+  styles?: Record<string, unknown>
+  /** Normalized component metadata */
+  metadata?: Record<string, unknown>
+  /** Shared/global component reference */
+  sharedComponentId?: string
+  /** Global component reference */
+  globalComponentId?: string
 }
 
 /**
@@ -60,22 +76,6 @@ export interface PreviewComponentConfig {
 export interface CreateSandboxRequest {
   /** Website ID */
   websiteId: string
-  /** Design system tokens */
-  designSystem?: PreviewDesignTokens
-  /** Initial component configurations */
-  components?: PreviewComponentConfig[]
-}
-
-/**
- * Request to update a sandbox's content
- */
-export interface UpdateSandboxRequest {
-  /** Sandbox ID */
-  sandboxId: string
-  /** Updated design system tokens */
-  designSystem?: PreviewDesignTokens
-  /** Updated component props (keyed by component ID) */
-  componentUpdates?: Record<string, Record<string, unknown>>
 }
 
 /**
@@ -88,26 +88,6 @@ export interface SandboxResponse {
   sandbox?: SandboxInstance
   /** Error message if failed */
   error?: string
-}
-
-/**
- * File to sync to sandbox
- */
-export interface SandboxFile {
-  /** File path relative to sandbox root (e.g., 'app/preview/page.tsx') */
-  path: string
-  /** File content as string */
-  content: string
-}
-
-/**
- * Request to sync files to a sandbox (for live updates)
- */
-export interface SandboxSyncRequest {
-  /** Website ID */
-  websiteId: string
-  /** Files to write/update */
-  files: SandboxFile[]
 }
 
 /**

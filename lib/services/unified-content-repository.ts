@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/lib/generated/prisma';
+import { normalizePageContent, toCanonicalPageContent } from '@/lib/studio/page-content';
 
 export interface ResolvedInstance {
   id: string;
@@ -61,6 +62,8 @@ function toRecord(obj: unknown): Record<string, unknown> {
   return (obj && typeof obj === 'object' ? (obj as Record<string, unknown>) : {}) as Record<string, unknown>;
 }
 
+const db = prisma as any;
+
 export const ContentRepository = {
   async createSharedComponent(args: {
     id?: string;
@@ -74,7 +77,7 @@ export const ContentRepository = {
     const id = args.id || `global-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const createdBy = args.createdBy || 'user';
     const config: Record<string, unknown> = { defaultProps: args.content, category: args.category };
-    const row = await prisma.websiteSharedComponent.create({
+    const row = await db.websiteSharedComponent.create({
       data: {
         id,
         websiteId: args.websiteId,
@@ -90,13 +93,13 @@ export const ContentRepository = {
     return { id: row.id };
   },
   async getPageWithResolvedComponents(websiteId: string, pageId: string): Promise<ResolvedPage> {
-    const page = await prisma.websitePage.findUnique({ where: { id: pageId } });
+    const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page || page.websiteId !== websiteId) {
       throw new Error('Page not found');
     }
 
-    const content = (page.content || {}) as unknown as { components?: Array<Record<string, unknown>> };
-    const components = Array.isArray(content.components) ? content.components : [];
+    const content = (page.content || {}) as Record<string, unknown>;
+    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
 
     const sharedIds = components
       .map((c) => {
@@ -107,9 +110,9 @@ export const ContentRepository = {
 
     const uniqueSharedIds = Array.from(new Set(sharedIds));
     const sharedRows = uniqueSharedIds.length
-      ? await prisma.websiteSharedComponent.findMany({ where: { id: { in: uniqueSharedIds } } })
+      ? await db.websiteSharedComponent.findMany({ where: { id: { in: uniqueSharedIds } } })
       : [];
-    const sharedMap = new Map(sharedRows.map((r) => [r.id, r]));
+    const sharedMap = new Map<string, any>(sharedRows.map((r: any) => [r.id, r]));
 
     const resolved: ResolvedInstance[] = components.map((c, idx) => {
       const id = (c.id as string) || `component-${idx}`;
@@ -150,7 +153,7 @@ export const ContentRepository = {
     content: Record<string, unknown>,
     opts?: { mirrorDefaultProps?: boolean; ifUnchangedSince?: Date }
   ): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       const current = await tx.websiteSharedComponent.findUnique({ where: { id: sharedId } });
       if (!current) throw new Error('Shared component not found');
       if (opts?.ifUnchangedSince && current.lastModified > opts.ifUnchangedSince) {
@@ -180,14 +183,14 @@ export const ContentRepository = {
     overrides: Record<string, unknown> | null,
     opts?: { ifUnchangedSince?: Date }
   ): Promise<void> {
-    const page = await prisma.websitePage.findUnique({ where: { id: pageId } });
+    const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     if (opts?.ifUnchangedSince && page.updatedAt > opts.ifUnchangedSince) {
       throw new Error('Conflict: page modified since');
     }
 
-    const content = (page.content || {}) as unknown as { components?: Array<Record<string, unknown>> };
-    const components = Array.isArray(content.components) ? content.components : [];
+    const content = (page.content || {}) as Record<string, unknown>;
+    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
 
@@ -272,9 +275,9 @@ export const ContentRepository = {
     comp.props = props;
     components[idx] = comp;
 
-    await prisma.websitePage.update({
+    await db.websitePage.update({
       where: { id: pageId },
-      data: { content: { ...content, components } as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, components) as unknown as Prisma.InputJsonValue },
     });
   },
 
@@ -284,14 +287,15 @@ export const ContentRepository = {
     position: number,
     overrides?: Record<string, unknown>
   ): Promise<{ instanceId: string }> {
-    const page = await prisma.websitePage.findUnique({ where: { id: pageId } });
+    const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const content = (page.content || {}) as unknown as { components?: Array<Record<string, unknown>> };
-    const components = Array.isArray(content.components) ? [...content.components] : [];
+    const content = (page.content || {}) as Record<string, unknown>;
+    const components = [...normalizePageContent(content).pageContent.components] as unknown as Array<Record<string, unknown>>;
     components.splice(position, 0, {
       id: instanceId,
       type: 'shared',
+      parentId: null,
       position,
       props: {
         sharedComponentId: sharedId,
@@ -299,37 +303,40 @@ export const ContentRepository = {
           ? { overrides, hasOverrides: true }
           : {}),
       },
+      content: {},
+      styles: {},
+      metadata: {},
     });
-    await prisma.websitePage.update({
+    await db.websitePage.update({
       where: { id: pageId },
-      data: { content: { ...content, components } as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, components) as unknown as Prisma.InputJsonValue },
     });
     return { instanceId };
   },
 
   async removeSharedInstanceFromPage(pageId: string, instanceId: string): Promise<void> {
-    const page = await prisma.websitePage.findUnique({ where: { id: pageId } });
+    const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
-    const content = (page.content || {}) as unknown as { components?: Array<Record<string, unknown>> };
-    const components = Array.isArray(content.components) ? content.components : [];
+    const content = (page.content || {}) as Record<string, unknown>;
+    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
     const filtered = components.filter((c) => (c.id as string) !== instanceId);
-    await prisma.websitePage.update({
+    await db.websitePage.update({
       where: { id: pageId },
-      data: { content: { ...content, components: filtered } as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, filtered) as unknown as Prisma.InputJsonValue },
     });
   },
 
   async convertFullPropsToOverrides(pageId: string, instanceId: string, sharedId: string): Promise<void> {
-    const page = await prisma.websitePage.findUnique({ where: { id: pageId } });
+    const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
-    const content = (page.content || {}) as unknown as { components?: Array<Record<string, unknown>> };
-    const components = Array.isArray(content.components) ? content.components : [];
+    const content = (page.content || {}) as Record<string, unknown>;
+    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
 
     const comp = { ...(components[idx] || {}) } as Record<string, unknown>;
     const props = { ...(toRecord(comp.props)) } as Record<string, unknown>;
-    const shared = await prisma.websiteSharedComponent.findUnique({ where: { id: sharedId } });
+    const shared = await db.websiteSharedComponent.findUnique({ where: { id: sharedId } });
     const sharedContent = toRecord(shared?.content ?? (toRecord(shared?.config).defaultProps ?? {}));
 
     // Compute overrides as shallow diff: props minus sharedContent
@@ -356,9 +363,9 @@ export const ContentRepository = {
     comp.props = props;
     components[idx] = comp;
 
-    await prisma.websitePage.update({
+    await db.websitePage.update({
       where: { id: pageId },
-      data: { content: { ...content, components } as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, components) as unknown as Prisma.InputJsonValue },
     });
   },
 };

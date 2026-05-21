@@ -12,17 +12,11 @@ export type {
   PreviewDesignTokens,
   PreviewComponentConfig,
   CreateSandboxRequest,
-  UpdateSandboxRequest,
-  SandboxFile,
-  SandboxSyncRequest,
 } from './types'
 
 export {
   createSandbox,
   getSandbox,
-  updateDesignSystem,
-  updateComponent,
-  syncFilesToSandbox,
   stopSandbox,
   cleanupIdleSandboxes,
   getActiveSandboxes,

@@ -153,9 +153,10 @@ export class CMSComponentFactory {
       return component;
     } catch (error) {
       this.loadingPromises.delete(type);
-      // Return fallback component instead of throwing
+      // Return a fallback for this render without caching it as a successful load.
+      // A transient failure should not poison future attempts after registration
+      // or initialization recovers.
       const fallback = this.createFallbackComponent(error as Error);
-      this.componentCache.set(type, fallback); // Cache the fallback to avoid repeated failures
       return fallback;
     }
   }

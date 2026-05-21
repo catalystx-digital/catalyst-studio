@@ -13,8 +13,7 @@
  * Features:
  * - Sandbox pooling per website
  * - Automatic cleanup of idle sandboxes
- * - Content synchronization via file writes
- * - Design system token injection
+ * - UCS runtime environment injection
  *
  * Tarball can be served from Vercel Blob or a configured generic S3-compatible public URL.
  */
@@ -23,8 +22,6 @@ import { Sandbox, type Command } from '@vercel/sandbox'
 import type {
   SandboxInstance,
   SandboxConfig,
-  PreviewDesignTokens,
-  PreviewComponentConfig,
 } from './types'
 
 // Global store to survive Next.js hot reloads in development
@@ -146,95 +143,6 @@ function getConfig(): SandboxConfig {
 }
 
 /**
- * Generate design system CSS from tokens
- */
-function generateDesignSystemCSS(tokens: PreviewDesignTokens): string {
-  const lightVars = Object.entries(tokens.variables)
-    .map(([key, value]) => `  ${key}: ${value};`)
-    .join('\n')
-
-  let css = `:root {\n${lightVars}\n}`
-
-  if (tokens.darkVariables) {
-    const darkVars = Object.entries(tokens.darkVariables)
-      .map(([key, value]) => `  ${key}: ${value};`)
-      .join('\n')
-    css += `\n\n.dark {\n${darkVars}\n}`
-  }
-
-  return css
-}
-
-/**
- * Generate preview page content with components
- */
-function generatePreviewPageContent(components: PreviewComponentConfig[]): string {
-  // Generate import statements
-  const imports = components
-    .map((c, i) => {
-      const componentName = `Component${i}`
-      const importPath = getComponentImportPath(c.type)
-      return `import ${componentName} from '${importPath}'`
-    })
-    .join('\n')
-
-  // Generate component JSX
-  const componentJsx = components
-    .map((c, i) => {
-      const componentName = `Component${i}`
-      const propsJson = JSON.stringify(c.props, null, 2)
-      return `      <${componentName} {...${propsJson}} />`
-    })
-    .join('\n')
-
-  return `
-'use client'
-
-${imports}
-
-export default function PreviewPage() {
-  return (
-    <main className="min-h-screen">
-${componentJsx}
-    </main>
-  )
-}
-`
-}
-
-/**
- * Map component type to import path
- */
-function getComponentImportPath(componentType: string): string {
-  // Map component types to their paths
-  const componentMap: Record<string, string> = {
-    'hero-simple': '@/lib/studio/components/cms/heroes/hero-simple',
-    'hero-banner': '@/lib/studio/components/cms/heroes/hero-banner',
-    'hero-with-image': '@/lib/studio/components/cms/heroes/hero-with-image',
-    'hero-split': '@/lib/studio/components/cms/heroes/hero-split',
-    'hero-minimal': '@/lib/studio/components/cms/heroes/hero-minimal',
-    'hero-video': '@/lib/studio/components/cms/heroes/hero-video',
-    'hero-carousel': '@/lib/studio/components/cms/heroes/hero-carousel',
-    'nav-bar': '@/lib/studio/components/cms/navigation/nav-bar',
-    'footer': '@/lib/studio/components/cms/navigation/footer',
-    'about-section': '@/lib/studio/components/cms/about/about-section',
-    'team-grid': '@/lib/studio/components/cms/about/team-grid',
-    'feature-grid': '@/lib/studio/components/cms/features/feature-grid',
-    'feature-list': '@/lib/studio/components/cms/features/feature-list',
-    'cta-simple': '@/lib/studio/components/cms/cta/cta-simple',
-    'cta-banner': '@/lib/studio/components/cms/cta/cta-banner',
-    'contact-form': '@/lib/studio/components/cms/contact/contact-form',
-    'blog-list': '@/lib/studio/components/cms/blog/blog-list',
-    'card-grid': '@/lib/studio/components/cms/content/card-grid',
-    'two-column': '@/lib/studio/components/cms/content/two-column',
-    'accordion': '@/lib/studio/components/cms/content/accordion',
-    'pricing-table': '@/lib/studio/components/cms/pricing/pricing-table',
-  }
-
-  return componentMap[componentType] || componentMap['hero-simple']
-}
-
-/**
  * Stream sandbox server logs in background for observability
  * Logs are sent to console which goes to Vercel Logs in production
  * Only logs errors/warnings to avoid noise
@@ -306,11 +214,7 @@ async function verifySandboxAlive(websiteId: string): Promise<boolean> {
 /**
  * Create a new sandbox for a website
  */
-export async function createSandbox(
-  websiteId: string,
-  designSystem?: PreviewDesignTokens,
-  components?: PreviewComponentConfig[]
-): Promise<SandboxInstance> {
+export async function createSandbox(websiteId: string): Promise<SandboxInstance> {
   // Check if sandbox already exists
   const existing = activeSandboxes.get(websiteId)
   if (existing && existing.status === 'ready') {
@@ -406,27 +310,9 @@ HEAD_RUNTIME_REVALIDATE_SECONDS=0
       },
     ])
 
-    // If designSystem parameter provided (override), write custom CSS
-    if (designSystem) {
-      const css = generateDesignSystemCSS(designSystem)
-      await sandbox.writeFiles([
-        {
-          path: 'app/globals.css',
-          content: Buffer.from(css),
-        },
-      ])
-    }
-
-    // Write preview page if components provided
-    if (components && components.length > 0) {
-      const pageContent = generatePreviewPageContent(components)
-      await sandbox.writeFiles([
-        {
-          path: 'app/preview/page.tsx',
-          content: Buffer.from(pageContent),
-        },
-      ])
-    }
+    // Do not generate component-specific preview pages here.
+    // The tarball boots the UCS head runtime and fetches canonical snapshot data
+    // from the database, matching local preview semantics.
 
     // Start production server (pre-compiled in tarball, no build needed)
     // Pass environment variables directly via runCommand's env option
@@ -494,100 +380,6 @@ export function getSandbox(websiteId: string): SandboxInstance | undefined {
     instance.lastActivityAt = new Date()
   }
   return instance
-}
-
-/**
- * Update sandbox with new design system tokens
- */
-export async function updateDesignSystem(
-  websiteId: string,
-  designSystem: PreviewDesignTokens
-): Promise<void> {
-  const sandbox = sandboxHandles.get(websiteId)
-  const instance = activeSandboxes.get(websiteId)
-
-  if (!sandbox || !instance) {
-    throw new Error(`No sandbox found for website ${websiteId}`)
-  }
-
-  instance.status = 'updating'
-  instance.lastActivityAt = new Date()
-
-  try {
-    const css = generateDesignSystemCSS(designSystem)
-    await sandbox.runCommand({
-      cmd: 'bash',
-      args: ['-c', `cat > app/globals.css << 'EOFCSS'\n${css}\nEOFCSS`],
-    })
-    instance.status = 'ready'
-  } catch (error) {
-    instance.status = 'error'
-    instance.error = error instanceof Error ? error.message : 'Unknown error'
-    throw error
-  }
-}
-
-/**
- * Update component props in sandbox
- */
-export async function updateComponent(
-  websiteId: string,
-  componentType: string,
-  props: Record<string, unknown>
-): Promise<void> {
-  const sandbox = sandboxHandles.get(websiteId)
-  const instance = activeSandboxes.get(websiteId)
-
-  if (!sandbox || !instance) {
-    throw new Error(`No sandbox found for website ${websiteId}`)
-  }
-
-  instance.lastActivityAt = new Date()
-
-  // Write updated props to a JSON file that the preview page reads
-  const propsJson = JSON.stringify({ type: componentType, props }, null, 2)
-  await sandbox.runCommand({
-    cmd: 'bash',
-    args: ['-c', `cat > app/preview/component-props.json << 'EOFJSON'\n${propsJson}\nEOFJSON`],
-  })
-}
-
-/**
- * Sync files to sandbox for live preview updates
- * Uses writeFiles API for efficient batch updates
- */
-export async function syncFilesToSandbox(
-  websiteId: string,
-  files: Array<{ path: string; content: string }>
-): Promise<void> {
-  const sandbox = sandboxHandles.get(websiteId)
-  const instance = activeSandboxes.get(websiteId)
-
-  if (!sandbox || !instance) {
-    throw new Error(`No sandbox found for website ${websiteId}`)
-  }
-
-  instance.lastActivityAt = new Date()
-
-  try {
-    // Use writeFiles API for efficient batch writes
-    // This triggers Next.js hot reload automatically
-    await sandbox.writeFiles(
-      files.map((f) => ({
-        path: f.path,
-        content: Buffer.from(f.content),
-      }))
-    )
-  } catch (error) {
-    // If sync fails, sandbox may be dead - clean up stale state
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    if (errorMessage.includes('stopped') || errorMessage.includes('SANDBOX_STOPPED')) {
-      console.log(`[sandbox-manager] Sandbox for ${websiteId} stopped, cleaning up stale state`)
-      activeSandboxes.delete(websiteId)
-      sandboxHandles.delete(websiteId)
-    }
-    throw error
-  }
 }
 
 /**

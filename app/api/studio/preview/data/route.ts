@@ -17,6 +17,7 @@ import { getClient } from '@/lib/db/client'
 import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import { getNormalizedDesignSystem, generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
 import type { PreviewDesignTokens, PreviewComponentConfig } from '@/lib/studio/preview/sandbox/types'
+import { normalizePageContent } from '@/lib/studio/page-content'
 
 interface PreviewDataResponse {
   success: boolean
@@ -185,76 +186,36 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
  * Extract component configs from page content JSON
  */
 function extractComponents(content: unknown): PreviewComponentConfig[] {
-  if (!content || typeof content !== 'object') {
-    return []
-  }
+  const { pageContent, diagnostics } = normalizePageContent(content)
 
-  const components: PreviewComponentConfig[] = []
-  const contentObj = content as Record<string, unknown>
-
-  // Handle different content structures
-  // 1. Array of components directly
-  if (Array.isArray(contentObj)) {
-    for (const item of contentObj) {
-      if (isComponentConfig(item)) {
-        const type = getType(item)
-        components.push({
-          type,
-          props: (item.props || item.data || {}) as Record<string, unknown>,
-        })
-      }
-    }
-    return components
-  }
-
-  // 2. Object with 'components' array
-  if (Array.isArray(contentObj.components)) {
-    for (const item of contentObj.components) {
-      if (isComponentConfig(item)) {
-        const type = getType(item)
-        components.push({
-          type,
-          props: (item.props || item.data || {}) as Record<string, unknown>,
-        })
-      }
-    }
-    return components
-  }
-
-  // 3. Object with 'sections' array (alternative structure)
-  if (Array.isArray(contentObj.sections)) {
-    for (const section of contentObj.sections) {
-      if (isComponentConfig(section)) {
-        const type = getType(section)
-        components.push({
-          type,
-          props: (section.props || section.data || {}) as Record<string, unknown>,
-        })
-      }
-    }
-    return components
-  }
-
-  // 4. Single component object with type
-  if (isComponentConfig(contentObj)) {
-    const type = getType(contentObj)
-    components.push({
-      type,
-      props: (contentObj.props || contentObj.data || {}) as Record<string, unknown>,
+  if (diagnostics.length > 0 && process.env.NODE_ENV !== 'production') {
+    console.info('[preview-data] Adapted page content for sandbox preview', {
+      diagnostics: diagnostics.map(diagnostic => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        componentId: diagnostic.componentId,
+        path: diagnostic.path,
+      })),
     })
   }
 
-  return components
-}
+  return pageContent.components.map((component): PreviewComponentConfig => {
+    const props = { ...component.props }
+    if (!('content' in props) && Object.keys(component.content).length > 0) {
+      props.content = component.content
+    }
 
-function isComponentConfig(obj: unknown): obj is Record<string, unknown> {
-  if (!obj || typeof obj !== 'object') return false
-  const record = obj as Record<string, unknown>
-  return typeof record.type === 'string' || typeof record.componentType === 'string'
-}
-
-function getType(obj: Record<string, unknown>): string {
-  if (typeof obj.type === 'string') return obj.type
-  if (typeof obj.componentType === 'string') return obj.componentType
-  return 'unknown'
+    return {
+      id: component.id,
+      type: component.type,
+      parentId: component.parentId,
+      position: component.position,
+      props,
+      content: component.content as Record<string, unknown>,
+      styles: component.styles as Record<string, unknown>,
+      metadata: component.metadata as Record<string, unknown>,
+      ...(component.sharedComponentId ? { sharedComponentId: component.sharedComponentId } : {}),
+      ...(component.globalComponentId ? { globalComponentId: component.globalComponentId } : {}),
+    }
+  })
 }

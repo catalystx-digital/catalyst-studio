@@ -2,25 +2,22 @@
  * Preview Sandbox Update API
  *
  * POST /api/preview/sandbox/update
- *   Update sandbox content (design system or component props)
+ *   Deprecated legacy sandbox mutation endpoint
  *
- * This endpoint allows real-time updates to a running sandbox
- * without recreating it.
+ * Active previews render persisted Studio data through the UCS runtime. Design
+ * system and component changes should be saved to Studio data, not pushed into
+ * sandbox files.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import {
-  updateDesignSystem,
-  updateComponent,
-  getSandbox,
   isSandboxConfigured,
-  type UpdateSandboxRequest,
   type SandboxResponse,
 } from '@/lib/studio/preview/sandbox'
 
 /**
- * POST - Update sandbox content
+ * POST - Deprecated sandbox mutation endpoint
  */
 export async function POST(request: NextRequest): Promise<NextResponse<SandboxResponse>> {
   // Check if sandbox is configured
@@ -36,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SandboxRe
 
   try {
     // Parse request body
-    let body: UpdateSandboxRequest & { websiteId: string; componentType?: string; props?: Record<string, unknown> }
+    let body: { websiteId?: string }
     try {
       body = await request.json()
     } catch (error) {
@@ -49,7 +46,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SandboxRe
       )
     }
 
-    const { websiteId, designSystem, componentType, props } = body
+    const { websiteId } = body
 
     if (!websiteId) {
       return NextResponse.json(
@@ -67,35 +64,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<SandboxRe
       return previewAccessErrorResponse(error) as NextResponse<SandboxResponse>
     }
 
-    // Check if sandbox exists
-    const sandbox = getSandbox(websiteId)
-    if (!sandbox) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `No sandbox found for website ${websiteId}. Create one first with POST /api/preview/sandbox`,
-        },
-        { status: 404 }
-      )
-    }
-
-    // Update design system if provided
-    if (designSystem) {
-      await updateDesignSystem(websiteId, designSystem)
-    }
-
-    // Update component props if provided
-    if (componentType && props) {
-      await updateComponent(websiteId, componentType, props)
-    }
-
-    // Get updated sandbox state
-    const updatedSandbox = getSandbox(websiteId)
-
-    return NextResponse.json({
-      success: true,
-      sandbox: updatedSandbox,
-    })
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Sandbox file/component updates are deprecated. Update persisted Studio data and let the UCS runtime render from the database.',
+      },
+      { status: 410 }
+    )
   } catch (error) {
     console.error('Sandbox update error:', error)
 

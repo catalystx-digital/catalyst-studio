@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getContentSource, updateContentSource } from '@/lib/utils/content-source'
 import { getAuthContext } from '@/lib/auth/context'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
+import { normalizePageContent, toCanonicalPageContent } from '@/lib/studio/page-content'
 
 // Type for component structure in JSON
 type ComponentType = {
@@ -45,29 +46,34 @@ export async function POST(request: NextRequest) {
     const { componentId, newParentId, newPosition, contentItemId } = validation.data
 
     // Get content item to find websiteId for ownership check
-    const page = await prisma.websitePage.findUnique({
+    const db = prisma as any
+    const page = await db.websitePage.findUnique({
       where: { id: contentItemId },
       select: { websiteId: true }
     });
-    if (!page) {
+
+    const customContent = page ? null : await db.websiteCustomContentData.findUnique({
+      where: { id: contentItemId },
+      select: { websiteId: true }
+    });
+    const websiteId = page?.websiteId ?? customContent?.websiteId;
+
+    if (!websiteId) {
       return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
     }
-    await assertWebsiteOwnership(prisma as any, auth.accountId, page.websiteId);
+    await assertWebsiteOwnership(db, auth.accountId, websiteId);
 
     // Start transaction for atomic operation
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: any) => {
       const startTime = Date.now()
       
       // Get content source using shared utility
       const source = await getContentSource(tx, contentItemId)
       const content = source.content
 
-      // Parse the content JSON to get component tree
-      const components = (content?.components as ComponentType[]) || []
-      
-      if (!Array.isArray(components)) {
-        throw new Error('Invalid content structure')
-      }
+      // Normalize legacy/current content into the canonical component tree before mutating.
+      const normalized = normalizePageContent(content)
+      const components = normalized.pageContent.components as unknown as ComponentType[]
 
       // Find the component to move
       const componentToMove = components.find((c: ComponentType) => c.id === componentId)
@@ -151,10 +157,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Update the content item with the modified component tree
-      const updatedContent = {
-        ...content,
-        components: components
-      }
+      const updatedContent = toCanonicalPageContent(content, components)
       await updateContentSource(tx, source, updatedContent)
       
       // Log performance metrics

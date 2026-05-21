@@ -5,13 +5,22 @@ import {
   type CMSComponentProps
 } from '@/lib/studio/components/cms/_core/types'
 import { resolveSharedComponentReference, type ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
+import {
+  normalizeComponent,
+  normalizeComponents,
+  normalizeMetadata,
+  normalizeProps,
+  normalizeRegionSummary,
+  normalizeTemplateProps,
+  parseJsonString,
+  resolveCmsComponentType,
+} from '@/lib/studio/page-content'
 import { applyTemplateOverrides } from '@/lib/studio/headless/site-snapshot/templates'
 import type {
   GeneratorDiagnostic,
   SiteSnapshot,
   SnapshotPage,
   SnapshotRedirect,
-  SnapshotRegionSummary,
   SnapshotSharedComponent,
   SnapshotStructureNode,
   SnapshotDesignSystem
@@ -230,133 +239,12 @@ function extractUrlValue(candidate: unknown, depth = 0): string | undefined {
   return undefined
 }
 
-function parseJsonString(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return value
-  }
-
-  const firstChar = trimmed[0]
-  const lastChar = trimmed[trimmed.length - 1]
-  if ((firstChar === '{' && lastChar === '}') || (firstChar === '[' && lastChar === ']')) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      return value
-    }
-  }
-
-  return value
-}
-
-function normalizeProps(value: unknown): Record<string, unknown> {
-  if (!isRecord(value)) {
-    return {}
-  }
-
-  const normalized: Record<string, unknown> = {}
-  let parsedTextContent: Record<string, unknown> | null = null
-
-  Object.entries(value).forEach(([key, entry]) => {
-    if (key === 'content' || key === 'data' || key.endsWith('Json')) {
-      normalized[key] = parseJsonString(entry)
-      return
-    }
-
-    if (key === 'text' && typeof entry === 'string') {
-      normalized[key] = entry
-      const parsed = parseJsonString(entry)
-      if (isRecord(parsed)) {
-        parsedTextContent = parsed
-      }
-      return
-    }
-
-    normalized[key] = entry
-  })
-
-  if (parsedTextContent) {
-    const existingContent = normalized.content
-    if (isRecord(existingContent)) {
-      // Smart merge: parsedTextContent wins over empty arrays/objects in existingContent
-      // This ensures data from props.text (like slides) isn't lost to empty defaults
-      const merged: Record<string, unknown> = { ...existingContent }
-      for (const [key, value] of Object.entries(parsedTextContent as Record<string, unknown>)) {
-        const existing = merged[key]
-        // Prefer parsedTextContent value if:
-        // - existing is undefined/null
-        // - existing is an empty array
-        // - existing is an empty object
-        const existingIsEmpty =
-          existing === undefined ||
-          existing === null ||
-          (Array.isArray(existing) && existing.length === 0) ||
-          (isRecord(existing) && Object.keys(existing).length === 0)
-        if (existingIsEmpty || existing === undefined) {
-          merged[key] = value
-        }
-      }
-      normalized.content = merged
-    } else {
-      normalized.content = parsedTextContent
-    }
-  }
-
-  return normalized
-}
-
 type WebsiteDesignSystemDelegate = {
   findFirst?: (args: Record<string, unknown>) => Promise<unknown>
 }
 
-function normalizeRegionSummary(value: unknown): SnapshotRegionSummary[] {
-  if (!isRecord(value)) {
-    return []
-  }
-
-  return Object.entries(value).reduce<SnapshotRegionSummary[]>((acc, [region, types]) => {
-    if (typeof region !== 'string') {
-      return acc
-    }
-
-    if (Array.isArray(types)) {
-      const componentTypes = types.filter(type => typeof type === 'string') as ComponentType[]
-      acc.push({ region: region as any, componentTypes })
-    }
-
-    return acc
-  }, [])
-}
-
 function cloneJson<T>(value: T): T {
   return value ? JSON.parse(JSON.stringify(value)) as T : value
-}
-
-function normalizeComponentTypeKey(value: string): string {
-  return value
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase()
-}
-
-const COMPONENT_TYPE_LOOKUP = new Map<string, ComponentType>(
-  (Object.values(ComponentType) as string[]).map(value => [
-    normalizeComponentTypeKey(value),
-    value as ComponentType
-  ])
-)
-
-function resolveCmsComponentType(value: unknown): ComponentType | undefined {
-  if (typeof value !== 'string') {
-    return undefined
-  }
-  return COMPONENT_TYPE_LOOKUP.get(normalizeComponentTypeKey(value))
 }
 
 function normalizeSharedComponentContent(
@@ -374,67 +262,6 @@ function normalizeSharedComponentContent(
 
   const sharedComponent = shared.find(entry => entry.id === sharedComponentId)
   return sharedComponent && isRecord(sharedComponent.content) ? cloneJson(sharedComponent.content) : {}
-}
-
-function normalizeComponent(instance: unknown, fallbackPosition: number): ComponentInstance | null {
-  if (!isRecord(instance)) {
-    return null
-  }
-
-  const rawTypeId = typeof instance.typeId === 'string' ? instance.typeId : undefined
-  const rawComponentTypeId =
-    typeof instance.componentTypeId === 'string' ? instance.componentTypeId : rawTypeId
-  const componentType = resolveCmsComponentType((instance as Record<string, unknown>)['componentType'])
-  const id = typeof instance.id === 'string' ? instance.id : `component-${fallbackPosition}`
-  const type = typeof instance.type === 'string' ? instance.type : 'unknown'
-  const parentId = instance.parentId === null || typeof instance.parentId === 'string' ? instance.parentId : null
-  const position = typeof instance.position === 'number' ? instance.position : fallbackPosition
-  const props = normalizeProps(instance.props)
-  const rawContent = parseJsonString(instance.content)
-  const content = isRecord(rawContent) ? rawContent : {}
-  const styles = isRecord(instance.styles) ? instance.styles : {}
-  const rawMetadata = parseJsonString(instance.metadata)
-  const metadata = isRecord(rawMetadata) ? rawMetadata : {}
-  const globalComponentId = typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
-
-  return {
-    id,
-    type,
-    ...(componentType ? { componentType } : {}),
-    ...(rawComponentTypeId ? { componentTypeId: rawComponentTypeId } : {}),
-    ...(rawTypeId ? { typeId: rawTypeId } : {}),
-    parentId,
-    position,
-    props,
-    content,
-    styles,
-    metadata,
-    ...(globalComponentId ? { globalComponentId } : {})
-  }
-}
-
-function normalizeComponents(value: unknown): ComponentInstance[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return value
-    .map((node, index) => normalizeComponent(node, index))
-    .filter((component): component is ComponentInstance => component !== null)
-}
-
-function normalizeTemplateProps(value: unknown): Record<string, unknown> {
-  if (!isRecord(value)) {
-    return {}
-  }
-  return value
-}
-
-function normalizeMetadata(value: unknown): Record<string, unknown> {
-  if (!isRecord(value)) {
-    return {}
-  }
-  return value
 }
 
 interface PrismaPageWithStructure {

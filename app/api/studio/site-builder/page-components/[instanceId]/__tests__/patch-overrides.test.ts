@@ -7,6 +7,14 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
+jest.mock('@/lib/auth/context', () => ({
+  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1' }),
+}))
+
+jest.mock('@/lib/auth/ownership', () => ({
+  assertWebsiteOwnership: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { NextRequest } from 'next/server'
 import { PATCH as patchOverrides } from '@/app/api/studio/site-builder/page-components/[instanceId]/route'
 
@@ -44,6 +52,31 @@ describe('PATCH page overrides - concurrency and limits', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.success).toBe(true)
+    expect(prisma.websitePage.update).toHaveBeenCalledWith({
+      where: { id: 'page-1' },
+      data: {
+        content: expect.objectContaining({
+          version: 1,
+          components: [
+            expect.objectContaining({
+              id: 'inst-1',
+              parentId: null,
+              position: 0,
+              props: expect.objectContaining({
+                text: JSON.stringify({ title: 'New' }),
+                content: { title: 'New' },
+                sharedComponentId: 'sc-1',
+                overrides: { title: 'New' },
+                hasOverrides: true,
+              }),
+              content: { title: 'New' },
+              styles: {},
+              metadata: {},
+            }),
+          ],
+        }),
+      },
+    })
   })
 
   it('returns 409 when If-Unmodified-Since is stale', async () => {
@@ -58,6 +91,7 @@ describe('PATCH page overrides - concurrency and limits', () => {
     })
     const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
     expect(res.status).toBe(409)
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
   it('returns 413 when depth exceeds limit', async () => {
@@ -71,5 +105,6 @@ describe('PATCH page overrides - concurrency and limits', () => {
     })
     const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
     expect(res.status).toBe(413)
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 })
