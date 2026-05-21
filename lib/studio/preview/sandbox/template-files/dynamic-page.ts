@@ -12,6 +12,7 @@ interface PageData {
   id: string
   title: string
   slug: string
+  fullPath?: string
   components: Array<{
     type: string
     props: Record<string, unknown>
@@ -63,8 +64,43 @@ async function getHomepageData(searchParams?: { [key: string]: string | string[]
       return null
     }
 
-    // Get homepage - look for root slug or first page
-    const homepage = data.data.pages.find(p => p.slug === '/' || p.slug === '' || p.slug === 'home') || data.data.pages[0]
+    const normalizePath = (value?: string): string => {
+      if (!value) return '/'
+      try {
+        value = decodeURIComponent(value)
+      } catch {
+        // Keep the original value if it is not URI encoded.
+      }
+      const withoutQuery = value.split('?')[0].split('#')[0]
+      const trimmed = withoutQuery.replace(/^\/+|\/+$/g, '')
+      return trimmed ? \`/\${trimmed}\` : '/'
+    }
+
+    const requestedPath = normalizePath(
+      typeof searchParams?.path === 'string'
+        ? searchParams.path
+        : typeof searchParams?.page === 'string'
+          ? searchParams.page
+          : undefined
+    )
+
+    const page = data.data.pages.find((candidate) => {
+      const fullPath = normalizePath(candidate.fullPath || candidate.slug)
+      const slugPath = normalizePath(candidate.slug)
+      return fullPath === requestedPath || slugPath === requestedPath
+    })
+
+    if (page) {
+      return page
+    }
+
+    // Fallback to homepage - look for root slug/path or first page
+    const homepage = data.data.pages.find((candidate) => {
+      const fullPath = normalizePath(candidate.fullPath || candidate.slug)
+      const slugPath = normalizePath(candidate.slug)
+      return fullPath === '/' || slugPath === '/' || slugPath === '/home'
+    }) || data.data.pages[0]
+
     return homepage || null
   } catch (error) {
     console.error('[preview] Fetch error:', error)

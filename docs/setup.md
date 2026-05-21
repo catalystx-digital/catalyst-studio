@@ -75,6 +75,14 @@ npm run db:seed
 npm run dev
 ```
 
+The default dev command disables the Workflow SDK route generator because it can repeatedly rewrite generated files during local development on Windows:
+
+```bash
+npm run dev
+```
+
+Maintainers who need to work on Workflow routes can use `npm run dev:workflow`.
+
 Open:
 
 ```text
@@ -108,4 +116,5 @@ The build currently skips TypeScript validation through `next.config.ts`, matchi
 - `DATABASE_URL` missing during build: set `DATABASE_URL` in `.env.local` or in the shell before `npm run build`.
 - Prisma migration connection issues: ensure `DIRECT_URL` points to a direct database connection, not a pooled runtime URL.
 - AI import fails: verify `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`.
-- Live preview requires Vercel Sandbox variables. See the preview section in `.env.example`.
+- Studio preview uses the built-in database-backed renderer by default and does not require Vercel Sandbox locally or on Vercel.
+- Vercel Sandbox is optional. Use `sandbox=true` only after configuring a Vercel team/project with Sandbox access.

@@ -9,8 +9,10 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build:components": "tsx scripts/generate-component-registry.ts",
-    "dev": "npm run build:components && next dev",
-    "dev:4000": "npm run build:components && next dev -p 4000",
+    "dev": "cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true npm run build:components && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true next dev",
+    "dev:workflow": "npm run build:components && next dev",
+    "dev:preview": "npm run dev",
+    "dev:4000": "cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=4000 npm run build:components && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=4000 next dev -p 4000",
     "build": "npm run build:components && next build",
     "build:sandbox-tarball": "tsx scripts/build-sandbox-tarball.ts",
     "start": "next start",

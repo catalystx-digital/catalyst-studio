@@ -17,6 +17,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
+import { getAuthContext } from '@/lib/auth/context'
+import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 
 /**
  * waitUntil polyfill for local development
@@ -183,17 +185,6 @@ async function backgroundCreateSandbox(
  * Sandbox creation happens in background via waitUntil
  */
 export async function POST(request: NextRequest): Promise<NextResponse<AsyncJobResponse>> {
-  // Check if sandbox is configured
-  if (!isSandboxConfigured()) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Vercel Sandbox is not configured. Set VERCEL_TEAM_ID, VERCEL_PROJECT_ID, and VERCEL_TOKEN environment variables.',
-      },
-      { status: 503 }
-    )
-  }
-
   // Parse request body
   let body: CreateSandboxRequest
   try {
@@ -222,6 +213,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<AsyncJobR
   }
 
   try {
+    await assertStudioWebsiteAccess(request, websiteId)
+
+    // Check if sandbox is configured only after the explicit request is authorized.
+    if (!isSandboxConfigured()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Vercel Sandbox is selected, but Sandbox credentials are not configured.',
+        },
+        { status: 503 }
+      )
+    }
+
     // Check for existing READY job for this website (sandbox reuse)
     const existingJob = await prisma.previewJob.findFirst({
       where: {
@@ -315,6 +319,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<AsyncJobR
       { status: 202 }
     )
   } catch (error) {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      return previewAccessErrorResponse(error) as NextResponse<AsyncJobResponse>
+    }
+
     console.error('Sandbox job creation error:', error)
 
     return NextResponse.json(
@@ -349,6 +357,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<SandboxRes
 
   // Special case: configuration check for useSandboxConfigured() hook
   if (websiteId === '_config_check') {
+    try {
+      await getAuthContext(request)
+    } catch (error) {
+      return previewAccessErrorResponse(error) as NextResponse<SandboxResponse>
+    }
+
     if (!isSandboxConfigured()) {
       return NextResponse.json(
         {
@@ -361,6 +375,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<SandboxRes
     return NextResponse.json({
       success: true,
     })
+  }
+
+  try {
+    await assertStudioWebsiteAccess(request, websiteId)
+  } catch (error) {
+    return previewAccessErrorResponse(error) as NextResponse<SandboxResponse>
   }
 
   const sandbox = getSandbox(websiteId)
@@ -398,12 +418,18 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<Sandbox
   }
 
   try {
+    await assertStudioWebsiteAccess(request, websiteId)
+
     await stopSandbox(websiteId)
 
     return NextResponse.json({
       success: true,
     })
   } catch (error) {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      return previewAccessErrorResponse(error) as NextResponse<SandboxResponse>
+    }
+
     console.error('Sandbox stop error:', error)
 
     return NextResponse.json(

@@ -7,7 +7,7 @@
  * Provides website context and canvas-focused navigation.
  */
 
-import { Suspense, useCallback, useState, useEffect } from 'react';
+import { Suspense, useCallback, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { WebsiteContextProvider } from '@/lib/context/website-context';
 import { ContentTypeProvider } from '@/lib/context/content-type-context';
@@ -101,6 +101,7 @@ interface LayoutContentProps {
 function NavLayoutContent({ children, websiteId }: LayoutContentProps) {
   const router = useRouter();
   const [autoLayoutEnabled, setAutoLayoutEnabled] = useState(true);
+  const hasAutoLayoutToggleMounted = useRef(false);
 
   const handleHelpClick = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help'));
@@ -130,16 +131,21 @@ function NavLayoutContent({ children, websiteId }: LayoutContentProps) {
   }, []);
 
   const handleAutoLayoutToggle = useCallback(() => {
-    setAutoLayoutEnabled((prev) => {
-      const newValue = !prev;
-      window.dispatchEvent(
-        new CustomEvent('sitebuilder:auto-layout-toggle', {
-          detail: { enabled: newValue },
-        })
-      );
-      return newValue;
-    });
+    setAutoLayoutEnabled((prev) => !prev);
   }, []);
+
+  useEffect(() => {
+    if (!hasAutoLayoutToggleMounted.current) {
+      hasAutoLayoutToggleMounted.current = true;
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('sitebuilder:auto-layout-toggle', {
+        detail: { enabled: autoLayoutEnabled },
+      })
+    );
+  }, [autoLayoutEnabled]);
 
   return (
     <SiteBuilderNavLayout

@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Sandbox } from '@vercel/sandbox'
 import { prisma } from '@/lib/db/prisma'
 import { PreviewJobStatus } from '@/lib/generated/prisma'
+import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import {
   syncFilesToSandbox,
   getSandbox,
@@ -80,6 +81,12 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<SandboxR
         },
         { status: 400 }
       )
+    }
+
+    try {
+      await assertStudioWebsiteAccess(request, websiteId)
+    } catch (error) {
+      return previewAccessErrorResponse(error) as NextResponse<SandboxResponse>
     }
 
     // First, check in-memory cache (fast path for same-instance requests)

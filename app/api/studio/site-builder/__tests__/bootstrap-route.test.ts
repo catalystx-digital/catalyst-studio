@@ -4,6 +4,10 @@ import { getAuthContext } from '@/lib/auth/context'
 import { prisma } from '@/lib/prisma'
 import { greenfieldBootstrapper } from '@/lib/studio/ai/greenfield-bootstrapper'
 
+jest.mock('workflow/api', () => ({
+  start: jest.fn(),
+}))
+
 jest.mock('@/lib/auth/context', () => ({
   getAuthContext: jest.fn(),
 }))
@@ -31,8 +35,19 @@ const bootstrapperMock = greenfieldBootstrapper as unknown as {
 }
 
 describe('POST /api/studio/site-builder/bootstrap', () => {
+  const originalDisableWorkflow = process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN
+
   beforeEach(() => {
     jest.clearAllMocks()
+    process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN = 'true'
+  })
+
+  afterAll(() => {
+    if (originalDisableWorkflow === undefined) {
+      delete process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN
+    } else {
+      process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN = originalDisableWorkflow
+    }
   })
 
   it('returns 404 when website is missing or unauthorized', async () => {
@@ -64,7 +79,7 @@ describe('POST /api/studio/site-builder/bootstrap', () => {
     expect(bootstrapperMock.bootstrapWebsite).not.toHaveBeenCalled()
   })
 
-  it('invokes bootstrapper and returns result', async () => {
+  it('starts local bootstrapper and returns job metadata when workflow plugin is disabled', async () => {
     getAuthContextMock.mockResolvedValue({ accountId: 'acct-1' })
     prismaMock.website.findUnique.mockResolvedValue({ id: 'site-1', accountId: 'acct-1' })
     bootstrapperMock.bootstrapWebsite.mockResolvedValue({
@@ -96,16 +111,19 @@ describe('POST /api/studio/site-builder/bootstrap', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(bootstrapperMock.bootstrapWebsite).toHaveBeenCalledWith({
+    expect(bootstrapperMock.bootstrapWebsite).toHaveBeenCalledWith(expect.objectContaining({
       websiteId: 'site-1',
       accountId: 'acct-1',
+      sessionId: expect.any(String),
+      jobId: expect.stringMatching(/^bootstrap-site-1-/),
       originalPrompt: 'Photography portfolio',
       processedPrompt: payload.processedPrompt
-    })
-    expect(body.data).toEqual({
-      pagesCreated: 4,
-      populatedPages: 3,
-      fallbackApplied: false
-    })
+    }))
+    expect(body).toEqual(expect.objectContaining({
+      websiteId: 'site-1',
+      sessionId: expect.any(String),
+      jobId: expect.stringMatching(/^bootstrap-site-1-/),
+      message: 'Greenfield website generation started',
+    }))
   })
 })

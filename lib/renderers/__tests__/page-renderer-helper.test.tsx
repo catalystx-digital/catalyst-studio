@@ -111,6 +111,9 @@ describe('PageRendererHelper', () => {
     expect(rootComponent).toHaveProperty('id', 'hero-1');
     expect(rootComponent).toHaveProperty('type', 'hero-banner');
     expect(rootComponent).toHaveProperty('theme', 'dark');
+    expect(rootComponent).not.toHaveProperty('onLoad');
+    expect(rootComponent).not.toHaveProperty('onError');
+    expect(rootComponent).not.toHaveProperty('onInteraction');
 
     const content = rootComponent.content as Record<string, unknown>;
     expect(content).toBeDefined();
@@ -127,6 +130,7 @@ describe('PageRendererHelper', () => {
     const ctaArea = areas.cta as Array<Record<string, unknown>>;
     expect(ctaArea[0]).toHaveProperty('type', 'cta-banner');
     expect((ctaArea[0].content as Record<string, unknown>).heading).toBe('Ready to transform your marketing site?');
+    expect(ctaArea[0]).not.toHaveProperty('onInteraction');
 
     const metadata = rootComponent.metadata as Record<string, unknown>;
     expect(metadata.position).toBe(0);

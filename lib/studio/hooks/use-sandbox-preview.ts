@@ -47,6 +47,34 @@ interface UseSandboxPreviewReturn {
   isConfigured: boolean
 }
 
+export function normalizeSandboxErrorMessage(value: unknown, fallback = 'Failed to create sandbox'): string {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.message === 'string' && record.message.trim().length > 0) {
+      return record.message
+    }
+    if (record.error) {
+      return normalizeSandboxErrorMessage(record.error, fallback)
+    }
+  }
+
+  return fallback
+}
+
+export function sandboxErrorMessage(status: number, fallback?: unknown): string {
+  if (status === 403) {
+    return 'Vercel Sandbox denied access. Confirm the Vercel account, team, project, and Sandbox permissions, or switch preview provider.'
+  }
+  if (status === 503) {
+    return 'Vercel Sandbox is selected, but Sandbox credentials are not configured.'
+  }
+  return normalizeSandboxErrorMessage(fallback)
+}
+
 /**
  * Hook for managing Vercel Sandbox preview
  *
@@ -142,7 +170,7 @@ export function useSandboxPreview(options: UseSandboxPreviewOptions): UseSandbox
         })
       } else if (data.status === 'ERROR') {
         stopPolling()
-        setError(data.error || 'Sandbox creation failed')
+        setError(sandboxErrorMessage(response.status, data.error || 'Sandbox creation failed'))
       }
     } catch (err) {
       // Network error - log but keep polling (might be temporary)
@@ -198,7 +226,7 @@ export function useSandboxPreview(options: UseSandboxPreviewOptions): UseSandbox
           setIsConfigured(false)
         }
         setStatus('error')
-        setError(data.error || 'Failed to create sandbox')
+        setError(sandboxErrorMessage(response.status, data.error))
         return
       }
 

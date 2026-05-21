@@ -26,21 +26,31 @@ interface SandboxPreviewProps {
   designConcept?: string
   /** Page slug to display */
   pageSlug?: string
+  /** Canonical preview path to display, e.g. /about/team */
+  previewPath?: string
+  /** Called when the user wants to leave explicit Sandbox mode */
+  onSwitchToLocal?: () => void
 }
 
 /**
  * Build the preview URL with optional design concept and page slug query parameters.
  * This allows switching design systems without recreating the sandbox.
  */
-function buildPreviewUrl(baseUrl: string, designConcept?: string, pageSlug?: string): string {
-  if (!designConcept && !pageSlug) return baseUrl
+export function buildPreviewUrl(baseUrl: string, designConcept?: string, pageSlug?: string, previewPath?: string): string {
+  if (!designConcept && !pageSlug && !previewPath) return baseUrl
 
   try {
     const url = new URL(baseUrl)
     if (designConcept) {
       url.searchParams.set('designConcept', designConcept)
     }
-    if (pageSlug) {
+    if (previewPath) {
+      url.searchParams.set('path', previewPath)
+      const pageFromPath = previewPath.replace(/^\/+|\/+$/g, '')
+      if (pageFromPath) {
+        url.searchParams.set('page', pageFromPath)
+      }
+    } else if (pageSlug) {
       url.searchParams.set('page', pageSlug)
     }
     return url.toString()
@@ -55,6 +65,8 @@ export function SandboxPreview({
   className,
   designConcept,
   pageSlug,
+  previewPath,
+  onSwitchToLocal,
 }: SandboxPreviewProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [iframeLoadError, setIframeLoadError] = useState(false)
@@ -127,9 +139,13 @@ export function SandboxPreview({
           <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Sandbox Not Configured</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Vercel Sandbox requires OIDC token or API credentials.
-            Set VERCEL_OIDC_TOKEN environment variable to enable live preview.
+            Vercel Sandbox is selected, but Sandbox credentials are not configured.
           </p>
+          {onSwitchToLocal && (
+            <Button onClick={onSwitchToLocal} variant="outline" size="sm">
+              Switch to Local Preview
+            </Button>
+          )}
         </div>
       </div>
     )
@@ -143,10 +159,17 @@ export function SandboxPreview({
           <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Sandbox Error</h3>
           <p className="text-sm text-muted-foreground mb-4">{sandboxError}</p>
-          <Button onClick={create} variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Retry
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            {onSwitchToLocal && (
+              <Button onClick={onSwitchToLocal} variant="outline" size="sm">
+                Switch to Local Preview
+              </Button>
+            )}
+            <Button onClick={create} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry Sandbox
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -212,7 +235,7 @@ export function SandboxPreview({
       {previewUrl && !iframeLoadError ? (
         <iframe
           ref={iframeRef}
-          src={buildPreviewUrl(previewUrl, designConcept, pageSlug)}
+          src={buildPreviewUrl(previewUrl, designConcept, pageSlug, previewPath)}
           className="w-full h-full border-0 bg-white"
           title="Website Preview"
           onError={handleIframeError}

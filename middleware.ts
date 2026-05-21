@@ -33,8 +33,6 @@ const PUBLIC_API_PATHS = [
   /^\/api\/studio\/invitations\/lookup$/,
   /^\/api\/auth\/(?:sign-in|sign-up|sign-out|session)$/,
   /^\/api\/preview\/render$/,
-  /^\/api\/preview\/sandbox(?:\/.*)?$/,
-  /^\/api\/studio\/preview\/data$/,
   /^\/api\/internal\/import-job$/,
   /^\/api\/internal\/import-persist$/,
   /^\/api\/internal\/design-system$/,
@@ -96,6 +94,11 @@ export async function middleware(request: NextRequest) {
 
   if (!isAuthenticated) {
     if (isApiPath && !matchesAny(pathname, PUBLIC_API_PATHS)) {
+      const unauthorized = NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+      return finalizeResponse(unauthorized, pathname, websiteId);
+    }
+
+    if (pathname.startsWith('/studio/preview/site')) {
       const unauthorized = NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
       return finalizeResponse(unauthorized, pathname, websiteId);
     }

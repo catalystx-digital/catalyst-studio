@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { PreviewJobStatus } from '@/lib/generated/prisma'
+import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 
 /**
  * Response type for job status
@@ -58,6 +59,12 @@ export async function GET(
         { error: 'Job not found' },
         { status: 404 }
       )
+    }
+
+    try {
+      await assertStudioWebsiteAccess(request, job.websiteId)
+    } catch (error) {
+      return previewAccessErrorResponse(error) as NextResponse<JobStatusResponse | ErrorResponse>
     }
 
     // Build response

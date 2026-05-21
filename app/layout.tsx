@@ -94,6 +94,7 @@ export default async function RootLayout({
   // Hide global header on: site-builder, dashboard, and landing page (which has its own header)
   const hideGlobalHeader =
     requestPath.startsWith("/studio/site-builder") ||
+    requestPath.startsWith("/studio/preview/site") ||
     requestPath.startsWith("/dashboard") ||
     requestPath === "/";
   const initialWebsiteId = headersList.get("x-website-id");

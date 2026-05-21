@@ -12,6 +12,36 @@ export interface WebsiteResolverRequest {
   headers?: Headers;
 }
 
+function normalizeHost(host?: string): string | null {
+  if (!host) return null;
+  return host.split(':')[0]?.toLowerCase() ?? null;
+}
+
+function resolveFromJsonMap(value: string | null, envName: string): string | null {
+  if (!value) return null;
+  const raw = process.env[envName];
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return parsed[value] ?? null;
+  } catch {
+    console.error(`Invalid ${envName}; expected a JSON object mapping host/path keys to website IDs`);
+    return null;
+  }
+}
+
+async function activeWebsiteId(websiteId: string | null): Promise<string | null> {
+  if (!websiteId) return null;
+
+  const website = await (prisma as any).website.findFirst({
+    where: { id: websiteId, isActive: true },
+    select: { id: true },
+  });
+
+  return website?.id ?? null;
+}
+
 /**
  * Resolves website ID from various sources
  * Supports multiple strategies for multi-tenant resolution
@@ -28,16 +58,8 @@ export class WebsiteResolver {
     this.strategies.set('domain', {
       type: 'domain',
       resolve: async (req) => {
-        if (!req.host) return null;
-        
-        // Look up website by domain in database
-        const website = await prisma.website.findFirst({
-          where: {
-            isActive: true // Just find any active website for now
-          }
-        });
-        
-        return website?.id || null;
+        const host = normalizeHost(req.host);
+        return activeWebsiteId(resolveFromJsonMap(host, 'WEBSITE_DOMAIN_MAP'));
       }
     });
 
@@ -45,18 +67,14 @@ export class WebsiteResolver {
     this.strategies.set('subdomain', {
       type: 'subdomain',
       resolve: async (req) => {
-        if (!req.host) return null;
-        
+        const host = normalizeHost(req.host);
+        if (!host) return null;
+
         // Extract subdomain (e.g., 'client1' from 'client1.example.com')
-        const subdomain = req.host.split('.')[0];
+        const subdomain = host.split('.')[0];
         if (!subdomain || subdomain === 'www') return null;
-        
-        // Look up website by subdomain - TODO: Add subdomain field to Website model
-        const website = await prisma.website.findFirst({
-          where: { isActive: true } // Just find any active website for now
-        });
-        
-        return website?.id || null;
+
+        return activeWebsiteId(resolveFromJsonMap(subdomain, 'WEBSITE_SUBDOMAIN_MAP'));
       }
     });
 
@@ -69,15 +87,8 @@ export class WebsiteResolver {
         const segments = req.path.split('/').filter(Boolean);
         if (segments[0] !== 'site' || !segments[1]) return null;
         
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const websiteSlug = segments[1];
-        
-        // Look up website by slug - TODO: Add slug field to Website model
-        const website = await prisma.website.findFirst({
-          where: { isActive: true } // Just find any active website for now
-        });
-        
-        return website?.id || null;
+        const websiteId = segments[1];
+        return activeWebsiteId(websiteId);
       }
     });
 
@@ -89,7 +100,7 @@ export class WebsiteResolver {
         if (!websiteId) return null;
         
         // Verify website exists
-        const website = await prisma.website.findUnique({
+        const website = await (prisma as any).website.findUnique({
           where: { id: websiteId }
         });
         

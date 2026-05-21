@@ -1,5 +1,5 @@
 import React from 'react'
-import { notFound, redirect } from 'next/navigation'
+import { notFound, redirect, unstable_rethrow } from 'next/navigation'
 import { PageRendererHelper } from '@/lib/renderers/page-renderer'
 import { prisma } from '@/lib/prisma'
 import { UrlResolver } from '@/lib/services/url-resolution/url-resolver'
@@ -270,6 +270,7 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
       </div>
     )
   } catch (error) {
+    unstable_rethrow(error)
     console.error('[LocalPreview] Failed to render page', {
       path: requestPath,
       websiteId,

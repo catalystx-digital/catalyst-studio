@@ -52,4 +52,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withWorkflow(nextConfig);
+export default process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === "true"
+  ? nextConfig
+  : withWorkflow(nextConfig);

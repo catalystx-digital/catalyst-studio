@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getClient } from '@/lib/db/client'
+import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import { getNormalizedDesignSystem, generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
 import type { PreviewDesignTokens, PreviewComponentConfig } from '@/lib/studio/preview/sandbox/types'
 
@@ -29,6 +30,7 @@ interface PreviewDataResponse {
       id: string
       title: string
       slug: string
+      fullPath: string
       components: PreviewComponentConfig[]
     }>
   }
@@ -48,6 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
 
   try {
     const prisma = getClient()
+    await assertStudioWebsiteAccess(request, websiteId)
 
     // Fetch website
     const website = await prisma.website.findUnique({
@@ -111,10 +114,35 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
       orderBy: [{ parentId: 'asc' }, { position: 'asc' }],
     })
 
-    // Map structures to pages
-    const structureMap = new Map(
-      structures.map((s) => [s.websitePageId, s])
-    )
+    // Map structures to pages and reconstruct nested preview paths.
+    const structureMap = new Map(structures.map((s) => [s.websitePageId, s]))
+    const structureById = new Map(structures.map((s) => [s.id, s]))
+
+    const fullPathByStructureId = new Map<string, string>()
+    const buildFullPath = (structureId: string | null | undefined): string => {
+      if (!structureId) {
+        return '/'
+      }
+
+      const cached = fullPathByStructureId.get(structureId)
+      if (cached) {
+        return cached
+      }
+
+      const structure = structureById.get(structureId)
+      if (!structure) {
+        return '/'
+      }
+
+      const parentPath = buildFullPath(structure.parentId)
+      const slug = structure.slug?.replace(/^\/+|\/+$/g, '') ?? ''
+      const fullPath = slug
+        ? `${parentPath === '/' ? '' : parentPath}/${slug}`
+        : '/'
+
+      fullPathByStructureId.set(structureId, fullPath)
+      return fullPath
+    }
 
     // Convert pages to preview format
     const previewPages = pages.map((page) => {
@@ -125,6 +153,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
         id: page.id,
         title: page.title,
         slug: structure?.slug || page.id,
+        fullPath: buildFullPath(structure?.id),
         components,
       }
     })
@@ -140,6 +169,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
       },
     })
   } catch (error) {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      return previewAccessErrorResponse(error) as NextResponse<PreviewDataResponse>
+    }
+
     console.error('[preview-data] Error:', error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Internal error' },

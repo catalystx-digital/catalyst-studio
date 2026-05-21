@@ -555,40 +555,6 @@ function componentInstanceToCMSProps(
     cmsProps.interactive = baseProps.interactive;
   }
 
-  if (typeof cmsProps.onLoad !== 'function') {
-    cmsProps.onLoad = () => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[PageRendererHelper] Component loaded`, {
-          id: instance.id,
-          type: instance.type
-        });
-      }
-    };
-  }
-
-  if (typeof cmsProps.onError !== 'function') {
-    cmsProps.onError = (error: Error) => {
-      console.error(`[PageRendererHelper] Component failed`, {
-        id: instance.id,
-        type: instance.type,
-        error: error.message
-      });
-    };
-  }
-
-  if (typeof cmsProps.onInteraction !== 'function') {
-    cmsProps.onInteraction = (event: string, data?: unknown) => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[PageRendererHelper] Component interaction`, {
-          id: instance.id,
-          type: instance.type,
-          event,
-          data
-        });
-      }
-    };
-  }
-
   const sharedReference = resolveSharedComponentReference(instance);
   if (sharedReference) {
     cmsProps.globalComponentId = sharedReference;

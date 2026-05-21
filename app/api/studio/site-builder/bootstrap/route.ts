@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { start } from 'workflow/api'
 import { getAuthContext } from '@/lib/auth/context'
 import { greenfieldWebsiteWorkflow, type GreenfieldWorkflowInput } from '@/lib/studio/workflows/greenfield-website.workflow'
-import type { ProcessedPromptSnapshot } from '@/lib/studio/ai/greenfield-bootstrapper'
+import { greenfieldBootstrapper, type ProcessedPromptSnapshot } from '@/lib/studio/ai/greenfield-bootstrapper'
 import { prisma } from '@/lib/prisma'
 
 const RequestSchema = z.object({
@@ -32,6 +32,31 @@ function generateJobId(websiteId: string): string {
   return `bootstrap-${websiteId}-${Date.now()}`
 }
 
+function runLocalBootstrap(input: GreenfieldWorkflowInput): void {
+  void greenfieldBootstrapper.bootstrapWebsite({
+    websiteId: input.websiteId,
+    sessionId: input.sessionId,
+    accountId: input.accountId,
+    jobId: input.jobId,
+    originalPrompt: input.originalPrompt,
+    processedPrompt: input.processedPrompt,
+  }).then((result) => {
+    console.log('[bootstrap-route] Local greenfield bootstrap completed', {
+      websiteId: input.websiteId,
+      jobId: input.jobId,
+      pagesCreated: result.pagesCreated,
+      populatedPages: result.populatedPages,
+      fallbackApplied: result.fallbackApplied,
+    })
+  }).catch((error) => {
+    console.error('[bootstrap-route] Local greenfield bootstrap failed', {
+      websiteId: input.websiteId,
+      jobId: input.jobId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -39,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // Auth check - always required
     const auth = await getAuthContext(request)
-    const website = await prisma.website.findUnique({
+    const website = await (prisma as any).website.findUnique({
       where: { id: payload.websiteId },
       select: { id: true, accountId: true }
     })
@@ -66,28 +91,37 @@ export async function POST(request: NextRequest) {
       processedPrompt: payload.processedPrompt as ProcessedPromptSnapshot,
     }
 
-    // Start durable workflow (non-blocking)
-    // The start() function from workflow/api triggers the workflow on Vercel's infrastructure
-    console.log('[bootstrap-route] Starting greenfield workflow', {
+    console.log('[bootstrap-route] Starting greenfield generation', {
       websiteId: payload.websiteId,
       jobId,
       sessionId,
+      mode: process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true' ? 'local' : 'workflow',
       timestamp: new Date().toISOString()
     })
 
-    try {
-      await start(greenfieldWebsiteWorkflow, [workflowInput])
-      console.log('[bootstrap-route] Workflow start() completed successfully', {
+    if (process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true') {
+      runLocalBootstrap(workflowInput)
+      console.log('[bootstrap-route] Local bootstrap started in background', {
         websiteId: payload.websiteId,
         jobId
       })
-    } catch (workflowError) {
-      console.error('[bootstrap-route] Workflow start() failed', {
-        websiteId: payload.websiteId,
-        jobId,
-        error: workflowError instanceof Error ? workflowError.message : String(workflowError)
-      })
-      throw workflowError
+    } else {
+      // Start durable workflow (non-blocking)
+      // The start() function from workflow/api triggers the workflow runtime.
+      try {
+        await start(greenfieldWebsiteWorkflow, [workflowInput])
+        console.log('[bootstrap-route] Workflow start() completed successfully', {
+          websiteId: payload.websiteId,
+          jobId
+        })
+      } catch (workflowError) {
+        console.error('[bootstrap-route] Workflow start() failed', {
+          websiteId: payload.websiteId,
+          jobId,
+          error: workflowError instanceof Error ? workflowError.message : String(workflowError)
+        })
+        throw workflowError
+      }
     }
 
     // Return immediately with job ID for progress tracking

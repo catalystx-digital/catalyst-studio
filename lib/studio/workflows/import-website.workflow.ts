@@ -151,7 +151,7 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
 
       // Small delay between batches to avoid rate limiting
       if (batchEnd < totalPages) {
-        await sleep("500ms");
+        await pauseBetweenBatches("500ms");
       }
     }
 
@@ -438,6 +438,15 @@ function withPageBudget<T>(promise: Promise<T>, timeoutMs: number, pageUrl: stri
   return Promise.race([promise, timeoutPromise]).finally(() => {
     if (timeout) clearTimeout(timeout);
   });
+}
+
+async function pauseBetweenBatches(duration: "500ms"): Promise<void> {
+  if (process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === "true") {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return;
+  }
+
+  await sleep(duration);
 }
 
 /**

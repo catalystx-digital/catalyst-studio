@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import {
   updateDesignSystem,
   updateComponent,
@@ -58,6 +59,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<SandboxRe
         },
         { status: 400 }
       )
+    }
+
+    try {
+      await assertStudioWebsiteAccess(request, websiteId)
+    } catch (error) {
+      return previewAccessErrorResponse(error) as NextResponse<SandboxResponse>
     }
 
     // Check if sandbox exists

@@ -6,6 +6,38 @@ import { importWebsiteWorkflow } from '@/lib/studio/workflows/import-website.wor
 import { randomUUID } from 'node:crypto'
 
 const importDb = prisma as any
+const PAGE_RETRY_STATUSES = ['failed_retryable']
+const RUN_RESTART_STATUSES = ['discovered', 'queued', 'pending', 'processing', 'detected']
+const RETRYABLE_RUN_STATUSES = ['failed_retryable']
+
+function startImportProcessing(input: {
+  jobId: string
+  websiteId: string
+  url: string
+  accountId: string
+}): void | Promise<unknown> {
+  if (process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true') {
+    void importWebsiteWorkflow(input).then((result) => {
+      console.log('[import/retry] Local import workflow completed', {
+        jobId: input.jobId,
+        websiteId: input.websiteId,
+        success: result.success,
+        pagesProcessed: result.pagesProcessed,
+        componentsDetected: result.componentsDetected,
+        errorCount: result.errors.length,
+      })
+    }).catch((error) => {
+      console.error('[import/retry] Local import workflow failed', {
+        jobId: input.jobId,
+        websiteId: input.websiteId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+    return
+  }
+
+  return start(importWebsiteWorkflow, [input])
+}
 
 export async function POST(
   request: NextRequest,
@@ -30,10 +62,10 @@ export async function POST(
       return NextResponse.json({ error: 'Import run not found' }, { status: 404 })
     }
 
-    const resetResult = await importDb.importPageStage.updateMany({
+    let resetResult = await importDb.importPageStage.updateMany({
       where: {
         runId: run.id,
-        status: { in: ['failed_retryable'] },
+        status: { in: PAGE_RETRY_STATUSES },
       },
       data: {
         status: 'queued',
@@ -45,6 +77,25 @@ export async function POST(
         lastAttemptAt: new Date(),
       },
     })
+
+    const runStatus = typeof run.status === 'string' ? run.status.toLowerCase() : ''
+    if (resetResult.count === 0 && RETRYABLE_RUN_STATUSES.includes(runStatus)) {
+      resetResult = await importDb.importPageStage.updateMany({
+        where: {
+          runId: run.id,
+          status: { in: RUN_RESTART_STATUSES },
+        },
+        data: {
+          status: 'queued',
+          phase: 'queued',
+          error: null,
+          detectionPayload: null,
+          attemptToken: randomUUID(),
+          attempts: { increment: 1 },
+          lastAttemptAt: new Date(),
+        },
+      })
+    }
 
     if (resetResult.count === 0) {
       return NextResponse.json(
@@ -75,12 +126,12 @@ export async function POST(
       },
     })
 
-    await start(importWebsiteWorkflow, [{
+    await startImportProcessing({
       jobId,
       websiteId: run.websiteId,
       url: run.sourceUrl,
       accountId: auth.accountId,
-    }])
+    })
 
     return NextResponse.json({ success: true, jobId, retryingPages: resetResult.count })
   } catch (error) {

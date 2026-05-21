@@ -10,8 +10,9 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { SandboxPreview } from '@/lib/studio/components/preview/SandboxPreview';
-import { Loader2, Monitor, Tablet, Smartphone, Palette, ExternalLink } from 'lucide-react';
+import { Loader2, Monitor, Tablet, Smartphone, Palette, ExternalLink, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { resolvePreviewPathInput } from '@/lib/studio/preview/preview-path';
 import {
   Select,
   SelectContent,
@@ -33,8 +34,13 @@ function PreviewPageContent() {
   const pathname = usePathname();
   const websiteId = searchParams?.get('websiteId') ?? null;
   const pageSlug = searchParams?.get('page') || 'home';
+  const previewPath = resolvePreviewPathInput({
+    path: searchParams?.get('path'),
+    page: searchParams?.get('page'),
+  });
   const useSandbox = searchParams?.get('sandbox') === 'true'; // Sandbox is opt-in; local preview is the OSS default
   const designConceptParam = searchParams?.get('designConcept');
+  const [iframeLoaded, setIframeLoaded] = useState(false);
 
   // Design concepts state
   const [designConcepts, setDesignConcepts] = useState<DesignConcept[]>([]);
@@ -110,17 +116,23 @@ function PreviewPageContent() {
   const buildLocalPreviewUrl = () => {
     if (!websiteId) return '';
 
-    const normalizedPage = pageSlug.trim().replace(/^\/+|\/+$/g, '');
-    const path =
-      normalizedPage && normalizedPage !== 'home' && normalizedPage !== 'index'
-        ? `/${normalizedPage.split('/').map(encodeURIComponent).join('/')}`
-        : '';
     const params = new URLSearchParams();
     if (selectedConcept) {
       params.set('designConcept', selectedConcept);
     }
     const query = params.toString();
+    const path = previewPath === '/' ? '' : previewPath;
     return `/studio/preview/site/${encodeURIComponent(websiteId)}${path}${query ? `?${query}` : ''}`;
+  };
+
+  useEffect(() => {
+    setIframeLoaded(false);
+  }, [websiteId, previewPath, selectedConcept, useSandbox]);
+
+  const switchToLocalPreview = () => {
+    const params = new URLSearchParams(searchParams?.toString());
+    params.delete('sandbox');
+    router.replace(`${pathname}?${params.toString()}`);
   };
 
   // No website selected
@@ -145,9 +157,12 @@ function PreviewPageContent() {
         <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold">Live Preview</h1>
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-              Sandbox Mode
-            </span>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+            Vercel Sandbox
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Explicitly selected with sandbox=true
+          </span>
           </div>
           <div className="flex items-center gap-4">
             {/* Design concept selector */}
@@ -203,6 +218,9 @@ function PreviewPageContent() {
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               Hot-reload enabled
             </div>
+            <Button variant="outline" size="sm" onClick={switchToLocalPreview}>
+              Switch to Local Preview
+            </Button>
           </div>
         </div>
 
@@ -215,7 +233,9 @@ function PreviewPageContent() {
             <SandboxPreview
               websiteId={websiteId}
               pageSlug={pageSlug}
+              previewPath={previewPath}
               designConcept={selectedConcept}
+              onSwitchToLocal={switchToLocalPreview}
               className="h-full"
             />
           </div>
@@ -232,7 +252,10 @@ function PreviewPageContent() {
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold">Live Preview</h1>
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-            Local Mode
+            Local Preview
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Database-backed preview, no Vercel Sandbox required
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -296,14 +319,28 @@ function PreviewPageContent() {
 
       <div className="flex-1 p-6">
         <div
-          className="h-full rounded-lg overflow-hidden border shadow-lg bg-white mx-auto transition-all duration-300"
+          className="relative h-full rounded-lg overflow-hidden border shadow-lg bg-white mx-auto transition-all duration-300"
           style={{ width: getPreviewWidth() }}
         >
+          {!iframeLoaded && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading local preview...
+              </div>
+            </div>
+          )}
           <iframe
             src={localPreviewUrl}
             className="w-full h-full border-0 bg-white"
             title="Website Preview"
+            onLoad={() => setIframeLoaded(true)}
+            onError={() => setIframeLoaded(true)}
           />
+        </div>
+        <div className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <AlertCircle className="h-3.5 w-3.5" />
+          Preview errors here come from local project data, access, or rendering. Sandbox is not used unless selected.
         </div>
       </div>
     </div>

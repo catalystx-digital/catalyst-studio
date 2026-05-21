@@ -11,6 +11,35 @@ import { normalizeImportUrl } from '@/lib/studio/import/services/import-run-serv
 type ImportMode = 'new' | 'merge';
 const ACTIVE_RUN_STATUSES = ['queued', 'discovering', 'importing', 'running', 'detecting', 'normalizing', 'staged', 'committing'];
 
+function startImportProcessing(input: {
+  jobId: string;
+  websiteId: string;
+  url: string;
+  accountId: string;
+}): void | Promise<unknown> {
+  if (process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true') {
+    void importWebsiteWorkflow(input).then((result) => {
+      console.log('[import/start] Local import workflow completed', {
+        jobId: input.jobId,
+        websiteId: input.websiteId,
+        success: result.success,
+        pagesProcessed: result.pagesProcessed,
+        componentsDetected: result.componentsDetected,
+        errorCount: result.errors.length,
+      });
+    }).catch((error) => {
+      console.error('[import/start] Local import workflow failed', {
+        jobId: input.jobId,
+        websiteId: input.websiteId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    return;
+  }
+
+  return start(importWebsiteWorkflow, [input]);
+}
+
 /**
  * Extended request body for import start.
  * Supports three input modes:
@@ -249,13 +278,12 @@ export async function POST(request: NextRequest) {
       idempotencyKey,
     });
 
-    // Start durable workflow
-    await start(importWebsiteWorkflow, [{
+    await startImportProcessing({
       jobId: result.job.id,
       websiteId,
       url: primaryUrl,
       accountId: auth.accountId,
-    }]);
+    });
 
     return NextResponse.json({
       jobId: result.job.id,

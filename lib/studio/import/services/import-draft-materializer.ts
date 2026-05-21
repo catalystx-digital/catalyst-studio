@@ -5,6 +5,7 @@ import { deriveTitleFromUrl, normalizePath } from '@/lib/studio/import/utils/pat
 import { ImportActivityReadService } from './import-activity-read-service'
 
 const db = prisma as any
+const IMPORT_DRAFT_TRANSACTION_TIMEOUT_MS = 30_000
 
 type ImportDraftStatus =
   | 'pending'
@@ -232,7 +233,7 @@ export class ImportDraftMaterializer {
       )
 
       return { created, reused, skippedExisting }
-    })
+    }, { timeout: IMPORT_DRAFT_TRANSACTION_TIMEOUT_MS })
 
     for (const event of eventsToPublish) {
       await studioEventBus.publishAfterCommit(event)
@@ -296,7 +297,7 @@ export class ImportDraftMaterializer {
           },
         })
       }
-    })
+    }, { timeout: IMPORT_DRAFT_TRANSACTION_TIMEOUT_MS })
     if (eventToPublish) {
       await studioEventBus.publishAfterCommit(eventToPublish)
     }

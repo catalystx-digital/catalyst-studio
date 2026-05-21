@@ -46,6 +46,7 @@ describe('POST /api/studio/import/retry/[jobId]', () => {
       importJobId: 'job-1',
       websiteId: 'website-1',
       sourceUrl: 'https://example.com',
+      status: 'failed_retryable',
       progress: 80,
       importJob: { id: 'job-1' },
       website: { accountId: 'account-1' },
@@ -71,6 +72,30 @@ describe('POST /api/studio/import/retry/[jobId]', () => {
         data: expect.objectContaining({
           attemptToken: expect.any(String),
           attempts: { increment: 1 },
+        }),
+      }),
+    )
+  })
+
+  it('restarts staged pages when the run failed before page-level retry flags were written', async () => {
+    const prismaMock = prisma as unknown as {
+      importPageStage: { updateMany: jest.Mock }
+    }
+    prismaMock.importPageStage.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 20 })
+
+    const response = await retryImport(
+      new NextRequest('http://localhost:3000/api/studio/import/retry/job-1', { method: 'POST' }),
+      { params: Promise.resolve({ jobId: 'job-1' }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.importPageStage.updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['discovered', 'queued', 'pending', 'processing', 'detected'] },
         }),
       }),
     )

@@ -132,14 +132,36 @@ ${userPrompt}`
 
     return NextResponse.json(decision)
   } catch (error) {
-    console.error('[workflow-route] Error:', error)
+    const providerStatusCode =
+      error && typeof error === 'object' && 'statusCode' in error
+        ? Number((error as { statusCode?: unknown }).statusCode)
+        : null
+    const providerBody =
+      error && typeof error === 'object' && 'responseBody' in error
+        ? String((error as { responseBody?: unknown }).responseBody ?? '')
+        : ''
+
+    if (providerStatusCode === 401 || providerStatusCode === 403) {
+      console.warn('[workflow-route] AI router unavailable; using greenfield fallback', {
+        statusCode: providerStatusCode,
+        reason: providerBody.includes('credits') || providerBody.includes('spending limit')
+          ? 'provider credits or spending limit'
+          : 'provider authorization',
+      })
+    } else {
+      console.error('[workflow-route] Error:', error)
+    }
 
     // Return a fallback decision on error - default to greenfield
     return NextResponse.json({
       workflow: 'greenfield',
-      reasoning: 'LLM routing failed, defaulting to greenfield workflow',
+      reasoning: providerStatusCode === 401 || providerStatusCode === 403
+        ? 'AI workflow routing is unavailable because the configured provider rejected the request; defaulting to greenfield workflow.'
+        : 'LLM routing failed, defaulting to greenfield workflow',
       confidence: 0.5,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: providerStatusCode === 401 || providerStatusCode === 403
+        ? 'AI provider unavailable'
+        : error instanceof Error ? error.message : 'Unknown error'
     })
   }
 }
