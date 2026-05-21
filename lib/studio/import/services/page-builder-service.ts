@@ -10,10 +10,14 @@ import {
 import { z } from 'zod'
 import {
   validatePageTemplate,
-  TemplateValidationIssue
+  TemplateValidationIssue,
+  TemplateValidationError
 } from '@/lib/studio/pages/validation/template-validation'
 import { ComponentBuilder } from './page-builder/component-builder'
-import { ComponentRegionManager } from './page-builder/component-region-manager'
+import {
+  ComponentRegionManager,
+  RequiredRegionCoverageError
+} from './page-builder/component-region-manager'
 import { TemplateResolver, type ResolvedTemplateMetadata } from './page-builder/template-resolver'
 import {
   extractPageMetadata,
@@ -216,12 +220,37 @@ export class PageBuilderService implements IPageBuilderService {
       throw new Error(`Unable to resolve page template for ${pageData.url}`)
     }
 
-    const regionAdjustedTree = this.regionManager.ensureRequiredRegionCoverage({
-      tree: componentTree,
-      template: templateMetadata.template,
-      componentTypes,
-      pageData
-    })
+    let regionAdjustedTree: ComponentTree
+    try {
+      regionAdjustedTree = this.regionManager.ensureRequiredRegionCoverage({
+        tree: componentTree,
+        template: templateMetadata.template,
+        componentTypes,
+        pageData
+      })
+    } catch (error) {
+      if (error instanceof RequiredRegionCoverageError) {
+        throw new TemplateValidationError({
+          pageUrl: error.pageUrl,
+          templateKey: error.templateKey,
+          issues: [
+            {
+              type: 'region',
+              code: 'region.min',
+              message: `Region "${error.region}" requires at least ${error.minRequired} component(s); found ${error.currentCount}.`,
+              severity: 'error',
+              details: {
+                region: error.region,
+                currentCount: error.currentCount,
+                minRequired: error.minRequired,
+                allowedComponents: error.allowedComponents
+              }
+            }
+          ]
+        })
+      }
+      throw error
+    }
 
     if (!this.componentBuilder.validateComponentTree(regionAdjustedTree)) {
       throw new Error(`Invalid component tree structure for page: ${pageData.url}`)
@@ -236,23 +265,15 @@ export class PageBuilderService implements IPageBuilderService {
     })
 
     const validationErrors = templateValidation.issues.filter(issue => issue.severity === 'error')
-    // Only fail on critical errors - region issues are non-critical and should not block import
-    const criticalErrors = validationErrors.filter(e => !e.code.startsWith('region.'))
-    const isValid = criticalErrors.length === 0
-
     if (validationErrors.length > 0) {
-      const message = validationErrors.map(issue => `${issue.code}: ${issue.message}`).join('; ')
-      console.warn('[PageBuilderService] Template validation issues (proceeding with import)', {
-        url: pageData.url,
+      throw new TemplateValidationError({
+        issues: validationErrors,
         templateKey: templateMetadata.templateKey,
-        errors: validationErrors,
-        criticalErrors: criticalErrors.length,
-        nonCriticalErrors: validationErrors.length - criticalErrors.length,
-        message
+        pageUrl: pageData.url
       })
-      // Don't throw - allow import to proceed with warnings
     }
 
+    const isValid = true
     const validationWarnings = templateValidation.issues.filter(issue => issue.severity === 'warning')
     if (validationWarnings.length > 0) {
       console.warn('Template validation warnings for page', {
@@ -337,15 +358,8 @@ export class PageBuilderService implements IPageBuilderService {
       warnings: normalizedIssues.filter(issue => issue.severity === 'warning').length
     }
     const timestamp = new Date().toISOString()
-    // Determine validation status based on error severity
-    const hasRegionIssues = normalizedIssues.some(
-      issue => issue.severity === 'error' && issue.code.startsWith('region.')
-    )
-    const hasCriticalIssues = normalizedIssues.some(
-      issue => issue.severity === 'error' && !issue.code.startsWith('region.')
-    )
-    const validationStatus = hasCriticalIssues ? 'invalid' : hasRegionIssues ? 'has-warnings' : 'valid'
-    const importStatus = isValid ? 'ready' : hasRegionIssues ? 'ready-with-warnings' : 'invalid'
+    const validationStatus = normalizedIssues.some(issue => issue.severity === 'error') ? 'invalid' : 'valid'
+    const importStatus = isValid ? 'ready' : 'invalid'
 
     const metadataPayload: Record<string, unknown> = {
       seo: {

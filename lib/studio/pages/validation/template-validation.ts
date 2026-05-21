@@ -73,6 +73,31 @@ export interface TemplateValidationResult {
   props: Record<string, unknown>
 }
 
+export class TemplateValidationError extends Error {
+  readonly issues: TemplateValidationIssue[]
+  readonly templateKey: string
+  readonly pageUrl: string
+
+  constructor({
+    issues,
+    templateKey,
+    pageUrl
+  }: {
+    issues: TemplateValidationIssue[]
+    templateKey: string
+    pageUrl: string
+  }) {
+    const issueMessages = issues
+      .map(issue => `${issue.code}: ${issue.message}`)
+      .join('; ')
+    super(`Template validation failed for ${pageUrl} using template "${templateKey}": ${issueMessages}`)
+    this.name = 'TemplateValidationError'
+    this.issues = issues
+    this.templateKey = templateKey
+    this.pageUrl = pageUrl
+  }
+}
+
 interface TemplatePropsValidation {
   schema: z.ZodTypeAny
   issues: TemplateValidationIssue[]
@@ -463,4 +488,3 @@ export function validatePageTemplate(
     props: propsResult.props
   }
 }
-

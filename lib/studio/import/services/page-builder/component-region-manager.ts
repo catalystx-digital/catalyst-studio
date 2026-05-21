@@ -35,6 +35,13 @@ interface RegionSanitizeResult {
 }
 
 export class RequiredRegionCoverageError extends Error {
+  readonly pageUrl: string
+  readonly templateKey: string
+  readonly region: string
+  readonly currentCount: number
+  readonly minRequired: number
+  readonly allowedComponents?: unknown[]
+
   constructor({
     pageUrl,
     templateKey,
@@ -54,6 +61,12 @@ export class RequiredRegionCoverageError extends Error {
       `[ComponentRegionManager] Required region "${region}" for template "${templateKey}" has ${currentCount} component(s), expected at least ${minRequired}. Allowed components: ${JSON.stringify(allowedComponents ?? [])}. Page: ${pageUrl}`
     )
     this.name = 'RequiredRegionCoverageError'
+    this.pageUrl = pageUrl
+    this.templateKey = templateKey
+    this.region = region
+    this.currentCount = currentCount
+    this.minRequired = minRequired
+    this.allowedComponents = allowedComponents
   }
 }
 

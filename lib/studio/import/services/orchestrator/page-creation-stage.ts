@@ -9,6 +9,7 @@
 import type { DetectionResult } from '../interfaces/component-type-extractor.interface'
 import type { ImportFailure } from '../interfaces/import-orchestrator.interface'
 import { traceMemory } from '../../utils/memory-trace'
+import { TemplateValidationError } from '@/lib/studio/pages/validation/template-validation'
 
 export interface PageCreationInput {
   detectionResults: DetectionResult[]
@@ -86,13 +87,20 @@ export async function createPages(input: PageCreationInput): Promise<any[]> {
               fallbackPages.push(page)
             }
           } catch (pageError) {
+            const isTemplateValidationError = pageError instanceof TemplateValidationError
             const failure: ImportFailure = {
-              pageUrl,
+              pageUrl: isTemplateValidationError ? pageError.pageUrl : pageUrl,
               error: pageError instanceof Error ? pageError.message : String(pageError ?? 'Unknown error'),
-              stage: 'page-creation',
+              stage: isTemplateValidationError ? 'validation' : 'page-creation',
               metadata: {
                 pageTitle: (detection as any).pageTitle,
-                components: Array.isArray((detection as any).children) ? (detection as any).children.length : undefined
+                components: Array.isArray((detection as any).children) ? (detection as any).children.length : undefined,
+                ...(isTemplateValidationError
+                  ? {
+                      templateKey: pageError.templateKey,
+                      importIssues: pageError.issues
+                    }
+                  : {})
               }
             }
             failedPages.push(failure)
@@ -154,7 +162,7 @@ export async function createPages(input: PageCreationInput): Promise<any[]> {
 
   // Report progress
   const nonValidationFailures = failedPages.filter(failure => failure.stage !== 'validation')
-  const validationCount = invalidPages.length
+  const validationCount = failedPages.filter(failure => failure.stage === 'validation').length
   const progressDetails =
     validationCount > 0 || nonValidationFailures.length > 0
       ? {

@@ -1,6 +1,7 @@
 import { PageBuilderService } from '../page-builder-service'
 import { PrismaClient, WebsitePage, WebsiteSharedComponent } from '@/lib/generated/prisma'
 import { getPageCatalogSummary } from '@/lib/studio/pages/catalog'
+import { TemplateValidationError } from '@/lib/studio/pages/validation/template-validation'
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended'
 import {
   ComponentType,
@@ -349,9 +350,31 @@ describe('PageBuilderService', () => {
         }
       }
 
-      await expect(service.createPage(pageData, fallbackComponentTypes, 'website-1', 'content-type-1'))
-        .rejects
-        .toThrow('Required region "main"')
+      let thrown: unknown
+      try {
+        await service.createPage(pageData, fallbackComponentTypes, 'website-1', 'content-type-1')
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(TemplateValidationError)
+      expect((thrown as TemplateValidationError).templateKey).toBe('marketing/home-default')
+      expect((thrown as TemplateValidationError).pageUrl).toBe(pageData.url)
+      expect((thrown as TemplateValidationError).issues).toEqual([
+        expect.objectContaining({
+          type: 'region',
+          code: 'region.min',
+          message: 'Region "main" requires at least 1 component(s); found 0.',
+          severity: 'error',
+          details: expect.objectContaining({
+            region: 'main',
+            currentCount: 0,
+            minRequired: 1,
+            allowedComponents: ['text-block']
+          })
+        })
+      ])
+      expect((thrown as Error).message).toContain('region.min:')
       expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
@@ -421,8 +444,120 @@ describe('PageBuilderService', () => {
 
       await expect(service.createPage(pageData, componentTypes, 'website-1', 'content-type-1'))
         .rejects
-        .toThrow('Required region "main"')
+        .toThrow(TemplateValidationError)
       expect(prisma.websitePage.create).not.toHaveBeenCalled()
+    })
+
+    it('throws TemplateValidationError for required region validation errors and does not persist the page', async () => {
+      const summaryWithRegionValidation = buildCatalogSummary()
+      const targetTemplate = summaryWithRegionValidation.templates.find(
+        template => template.templateKey === 'core/generic-default'
+      )
+      if (targetTemplate) {
+        targetTemplate.requiredRegions = [
+          {
+            region: 'main',
+            allowedComponents: [],
+            min: 1
+          }
+        ]
+      }
+
+      ;(getPageCatalogSummary as jest.Mock).mockResolvedValueOnce(summaryWithRegionValidation)
+
+      const pageData: PageData = {
+        ...mockPageData,
+        detectedComponents: [
+          {
+            id: 'hero-detection',
+            type: 'hero-banner',
+            bounds: { x: 0, y: 0, width: 1920, height: 600 },
+            content: JSON.stringify({ heading: 'Welcome' }),
+            metadata: { region: 'hero' }
+          }
+        ],
+        pageTemplate: {
+          templateKey: 'core/generic-default'
+        }
+      }
+
+      let thrown: unknown
+      try {
+        await service.createPage(pageData, mockComponentTypes, 'website-1', 'content-type-1')
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(TemplateValidationError)
+      expect((thrown as TemplateValidationError).templateKey).toBe('core/generic-default')
+      expect((thrown as TemplateValidationError).pageUrl).toBe(pageData.url)
+      expect((thrown as TemplateValidationError).issues).toEqual([
+        expect.objectContaining({
+          code: 'region.min',
+          severity: 'error'
+        })
+      ])
+      expect((thrown as Error).message).toContain('region.min:')
+      expect(prisma.websitePage.create).not.toHaveBeenCalled()
+    })
+
+    it('persists warning-only template validation as a valid draft without warning downgrade status', async () => {
+      const summaryWithWarning = buildCatalogSummary()
+      const targetTemplate = summaryWithWarning.templates.find(
+        template => template.templateKey === 'core/generic-default'
+      )
+      if (targetTemplate) {
+        targetTemplate.optionalRegions = [
+          {
+            region: 'hero',
+            allowedComponents: ['hero-banner'],
+            max: 1
+          }
+        ]
+      }
+
+      ;(getPageCatalogSummary as jest.Mock).mockResolvedValueOnce(summaryWithWarning)
+
+      const pageData: PageData = {
+        ...mockPageData,
+        detectedComponents: [
+          {
+            id: 'hero-detection-1',
+            type: 'hero-banner',
+            bounds: { x: 0, y: 0, width: 1920, height: 400 },
+            content: JSON.stringify({ heading: 'Welcome' }),
+            metadata: { region: 'hero' }
+          },
+          {
+            id: 'hero-detection-2',
+            type: 'hero-banner',
+            bounds: { x: 0, y: 400, width: 1920, height: 300 },
+            content: JSON.stringify({ heading: 'More detail' }),
+            metadata: { region: 'hero' }
+          }
+        ],
+        pageTemplate: {
+          templateKey: 'core/generic-default'
+        }
+      }
+
+      await service.createPage(pageData, mockComponentTypes, 'website-1', 'content-type-1')
+
+      const createArgs = prisma.websitePage.create.mock.calls[0][0]
+      expect(createArgs.data.status).toBe('draft')
+      expect(createArgs.data.metadata.validationStatus).toBe('valid')
+      expect(createArgs.data.metadata.importStatus).not.toBe('ready-with-warnings')
+      expect(createArgs.data.metadata.validationStatus).not.toBe('has-warnings')
+      expect(createArgs.data.metadata.importIssueSummary).toEqual({
+        errors: 0,
+        warnings: 1
+      })
+      expect(createArgs.data.metadata.importIssues).toEqual([
+        expect.objectContaining({
+          code: 'region.max',
+          severity: 'warning'
+        })
+      ])
     })
 
     it('throws when required header/footer regions are missing instead of injecting fallbacks', async () => {
@@ -549,7 +684,7 @@ describe('PageBuilderService', () => {
 
       await expect(service.createPage(pageData, enrichedComponentTypes, 'website-1', 'content-type-1'))
         .rejects
-        .toThrow('Required region "header"')
+        .toThrow(TemplateValidationError)
       expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
