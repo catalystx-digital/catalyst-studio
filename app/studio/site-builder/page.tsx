@@ -3144,8 +3144,11 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
           if (!selectedComponentNodeId || !selectedComponent) return;
 
           // Update local UI state only
-          const nextComponentState = { ...selectedComponent, [propertyPath]: value };
-          setSelectedComponent(nextComponentState);
+          setSelectedComponent(prev =>
+            prev && prev.id === componentId
+              ? { ...prev, [propertyPath]: value }
+              : prev
+          );
 
           // Use updateComponentInNode which handles:
           // 1. Local store state update

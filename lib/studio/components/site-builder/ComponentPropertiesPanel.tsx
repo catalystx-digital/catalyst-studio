@@ -205,11 +205,11 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
           })
         }
       } else {
-        // Priority: props.text → props.content → component.content
+        // Canonical content lives on component.content. props.content/text are legacy mirrors.
         parsedProps =
-          tryParse(component.props?.text) ??
-          tryParse(component.props?.content) ??
           tryParse(component.content) ??
+          tryParse(component.props?.content) ??
+          tryParse(component.props?.text) ??
           {}
       }
 
@@ -358,6 +358,7 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
         updatedProps.overrides = component.props.overrides
       }
     }
+    onPropertyChange(component.id, 'content', newProperties)
     onPropertyChange(component.id, 'props', updatedProps)
   }, [component, onPropertyChange, setByPathImmutable])
 
@@ -1987,6 +1988,7 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
                               text: e.target.value,
                               content: e.target.value
                             }
+                            onPropertyChange(component.id, 'content', parsed)
                             onPropertyChange(component.id, 'props', updatedProps)
                           }
                         } catch (error) {
@@ -2024,7 +2026,6 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
     </>
   )
 }
-
 
 
 

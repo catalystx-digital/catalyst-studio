@@ -52,23 +52,23 @@ export async function PATCH(
     let actualOverrides: Record<string, unknown> | null = overrides;
     if (overrides !== null && overrides.props && typeof overrides.props === 'object') {
       const propsWrapper = overrides.props as Record<string, unknown>;
-      // Extract content from props.text or props.content (JSON strings)
-      if (typeof propsWrapper.text === 'string') {
-        try {
-          actualOverrides = JSON.parse(propsWrapper.text);
-        } catch {
-          actualOverrides = {};
-        }
-      } else if (typeof propsWrapper.content === 'string') {
+      // Extract canonical content from props.content first; props.text is a legacy mirror.
+      if (typeof propsWrapper.content === 'string') {
         try {
           actualOverrides = JSON.parse(propsWrapper.content);
         } catch {
           actualOverrides = {};
         }
-      } else if (typeof propsWrapper.text === 'object' && propsWrapper.text !== null) {
-        actualOverrides = propsWrapper.text as Record<string, unknown>;
+      } else if (typeof propsWrapper.text === 'string') {
+        try {
+          actualOverrides = JSON.parse(propsWrapper.text);
+        } catch {
+          actualOverrides = {};
+        }
       } else if (typeof propsWrapper.content === 'object' && propsWrapper.content !== null) {
         actualOverrides = propsWrapper.content as Record<string, unknown>;
+      } else if (typeof propsWrapper.text === 'object' && propsWrapper.text !== null) {
+        actualOverrides = propsWrapper.text as Record<string, unknown>;
       }
     }
 

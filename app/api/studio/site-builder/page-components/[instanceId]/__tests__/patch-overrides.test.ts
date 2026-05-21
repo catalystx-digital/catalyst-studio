@@ -79,6 +79,46 @@ describe('PATCH page overrides - concurrency and limits', () => {
     })
   })
 
+  it('merges overrides into canonical component content before stale props text', async () => {
+    const page = {
+      ...basePage(new Date('2025-09-12T00:00:00Z')),
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              text: JSON.stringify({ title: 'Stale text', body: 'Old body' }),
+              content: JSON.stringify({ title: 'Stale content', body: 'Old body' }),
+            },
+            content: { title: 'Canonical title', body: 'Canonical body' },
+          },
+        ],
+      },
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    const req = new NextRequest('http://localhost:3000/api/studio/site-builder/page-components/inst-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ pageId: 'page-1', overrides: { title: 'Edited title' } }),
+    })
+    const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
+
+    expect(res.status).toBe(200)
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const updatedComponent = updateCall.data.content.components[0]
+
+    expect(updatedComponent.content).toEqual({
+      title: 'Edited title',
+      body: 'Canonical body',
+    })
+    expect(JSON.parse(updatedComponent.props.text)).toEqual(updatedComponent.content)
+    expect(updatedComponent.props.content).toEqual(updatedComponent.content)
+  })
+
   it('returns 409 when If-Unmodified-Since is stale', async () => {
     const page = basePage(new Date('2025-09-12T01:00:00Z'))
     ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)

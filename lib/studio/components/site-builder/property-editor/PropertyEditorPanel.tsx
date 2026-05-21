@@ -234,14 +234,17 @@ export const PropertyEditorPanel: React.FC<PropertyEditorPanelProps> = ({
   // Get current content values
   const content = useMemo(() => {
     if (isEditingComponent && selectedComponent) {
-      // Try to parse JSON from props.text or return content object
+      // Canonical content lives on component.content. props.content/text are legacy mirrors.
       const tryParse = (val: any) => {
         if (typeof val === 'string') {
           try { return JSON.parse(val) } catch { return null }
         }
         return typeof val === 'object' ? val : null
       }
-      return tryParse(selectedComponent.props?.text) || selectedComponent.content || {}
+      return tryParse(selectedComponent.content) ||
+        tryParse(selectedComponent.props?.content) ||
+        tryParse(selectedComponent.props?.text) ||
+        {}
     }
     return selectedNode?.data || {}
   }, [isEditingComponent, selectedComponent, selectedNode?.data])
@@ -269,7 +272,11 @@ export const PropertyEditorPanel: React.FC<PropertyEditorPanelProps> = ({
         const nextContent = setByPathImmutable(content, propertyName, sanitizedValue)
         updateComponentInNode(containingNode.id, selectedComponentId, {
           content: nextContent,
-          props: { ...selectedComponent?.props, text: JSON.stringify(nextContent) }
+          props: {
+            ...selectedComponent?.props,
+            text: JSON.stringify(nextContent),
+            content: JSON.stringify(nextContent)
+          }
         })
       }
     } else if (componentId) {

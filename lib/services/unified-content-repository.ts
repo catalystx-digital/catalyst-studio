@@ -202,9 +202,8 @@ export const ContentRepository = {
       delete props.overrides;
       delete props.hasOverrides;
     } else {
-      // BUG-006 FIX: Merge overrides directly into props.text/content
-      // The UI reads from props.text or props.content (JSON strings), NOT from props.overrides
-      // So we need to merge the override values directly into those JSON strings
+      // Merge overrides into canonical component.content, then mirror into props.text/content
+      // for legacy editor and renderer compatibility during migration.
 
       // TKT-040 FIX: Handle wrapped overrides from the client
       // The client sends { props: { text: JSON, content: JSON } }
@@ -214,45 +213,48 @@ export const ContentRepository = {
       // Unwrap if client sent { props: {...} } wrapper
       if (overrides.props && typeof overrides.props === 'object') {
         const propsWrapper = overrides.props as Record<string, unknown>;
-        // Extract content from props.text or props.content (JSON strings)
-        if (typeof propsWrapper.text === 'string') {
-          try {
-            actualOverrides = JSON.parse(propsWrapper.text);
-          } catch {
-            actualOverrides = {};
-          }
-        } else if (typeof propsWrapper.content === 'string') {
+        // Extract canonical content from props.content first; props.text is a legacy mirror.
+        if (typeof propsWrapper.content === 'string') {
           try {
             actualOverrides = JSON.parse(propsWrapper.content);
           } catch {
             actualOverrides = {};
           }
-        } else if (typeof propsWrapper.text === 'object' && propsWrapper.text !== null) {
-          // Handle case where props.text is already an object
-          actualOverrides = propsWrapper.text as Record<string, unknown>;
+        } else if (typeof propsWrapper.text === 'string') {
+          try {
+            actualOverrides = JSON.parse(propsWrapper.text);
+          } catch {
+            actualOverrides = {};
+          }
         } else if (typeof propsWrapper.content === 'object' && propsWrapper.content !== null) {
           // Handle case where props.content is already an object
           actualOverrides = propsWrapper.content as Record<string, unknown>;
+        } else if (typeof propsWrapper.text === 'object' && propsWrapper.text !== null) {
+          // Handle case where props.text is already an object
+          actualOverrides = propsWrapper.text as Record<string, unknown>;
         }
       }
 
-      // Parse existing content from props.text or props.content
+      // Parse existing content from canonical component.content first, then legacy mirrors.
       let existingContent: Record<string, unknown> = {};
+      const componentContent = comp.content;
       const textValue = props.text;
       const contentValue = props.content;
 
-      if (typeof textValue === 'string') {
-        try {
-          existingContent = JSON.parse(textValue);
-        } catch { /* ignore parse errors */ }
+      if (componentContent && typeof componentContent === 'object' && !Array.isArray(componentContent)) {
+        existingContent = componentContent as Record<string, unknown>;
       } else if (typeof contentValue === 'string') {
         try {
           existingContent = JSON.parse(contentValue);
         } catch { /* ignore parse errors */ }
-      } else if (typeof textValue === 'object' && textValue !== null) {
-        existingContent = textValue as Record<string, unknown>;
+      } else if (typeof textValue === 'string') {
+        try {
+          existingContent = JSON.parse(textValue);
+        } catch { /* ignore parse errors */ }
       } else if (typeof contentValue === 'object' && contentValue !== null) {
         existingContent = contentValue as Record<string, unknown>;
+      } else if (typeof textValue === 'object' && textValue !== null) {
+        existingContent = textValue as Record<string, unknown>;
       }
 
       // Merge overrides into existing content (using UNWRAPPED overrides)
