@@ -75,6 +75,16 @@ function extractRedirectTarget(metadata: Record<string, unknown> | undefined): s
   return null
 }
 
+function formatResolverError(error: unknown, requestPath: string, websiteId: string): string {
+  const errorRecord = error && typeof error === 'object'
+    ? error as Record<string, unknown>
+    : {}
+  const code = typeof errorRecord.code === 'string' ? errorRecord.code : 'UNKNOWN'
+  const message = typeof errorRecord.message === 'string' ? errorRecord.message : 'URL resolver failed'
+
+  return `[LocalPreview] resolveUrl failed: code=${code} message=${message} path=${requestPath} website=${websiteId}`
+}
+
 async function resolveDesignSystemCss(websiteId: string, designConcept?: string): Promise<string | null> {
   let designConceptId: string | undefined
   const db = prisma as {
@@ -135,15 +145,37 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
         websiteId,
         error: resolved.error,
       })
-      return notFound()
+      throw new Error(formatResolverError(resolved.error, requestPath, websiteId))
     }
 
-    if (!resolved.data || !resolved.data.contentItem) {
+    if (resolved.data === undefined) {
+      throw new Error(
+        `[LocalPreview] Malformed resolver response: success=true data=undefined path=${requestPath} website=${websiteId}`
+      )
+    }
+
+    if (resolved.data === null) {
       console.info('[LocalPreview] No page found for path', { path: requestPath, websiteId })
       return notFound()
     }
 
     const { siteStructure, contentItem } = resolved.data
+    if (!contentItem) {
+      if (!siteStructure?.websitePageId) {
+        console.info('[LocalPreview] No page found for path', { path: requestPath, websiteId })
+        return notFound()
+      }
+      throw new Error(
+        `[LocalPreview] Broken resolver invariant: siteStructure.websitePageId=${siteStructure.websitePageId} but contentItem is missing path=${requestPath} website=${websiteId}`
+      )
+    }
+
+    if (!siteStructure) {
+      throw new Error(
+        `[LocalPreview] Malformed resolver response: contentItem returned without siteStructure path=${requestPath} website=${websiteId}`
+      )
+    }
+
     const slugFromStructure = (siteStructure?.fullPath ?? requestPath)
       .split('/')
       .filter(Boolean)
