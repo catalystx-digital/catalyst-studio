@@ -98,6 +98,76 @@ export function normalizeProps(value: unknown): Record<string, unknown> {
   return normalized
 }
 
+function normalizeBlogListContent(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.blogs)) {
+    return value
+  }
+
+  const existingPosts = Array.isArray(value.posts) ? value.posts : []
+  if (existingPosts.length > 0) {
+    return value
+  }
+
+  const posts = value.blogs.map((entry, index) => {
+    if (!isRecord(entry)) {
+      return {
+        id: `post-${index + 1}`,
+        title: String(entry ?? ''),
+      }
+    }
+
+    const id = typeof entry.id === 'string' && entry.id.trim().length > 0
+      ? entry.id
+      : typeof entry.slug === 'string' && entry.slug.trim().length > 0
+        ? entry.slug
+        : `post-${index + 1}`
+
+    const normalizedPost: Record<string, unknown> = {
+      ...entry,
+      id,
+    }
+
+    if (normalizedPost.publishDate === undefined && entry.date !== undefined) {
+      normalizedPost.publishDate = entry.date
+    }
+
+    if (normalizedPost.categories === undefined && typeof entry.topic === 'string' && entry.topic.trim().length > 0) {
+      normalizedPost.categories = [entry.topic]
+    }
+
+    if (normalizedPost.slug === undefined) {
+      if (typeof entry.slug === 'string' && entry.slug.trim().length > 0) {
+        normalizedPost.slug = entry.slug
+      } else if (typeof entry.link === 'string' && entry.link.trim().length > 0) {
+        normalizedPost.slug = entry.link
+      } else {
+        normalizedPost.slug = id
+      }
+    }
+
+    if (normalizedPost.thumbnail === undefined && entry.image !== undefined) {
+      normalizedPost.thumbnail = entry.image
+    }
+
+    return normalizedPost
+  })
+
+  return {
+    ...value,
+    title: typeof value.title === 'string' ? value.title : value.heading,
+    posts,
+  }
+}
+
+function normalizeContentForComponentType(type: string, value: unknown): Record<string, unknown> {
+  const normalized = type === 'blog-list' ? normalizeBlogListContent(value) : value
+  return isRecord(normalized) ? normalized : {}
+}
+
+function hasContent(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && Object.keys(value).length > 0
+}
+
 export function normalizeRegionSummary(value: unknown): PageContentRegionSummary[] {
   if (!isRecord(value)) {
     return []
@@ -180,7 +250,16 @@ export function normalizeComponent(
   const position = typeof instance.position === 'number' ? instance.position : fallbackPosition
   const props = normalizeProps(instance.props ?? instance.data)
   const rawContent = parseJsonString(instance.content)
-  const content = isRecord(rawContent) ? rawContent : {}
+  const propsContent = isRecord(props.content) ? props.content : {}
+  const content = normalizeContentForComponentType(
+    type,
+    hasContent(rawContent) ? rawContent : propsContent
+  )
+  if (isRecord(props.content)) {
+    props.content = normalizeContentForComponentType(type, props.content)
+  } else if (hasContent(content)) {
+    props.content = content
+  }
   const styles = isRecord(instance.styles) ? instance.styles : {}
   const rawMetadata = parseJsonString(instance.metadata)
   const metadata = isRecord(rawMetadata) ? rawMetadata : {}

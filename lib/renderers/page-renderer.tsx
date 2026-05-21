@@ -44,7 +44,6 @@ export interface PageRenderProps {
   page: SnapshotPage;
   structure?: ResolverStructurePayload;
   sharedComponents?: SnapshotSharedComponent[];
-  fallback?: React.ReactNode;
   onMetrics?: (metrics: ComponentPerformanceMetrics) => void;
 }
 
@@ -83,11 +82,7 @@ function clone<T>(value: T): T {
     return value;
   }
 
-  try {
-    return JSON.parse(JSON.stringify(value)) as T;
-  } catch {
-    return value;
-  }
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function isDesignTokenStructure(value: unknown): value is Partial<DesignTokens> {
@@ -338,8 +333,7 @@ function coerceComponentType(value: string): ComponentType {
     return value as ComponentType;
   }
 
-  console.warn('[PageRendererHelper] Unknown component type encountered', value);
-  return TypeEnum.TextBlock;
+  throw new Error(`[PageRendererHelper] Unknown component type encountered: ${value}`);
 }
 
 function coerceTheme(value: unknown): ComponentTheme | undefined {
@@ -415,12 +409,9 @@ function deriveCategory(
     return CategoryEnum.Content;
   }
 
-  console.warn('[PageRendererHelper] Falling back to content category', {
-    type,
-    metadataCategory
-  });
-
-  return CategoryEnum.Content;
+  throw new Error(
+    `[PageRendererHelper] Unable to derive component category for type "${type}" and metadata category "${String(metadataCategory)}"`
+  );
 }
 
 function deriveInlineStyle(
@@ -444,63 +435,6 @@ function deriveInlineStyle(
   return undefined;
 }
 
-function mergeContent(
-  primary: unknown,
-  fallback: unknown
-): AnyRecord {
-  const primaryRecord = isRecord(primary) ? clone(primary) : {};
-  if (Object.keys(primaryRecord).length > 0) {
-    return primaryRecord;
-  }
-
-  return isRecord(fallback) ? clone(fallback) : {};
-}
-
-/**
- * Normalize content from legacy 'text' field format.
- * Some imported components store content as stringified JSON in props.text
- * instead of structured content. This normalizes that data.
- */
-function normalizeContentFromTextField(
-  content: AnyRecord,
-  textField: unknown,
-  componentType: string
-): AnyRecord {
-  // Only process if content is empty and text is a JSON string
-  if (Object.keys(content).length > 0) {
-    return content;
-  }
-  if (typeof textField !== 'string' || !textField.startsWith('{')) {
-    return content;
-  }
-
-  try {
-    const parsed = JSON.parse(textField) as AnyRecord;
-
-    // Normalize blog-list: map 'blogs' to 'posts'
-    if (componentType === 'blog-list' && Array.isArray(parsed.blogs)) {
-      return {
-        ...parsed,
-        title: parsed.heading ?? parsed.title,
-        posts: parsed.blogs.map((blog: AnyRecord) => ({
-          id: blog.id ?? `post-${Math.random().toString(36).substr(2, 9)}`,
-          title: blog.title,
-          excerpt: blog.excerpt,
-          publishDate: blog.date ?? new Date().toISOString(),
-          categories: blog.topic ? [blog.topic] : [],
-          link: blog.link,
-          attachments: blog.attachments,
-        })),
-      };
-    }
-
-    // For other components with text field, merge parsed into content
-    return { ...parsed, ...content };
-  } catch {
-    return content;
-  }
-}
-
 function componentInstanceToCMSProps(
   instance: ComponentInstance,
   sharedMap: Map<string, SnapshotSharedComponent>
@@ -510,11 +444,9 @@ function componentInstanceToCMSProps(
   const componentType = coerceComponentType(instance.type);
   const category = deriveCategory(instance.type, (instance.metadata as any)?.category);
 
-  const mergedContent = mergeContent(instance.content, baseProps.content);
-  // Normalize content from legacy 'text' field if needed
-  const content = normalizeContentFromTextField(mergedContent, baseProps.text, instance.type);
+  const content = isRecord(instance.content) ? clone(instance.content) : {};
   delete baseProps.content;
-  delete baseProps.text; // Remove text field after normalization
+  delete baseProps.text;
 
   const inlineStyle = deriveInlineStyle(baseProps.style, instance.styles);
   if (inlineStyle) {
@@ -636,20 +568,12 @@ export async function PageRendererHelper({
   page,
   structure: _structure,
   sharedComponents = [],
-  fallback,
   onMetrics
 }: PageRenderProps) {
   const componentInstances = Array.isArray(page.components) ? page.components : [];
 
   if (componentInstances.length === 0) {
-    return fallback ?? (
-      <div className={buildPageRootClasses('dark')}>
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="mb-4 text-4xl font-bold">{page.title || 'Untitled Page'}</h1>
-          <p className="text-muted-foreground">No components found on this page.</p>
-        </div>
-      </div>
-    );
+    throw new Error(`[PageRendererHelper] Page "${page.id}" has no components to render.`);
   }
 
   const tree = buildComponentTree(componentInstances);
@@ -661,7 +585,6 @@ export async function PageRendererHelper({
   const renderedRoots = tree.map(node => renderTreeNode(node, sharedMap));
   const cmsComponents = renderedRoots.map(entry => entry.props);
   const renderedComponents = await renderCMSComponents(cmsComponents, {
-    fallback,
     onMetrics,
   });
 

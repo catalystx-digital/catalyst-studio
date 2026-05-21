@@ -53,7 +53,13 @@ describe('PageRendererHelper', () => {
           ]
         }
       },
-      content: {},
+      content: {
+        heading: 'Why teams choose Catalyst',
+        items: [
+          { title: 'Visual edits', description: 'Real-time collaboration in the canvas.' },
+          { title: 'AI assisted', description: 'Jump-start hero copy and layouts.' }
+        ]
+      },
       styles: {},
       metadata: {}
     };
@@ -70,7 +76,10 @@ describe('PageRendererHelper', () => {
           primaryAction: { label: 'Request demo', href: '#demo' }
         }
       },
-      content: {},
+      content: {
+        heading: 'Ready to transform your marketing site?',
+        primaryAction: { label: 'Request demo', href: '#demo' }
+      },
       styles: {},
       metadata: {}
     };
@@ -93,7 +102,6 @@ describe('PageRendererHelper', () => {
       page,
       sharedComponents: [],
       structure: undefined,
-      fallback: null,
       onMetrics: undefined
     });
 
@@ -134,5 +142,94 @@ describe('PageRendererHelper', () => {
 
     const metadata = rootComponent.metadata as Record<string, unknown>;
     expect(metadata.position).toBe(0);
+  });
+
+  it('does not synthesize content from legacy props.text at render time', async () => {
+    const page: SnapshotPage = {
+      id: 'page-legacy-text',
+      title: 'Legacy Text',
+      fullPath: '/legacy-text',
+      templateKey: 'test',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'blog-1',
+          type: 'blog-list',
+          parentId: null,
+          position: 0,
+          props: {
+            text: JSON.stringify({
+              heading: 'Legacy News',
+              blogs: [{ title: 'Legacy Post', topic: 'Updates' }]
+            })
+          },
+          content: {},
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {},
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    await PageRendererHelper({ page, sharedComponents: [], structure: undefined });
+
+    const [componentsArg] = mockRenderCMSComponents.mock.calls[0] as [
+      Array<Record<string, unknown>>,
+      Record<string, unknown>
+    ];
+    expect(componentsArg[0].content).toEqual({});
+    expect(componentsArg[0]).not.toHaveProperty('text');
+  });
+
+  it('throws for unknown component types instead of coercing to text-block', async () => {
+    const page: SnapshotPage = {
+      id: 'page-bad-type',
+      title: 'Bad Type',
+      fullPath: '/bad-type',
+      templateKey: 'test',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'bad-1',
+          type: 'unknown-widget',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: {},
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {},
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    await expect(PageRendererHelper({ page, sharedComponents: [], structure: undefined }))
+      .rejects
+      .toThrow('[PageRendererHelper] Unknown component type encountered: unknown-widget');
+  });
+
+  it('throws when a page has no components', async () => {
+    const page: SnapshotPage = {
+      id: 'page-empty',
+      title: 'Empty',
+      fullPath: '/empty',
+      templateKey: 'test',
+      templateProps: {},
+      regions: [],
+      components: [],
+      metadata: {},
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    await expect(PageRendererHelper({ page, sharedComponents: [], structure: undefined }))
+      .rejects
+      .toThrow('[PageRendererHelper] Page "page-empty" has no components to render.');
   });
 });

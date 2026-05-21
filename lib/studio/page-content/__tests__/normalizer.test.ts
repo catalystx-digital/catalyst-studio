@@ -108,6 +108,120 @@ describe('page content normalizer', () => {
     })
   })
 
+  it('normalizes legacy blog-list props.text blogs into canonical posts', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'blog-1',
+          type: 'blog-list',
+          props: {
+            text: JSON.stringify({
+              heading: 'News',
+              blogs: [
+                {
+                  title: 'Launch notes',
+                  excerpt: 'What changed this week',
+                  date: '2026-05-01',
+                  topic: 'Product',
+                  link: '/blog/launch-notes',
+                  image: { src: '/launch.jpg' },
+                },
+              ],
+            }),
+          },
+          content: {},
+        },
+      ],
+    })
+
+    const component = result.pageContent.components[0]
+    const expectedContent = {
+      heading: 'News',
+      title: 'News',
+      blogs: [
+        {
+          title: 'Launch notes',
+          excerpt: 'What changed this week',
+          date: '2026-05-01',
+          topic: 'Product',
+          link: '/blog/launch-notes',
+          image: { src: '/launch.jpg' },
+        },
+      ],
+      posts: [
+        {
+          id: 'post-1',
+          title: 'Launch notes',
+          excerpt: 'What changed this week',
+          date: '2026-05-01',
+          topic: 'Product',
+          link: '/blog/launch-notes',
+          image: { src: '/launch.jpg' },
+          publishDate: '2026-05-01',
+          categories: ['Product'],
+          slug: '/blog/launch-notes',
+          thumbnail: { src: '/launch.jpg' },
+        },
+      ],
+    }
+
+    expect(component.content).toEqual(expectedContent)
+    expect(component.props.content).toEqual(expectedContent)
+  })
+
+  it('does not overwrite non-empty blog-list posts with legacy blogs', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'blog-1',
+          type: 'blog-list',
+          props: {
+            content: {
+              posts: [{ id: 'canonical', title: 'Canonical post' }],
+            },
+            text: JSON.stringify({
+              heading: 'Legacy News',
+              blogs: [{ title: 'Legacy post' }],
+            }),
+          },
+          content: {},
+        },
+      ],
+    })
+
+    const content = result.pageContent.components[0].content as Record<string, unknown>
+    expect(content.posts).toEqual([{ id: 'canonical', title: 'Canonical post' }])
+  })
+
+  it('fills empty blog-list posts from legacy blogs', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'blog-1',
+          type: 'blog-list',
+          props: {
+            content: {
+              posts: [],
+            },
+            text: JSON.stringify({
+              blogs: [{ id: 'legacy-id', title: 'Legacy post' }],
+            }),
+          },
+          content: {},
+        },
+      ],
+    })
+
+    const content = result.pageContent.components[0].content as Record<string, unknown>
+    expect(content.posts).toEqual([
+      {
+        id: 'legacy-id',
+        title: 'Legacy post',
+        slug: 'legacy-id',
+      },
+    ])
+  })
+
   it('skips invalid component entries with diagnostics', () => {
     const diagnostics: ReturnType<typeof normalizePageContent>['diagnostics'] = []
     const components = normalizeComponents([null, 'bad', { type: 'text-block' }], diagnostics)

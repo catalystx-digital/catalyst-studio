@@ -258,6 +258,6 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
       websiteId,
       error: error instanceof Error ? error.message : String(error),
     })
-    return notFound()
+    throw error
   }
 }
