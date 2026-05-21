@@ -91,9 +91,66 @@ describe('ComponentBuilder region mapping', () => {
     expect(instance.typeId).toBe(baseType.id)
     expect(instance.props.type).toBe(CmsComponentType.BlogPost)
   })
+
+  it('does not overwrite explicit metadata region when content region differs', () => {
+    const detection: DetectionResult = {
+      id: 'det-conflict',
+      type: 'blog-post',
+      bounds: { x: 0, y: 0, width: 0, height: 0 },
+      confidence: 0.9,
+      content: {
+        region: 'main',
+        title: 'Detection Title'
+      },
+      metadata: { region: 'hero' }
+    }
+
+    const [instance] = builder.mapToComponentInstances([detection], [baseType])
+
+    expect(instance.props.region).toBe('hero')
+    expect(instance.props.metadata.region).toBe('hero')
+    expect(instance.props.content.region).toBe('main')
+  })
+
+  it('does not overwrite content metadata region when content region differs', () => {
+    const detection: DetectionResult = {
+      id: 'det-content-metadata-conflict',
+      type: 'blog-post',
+      bounds: { x: 0, y: 0, width: 0, height: 0 },
+      confidence: 0.9,
+      content: {
+        region: 'main',
+        metadata: { region: 'hero' },
+        title: 'Detection Title'
+      },
+      metadata: {}
+    }
+
+    const [instance] = builder.mapToComponentInstances([detection], [baseType])
+
+    expect(instance.props.region).toBe('main')
+    expect(instance.props.metadata.region).toBe('main')
+    expect(instance.props.content.region).toBe('main')
+    expect(instance.props.content.metadata.region).toBe('hero')
+  })
 })
 
 describe('ComponentBuilder type resolution', () => {
+  it('throws when a detected component type cannot be resolved', () => {
+    const builder = new ComponentBuilder()
+    const detection: DetectionResult = {
+      id: 'unknown-1',
+      type: 'mystery-widget',
+      bounds: baseBounds,
+      confidence: 0.81,
+      content: {},
+      metadata: {}
+    }
+
+    expect(() => builder.mapToComponentInstances([detection], [createComponentType('text-block')]))
+      .toThrow('Raw type: "mystery-widget". Canonical type: "mystery-widget"')
+  })
+
   it('preserves CTA variant types without collapsing to cta', () => {
     const builder = new ComponentBuilder()
     const ctaType = {

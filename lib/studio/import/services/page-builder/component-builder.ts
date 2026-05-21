@@ -128,11 +128,9 @@ export class ComponentBuilder {
 
         if (!resolvedType) {
           const canonicalMissing = canonicalizeComponentType(detection.type)
-          const message = canonicalMissing
-            ? `[ComponentBuilder] Dropped canonical detection "${canonicalMissing}" (source "${detection.type}") because no seeded component type was available`
-            : `[ComponentBuilder] Component type '${detection.type}' not found in provided types, skipping component`
-          console.warn(message)
-          return null
+          throw new Error(
+            `[ComponentBuilder] Unresolved detection component type. Raw type: "${detection.type}". Canonical type: "${canonicalMissing ?? 'unresolved'}".`
+          )
         }
 
         if (!resolvedType.id) {
@@ -153,7 +151,11 @@ export class ComponentBuilder {
 
         if (region) {
           const existingRegion = normalizeRegionValue((props as any).region)
-          if (!existingRegion) {
+          const existingContentRegion =
+            isRecord(props.content) && 'region' in (props.content as Record<string, any>)
+              ? normalizeRegionValue((props.content as Record<string, any>).region)
+              : undefined
+          if (!existingRegion || (existingContentRegion && existingContentRegion !== region)) {
             ;(props as any).region = region
             if (props.metadata && typeof props.metadata === 'object') {
               props.metadata = { ...props.metadata, region }
@@ -168,7 +170,8 @@ export class ComponentBuilder {
             ? normalizeRegionValue((props.content as Record<string, any>).region)
             : undefined
         const assignedRegion = normalizeRegionValue((props as any).region)
-        if (contentRegion && contentRegion !== assignedRegion) {
+        const metadataRegion = normalizeRegionValue((props as any).metadata?.region)
+        if (contentRegion && !assignedRegion && !metadataRegion) {
           ;(props as any).region = contentRegion
           if (props.metadata && typeof props.metadata === 'object') {
             props.metadata = { ...props.metadata, region: contentRegion }

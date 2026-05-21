@@ -408,11 +408,15 @@ function applyRegionToDetection(detection: DetectionResult, region: ComponentReg
 
   if (isRecord(detection.content)) {
     const contentRecord = detection.content as Record<string, unknown>
-    contentRecord.region = region
+    if (normalizeComponentRegionValue(contentRecord.region) === undefined) {
+      contentRecord.region = region
+    }
     const contentMetadata = contentRecord.metadata as Record<string, unknown> | undefined
     if (isRecord(contentMetadata)) {
-      contentRecord.metadata = { ...contentMetadata, region }
-    } else {
+      if (normalizeComponentRegionValue(contentMetadata.region) === undefined) {
+        contentRecord.metadata = { ...contentMetadata, region }
+      }
+    } else if (normalizeComponentRegionValue(contentRecord.region) === region) {
       contentRecord.metadata = { region }
     }
   }
@@ -434,11 +438,15 @@ function applyRegionToProps(props: Record<string, unknown> | undefined, region: 
 
   const content = props.content as Record<string, unknown> | undefined
   if (isRecord(content)) {
-    content.region = region
+    if (normalizeComponentRegionValue(content.region) === undefined) {
+      content.region = region
+    }
     const contentMetadata = content.metadata as Record<string, unknown> | undefined
     if (isRecord(contentMetadata)) {
-      content.metadata = { ...contentMetadata, region }
-    } else {
+      if (normalizeComponentRegionValue(contentMetadata.region) === undefined) {
+        content.metadata = { ...contentMetadata, region }
+      }
+    } else if (normalizeComponentRegionValue(content.region) === region) {
       content.metadata = { region }
     }
   }

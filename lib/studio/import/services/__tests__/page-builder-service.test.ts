@@ -171,7 +171,7 @@ describe('PageBuilderService', () => {
           content: 'Welcome to Our Site',
           styles: { backgroundColor: '#ffffff' },
           confidence: 0.95,
-          metadata: { importance: 'high' }
+          metadata: { importance: 'high', region: 'hero' }
         }
       ],
       metadata: {
@@ -539,9 +539,9 @@ describe('PageBuilderService', () => {
         detectedComponents: [
           {
             id: 'quote-detection',
-            type: 'quote-block',
+            type: 'text-block',
             bounds: { x: 0, y: 0, width: 800, height: 200 },
-            content: JSON.stringify({ quote: 'Great service!' }),
+            content: JSON.stringify({ body: 'Great service!' }),
             metadata: { region: 'main' }
           }
         ]
@@ -686,7 +686,7 @@ describe('PageBuilderService', () => {
       expect(navbarInstance?.props?.placementBucket).toBe('top')
     })
 
-    it('assigns regions when a component type only matches a single required region', async () => {
+    it('throws when a constrained component has no assigned region instead of inferring one', async () => {
       const summaryWithRegions = buildCatalogSummary()
       const targetTemplate = summaryWithRegions.templates[0]
       targetTemplate.requiredRegions = [
@@ -741,22 +741,13 @@ describe('PageBuilderService', () => {
         ]
       }
 
-      prisma.websitePage.create.mockResolvedValue(mockWebsitePage)
+      await expect(service.createPage(pageData, [navbarType], 'website-1', 'content-type-1'))
+        .rejects.toThrow('has no valid assigned region')
 
-      await service.createPage(pageData, [navbarType], 'website-1', 'content-type-1')
-
-      const createCall = prisma.websitePage.create.mock.calls[0][0]
-      const createdComponents = (createCall.data.content?.components ?? []) as ComponentInstance[]
-
-      expect(createdComponents.length).toBe(1)
-      const [headerComponent] = createdComponents
-      expect(headerComponent.props?.region).toBe('header')
-      expect(headerComponent.props?.placementBucket).toBe('top')
-      expect(headerComponent.props?.metadata?.source).toBe('inferred')
-      expect(headerComponent.props?.metadata?.addedBy).toBe('PageBuilderService.ensureRequiredRegionCoverage')
+      expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
-    it('should handle non-existent component type by skipping it', async () => {
+    it('throws when a detected component type cannot be resolved', async () => {
       const pageDataWithUnknownComponent: PageData = {
         ...mockPageData,
         detectedComponents: [
@@ -775,40 +766,14 @@ describe('PageBuilderService', () => {
         ]
       }
 
-      // Override the mock for this specific test to return actual data
-      prisma.websitePage.create.mockImplementation(async (args: any) => ({
-        ...mockWebsitePage,
-        ...args.data,
-        id: 'page-1',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        publishedAt: null
-      }))
-
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation()
-      
-      const result = await service.createPage(
+      await expect(service.createPage(
         pageDataWithUnknownComponent,
         mockComponentTypes,
         'website-1',
         'content-type-1'
-      )
+      )).rejects.toThrow('Raw type: "unknown-component". Canonical type: "unknown-component"')
 
-      expect(result).toBeDefined()
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Dropped canonical detection "unknown-component"')
-      )
-      
-      // Verify that the content structure is valid and contains the hero-banner
-      expect(result.content).toHaveProperty('components')
-      expect(result.content).toHaveProperty('metadata')
-      
-      // Check if hero-banner exists in the content (it should be there)
-      const contentStr = JSON.stringify(result.content)
-      expect(contentStr).toContain('hero-banner')
-      expect(contentStr).not.toContain('unknown-component')
-      
-      consoleWarnSpy.mockRestore()
+      expect(prisma.websitePage.create).not.toHaveBeenCalled()
     })
 
     it('should handle transaction timeout (P2024 error)', async () => {
@@ -1365,7 +1330,8 @@ describe('PageBuilderService', () => {
             {
               id: 'detection-1',
               type: 'hero-banner',
-              bounds: { x: 0, y: 0, width: 1920, height: 600 }
+              bounds: { x: 0, y: 0, width: 1920, height: 600 },
+              metadata: { region: 'hero' }
             }
           ]
         } as PageData,

@@ -59,52 +59,6 @@ interface PreparedPage {
   contentTypeId: string
 }
 
-type NormalizedRegion = 'header' | 'hero' | 'main' | 'footer'
-
-function normalizeRegionValue(value: unknown): NormalizedRegion | undefined {
-  if (typeof value !== 'string') {
-    return undefined
-  }
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'header' || normalized === 'hero' || normalized === 'main' || normalized === 'footer') {
-    return normalized
-  }
-  return undefined
-}
-
-function propagateContentRegion(node: ComponentInstance): void {
-  if (!node.props) {
-    return
-  }
-  const contentRegion =
-    node.props.content && typeof (node.props.content as Record<string, any>)?.region === 'string'
-      ? normalizeRegionValue((node.props.content as Record<string, any>).region)
-      : undefined
-  const metadataRegion =
-    node.props.content &&
-    typeof (node.props.content as Record<string, any>)?.metadata === 'object' &&
-    typeof ((node.props.content as Record<string, any>).metadata as Record<string, any>)?.region === 'string'
-      ? normalizeRegionValue(
-          ((node.props.content as Record<string, any>).metadata as Record<string, any>).region
-        )
-      : undefined
-  const desiredRegion = contentRegion ?? metadataRegion
-  const currentRegion = normalizeRegionValue(node.props.region ?? (node.props.metadata as any)?.region)
-
-  if (desiredRegion && desiredRegion !== currentRegion) {
-    node.props.region = desiredRegion
-    if (node.props.metadata && typeof node.props.metadata === 'object') {
-      node.props.metadata = { ...(node.props.metadata as Record<string, unknown>), region: desiredRegion }
-    } else {
-      node.props.metadata = { region: desiredRegion }
-    }
-  }
-
-  if (node.children) {
-    node.children.forEach(propagateContentRegion)
-  }
-}
-
 export class PageBuilderService implements IPageBuilderService {
   private readonly componentBuilder = new ComponentBuilder()
   private readonly regionManager = new ComponentRegionManager()
@@ -268,7 +222,6 @@ export class PageBuilderService implements IPageBuilderService {
       componentTypes,
       pageData
     })
-    regionAdjustedTree.components.forEach(propagateContentRegion)
 
     if (!this.componentBuilder.validateComponentTree(regionAdjustedTree)) {
       throw new Error(`Invalid component tree structure for page: ${pageData.url}`)

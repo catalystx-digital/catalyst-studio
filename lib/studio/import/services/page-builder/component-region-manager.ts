@@ -18,32 +18,6 @@ import { ComponentType as CmsComponentType } from '@/lib/studio/components/cms/_
 import { PageTemplateRegionConfig } from '@/lib/studio/pages/_core/types'
 import { type PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
 
-/**
- * Maps component types to their preferred regions.
- * Used when a component doesn't have an explicit region assignment.
- */
-const COMPONENT_PREFERRED_REGIONS: Record<string, string> = {
-  // Hero components → hero region
-  'hero-carousel': 'hero',
-  'hero-banner': 'hero',
-  'hero-simple': 'hero',
-  'hero-with-image': 'hero',
-  'hero-video': 'hero',
-  'hero-split': 'hero',
-  'hero-minimal': 'hero',
-
-  // Navigation components → header region
-  'navbar': 'header',
-  'nav-bar': 'header',
-  'breadcrumbs': 'header',
-  'breadcrumb': 'header',
-
-  // Footer components → footer region
-  'footer': 'footer'
-
-  // Everything else defaults to 'main' (handled in logic below)
-}
-
 function normalizeRegionValue(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined
@@ -80,6 +54,13 @@ export class RequiredRegionCoverageError extends Error {
       `[ComponentRegionManager] Required region "${region}" for template "${templateKey}" has ${currentCount} component(s), expected at least ${minRequired}. Allowed components: ${JSON.stringify(allowedComponents ?? [])}. Page: ${pageUrl}`
     )
     this.name = 'RequiredRegionCoverageError'
+  }
+}
+
+export class ComponentRegionValidationError extends Error {
+  constructor(message: string) {
+    super(`[ComponentRegionManager] ${message}`)
+    this.name = 'ComponentRegionValidationError'
   }
 }
 
@@ -173,194 +154,98 @@ export class ComponentRegionManager {
       }
     }
 
-    const sanitizeNodes = (nodes: ComponentInstance[]): RegionSanitizeResult => {
-      let modified = false
-
-      const sanitizedNodes = nodes.map(node => {
-        const childResult = node.children ? sanitizeNodes(node.children) : { components: undefined, modified: false }
-        if (childResult.modified) {
-          modified = true
+    const validateNodes = (nodes: ComponentInstance[]): RegionSanitizeResult => {
+      for (const node of nodes) {
+        if (node.children) {
+          validateNodes(node.children)
         }
 
         const canonicalType = this.resolveComponentCanonicalType(node, typeIndex)
-        const currentRegion = this.getComponentRegion(node)
-        const props = { ...(node.props ?? {}) }
-        let propsModified = false
-        let metadata = props.metadata && typeof props.metadata === 'object'
-          ? { ...(props.metadata as Record<string, unknown>) }
-          : undefined
+        const regionAssignment = this.getComponentRegionAssignment(node)
+        const currentRegion = regionAssignment.region
 
         const contentRegion =
-          props.content && typeof (props.content as Record<string, any>)?.region === 'string'
-            ? normalizeRegionValue((props.content as Record<string, any>).region)
+          node.props?.content && typeof (node.props.content as Record<string, any>)?.region === 'string'
+            ? normalizeRegionValue((node.props.content as Record<string, any>).region)
             : undefined
-        const rootRegion = normalizeRegionValue(props.region)
-        if (contentRegion && contentRegion !== rootRegion) {
-          props.region = contentRegion
-          if (metadata) {
-            metadata.region = contentRegion
-          } else {
-            metadata = { region: contentRegion }
-          }
-          propsModified = true
+        const contentMetadataRegion =
+          node.props?.content &&
+          typeof (node.props.content as Record<string, any>)?.metadata === 'object' &&
+          typeof ((node.props.content as Record<string, any>).metadata as Record<string, any>)?.region === 'string'
+            ? normalizeRegionValue(
+                ((node.props.content as Record<string, any>).metadata as Record<string, any>).region
+              )
+            : undefined
+        if (contentRegion && regionAssignment.rootRegion && contentRegion !== regionAssignment.rootRegion) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" has conflicting region assignments: props.content.region "${contentRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
+          )
         }
-
-        if (metadata) {
-          props.metadata = metadata
+        if (contentRegion && regionAssignment.metadataRegion && contentRegion !== regionAssignment.metadataRegion) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" has conflicting region assignments: props.content.region "${contentRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+          )
+        }
+        if (contentRegion && contentMetadataRegion && contentRegion !== contentMetadataRegion) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" has conflicting region assignments: props.content.region "${contentRegion}" conflicts with props.content.metadata.region "${contentMetadataRegion}". Page: ${pageUrl}`
+          )
+        }
+        if (
+          contentMetadataRegion &&
+          regionAssignment.rootRegion &&
+          contentMetadataRegion !== regionAssignment.rootRegion
+        ) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" has conflicting region assignments: props.content.metadata.region "${contentMetadataRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
+          )
+        }
+        if (
+          contentMetadataRegion &&
+          regionAssignment.metadataRegion &&
+          contentMetadataRegion !== regionAssignment.metadataRegion
+        ) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" has conflicting region assignments: props.content.metadata.region "${contentMetadataRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+          )
+        }
+        if (
+          regionAssignment.rootRegion &&
+          regionAssignment.metadataRegion &&
+          regionAssignment.rootRegion !== regionAssignment.metadataRegion
+        ) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" has conflicting region assignments: props.region "${regionAssignment.rootRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+          )
         }
 
         if (currentRegion) {
           const allowed = allowedMap.get(currentRegion)
-          if (allowed !== undefined && allowed !== null && canonicalType && !allowed.has(canonicalType)) {
-            propsModified = true
-            if ('region' in props) {
-              delete props.region
-            }
-            if (metadata && 'region' in metadata) {
-              delete (metadata as Record<string, unknown>).region
-              if (Object.keys(metadata).length === 0) {
-                delete props.metadata
-                metadata = undefined
-              }
-            }
-
-            const allowableRegions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
-            let reassigned = false
-            if (allowableRegions && allowableRegions.size > 0) {
-              const fallbackRegion = this.selectPreferredRegion(Array.from(allowableRegions))
-              if (fallbackRegion) {
-                props.region = fallbackRegion
-                props.placementBucket = this.derivePlacementBucket(fallbackRegion)
-                if (metadata) {
-                  metadata.region = fallbackRegion
-                } else {
-                  metadata = {
-                    region: fallbackRegion,
-                    source: 'region-reassigned',
-                    addedBy: 'PageBuilderService.ensureRequiredRegionCoverage'
-                  }
-                }
-                props.metadata = metadata
-                reassigned = true
-                console.info('[PageBuilderService] Reassigned component to allowed region', {
-                  url: pageUrl,
-                  componentId: node.id,
-                  componentType: canonicalType,
-                  fromRegion: currentRegion,
-                  toRegion: fallbackRegion
-                })
-              }
-            }
-
-            if (!reassigned) {
-              if ('placementBucket' in props) {
-                props.placementBucket = 'middle'
-              }
-              console.warn('[PageBuilderService] Removed disallowed region assignment from component', {
-                url: pageUrl,
-                componentId: node.id,
-                componentType: canonicalType,
-                region: currentRegion
-              })
-            }
-          } else if (allowed !== undefined && allowed !== null) {
-            const desiredPlacement = this.derivePlacementBucket(currentRegion)
-            if (props.placementBucket !== desiredPlacement) {
-              props.placementBucket = desiredPlacement
-              propsModified = true
-            }
-            if (metadata && metadata.region !== currentRegion) {
-              metadata.region = currentRegion
-              propsModified = true
-            }
-            if (!('region' in props) || props.region !== currentRegion) {
-              props.region = currentRegion
-              propsModified = true
-            }
-          }
-        } else if (canonicalType) {
-          const regions = typeRegionIndex.get(canonicalType)
-          if (regions && regions.size === 1) {
-            // Single region inference - component type only allowed in one region
-            const [targetRegion] = Array.from(regions)
-            props.region = targetRegion
-            props.placementBucket = this.derivePlacementBucket(targetRegion)
-            if (metadata) {
-              metadata.region = targetRegion
-              if ((metadata as Record<string, unknown>).source == null) {
-                (metadata as Record<string, unknown>).source = 'inferred'
-              }
-              if ((metadata as Record<string, unknown>).addedBy == null) {
-                (metadata as Record<string, unknown>).addedBy = 'PageBuilderService.ensureRequiredRegionCoverage'
-              }
-              props.metadata = metadata
-            } else {
-              metadata = {
-                region: targetRegion,
-                source: 'inferred',
-                addedBy: 'PageBuilderService.ensureRequiredRegionCoverage'
-              }
-              props.metadata = metadata
-            }
-            propsModified = true
-          } else {
-            // No region assigned and component type allows multiple regions or is unknown
-            // Use preferred region mapping
-            const preferredRegion = COMPONENT_PREFERRED_REGIONS[canonicalType]
-            if (preferredRegion) {
-              const allowedInPreferred = allowedMap.get(preferredRegion)
-              // Check if component is allowed in preferred region (null means any component allowed)
-              if (allowedInPreferred === null || allowedInPreferred?.has(canonicalType)) {
-                props.region = preferredRegion
-                props.placementBucket = this.derivePlacementBucket(preferredRegion)
-                metadata = metadata ?? {}
-                metadata.region = preferredRegion
-                ;(metadata as Record<string, unknown>).source = 'preferred-mapping'
-                ;(metadata as Record<string, unknown>).addedBy = 'ComponentRegionManager.sanitizeComponentRegions'
-                props.metadata = metadata
-                propsModified = true
-
-                console.info('[ComponentRegionManager] Assigned preferred region to component', {
-                  url: pageUrl,
-                  componentId: node.id,
-                  componentType: canonicalType,
-                  assignedRegion: preferredRegion
-                })
-              }
-            } else {
-              // Default to 'main' region for unrecognized components without preferred mapping
-              const mainAllowed = allowedMap.get('main')
-              if (mainAllowed === null || mainAllowed?.has(canonicalType)) {
-                props.region = 'main'
-                props.placementBucket = 'middle'
-                metadata = metadata ?? {}
-                metadata.region = 'main'
-                ;(metadata as Record<string, unknown>).source = 'default-main'
-                ;(metadata as Record<string, unknown>).addedBy = 'ComponentRegionManager.sanitizeComponentRegions'
-                props.metadata = metadata
-                propsModified = true
-              }
-            }
+          const constrainedRegions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
+          const constrainedToOtherRegions = constrainedRegions && !constrainedRegions.has(currentRegion)
+          if (
+            canonicalType &&
+            ((allowed !== undefined && allowed !== null && !allowed.has(canonicalType)) ||
+              (allowed === undefined && constrainedToOtherRegions))
+          ) {
+            throw new ComponentRegionValidationError(
+              `Component "${node.id}" of canonical type "${canonicalType}" is assigned to disallowed region "${currentRegion}" for template "${template.templateKey}". Allowed regions: ${JSON.stringify(Array.from(constrainedRegions ?? []))}. Page: ${pageUrl}`
+            )
           }
         }
 
-        const updatedNode: ComponentInstance = {
-          ...node,
-          props,
-          children: childResult.components ?? node.children
+        const constrainedRegions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
+        if (!currentRegion && constrainedRegions && constrainedRegions.size > 0) {
+          throw new ComponentRegionValidationError(
+            `Component "${node.id}" of canonical type "${canonicalType}" has no valid assigned region for template "${template.templateKey}". Required/allowed regions: ${JSON.stringify(Array.from(constrainedRegions))}. Page: ${pageUrl}`
+          )
         }
+      }
 
-        if (propsModified) {
-          modified = true
-        }
-
-        return updatedNode
-      })
-
-      return { components: sanitizedNodes, modified }
+      return { components: nodes, modified: false }
     }
 
-    return sanitizeNodes(components)
+    return validateNodes(components)
   }
 
   private buildTemplateRegionAllowedMap(template: PageCatalogTemplateSummary): Map<string, Set<string> | null> {
@@ -421,36 +306,20 @@ export class ComponentRegionManager {
   }
 
   private getComponentRegion(component: ComponentInstance): string | undefined {
-    const region = (component.props?.region ?? (component.props?.metadata as any)?.region) as string | undefined
-    if (typeof region === 'string') {
-      const trimmed = region.trim()
-      return trimmed.length > 0 ? trimmed : undefined
-    }
-    return undefined
+    return this.getComponentRegionAssignment(component).region
   }
 
-  private derivePlacementBucket(region: string): string {
-    if (region === 'header') {
-      return 'top'
+  private getComponentRegionAssignment(component: ComponentInstance): {
+    region?: string
+    rootRegion?: string
+    metadataRegion?: string
+  } {
+    const rootRegion = normalizeRegionValue(component.props?.region)
+    const metadataRegion = normalizeRegionValue((component.props?.metadata as any)?.region)
+    return {
+      region: rootRegion ?? metadataRegion,
+      rootRegion,
+      metadataRegion
     }
-    if (region === 'footer') {
-      return 'bottom'
-    }
-    return 'middle'
   }
-
-  private selectPreferredRegion(regions: string[]): string | undefined {
-    if (regions.length === 0) {
-      return undefined
-    }
-    const priority: string[] = ['hero', 'main', 'header', 'sidebar', 'footer']
-    for (const preferred of priority) {
-      if (regions.includes(preferred)) {
-        return preferred
-      }
-    }
-    return regions[0]
-  }
-
-
 }
