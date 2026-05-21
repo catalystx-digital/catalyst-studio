@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/lib/generated/prisma';
-import { normalizePageContent, toCanonicalPageContent } from '@/lib/studio/page-content';
+import { normalizePageContent, parseJsonString, toCanonicalPageContent } from '@/lib/studio/page-content';
 
 export interface ResolvedInstance {
   id: string;
@@ -62,6 +62,20 @@ function toRecord(obj: unknown): Record<string, unknown> {
   return (obj && typeof obj === 'object' ? (obj as Record<string, unknown>) : {}) as Record<string, unknown>;
 }
 
+function isRecord(obj: unknown): obj is Record<string, unknown> {
+  return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
+}
+
+function stripLegacyStrictWriteMirrors(component: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...component };
+  const props = toRecord(next.props);
+  if (typeof props.text === 'string' && isRecord(parseJsonString(props.text))) {
+    delete props.text;
+  }
+  next.props = props;
+  return next;
+}
+
 const db = prisma as any;
 
 export const ContentRepository = {
@@ -99,7 +113,7 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
+    const components = normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>;
 
     const sharedIds = components
       .map((c) => {
@@ -190,7 +204,8 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
+    const components = (normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+      .map(stripLegacyStrictWriteMirrors);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
 
@@ -201,9 +216,13 @@ export const ContentRepository = {
       // Clear overrides - reset props.text/content to remove override values
       delete props.overrides;
       delete props.hasOverrides;
+      if (typeof props.text === 'string' && isRecord(parseJsonString(props.text))) {
+        delete props.text;
+      }
+      delete props.content;
     } else {
-      // Merge overrides into canonical component.content, then mirror into props.text/content
-      // for legacy editor and renderer compatibility during migration.
+      // Merge overrides into canonical component.content, then mirror as objects for
+      // legacy editor and renderer compatibility during migration.
 
       // TKT-040 FIX: Handle wrapped overrides from the client
       // The client sends { props: { text: JSON, content: JSON } }
@@ -259,11 +278,10 @@ export const ContentRepository = {
 
       // Merge overrides into existing content (using UNWRAPPED overrides)
       const mergedContent = { ...existingContent, ...actualOverrides };
-      const mergedJSON = JSON.stringify(mergedContent);
-
-      // Update both props.text and props.content to keep them in sync
-      props.text = mergedJSON;
-      props.content = mergedJSON;
+      // Update both props.text and props.content to keep them in sync without
+      // reintroducing legacy JSON string payloads that strict writes reject.
+      props.text = mergedContent;
+      props.content = mergedContent;
 
       // Also store overrides separately for tracking/rollback purposes
       props.overrides = actualOverrides;
@@ -279,7 +297,7 @@ export const ContentRepository = {
 
     await db.websitePage.update({
       where: { id: pageId },
-      data: { content: toCanonicalPageContent(content, components) as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, components, { mode: 'strict-write' }) as unknown as Prisma.InputJsonValue },
     });
   },
 
@@ -293,7 +311,8 @@ export const ContentRepository = {
     if (!page) throw new Error('Page not found');
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = [...normalizePageContent(content).pageContent.components] as unknown as Array<Record<string, unknown>>;
+    const components = [...(normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+      .map(stripLegacyStrictWriteMirrors)];
     components.splice(position, 0, {
       id: instanceId,
       type: 'shared',
@@ -311,7 +330,7 @@ export const ContentRepository = {
     });
     await db.websitePage.update({
       where: { id: pageId },
-      data: { content: toCanonicalPageContent(content, components) as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, components, { mode: 'strict-write' }) as unknown as Prisma.InputJsonValue },
     });
     return { instanceId };
   },
@@ -320,11 +339,12 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
+    const components = (normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+      .map(stripLegacyStrictWriteMirrors);
     const filtered = components.filter((c) => (c.id as string) !== instanceId);
     await db.websitePage.update({
       where: { id: pageId },
-      data: { content: toCanonicalPageContent(content, filtered) as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, filtered, { mode: 'strict-write' }) as unknown as Prisma.InputJsonValue },
     });
   },
 
@@ -332,7 +352,8 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
+    const components = (normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+      .map(stripLegacyStrictWriteMirrors);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
 
@@ -367,7 +388,7 @@ export const ContentRepository = {
 
     await db.websitePage.update({
       where: { id: pageId },
-      data: { content: toCanonicalPageContent(content, components) as unknown as Prisma.InputJsonValue },
+      data: { content: toCanonicalPageContent(content, components, { mode: 'strict-write' }) as unknown as Prisma.InputJsonValue },
     });
   },
 };

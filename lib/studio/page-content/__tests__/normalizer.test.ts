@@ -1,5 +1,6 @@
 import {
   normalizePageContent,
+  PageContentNormalizationError,
   pageContentV1Schema,
   normalizeComponents,
   normalizeProps,
@@ -292,5 +293,200 @@ describe('page content normalizer', () => {
         isShared: false,
       }),
     ])
+  })
+
+  it('rejects invalid strict-write content with diagnostics', () => {
+    expect(() => normalizePageContent('not page content', { mode: 'strict-write' }))
+      .toThrow(PageContentNormalizationError)
+
+    try {
+      normalizePageContent({ components: { id: 'not-array' } }, { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+          severity: 'error',
+          path: 'components',
+        }),
+      ])
+    }
+  })
+
+  it('rejects strict-write components that would fabricate ids or types', () => {
+    try {
+      toCanonicalPageContent({}, [
+        null,
+        { id: 'missing-type' },
+        { type: 'text-block' },
+      ], { mode: 'strict-write' })
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+        'PAGE_CONTENT_COMPONENT_INVALID',
+        'PAGE_CONTENT_COMPONENT_TYPE_MISSING',
+        'PAGE_CONTENT_COMPONENT_ID_MISSING',
+      ])
+    }
+  })
+
+  it('rejects strict-write blog-list entries that would fabricate post fields', () => {
+    try {
+      toCanonicalPageContent({}, [
+        {
+          id: 'blog-1',
+          type: 'blog-list',
+          props: {
+            content: {
+              blogs: [
+                { excerpt: 'Missing required post fields' },
+              ],
+            },
+          },
+          content: {},
+        },
+      ], { mode: 'strict-write' })
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+        'PAGE_CONTENT_BLOG_ENTRY_TITLE_MISSING',
+        'PAGE_CONTENT_BLOG_ENTRY_ID_MISSING',
+        'PAGE_CONTENT_BLOG_ENTRY_SLUG_MISSING',
+      ])
+    }
+  })
+
+  it('rejects strict-write component payload fields that legacy-read coerces', () => {
+    const malformedComponent = {
+      id: 'bad-payload',
+      type: 'text-block',
+      props: {
+        content: JSON.stringify({ text: 'Legacy content mirror' }),
+        text: JSON.stringify({ text: 'Legacy text mirror' }),
+      },
+      data: 'not-an-object',
+      content: JSON.stringify({ text: 'Legacy component content' }),
+      styles: 'not-an-object',
+      metadata: 'not-an-object',
+    }
+
+    const legacy = normalizePageContent({ components: [malformedComponent] })
+    expect(legacy.pageContent.components[0]).toMatchObject({
+      id: 'bad-payload',
+      type: 'text-block',
+      props: {
+        content: { text: 'Legacy content mirror' },
+        text: JSON.stringify({ text: 'Legacy text mirror' }),
+      },
+      content: { text: 'Legacy component content' },
+      styles: {},
+      metadata: {},
+    })
+
+    try {
+      toCanonicalPageContent({}, [malformedComponent], { mode: 'strict-write' })
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+        'PAGE_CONTENT_COMPONENT_DATA_INVALID',
+        'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
+        'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY_JSON',
+        'PAGE_CONTENT_COMPONENT_CONTENT_INVALID',
+        'PAGE_CONTENT_COMPONENT_STYLES_INVALID',
+        'PAGE_CONTENT_COMPONENT_METADATA_INVALID',
+      ])
+    }
+  })
+
+  it('rejects any strict-write props.content string payload', () => {
+    for (const content of ['plain text content', '{malformed json']) {
+      try {
+        toCanonicalPageContent({}, [
+          {
+            id: `string-content-${content.length}`,
+            type: 'text-block',
+            props: { content },
+            content: {},
+          },
+        ], { mode: 'strict-write' })
+        throw new Error('Expected strict canonical write to throw')
+      } catch (error) {
+        expect(error).toBeInstanceOf(PageContentNormalizationError)
+        expect((error as PageContentNormalizationError).diagnostics).toEqual([
+          expect.objectContaining({
+            code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
+            path: 'components[0].props.content',
+            severity: 'error',
+          }),
+        ])
+      }
+    }
+  })
+
+  it('rejects invalid strict-write page metadata while legacy-read drops it', () => {
+    const legacy = normalizePageContent({
+      components: [{ id: 'a', type: 'text-block' }],
+      metadata: 'not-an-object',
+    })
+
+    expect(legacy.pageContent.metadata).toBeUndefined()
+
+    try {
+      normalizePageContent({
+        components: [{ id: 'a', type: 'text-block' }],
+        metadata: 'not-an-object',
+      }, { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_METADATA_INVALID',
+          path: 'metadata',
+          severity: 'error',
+        }),
+      ])
+    }
+  })
+
+  it('omits strict-write legacy source fields while preserving extensions', () => {
+    const content = toCanonicalPageContent(
+      {
+        customField: 'keep-me',
+        sections: [{ id: 'legacy-section', type: 'text-block' }],
+        metadata: { source: 'test' },
+      },
+      [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          componentType: 'hero-banner',
+          data: { content: { heading: 'Legacy data source' } },
+          bindings: { heading: 'cms.title' },
+        },
+      ],
+      { mode: 'strict-write' }
+    )
+
+    expect(content).toMatchObject({
+      version: 1,
+      customField: 'keep-me',
+      metadata: { source: 'test' },
+      components: [
+        expect.objectContaining({
+          id: 'hero-1',
+          type: 'hero-banner',
+          bindings: { heading: 'cms.title' },
+        }),
+      ],
+    })
+    expect(content).not.toHaveProperty('sections')
+    const components = content.components as Array<Record<string, unknown>>
+    expect(components[0]).not.toHaveProperty('data')
+    expect(components[0]).not.toHaveProperty('componentType')
   })
 })

@@ -1308,7 +1308,6 @@ describe('PageBuilderService', () => {
 
       expect(result).toMatchObject({
         version: 1,
-        sections: tree.components,
         components: [
           expect.objectContaining({
             id: 'section-1',
@@ -1318,6 +1317,7 @@ describe('PageBuilderService', () => {
         ],
         metadata: tree.metadata
       })
+      expect(result).not.toHaveProperty('sections')
     })
   })
 

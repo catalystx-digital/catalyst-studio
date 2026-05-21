@@ -63,7 +63,7 @@ describe('PATCH page overrides - concurrency and limits', () => {
               parentId: null,
               position: 0,
               props: expect.objectContaining({
-                text: JSON.stringify({ title: 'New' }),
+                text: { title: 'New' },
                 content: { title: 'New' },
                 sharedComponentId: 'sc-1',
                 overrides: { title: 'New' },
@@ -115,7 +115,7 @@ describe('PATCH page overrides - concurrency and limits', () => {
       title: 'Edited title',
       body: 'Canonical body',
     })
-    expect(JSON.parse(updatedComponent.props.text)).toEqual(updatedComponent.content)
+    expect(updatedComponent.props.text).toEqual(updatedComponent.content)
     expect(updatedComponent.props.content).toEqual(updatedComponent.content)
   })
 

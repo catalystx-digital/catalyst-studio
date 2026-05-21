@@ -34,6 +34,12 @@ export interface NormalizePageContentResult {
   diagnostics: PageContentDiagnostic[]
 }
 
+export type NormalizePageContentMode = 'legacy-read' | 'strict-write'
+
+export interface NormalizePageContentOptions {
+  mode?: NormalizePageContentMode
+}
+
 const recordSchema = z.record(z.string(), z.unknown())
 
 export const componentInstanceSchema = z.object({

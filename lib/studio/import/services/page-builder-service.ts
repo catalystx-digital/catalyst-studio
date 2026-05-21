@@ -28,7 +28,7 @@ import {
 import { calculatePositions, deduplicateComponents } from './page-builder/component-tree-utils'
 import { generateComponentId, extractComponentProps } from './page-builder/component-helpers'
 import { normalizeImportUrl } from './import-run-service'
-import { toCanonicalPageContent } from '@/lib/studio/page-content'
+import { parseJsonString, toCanonicalPageContent } from '@/lib/studio/page-content'
 
 const PageDataSchema = z.object({
   title: z.string().min(1, 'Page title is required'),
@@ -137,11 +137,39 @@ export class PageBuilderService implements IPageBuilderService {
     return this.componentBuilder.optimizeComponentTree(tree)
   }
 
-  formatPageContent(tree: ComponentTree, primaryFieldName: string): Record<string, any> {
+  formatPageContent(tree: ComponentTree, _primaryFieldName: string): Record<string, any> {
+    const components = tree.components.map(component => {
+      const propsSource = component.props && typeof component.props === 'object' && !Array.isArray(component.props)
+        ? component.props
+        : {}
+      const props = { ...propsSource }
+      const parsedContent = parseJsonString(props.content)
+      if (props.content !== undefined && typeof props.content === 'string') {
+        props.content = parsedContent && typeof parsedContent === 'object' && !Array.isArray(parsedContent)
+          ? parsedContent
+          : { text: props.content }
+      }
+      const parsedText = parseJsonString(props.text)
+      if (typeof props.text === 'string' && parsedText !== null && typeof parsedText === 'object' && !Array.isArray(parsedText)) {
+        delete props.text
+      }
+      const parsedComponentContent = parseJsonString(component.content)
+      const content = parsedComponentContent && typeof parsedComponentContent === 'object' && !Array.isArray(parsedComponentContent)
+        ? parsedComponentContent
+        : typeof component.content === 'string'
+          ? { text: component.content }
+        : props.content && typeof props.content === 'object' && !Array.isArray(props.content)
+          ? props.content
+          : undefined
+      const { props: _props, content: _content, ...componentBase } = component
+      return content
+        ? { ...componentBase, props, content }
+        : { ...componentBase, props }
+    })
+
     return toCanonicalPageContent({
-      [primaryFieldName]: tree.components,
       metadata: tree.metadata
-    }, tree.components)
+    }, components, { mode: 'strict-write' })
   }
 
   async createPagesInBatch(
