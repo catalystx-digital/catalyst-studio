@@ -25,6 +25,38 @@ export interface SaveManagerCallbacks {
 
 const STUDIO_SESSION_STORAGE_KEY = 'studio-builder-session-id';
 
+function isPlainObject(value: unknown): value is Record<string, any> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+export function toPageComponentOverrides(data: unknown): Record<string, any> | null {
+  if (!isPlainObject(data)) {
+    throw new SaveError('Page component update payload must be an object');
+  }
+
+  if (isPlainObject(data.content)) {
+    return data.content;
+  }
+
+  if (isPlainObject(data.props)) {
+    if (isPlainObject(data.props.content)) {
+      return data.props.content;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(data.props, 'content')
+      || Object.prototype.hasOwnProperty.call(data.props, 'text')
+    ) {
+      throw new SaveError('Page component update payload contains malformed legacy content mirrors');
+    }
+  }
+
+  return data;
+}
+
 export function getStudioSessionId(): string {
   if (typeof window === 'undefined') {
     return 'server';
@@ -141,16 +173,23 @@ class SaveManager {
 
       // Save page-only component updates
       if (pageOps.length > 0) {
-        await Promise.all(pageOps.map(op =>
-          fetch(`/api/studio/site-builder/page-components/${op.componentId}`, {
+        await Promise.all(pageOps.map(async op => {
+          const overrides = toPageComponentOverrides(op.data);
+
+          const response = await fetch(`/api/studio/site-builder/page-components/${op.componentId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'x-studio-session-id': getStudioSessionId() },
             body: JSON.stringify({
               pageId: op.nodeId,
-              overrides: op.data
+              overrides
             })
-          })
-        ));
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new SaveError(errorData.error || `Component save failed: ${response.statusText}`);
+          }
+        }));
       }
 
       this.updateStatus('saved');

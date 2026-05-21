@@ -1,4 +1,4 @@
-import { saveManager } from '../save-manager';
+import { saveManager, toPageComponentOverrides } from '../save-manager';
 
 // Mock fetch
 global.fetch = jest.fn();
@@ -51,10 +51,10 @@ describe('SaveManager', () => {
     saveManager.addOperation({ type: 'CREATE', data: { title: 'Test' } });
     
     // Trigger initial save
-    jest.advanceTimersByTime(1000);
+    await jest.advanceTimersByTimeAsync(1000);
     
     // Should retry after 2 seconds (first retry)
-    jest.advanceTimersByTime(2000);
+    await jest.advanceTimersByTimeAsync(2000);
     
     expect(fetch).toHaveBeenCalledTimes(2);
   });
@@ -126,6 +126,89 @@ describe('SaveManager', () => {
     );
   });
 
+  it('extracts canonical page component overrides from live edit payloads', () => {
+    expect(toPageComponentOverrides({ title: 'Direct' })).toEqual({ title: 'Direct' });
+    expect(toPageComponentOverrides({ content: { title: 'From content' }, props: { content: { title: 'Mirror' } } }))
+      .toEqual({ title: 'From content' });
+    expect(toPageComponentOverrides({ props: { content: { title: 'From props content' } } }))
+      .toEqual({ title: 'From props content' });
+  });
+
+  it('surfaces malformed legacy page component wrappers instead of sending them', async () => {
+    const errorCallback = jest.fn();
+    saveManager.initialize('test-website');
+    saveManager.initialize('test-website', {
+      onError: errorCallback
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      data: { props: { content: JSON.stringify({ title: 'Legacy' }) } },
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+    expect(saveManager.getStatus()).toBe('error');
+  });
+
+  it('sends canonical content for page-only component updates', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      data: { props: { content: { title: 'Edited' }, text: { title: 'Edited' } } },
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/studio/site-builder/page-components/component-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          pageId: 'page-1',
+          overrides: { title: 'Edited' },
+        }),
+      })
+    );
+  });
+
+  it('surfaces page component PATCH errors', async () => {
+    const errorCallback = jest.fn();
+    saveManager.initialize('test-website', {
+      onError: errorCallback
+    });
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: async () => ({ error: 'Overrides must be an object or null' })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      data: { content: { title: 'Edited' } },
+    });
+
+    await saveManager.saveNow();
+
+    expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+    expect((errorCallback.mock.calls[0][0] as Error).message).toBe('Overrides must be an object or null');
+    expect(saveManager.getStatus()).toBe('error');
+  });
+
   it('should abort previous requests when new save triggered', () => {
     saveManager.initialize('test-website');
     
@@ -157,12 +240,12 @@ describe('SaveManager', () => {
     });
     
     saveManager.addOperation({ type: 'CREATE', data: { title: 'Test' } });
-    jest.advanceTimersByTime(1000);
+    await jest.advanceTimersByTimeAsync(1000);
     
     // Should retry with exponential backoff
-    jest.advanceTimersByTime(2000);
-    jest.advanceTimersByTime(4000);
-    jest.advanceTimersByTime(6000);
+    await jest.advanceTimersByTimeAsync(2000);
+    await jest.advanceTimersByTimeAsync(4000);
+    await jest.advanceTimersByTimeAsync(6000);
     
     // After max retries, should call error callback
     expect(errorCallback).toHaveBeenCalled();

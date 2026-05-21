@@ -7,6 +7,10 @@ jest.mock('@/lib/prisma', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    websitePage: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     $transaction: jest.fn(async (fn: any) => {
       // Pass the same client shape inside the transaction
       const tx = {
@@ -67,5 +71,25 @@ describe('ContentRepository.saveSharedComponentContent concurrency + mirroring',
     await expect(
       ContentRepository.saveSharedComponentContent(sharedId, { a: 2 }, { ifUnchangedSince: new Date('2025-09-12T00:00:00Z') })
     ).rejects.toThrow('Conflict: component modified since')
+  })
+})
+
+describe('ContentRepository.savePageOverrides contract', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([
+    ['array', []],
+    ['string', '{"title":"Legacy"}'],
+    ['legacy props.content wrapper', { props: { content: JSON.stringify({ title: 'Legacy' }) } }],
+    ['legacy props.text wrapper', { props: { text: { title: 'Legacy' } } }],
+  ])('throws before reading the page for %s overrides', async (_name, overrides) => {
+    await expect(
+      ContentRepository.savePageOverrides('page-1', 'inst-1', overrides as any)
+    ).rejects.toThrow(/plain object or null|Legacy wrapped page overrides/)
+
+    expect(prisma.websitePage.findUnique).not.toHaveBeenCalled()
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 })

@@ -147,4 +147,39 @@ describe('PATCH page overrides - concurrency and limits', () => {
     expect(res.status).toBe(413)
     expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['missing overrides', undefined],
+    ['array overrides', []],
+    ['string overrides', '{"title":"Wrapped"}'],
+    ['legacy props.content string wrapper', { props: { content: JSON.stringify({ title: 'Wrapped' }) } }],
+    ['legacy props.text object wrapper', { props: { text: { title: 'Wrapped' } } }],
+  ])('returns 400 for %s', async (_name, overrides) => {
+    const body = overrides === undefined
+      ? { pageId: 'page-1' }
+      : { pageId: 'page-1', overrides }
+    const req = new NextRequest('http://localhost:3000/api/studio/site-builder/page-components/inst-1', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    })
+
+    const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
+
+    expect(res.status).toBe(400)
+    expect(prisma.websitePage.findUnique).not.toHaveBeenCalled()
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for malformed JSON bodies', async () => {
+    const req = new NextRequest('http://localhost:3000/api/studio/site-builder/page-components/inst-1', {
+      method: 'PATCH',
+      body: '{"pageId":"page-1","overrides":',
+    })
+
+    const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
+
+    expect(res.status).toBe(400)
+    expect(prisma.websitePage.findUnique).not.toHaveBeenCalled()
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
+  })
 })

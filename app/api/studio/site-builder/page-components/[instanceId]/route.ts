@@ -5,6 +5,22 @@ import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 import { prisma } from '@/lib/prisma';
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function isLegacyWrappedOverrides(value: Record<string, unknown>): boolean {
+  if (!isPlainObject(value.props)) {
+    return false;
+  }
+  return Object.prototype.hasOwnProperty.call(value.props, 'text')
+    || Object.prototype.hasOwnProperty.call(value.props, 'content');
+}
+
 /**
  * PATCH /api/studio/site-builder/page-components/[instanceId]
  * Thin wrapper to write minimal props.overrides for a specific instance on a page.
@@ -16,15 +32,35 @@ export async function PATCH(
 ) {
   try {
     const { instanceId } = await params;
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON body' }, { status: 400 });
+    }
+    if (!isPlainObject(body)) {
+      return NextResponse.json({ error: 'Malformed request body' }, { status: 400 });
+    }
+
     const pageId: string | undefined = body?.pageId;
-    const overrides = (body?.overrides ?? null) as Record<string, unknown> | null;
+    if (!Object.prototype.hasOwnProperty.call(body, 'overrides')) {
+      return NextResponse.json({ error: 'Missing overrides' }, { status: 400 });
+    }
+    const overrides = body.overrides as unknown;
     const ifUnmodifiedSinceHeader = request.headers.get('If-Unmodified-Since') || request.headers.get('if-unmodified-since');
     const ifBody = (body?.ifUnchangedSince as string | undefined) ?? undefined;
     const ifUnchangedSince = ifUnmodifiedSinceHeader ? new Date(ifUnmodifiedSinceHeader) : (ifBody ? new Date(ifBody) : undefined);
 
     if (!pageId || !instanceId) {
       return NextResponse.json({ error: 'Missing pageId or instanceId' }, { status: 400 });
+    }
+
+    if (overrides !== null && !isPlainObject(overrides)) {
+      return NextResponse.json({ error: 'Overrides must be an object or null' }, { status: 400 });
+    }
+
+    if (overrides !== null && isLegacyWrappedOverrides(overrides)) {
+      return NextResponse.json({ error: 'Legacy wrapped overrides are not accepted' }, { status: 400 });
     }
 
     // Auth check - always required
@@ -46,35 +82,8 @@ export async function PATCH(
     }
     await assertWebsiteOwnership(db, auth.accountId, page.websiteId);
 
-    // TKT-040 FIX: Unwrap overrides BEFORE validation
-    // Client sends { props: { text: JSON, content: JSON } } wrapper
-    // We need to extract the actual content before size/depth validation
-    let actualOverrides: Record<string, unknown> | null = overrides;
-    if (overrides !== null && overrides.props && typeof overrides.props === 'object') {
-      const propsWrapper = overrides.props as Record<string, unknown>;
-      // Extract canonical content from props.content first; props.text is a legacy mirror.
-      if (typeof propsWrapper.content === 'string') {
-        try {
-          actualOverrides = JSON.parse(propsWrapper.content);
-        } catch {
-          actualOverrides = {};
-        }
-      } else if (typeof propsWrapper.text === 'string') {
-        try {
-          actualOverrides = JSON.parse(propsWrapper.text);
-        } catch {
-          actualOverrides = {};
-        }
-      } else if (typeof propsWrapper.content === 'object' && propsWrapper.content !== null) {
-        actualOverrides = propsWrapper.content as Record<string, unknown>;
-      } else if (typeof propsWrapper.text === 'object' && propsWrapper.text !== null) {
-        actualOverrides = propsWrapper.text as Record<string, unknown>;
-      }
-    }
-
-    // Validate UNWRAPPED overrides payload
-    if (actualOverrides !== null) {
-      if (!checkJSONSizeBytes(actualOverrides, MAX_OVERRIDES_SIZE_BYTES) || !checkJSONDepth(actualOverrides, 0, MAX_JSON_DEPTH)) {
+    if (overrides !== null) {
+      if (!checkJSONSizeBytes(overrides, MAX_OVERRIDES_SIZE_BYTES) || !checkJSONDepth(overrides, 0, MAX_JSON_DEPTH)) {
         return NextResponse.json(
           { error: `Overrides exceed size (${MAX_OVERRIDES_SIZE_BYTES} bytes) or depth (${MAX_JSON_DEPTH}) limits` },
           { status: 413 }
@@ -82,7 +91,6 @@ export async function PATCH(
       }
     }
 
-    // Pass ORIGINAL overrides to savePageOverrides - it has its own unwrapping logic
     await ContentRepository.savePageOverrides(pageId, instanceId, overrides, { ifUnchangedSince });
     return NextResponse.json({ success: true });
   } catch (error) {
