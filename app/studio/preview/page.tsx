@@ -7,7 +7,7 @@
  * Displays real website content from the database.
  */
 
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { SandboxPreview } from '@/lib/studio/components/preview/SandboxPreview';
 import { Loader2, Monitor, Tablet, Smartphone, Palette, ExternalLink, AlertCircle } from 'lucide-react';
@@ -45,37 +45,73 @@ function PreviewPageContent() {
   // Design concepts state
   const [designConcepts, setDesignConcepts] = useState<DesignConcept[]>([]);
   const [selectedConcept, setSelectedConcept] = useState<string>(designConceptParam || '');
+  const [conceptsError, setConceptsError] = useState<string | null>(null);
 
   // Device type state with localStorage persistence
   const [deviceType, setDeviceType] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
   // Fetch design concepts for this website
   useEffect(() => {
-    if (!websiteId) return;
+    if (!websiteId) {
+      setConceptsError(null);
+      return;
+    }
+
+    let cancelled = false;
 
     async function fetchDesignConcepts() {
+      setConceptsError(null);
+
       try {
         const response = await fetch(`/api/website/${websiteId}/design-system/concepts`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.concepts && Array.isArray(data.concepts)) {
-            setDesignConcepts(data.concepts);
-            // If no concept is selected, select the default one
-            if (!selectedConcept) {
-              const defaultConcept = data.concepts.find((c: DesignConcept) => c.isDefault);
-              if (defaultConcept) {
-                setSelectedConcept(defaultConcept.slug);
-              }
-            }
+
+        if (!response.ok) {
+          throw new Error(`Request failed with ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`);
+        }
+
+        const data = await response.json();
+        if (cancelled) return;
+
+        if (!data.concepts || !Array.isArray(data.concepts)) {
+          throw new Error('Response did not include a concepts list');
+        }
+
+        setDesignConcepts(data.concepts);
+        // If no concept is selected, select the default one
+        if (!selectedConcept) {
+          const defaultConcept = data.concepts.find((c: DesignConcept) => c.isDefault);
+          if (defaultConcept) {
+            setSelectedConcept(defaultConcept.slug);
           }
         }
-      } catch {
-        // Silently fail - concepts may not be available
+      } catch (error) {
+        if (!cancelled) {
+          setDesignConcepts([]);
+          setConceptsError(
+            error instanceof Error
+              ? `Design concepts unavailable: ${error.message}`
+              : 'Design concepts unavailable'
+          );
+        }
       }
     }
 
     fetchDesignConcepts();
+
+    return () => {
+      cancelled = true;
+    };
   }, [websiteId, selectedConcept]);
+
+  const conceptErrorNotice = conceptsError ? (
+    <div
+      role="alert"
+      className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
+    >
+      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+      <span>{conceptsError}</span>
+    </div>
+  ) : null;
 
   // Handle design concept change
   const handleConceptChange = (conceptSlug: string) => {
@@ -125,9 +161,15 @@ function PreviewPageContent() {
     return `/studio/preview/site/${encodeURIComponent(websiteId)}${path}${query ? `?${query}` : ''}`;
   };
 
+  const localPreviewUrl = buildLocalPreviewUrl();
+
   useEffect(() => {
     setIframeLoaded(false);
-  }, [websiteId, previewPath, selectedConcept, useSandbox]);
+  }, [localPreviewUrl, useSandbox]);
+
+  const handleIframeLoad = useCallback(() => {
+    setIframeLoaded(true);
+  }, []);
 
   const switchToLocalPreview = () => {
     const params = new URLSearchParams(searchParams?.toString());
@@ -165,6 +207,7 @@ function PreviewPageContent() {
           </span>
           </div>
           <div className="flex items-center gap-4">
+            {conceptErrorNotice}
             {/* Design concept selector */}
             {designConcepts.length > 1 && (
               <div className="flex items-center gap-2">
@@ -244,8 +287,6 @@ function PreviewPageContent() {
     );
   }
 
-  const localPreviewUrl = buildLocalPreviewUrl();
-
   return (
     <div className="flex-1 flex flex-col h-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
@@ -259,6 +300,7 @@ function PreviewPageContent() {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          {conceptErrorNotice}
           {designConcepts.length > 1 && (
             <div className="flex items-center gap-2">
               <Palette className="h-4 w-4 text-muted-foreground" />
@@ -331,11 +373,11 @@ function PreviewPageContent() {
             </div>
           )}
           <iframe
+            key={localPreviewUrl}
             src={localPreviewUrl}
             className="w-full h-full border-0 bg-white"
             title="Website Preview"
-            onLoad={() => setIframeLoaded(true)}
-            onError={() => setIframeLoaded(true)}
+            onLoad={handleIframeLoad}
           />
         </div>
         <div className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
