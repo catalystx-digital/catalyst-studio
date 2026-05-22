@@ -131,19 +131,6 @@ function extractAltText(record: Record<string, unknown>): string | null {
 }
 
 /**
- * Attempts to find a fallback URL from the reference target.
- */
-function getFallbackUrl(record: Record<string, unknown>): string | undefined {
-  const candidates: Array<unknown> = [record.src, record.originalUrl, record.url, record.href]
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate.trim()
-    }
-  }
-  return undefined
-}
-
-/**
  * Applies resolved media URLs to the reference targets.
  */
 function applyResolvedMedia(
@@ -159,11 +146,6 @@ function applyResolvedMedia(
     const media = mediaMap.get(reference.mediaId)
 
     if (!media) {
-      // Media not found in database - try fallback
-      const fallbackUrl = getFallbackUrl(reference.target)
-      if (fallbackUrl && typeof reference.target.src !== 'string') {
-        reference.target.src = fallbackUrl
-      }
       unresolved += 1
       errors.push(`Media ${reference.mediaId} at ${reference.path} not found in database`)
       continue
@@ -213,11 +195,6 @@ function applyResolvedMedia(
 
       resolved += 1
     } else {
-      // No public URL available - try fallback
-      const fallbackUrl = getFallbackUrl(reference.target) || media.sources?.[0]?.originalUrl
-      if (fallbackUrl && typeof reference.target.src !== 'string') {
-        reference.target.src = fallbackUrl
-      }
       unresolved += 1
       errors.push(`Media ${reference.mediaId} at ${reference.path} has no public URL configured`)
     }
@@ -281,20 +258,11 @@ export async function resolveRuntimeMedia(
       }
     }) as MediaRecord[]
   } catch (error) {
-    // Database query failed - try to use fallback URLs
-    let fallbacksApplied = 0
-    for (const reference of references) {
-      const fallbackUrl = getFallbackUrl(reference.target)
-      if (fallbackUrl && typeof reference.target.src !== 'string') {
-        reference.target.src = fallbackUrl
-        fallbacksApplied += 1
-      }
-    }
     return {
       resolved: 0,
       unresolved: references.length,
       errors: [
-        `Database query failed: ${error instanceof Error ? error.message : String(error)}; ${fallbacksApplied} fallback URLs applied`
+        `Database query failed: ${error instanceof Error ? error.message : String(error)}`
       ]
     }
   }
@@ -347,20 +315,11 @@ export async function resolveRuntimeMediaBatch(
       prismaClient = new PrismaClientConstructor()
       shouldDisconnect = true
     } catch (error) {
-      // Prisma not available - try to use fallback URLs
-      let fallbacksApplied = 0
-      for (const reference of allReferences) {
-        const fallbackUrl = getFallbackUrl(reference.target)
-        if (fallbackUrl && typeof reference.target.src !== 'string') {
-          reference.target.src = fallbackUrl
-          fallbacksApplied += 1
-        }
-      }
       return {
         totalResolved: 0,
         totalUnresolved: allReferences.length,
         errors: [
-          `Prisma client unavailable: ${error instanceof Error ? error.message : String(error)}; ${fallbacksApplied} fallback URLs applied`
+          `Prisma client unavailable: ${error instanceof Error ? error.message : String(error)}`
         ]
       }
     }
@@ -407,19 +366,11 @@ export async function resolveRuntimeMediaBatch(
       errors: result.errors
     }
   } catch (error) {
-    let fallbacksApplied = 0
-    for (const reference of allReferences) {
-      const fallbackUrl = getFallbackUrl(reference.target)
-      if (fallbackUrl && typeof reference.target.src !== 'string') {
-        reference.target.src = fallbackUrl
-        fallbacksApplied += 1
-      }
-    }
     return {
       totalResolved: 0,
       totalUnresolved: allReferences.length,
       errors: [
-        `Failed to load media assets: ${error instanceof Error ? error.message : String(error)}; ${fallbacksApplied} fallback URLs applied`
+        `Failed to load media assets: ${error instanceof Error ? error.message : String(error)}`
       ]
     }
   } finally {
