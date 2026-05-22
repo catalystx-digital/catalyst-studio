@@ -93,9 +93,10 @@ function assertCanonicalOverrides(overrides: unknown): asserts overrides is Reco
 function stripLegacyStrictWriteMirrors(component: Record<string, unknown>): Record<string, unknown> {
   const next = { ...component };
   const props = toRecord(next.props);
-  if (typeof props.text === 'string' && isRecord(parseJsonString(props.text))) {
+  if (isTextMirror(props.text)) {
     delete props.text;
   }
+  delete props.content;
   next.props = props;
   return next;
 }

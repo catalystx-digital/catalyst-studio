@@ -277,7 +277,11 @@ function stripLegacyStrictWriteMirrors(component: unknown): unknown {
   const props = record.props
   if (props && typeof props === 'object' && !Array.isArray(props)) {
     const nextProps = { ...(props as Record<string, unknown>) }
-    if (typeof nextProps.text === 'string' && isRecord(parseJsonString(nextProps.text))) {
+    delete nextProps.content
+    if (
+      isRecord(nextProps.text) ||
+      (typeof nextProps.text === 'string' && isRecord(parseJsonString(nextProps.text)))
+    ) {
       delete nextProps.text
     }
     record.props = nextProps

@@ -89,6 +89,75 @@ describe('/api/studio/site-builder/components/reorder', () => {
       })
     })
 
+    it('should reorder canonical components without persisting legacy props.content mirrors', async () => {
+      const mockComponents = [
+        {
+          id: 'hero-1',
+          parentId: null,
+          position: 0,
+          type: 'hero-banner',
+          props: {
+            text: { heading: 'Stale text mirror' }
+          },
+          content: { heading: 'Hello', body: 'Canonical content' }
+        },
+        {
+          id: 'text-1',
+          parentId: null,
+          position: 1,
+          type: 'text-block',
+          props: {},
+          content: { text: 'Second block' }
+        }
+      ]
+
+      const mockWebsitePage = {
+        id: 'page-123',
+        content: { version: 1, components: mockComponents }
+      }
+
+      mockTransaction.websitePage = {
+        findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
+        update: jest.fn().mockResolvedValue({ ...mockWebsitePage })
+      }
+      mockTransaction.websiteCustomContentData = {
+        findUnique: jest.fn().mockResolvedValue(null)
+      }
+
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
+        method: 'POST',
+        body: JSON.stringify({
+          componentId: 'hero-1',
+          newParentId: null,
+          newPosition: 1,
+          contentItemId: 'page-123'
+        })
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+
+      const updateCall = (mockTransaction.websitePage.update as jest.Mock).mock.calls[0][0]
+      const updatedComponents = updateCall.data.content.components as Array<Record<string, unknown>>
+      const updatedHero = updatedComponents.find(component => component.id === 'hero-1') as Record<string, unknown>
+
+      expect(updatedHero).toEqual(expect.objectContaining({
+        position: 1,
+        content: { heading: 'Hello', body: 'Canonical content' },
+        props: {}
+      }))
+      expect(updatedComponents).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'text-1', position: 0, props: {} })
+      ]))
+      for (const component of updatedComponents) {
+        expect(Object.prototype.hasOwnProperty.call(component.props, 'content')).toBe(false)
+        expect(Object.prototype.hasOwnProperty.call(component.props, 'text')).toBe(false)
+      }
+    })
+
     it('should successfully reorder component to different parent', async () => {
       const mockComponents = [
         { id: 'parent1', parentId: null, position: 0, type: 'section' },

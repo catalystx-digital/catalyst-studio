@@ -582,7 +582,72 @@ describe('page content normalizer', () => {
     ])
   })
 
-  it('uses object props.content as a strict-write source without persisting the mirror', () => {
+  it('rejects object props.content as a strict-write source', () => {
+    try {
+      toCanonicalPageContent(
+        {},
+        [
+          {
+            id: 'hero-1',
+            type: 'hero-banner',
+            parentId: null,
+            position: 0,
+            props: { content: { heading: 'Hello' } },
+            content: {},
+            styles: {},
+            metadata: {},
+          },
+        ],
+        { mode: 'strict-write' }
+      )
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_LEGACY',
+          path: 'components[0].props.content',
+          severity: 'error',
+        }),
+      ]))
+    }
+  })
+
+  it.each([
+    { heading: 'Hello' },
+    123,
+  ])('rejects non-string data.content as a strict-write source: %p', (content) => {
+    try {
+      toCanonicalPageContent(
+        {},
+        [
+          {
+            id: 'hero-1',
+            type: 'hero-banner',
+            parentId: null,
+            position: 0,
+            data: { content },
+            content: { heading: 'Canonical' },
+            styles: {},
+            metadata: {},
+          },
+        ],
+        { mode: 'strict-write' }
+      )
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_LEGACY',
+          path: 'components[0].data.content',
+          severity: 'error',
+        }),
+      ]))
+    }
+  })
+
+  it('accepts canonical component.content in strict-write without props.content', () => {
     const content = toCanonicalPageContent(
       {},
       [
@@ -591,8 +656,8 @@ describe('page content normalizer', () => {
           type: 'hero-banner',
           parentId: null,
           position: 0,
-          props: { content: { heading: 'Hello' } },
-          content: {},
+          props: {},
+          content: { heading: 'Hello' },
           styles: {},
           metadata: {},
         },
@@ -667,14 +732,12 @@ describe('page content normalizer', () => {
         {
           id: 'blog-1',
           type: 'blog-list',
-          props: {
-            content: {
-              blogs: [
-                { excerpt: 'Missing required post fields' },
-              ],
-            },
+          props: {},
+          content: {
+            blogs: [
+              { excerpt: 'Missing required post fields' },
+            ],
           },
-          content: {},
         },
       ], { mode: 'strict-write' })
       throw new Error('Expected strict canonical write to throw')
@@ -837,7 +900,9 @@ describe('page content normalizer', () => {
           id: 'hero-1',
           type: 'hero-banner',
           componentType: 'hero-banner',
-          data: { content: { heading: 'Legacy data source' } },
+          props: { eyebrow: 'Keep me' },
+          data: { eyebrow: 'Legacy data source' },
+          content: { heading: 'Canonical source' },
           bindings: { heading: 'cms.title' },
         },
       ],
@@ -860,7 +925,7 @@ describe('page content normalizer', () => {
     const components = content.components as Array<Record<string, unknown>>
     expect(components[0]).not.toHaveProperty('data')
     expect(components[0]).not.toHaveProperty('componentType')
-    expect(components[0].content).toEqual({ heading: 'Legacy data source' })
-    expect(components[0].props).toEqual({})
+    expect(components[0].content).toEqual({ heading: 'Canonical source' })
+    expect(components[0].props).toEqual({ eyebrow: 'Keep me' })
   })
 })

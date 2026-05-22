@@ -194,6 +194,9 @@ export class PageBuilderService implements IPageBuilderService {
         : isPlainObject(props.content)
           ? props.content
           : undefined
+      if (content !== undefined && props.content !== undefined) {
+        delete props.content
+      }
       const { props: _props, content: _content, ...componentBase } = component
       return content
         ? { ...componentBase, props, content }

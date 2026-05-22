@@ -393,13 +393,31 @@ function strictPayloadDiagnostics(
     })
   }
 
-  const propsSource = isRecord(instance.props) ? instance.props : isRecord(instance.data) ? instance.data : undefined
+  const propsRecord = isRecord(instance.props) ? instance.props : undefined
+  const dataRecord = isRecord(instance.data) ? instance.data : undefined
+  const propsSource = propsRecord ?? dataRecord
   if (propsSource) {
-    if (typeof propsSource.content === 'string') {
+    if (propsRecord && hasOwn(propsRecord, 'content')) {
+      const code = typeof propsRecord.content === 'string'
+        ? 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING'
+        : 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_LEGACY'
       addStrictDiagnostic(diagnostics, {
-        code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
-        message: 'Component props.content must be an object for strict writes; string payloads are not accepted.',
-        path: `${path}.${isRecord(instance.props) ? 'props' : 'data'}.content`,
+        code,
+        message: typeof propsRecord.content === 'string'
+          ? 'Component props.content is a legacy content source and is not accepted for strict writes; use component.content.'
+          : 'Component props.content is a legacy content mirror and is not accepted for strict writes; use component.content.',
+        path: `${path}.props.content`,
+      })
+    }
+
+    if (dataRecord && hasOwn(dataRecord, 'content')) {
+      const code = typeof dataRecord.content === 'string'
+        ? 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_STRING'
+        : 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_LEGACY'
+      addStrictDiagnostic(diagnostics, {
+        code,
+        message: 'Component data.content is a legacy content source and is not accepted for strict writes; use component.content.',
+        path: `${path}.data.content`,
       })
     }
 
@@ -546,7 +564,7 @@ export function normalizeComponent(
     message: 'Component content contains malformed JSON-like text and was left unchanged.',
   })
   const propsContent = isRecord(props.content) ? props.content : {}
-  const usesPropsContent = !isCanonicalRead(options) && !hasContent(rawContent)
+  const usesPropsContent = options.mode === 'legacy-read' && !hasContent(rawContent)
   const content = normalizeContentForComponentType(
     type,
     usesPropsContent ? propsContent : rawContent,

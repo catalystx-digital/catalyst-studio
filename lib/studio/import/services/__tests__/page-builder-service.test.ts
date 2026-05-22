@@ -1320,6 +1320,7 @@ describe('PageBuilderService', () => {
         metadata: tree.metadata
       })
       expect(result).not.toHaveProperty('sections')
+      expect(result.components[0].props).not.toHaveProperty('content')
     })
 
     it('throws strict diagnostics for malformed JSON-like props.content strings', () => {
