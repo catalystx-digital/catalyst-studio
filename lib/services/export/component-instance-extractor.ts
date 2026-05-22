@@ -740,21 +740,6 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
       let overrides: any = (props as any)?.overrides || {}
       let hasOverrides = Boolean((props as any)?.hasOverrides) || (overrides && Object.keys(overrides).length > 0)
 
-      const legacyFlag = String(process.env.EXPORT_TREAT_LEGACY_FULL_PROPS_AS_OVERRIDES || '').toLowerCase() === 'true'
-      if (!hasOverrides && legacyFlag) {
-        const reserved = new Set(['overrides', 'hasOverrides', 'sharedComponentId'])
-        const legacyOverrides: Record<string, any> = {}
-        for (const [k, v] of Object.entries(props)) {
-          if (reserved.has(k)) continue
-          const baseVal = (base as any)?.[k]
-          if (JSON.stringify(baseVal) !== JSON.stringify(v)) legacyOverrides[k] = v
-        }
-        if (Object.keys(legacyOverrides).length > 0) {
-          overrides = legacyOverrides
-          hasOverrides = true
-        }
-      }
-
       const effective = deepMerge(base, overrides) as Record<string, any>
 
       delete (props as any).overrides

@@ -599,48 +599,34 @@ describe('ComponentInstanceExtractor', () => {
       expect('sharedComponentId' in props).toBe(false)
     })
 
-    it('legacy shim treats full props as overrides only when flag enabled', async () => {
-      const prev = process.env.EXPORT_TREAT_LEGACY_FULL_PROPS_AS_OVERRIDES
-      try {
-        const components: ExtractedComponent[] = [
-          {
-            id: 'comp-1',
-            type: '_shared',
-            parentId: null,
-            position: 0,
-            // No overrides provided; legacy full props present
-            properties: { title: 'Local', theme: 'light' },
-            isShared: true,
-            sharedId: 'shared-legacy-1'
-          }
-        ]
+    it('ignores full local shared props unless explicit overrides are present', async () => {
+      const components: ExtractedComponent[] = [
+        {
+          id: 'comp-1',
+          type: '_shared',
+          parentId: null,
+          position: 0,
+          properties: { title: 'Local', theme: 'light' },
+          isShared: true,
+          sharedId: 'shared-1'
+        }
+      ]
 
-        const mockSharedData = [
-          {
-            id: 'shared-legacy-1',
-            name: 'Header',
-            content: { title: 'Global', theme: 'dark' },
-            websiteComponentType: { type: 'header', category: 'content' }
-          }
-        ]
+      const mockSharedData = [
+        {
+          id: 'shared-1',
+          name: 'Header',
+          content: { title: 'Global', theme: 'dark' },
+          websiteComponentType: { type: 'header', category: 'content' }
+        }
+      ]
 
-        ;(mockPrisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue(mockSharedData)
+      ;(mockPrisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue(mockSharedData)
 
-        // Flag disabled (default): should ignore legacy full props and use base content
-        delete process.env.EXPORT_TREAT_LEGACY_FULL_PROPS_AS_OVERRIDES
-        let result = await extractor.resolveSharedComponents(components, websiteId)
-        expect(result[0].properties).toEqual({ title: 'Global', theme: 'dark' })
-        expect((result[0] as any).hasOverrides).toBe(false)
+      const result = await extractor.resolveSharedComponents(components, websiteId)
 
-        // Flag enabled: should treat diffs as overrides (title differs)
-        process.env.EXPORT_TREAT_LEGACY_FULL_PROPS_AS_OVERRIDES = 'true'
-        result = await extractor.resolveSharedComponents(components, websiteId)
-        expect(result[0].properties).toEqual({ title: 'Local', theme: 'light' })
-        expect((result[0] as any).hasOverrides).toBe(true)
-      } finally {
-        if (prev === undefined) delete process.env.EXPORT_TREAT_LEGACY_FULL_PROPS_AS_OVERRIDES
-        else process.env.EXPORT_TREAT_LEGACY_FULL_PROPS_AS_OVERRIDES = prev
-      }
+      expect(result[0].properties).toEqual({ title: 'Global', theme: 'dark' })
+      expect((result[0] as any).hasOverrides).toBe(false)
     })
 
     it('should handle missing shared component references gracefully', async () => {
