@@ -2,7 +2,8 @@
  * InvitationService Unit Tests
  */
 
-import { AccountRole, InvitationStatus, EmailDeliveryStatus, AuditAction } from '@/lib/generated/prisma';
+import { InvitationStatus, EmailDeliveryStatus, AuditAction } from '@/lib/generated/prisma';
+import { AccountRole } from '@/lib/auth/account';
 import { InvitationService } from '../invitation-service';
 import { ApiError } from '@/lib/api/errors';
 
@@ -39,7 +40,7 @@ const createPrismaMock = () => ({
     findUnique: jest.fn(),
     create: jest.fn(),
   },
-  accountInvitation: {
+  invitation: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -100,10 +101,10 @@ describe('InvitationService', () => {
       };
 
       prismaMock.accountMembership.findFirst.mockResolvedValue(null);
-      prismaMock.accountInvitation.findFirst
+      prismaMock.invitation.findFirst
         .mockResolvedValueOnce(null) // For checking existing invitation
         .mockResolvedValueOnce(createdInvitation); // For getById
-      prismaMock.accountInvitation.create.mockResolvedValue(createdInvitation);
+      prismaMock.invitation.create.mockResolvedValue(createdInvitation);
       prismaMock.user.findUnique.mockResolvedValue({
         id: TEST_USER_ID,
         name: 'Test User',
@@ -122,7 +123,7 @@ describe('InvitationService', () => {
       expect(result.invitation.role).toBe(AccountRole.member);
       // Verify action link format (contains /invite/accept?token= with a hex token)
       expect(result.actionLink).toMatch(/\/invite\/accept\?token=[a-f0-9]+$/);
-      expect(prismaMock.accountInvitation.create).toHaveBeenCalled();
+      expect(prismaMock.invitation.create).toHaveBeenCalled();
     });
 
     it('creates invitation with specific website access', async () => {
@@ -145,13 +146,13 @@ describe('InvitationService', () => {
       };
 
       prismaMock.accountMembership.findFirst.mockResolvedValue(null);
-      prismaMock.accountInvitation.findFirst
+      prismaMock.invitation.findFirst
         .mockResolvedValueOnce(null) // For checking existing invitation
         .mockResolvedValueOnce(createdInvitation); // For getById
       prismaMock.website.findMany
         .mockResolvedValueOnce([{ id: TEST_WEBSITE_ID }]) // For validation
         .mockResolvedValueOnce([{ id: TEST_WEBSITE_ID, name: 'Marketing Site' }]); // For getById
-      prismaMock.accountInvitation.create.mockResolvedValue(createdInvitation);
+      prismaMock.invitation.create.mockResolvedValue(createdInvitation);
       prismaMock.user.findUnique.mockResolvedValue({
         id: TEST_USER_ID,
         name: 'Test User',
@@ -195,7 +196,7 @@ describe('InvitationService', () => {
 
     it('throws error if pending invitation exists', async () => {
       prismaMock.accountMembership.findFirst.mockResolvedValue(null);
-      prismaMock.accountInvitation.findFirst.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue({
         id: 'existing-invitation',
         email: TEST_EMAIL,
         status: InvitationStatus.pending,
@@ -222,7 +223,7 @@ describe('InvitationService', () => {
 
     it('throws error for specific access without websiteIds', async () => {
       prismaMock.accountMembership.findFirst.mockResolvedValue(null);
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(null);
+      prismaMock.invitation.findFirst.mockResolvedValue(null);
 
       await expect(
         service.create(TEST_ACCOUNT_ID, TEST_USER_ID, {
@@ -236,7 +237,7 @@ describe('InvitationService', () => {
 
     it('throws error for invalid websiteIds', async () => {
       prismaMock.accountMembership.findFirst.mockResolvedValue(null);
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(null);
+      prismaMock.invitation.findFirst.mockResolvedValue(null);
       prismaMock.website.findMany.mockResolvedValue([]); // No valid websites found
 
       await expect(
@@ -269,8 +270,8 @@ describe('InvitationService', () => {
         emailError: null,
       };
 
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(existingInvitation);
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue(existingInvitation);
+      prismaMock.invitation.update.mockResolvedValue({
         ...existingInvitation,
         emailStatus: EmailDeliveryStatus.pending,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -284,11 +285,11 @@ describe('InvitationService', () => {
       const result = await service.resend(TEST_ACCOUNT_ID, TEST_INVITATION_ID, TEST_USER_ID);
 
       expect(result).toBeDefined();
-      expect(prismaMock.accountInvitation.update).toHaveBeenCalled();
+      expect(prismaMock.invitation.update).toHaveBeenCalled();
     });
 
     it('throws error when invitation not found', async () => {
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(null);
+      prismaMock.invitation.findFirst.mockResolvedValue(null);
 
       await expect(
         service.resend(TEST_ACCOUNT_ID, TEST_INVITATION_ID, TEST_USER_ID)
@@ -296,7 +297,7 @@ describe('InvitationService', () => {
     });
 
     it('throws error when invitation is not pending', async () => {
-      prismaMock.accountInvitation.findFirst.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue({
         id: TEST_INVITATION_ID,
         status: InvitationStatus.accepted,
       });
@@ -325,8 +326,8 @@ describe('InvitationService', () => {
         emailError: null,
       };
 
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(existingInvitation);
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue(existingInvitation);
+      prismaMock.invitation.update.mockResolvedValue({
         ...existingInvitation,
         emailStatus: EmailDeliveryStatus.pending,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -340,7 +341,7 @@ describe('InvitationService', () => {
       await service.resend(TEST_ACCOUNT_ID, TEST_INVITATION_ID, TEST_USER_ID);
 
       // Verify update was called with new expiration date ~30 days from now
-      expect(prismaMock.accountInvitation.update).toHaveBeenCalledWith(
+      expect(prismaMock.invitation.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: TEST_INVITATION_ID },
           data: expect.objectContaining({
@@ -351,7 +352,7 @@ describe('InvitationService', () => {
       );
 
       // Extract the expiresAt from the update call and verify it's approximately 30 days from now
-      const updateCall = prismaMock.accountInvitation.update.mock.calls[0][0];
+      const updateCall = prismaMock.invitation.update.mock.calls[0][0];
       const newExpiresAt = updateCall.data.expiresAt as Date;
       const expectedExpiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
       // Allow 1 minute tolerance for test execution time
@@ -378,7 +379,7 @@ describe('InvitationService', () => {
         metadata: { resendCount: 3 }, // Already at limit
       };
 
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(existingInvitation);
+      prismaMock.invitation.findFirst.mockResolvedValue(existingInvitation);
 
       await expect(
         service.resend(TEST_ACCOUNT_ID, TEST_INVITATION_ID, TEST_USER_ID)
@@ -395,8 +396,8 @@ describe('InvitationService', () => {
         status: InvitationStatus.pending,
       };
 
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(existingInvitation);
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue(existingInvitation);
+      prismaMock.invitation.update.mockResolvedValue({
         ...existingInvitation,
         status: InvitationStatus.revoked,
         respondedAt: new Date(),
@@ -404,7 +405,7 @@ describe('InvitationService', () => {
 
       await service.revoke(TEST_ACCOUNT_ID, TEST_INVITATION_ID, TEST_USER_ID);
 
-      expect(prismaMock.accountInvitation.update).toHaveBeenCalledWith({
+      expect(prismaMock.invitation.update).toHaveBeenCalledWith({
         where: { id: TEST_INVITATION_ID },
         data: {
           status: InvitationStatus.revoked,
@@ -414,7 +415,7 @@ describe('InvitationService', () => {
     });
 
     it('throws error when invitation not found', async () => {
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(null);
+      prismaMock.invitation.findFirst.mockResolvedValue(null);
 
       await expect(
         service.revoke(TEST_ACCOUNT_ID, TEST_INVITATION_ID, TEST_USER_ID)
@@ -422,7 +423,7 @@ describe('InvitationService', () => {
     });
 
     it('throws error when invitation is not pending', async () => {
-      prismaMock.accountInvitation.findFirst.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue({
         id: TEST_INVITATION_ID,
         status: InvitationStatus.revoked,
       });
@@ -448,7 +449,7 @@ describe('InvitationService', () => {
         account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
       prismaMock.website.findMany.mockResolvedValue([]);
       prismaMock.accountMembership.create.mockResolvedValue({
         id: 'membership-123',
@@ -461,7 +462,7 @@ describe('InvitationService', () => {
         joinedAt: new Date(),
         createdAt: new Date(),
       });
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.update.mockResolvedValue({
         ...invitation,
         status: InvitationStatus.accepted,
       });
@@ -484,7 +485,7 @@ describe('InvitationService', () => {
         account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
 
       await expect(
         service.accept(TEST_INVITATION_ID, TEST_USER_ID, 'wrong@email.com')
@@ -502,7 +503,7 @@ describe('InvitationService', () => {
         account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
 
       await expect(
         service.accept(TEST_INVITATION_ID, TEST_USER_ID, TEST_EMAIL)
@@ -520,7 +521,7 @@ describe('InvitationService', () => {
         account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
 
       await expect(
         service.accept(TEST_INVITATION_ID, TEST_USER_ID, TEST_EMAIL)
@@ -540,15 +541,15 @@ describe('InvitationService', () => {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.update.mockResolvedValue({
         ...invitation,
         status: InvitationStatus.declined,
       });
 
       await service.decline(TEST_INVITATION_ID, TEST_EMAIL);
 
-      expect(prismaMock.accountInvitation.update).toHaveBeenCalledWith({
+      expect(prismaMock.invitation.update).toHaveBeenCalledWith({
         where: { id: TEST_INVITATION_ID },
         data: {
           status: InvitationStatus.declined,
@@ -558,7 +559,7 @@ describe('InvitationService', () => {
     });
 
     it('throws error when invitation not found', async () => {
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(null);
+      prismaMock.invitation.findUnique.mockResolvedValue(null);
 
       await expect(service.decline(TEST_INVITATION_ID, TEST_EMAIL)).rejects.toMatchObject({
         code: 'NOT_FOUND',
@@ -587,8 +588,8 @@ describe('InvitationService', () => {
         },
       ];
 
-      prismaMock.accountInvitation.findMany.mockResolvedValue(invitations);
-      prismaMock.accountInvitation.count.mockResolvedValue(1);
+      prismaMock.invitation.findMany.mockResolvedValue(invitations);
+      prismaMock.invitation.count.mockResolvedValue(1);
       prismaMock.user.findMany.mockResolvedValue([
         { id: TEST_USER_ID, name: 'Test User', email: 'inviter@example.com' },
       ]);
@@ -601,14 +602,14 @@ describe('InvitationService', () => {
     });
 
     it('filters by status', async () => {
-      prismaMock.accountInvitation.findMany.mockResolvedValue([]);
-      prismaMock.accountInvitation.count.mockResolvedValue(0);
+      prismaMock.invitation.findMany.mockResolvedValue([]);
+      prismaMock.invitation.count.mockResolvedValue(0);
       prismaMock.user.findMany.mockResolvedValue([]);
       prismaMock.website.findMany.mockResolvedValue([]);
 
       await service.list(TEST_ACCOUNT_ID, { status: [InvitationStatus.pending] });
 
-      expect(prismaMock.accountInvitation.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.invitation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             status: { in: [InvitationStatus.pending] },
@@ -637,7 +638,7 @@ describe('InvitationService', () => {
         account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
       prismaMock.user.findUnique.mockResolvedValue({
         id: TEST_USER_ID,
         name: 'Test User',
@@ -653,7 +654,7 @@ describe('InvitationService', () => {
     });
 
     it('returns null when token not found', async () => {
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(null);
+      prismaMock.invitation.findUnique.mockResolvedValue(null);
 
       const result = await service.getByToken('invalid-token');
 
@@ -663,12 +664,12 @@ describe('InvitationService', () => {
 
   describe('markExpired', () => {
     it('marks expired invitations', async () => {
-      prismaMock.accountInvitation.updateMany.mockResolvedValue({ count: 5 });
+      prismaMock.invitation.updateMany.mockResolvedValue({ count: 5 });
 
       const result = await service.markExpired();
 
       expect(result).toBe(5);
-      expect(prismaMock.accountInvitation.updateMany).toHaveBeenCalledWith({
+      expect(prismaMock.invitation.updateMany).toHaveBeenCalledWith({
         where: {
           status: InvitationStatus.pending,
           expiresAt: { lt: expect.any(Date) },
@@ -682,11 +683,11 @@ describe('InvitationService', () => {
 
   describe('updateEmailStatus', () => {
     it('updates email status to sent', async () => {
-      prismaMock.accountInvitation.update.mockResolvedValue({});
+      prismaMock.invitation.update.mockResolvedValue({});
 
       await service.updateEmailStatus(TEST_INVITATION_ID, EmailDeliveryStatus.sent);
 
-      expect(prismaMock.accountInvitation.update).toHaveBeenCalledWith({
+      expect(prismaMock.invitation.update).toHaveBeenCalledWith({
         where: { id: TEST_INVITATION_ID },
         data: {
           emailStatus: EmailDeliveryStatus.sent,
@@ -697,11 +698,11 @@ describe('InvitationService', () => {
     });
 
     it('updates email status to failed with error', async () => {
-      prismaMock.accountInvitation.update.mockResolvedValue({});
+      prismaMock.invitation.update.mockResolvedValue({});
 
       await service.updateEmailStatus(TEST_INVITATION_ID, EmailDeliveryStatus.failed, 'SMTP error');
 
-      expect(prismaMock.accountInvitation.update).toHaveBeenCalledWith({
+      expect(prismaMock.invitation.update).toHaveBeenCalledWith({
         where: { id: TEST_INVITATION_ID },
         data: {
           emailStatus: EmailDeliveryStatus.failed,
@@ -733,10 +734,10 @@ describe('InvitationService', () => {
       };
 
       prismaMock.accountMembership.findFirst.mockResolvedValue(null);
-      prismaMock.accountInvitation.findFirst
+      prismaMock.invitation.findFirst
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(createdInvitation);
-      prismaMock.accountInvitation.create.mockResolvedValue(createdInvitation);
+      prismaMock.invitation.create.mockResolvedValue(createdInvitation);
       prismaMock.user.findUnique.mockResolvedValue({
         id: TEST_USER_ID,
         name: 'Test User',
@@ -776,7 +777,7 @@ describe('InvitationService', () => {
         account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
       };
 
-      prismaMock.accountInvitation.findUnique.mockResolvedValue(invitation);
+      prismaMock.invitation.findUnique.mockResolvedValue(invitation);
       prismaMock.website.findMany.mockResolvedValue([]);
       prismaMock.accountMembership.create.mockResolvedValue({
         id: 'membership-123',
@@ -789,7 +790,7 @@ describe('InvitationService', () => {
         joinedAt: new Date(),
         createdAt: new Date(),
       });
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.update.mockResolvedValue({
         ...invitation,
         status: InvitationStatus.accepted,
       });
@@ -817,8 +818,8 @@ describe('InvitationService', () => {
         invitedBy: TEST_USER_ID,
       };
 
-      prismaMock.accountInvitation.findFirst.mockResolvedValue(existingInvitation);
-      prismaMock.accountInvitation.update.mockResolvedValue({
+      prismaMock.invitation.findFirst.mockResolvedValue(existingInvitation);
+      prismaMock.invitation.update.mockResolvedValue({
         ...existingInvitation,
         status: InvitationStatus.revoked,
         respondedAt: new Date(),

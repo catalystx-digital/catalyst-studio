@@ -41,21 +41,33 @@ export async function POST(
       }),
     ]);
 
+    if (!account) {
+      throw ErrorHandlers.notFound('Account');
+    }
+
+    if (!inviter) {
+      throw ErrorHandlers.notFound('Inviter');
+    }
+
     // Get the invitation token for the action link
-    const fullInvitation = await prisma.accountInvitation.findUnique({
+    const fullInvitation = await prisma.invitation.findUnique({
       where: { id },
       select: { token: true },
     });
 
+    if (!fullInvitation) {
+      throw ErrorHandlers.notFound('Invitation');
+    }
+
     // Generate and send invitation email
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const actionLink = `${baseUrl}/invite/accept?token=${fullInvitation?.token}`;
+    const actionLink = `${baseUrl}/invite/accept?token=${fullInvitation.token}`;
     const declineLink = `${baseUrl}/invite/decline?id=${invitation.id}`;
 
     const emailHtml = generateInvitationEmail({
-      accountName: account?.name ?? 'Unknown Account',
-      inviterName: inviter?.name ?? inviter?.email ?? 'A team member',
-      inviterEmail: inviter?.email ?? '',
+      accountName: account.name,
+      inviterName: inviter.name ?? inviter.email,
+      inviterEmail: inviter.email,
       roleName: getRoleDisplayName(invitation.role),
       websiteNames: invitation.websiteAccess === 'specific' ? invitation.websiteNames : undefined,
       actionLink,
@@ -65,7 +77,7 @@ export async function POST(
 
     const emailResult = await sendEmail({
       to: invitation.email,
-      subject: `Reminder: You're invited to join ${account?.name ?? 'a team'} on Catalyst Studio`,
+      subject: `Reminder: You're invited to join ${account.name} on Catalyst Studio`,
       html: emailHtml,
     });
 

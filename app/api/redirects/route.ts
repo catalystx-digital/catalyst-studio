@@ -168,7 +168,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Look up the redirect to find its websiteId for ownership check
-    const redirect = await prisma.websiteRedirect.findUnique({
+    const redirect = await prisma.redirect.findUnique({
       where: { id: body.id },
       select: { websiteId: true }
     });
@@ -252,7 +252,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Look up the redirect to find its websiteId for ownership check
-    const redirect = await prisma.websiteRedirect.findUnique({
+    const redirect = await prisma.redirect.findUnique({
       where: { id },
       select: { websiteId: true }
     });

@@ -8,7 +8,8 @@ import { NextRequest } from 'next/server';
 
 import { ErrorHandlers } from '@/lib/api/errors';
 import { getAuthorizedContext } from '@/lib/auth/authorization';
-import { AccountRole, InvitationStatus, EmailDeliveryStatus } from '@/lib/generated/prisma';
+import { InvitationStatus, EmailDeliveryStatus } from '@/lib/generated/prisma';
+import { AccountRole } from '@/lib/auth/account';
 
 import { GET, POST } from '../route';
 import { GET as GET_BY_ID } from '../[id]/route';
