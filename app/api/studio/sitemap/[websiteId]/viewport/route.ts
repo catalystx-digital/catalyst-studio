@@ -4,6 +4,7 @@ import { viewportQueryService } from '@/lib/studio/services/spatial/viewport-que
 import { unifiedLayoutService, LAYOUT_CONSTANTS } from '@/lib/studio/services/layout/unified-layout-service';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
+import { normalizePageContent } from '@/lib/studio/page-content';
 
 /**
  * GET /api/studio/sitemap/[websiteId]/viewport
@@ -97,8 +98,9 @@ export async function GET(
     // Transform to React Flow format
     const nodes = visibleNodes.map((node) => {
       const pageData = node.structure?.websitePage;
-      const pageContent = pageData?.content as { components?: unknown[] } | null;
-      const components = pageContent?.components || [];
+      const components = pageData
+        ? normalizePageContent(pageData.content, { mode: 'canonical-read' }).pageContent.components
+        : [];
 
       // Debug: log component loading for ALL nodes when full detail
       if (detailLevel === 'full') {
@@ -107,7 +109,7 @@ export async function GET(
           hasStructure: !!node.structure,
           websitePageId: node.structure?.websitePageId,
           hasWebsitePage: !!pageData,
-          hasContent: !!pageContent,
+          hasContent: !!pageData?.content,
           componentCount: components.length,
         });
       }

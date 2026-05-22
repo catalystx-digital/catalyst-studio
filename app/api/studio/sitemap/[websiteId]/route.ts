@@ -9,6 +9,7 @@ import {
 import { viewportQueryService } from '@/lib/studio/services/spatial/viewport-query-service';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
+import { normalizePageContent } from '@/lib/studio/page-content';
 
 // Use threshold from layout constants (single source of truth)
 const LARGE_SITE_THRESHOLD = LAYOUT_CONSTANTS.LARGE_SITE_THRESHOLD;
@@ -246,15 +247,21 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
     select: { id: true, title: true, status: true, content: true, metadata: true },
   }) as Array<{ id: string; title: string; status: string; content: unknown; metadata: unknown }>;
   const pageMap = new Map<string, { id: string; title: string; status: string; content: unknown; metadata: unknown }>(pages.map((p) => [p.id, p]));
+  const pageComponentsMap = new Map(
+    pages.map((page) => [
+      page.id,
+      normalizePageContent(page.content, { mode: 'canonical-read' }).pageContent.components,
+    ])
+  );
 
   // Log component statistics
   let totalComponents = 0;
   let pagesWithContent = 0;
   let pagesWithComponents = 0;
   for (const page of pages) {
-    const content = page.content as any;
-    if (content) pagesWithContent++;
-    const componentCount = content?.components?.length || 0;
+    if (page.content) pagesWithContent++;
+    const components = pageComponentsMap.get(page.id) || [];
+    const componentCount = components.length;
     if (componentCount > 0) pagesWithComponents++;
     totalComponents += componentCount;
   }
@@ -272,8 +279,7 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
   // Batch fetch shared components
   const sharedIds = new Set<string>();
   for (const page of pages) {
-    const content = page.content as any;
-    for (const c of content?.components || []) {
+    for (const c of pageComponentsMap.get(page.id) || []) {
       const sid = c?.props?.sharedComponentId || c?.sharedComponentId;
       if (sid) sharedIds.add(sid);
     }
@@ -322,10 +328,9 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
     // Get position from database - this ensures consistency (includes dynamic heights)
     const pos = positionMap.get(node.id) || { x: 0, y: 0, width: LAYOUT_CONSTANTS.NODE_WIDTH, height: LAYOUT_CONSTANTS.NODE_HEIGHT };
     const page = node.websitePageId ? pageMap.get(node.websitePageId) : null;
-    const content = page?.content as any;
 
     // Enrich components with shared content
-    const components = (content?.components || []).map((c: any) => {
+    const components = (page ? pageComponentsMap.get(page.id) || [] : []).map((c: any) => {
       const sid = c?.props?.sharedComponentId || c?.sharedComponentId;
       if (sid) {
         const sharedContentRaw = sharedMap.get(sid)?.content;

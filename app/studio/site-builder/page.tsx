@@ -128,16 +128,11 @@ const hasCanonicalComponentContent = (value: unknown): value is Record<string, u
   return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length > 0
 }
 
-const readComponentContentWithLegacyFallback = (
-  component: { content?: unknown; props?: Record<string, unknown> }
+const readComponentContent = (
+  component: { content?: unknown }
 ): Record<string, unknown> => {
   if (hasCanonicalComponentContent(component.content)) {
     return component.content
-  }
-
-  const legacyReadPropsContent = component.props?.content
-  if (hasCanonicalComponentContent(legacyReadPropsContent)) {
-    return legacyReadPropsContent
   }
 
   return {}
@@ -150,7 +145,7 @@ const ensureComponentInstances = (components: ProfessionalNodeData['components']
   if (components.every((item) => typeof (item as ComponentInstance).id === 'string')) {
     return (components as ComponentInstance[]).map((component) => ({
       ...component,
-      content: readComponentContentWithLegacyFallback(component),
+      content: readComponentContent(component),
     }))
   }
 
@@ -160,9 +155,8 @@ const ensureComponentInstances = (components: ProfessionalNodeData['components']
     const parentId = component.parentId ?? null
     const position = component.position ?? index
     const props = component.props ?? {}
-    const content = readComponentContentWithLegacyFallback({
+    const content = readComponentContent({
       content: (component as { content?: unknown }).content,
-      props: props as Record<string, unknown>,
     })
     const styles = (component as { styles?: unknown }).styles ?? (props as { styles?: unknown }).styles ?? {}
     const metadata = (component as { metadata?: unknown }).metadata ?? (props as { metadata?: unknown }).metadata ?? {}

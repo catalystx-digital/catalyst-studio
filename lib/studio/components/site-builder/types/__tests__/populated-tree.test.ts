@@ -182,7 +182,13 @@ describe('populated-tree helper functions', () => {
           type: 'page'
         }
       };
-      expect(getNodeComponents(node)).toEqual(components);
+      expect(getNodeComponents(node)).toEqual([
+        expect.objectContaining({
+          id: '1',
+          type: 'hero',
+          content: {},
+        }),
+      ]);
     });
 
     it('should parse JSON string content', () => {
@@ -203,7 +209,13 @@ describe('populated-tree helper functions', () => {
           type: 'page'
         }
       };
-      expect(getNodeComponents(node)).toEqual(components);
+      expect(getNodeComponents(node)).toEqual([
+        expect.objectContaining({
+          id: '1',
+          type: 'hero',
+          content: {},
+        }),
+      ]);
     });
 
     it('should return empty array when no websitePageId', () => {
@@ -258,7 +270,47 @@ describe('populated-tree helper functions', () => {
           type: 'page'
         }
       };
-      expect(getNodeComponents(node)).toEqual(components);
+      expect(getNodeComponents(node)).toEqual([
+        expect.objectContaining({
+          id: '1',
+          type: 'hero',
+          content: {},
+        }),
+      ]);
+    });
+
+    it('should not promote stale props.content into canonical component content', () => {
+      const node: PopulatedTreeNode = {
+        id: '1',
+        slug: 'test',
+        title: 'Test',
+        websiteId: 'web1',
+        websitePageId: 'page1',
+        position: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        websitePage: {
+          title: 'Page',
+          content: {
+            components: [
+              {
+                id: '1',
+                type: 'hero',
+                props: {
+                  content: { heading: 'Legacy props.content heading' },
+                },
+                content: {},
+              },
+            ],
+          },
+          metadata: null,
+          type: 'page'
+        }
+      };
+
+      const [component] = getNodeComponents(node) as Array<Record<string, any>>;
+      expect(component.content).toEqual({});
+      expect(component.props).not.toHaveProperty('content');
     });
   });
 

@@ -39,6 +39,10 @@ function isStrictWrite(options: StrictDiagnosticsOptions): boolean {
   return options.mode === 'strict-write'
 }
 
+function isCanonicalRead(options: StrictDiagnosticsOptions): boolean {
+  return options.mode === 'canonical-read'
+}
+
 function isRecord(value: unknown): value is AnyRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -178,6 +182,10 @@ export function normalizeProps(
   let parsedTextContent: Record<string, unknown> | null = null
 
   Object.entries(value).forEach(([key, entry]) => {
+    if (isCanonicalRead(options) && (key === 'content' || key === 'text')) {
+      return
+    }
+
     if (key === 'content' || key === 'data' || key.endsWith('Json')) {
       normalized[key] = parseJsonStringWithDiagnostics(entry, {
         diagnostics,
@@ -538,7 +546,7 @@ export function normalizeComponent(
     message: 'Component content contains malformed JSON-like text and was left unchanged.',
   })
   const propsContent = isRecord(props.content) ? props.content : {}
-  const usesPropsContent = !hasContent(rawContent)
+  const usesPropsContent = !isCanonicalRead(options) && !hasContent(rawContent)
   const content = normalizeContentForComponentType(
     type,
     usesPropsContent ? propsContent : rawContent,
@@ -562,6 +570,10 @@ export function normalizeComponent(
   if (isStrictWrite(options)) {
     delete props.content
   }
+  if (isCanonicalRead(options)) {
+    delete props.content
+    delete props.text
+  }
   const styles = isRecord(instance.styles) ? instance.styles : {}
   const rawMetadata = parseJsonStringWithDiagnostics(instance.metadata, {
     diagnostics,
@@ -573,7 +585,7 @@ export function normalizeComponent(
   const metadata = isRecord(rawMetadata) ? rawMetadata : {}
   const globalComponentId = typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
   const sharedComponentId = typeof instance.sharedComponentId === 'string' ? instance.sharedComponentId : undefined
-  const passthrough = isStrictWrite(options)
+  const passthrough = isStrictWrite(options) || isCanonicalRead(options)
     ? omitKeys(instance, STRICT_COMPONENT_SOURCE_KEYS)
     : instance
 
@@ -605,7 +617,7 @@ export function normalizeComponent(
     ...passthrough,
     id,
     type,
-    ...(componentType && !isStrictWrite(options) ? { componentType } : {}),
+    ...(componentType && !isStrictWrite(options) && !isCanonicalRead(options) ? { componentType } : {}),
     ...(rawComponentTypeId ? { componentTypeId: rawComponentTypeId } : {}),
     ...(rawTypeId ? { typeId: rawTypeId } : {}),
     parentId,

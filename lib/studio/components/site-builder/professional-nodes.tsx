@@ -120,14 +120,9 @@ function hasCanonicalContent(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length > 0
 }
 
-function getCanonicalContentWithLegacyReadFallback(component: any): Record<string, unknown> {
+function getCanonicalContent(component: any): Record<string, unknown> {
   if (hasCanonicalContent(component.content)) {
     return component.content
-  }
-
-  const legacyReadPropsContent = component.props?.content
-  if (hasCanonicalContent(legacyReadPropsContent)) {
-    return legacyReadPropsContent
   }
 
   return {}
@@ -139,8 +134,6 @@ export function getComponentSummary(component: ComponentInstance): string | unde
     props.metadata,
     (component as unknown as Record<string, unknown>).metadata,
     component.content,
-    props.content,
-    props.text
   ]
 
   for (const candidate of sources) {
@@ -248,7 +241,7 @@ export const migrateComponentsToInstances = (components: any): ComponentInstance
     }
     return components.map((component) => ({
       ...component,
-      content: getCanonicalContentWithLegacyReadFallback(component)
+      content: getCanonicalContent(component)
     })) as ComponentInstanceArray
   }
   
@@ -323,7 +316,7 @@ export const migrateComponentsToInstances = (components: any): ComponentInstance
           parentId: component.parentId || null,
           position: component.position ?? index,
           props: { ...extractedProps, ...(component.props || {}) },
-          content: getCanonicalContentWithLegacyReadFallback(component),
+          content: getCanonicalContent(component),
           styles: component.props?.styles || component.styles || {},
           metadata: component.props?.metadata || component.metadata || {},
           globalComponentId: component.globalComponentId
@@ -1343,7 +1336,6 @@ export const professionalNodeTypes = {
   folder: ProfessionalFolderNode,
   redirect: ProfessionalRedirectNode,
 }
-
 
 
 

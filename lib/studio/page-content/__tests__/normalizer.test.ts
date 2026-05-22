@@ -40,6 +40,72 @@ describe('page content normalizer', () => {
     expect(pageContentV1Schema.parse(result.pageContent)).toEqual(result.pageContent)
   })
 
+  it('canonical-read uses component.content over stale props.content and strips mirror props', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          props: {
+            content: { heading: 'Stale props.content heading' },
+            text: JSON.stringify({ heading: 'Stale props.text heading' }),
+            variant: 'split',
+          },
+          content: { heading: 'Canonical heading' },
+        },
+      ],
+    }, { mode: 'canonical-read' })
+
+    const component = result.pageContent.components[0]
+    expect(component.content).toEqual({ heading: 'Canonical heading' })
+    expect(component.props).toEqual({ variant: 'split' })
+    expect(result.diagnostics).toEqual([])
+  })
+
+  it('canonical-read keeps empty content when canonical content is empty or missing and strips content/text mirror props', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          props: {
+            content: { heading: 'Legacy props.content heading' },
+            text: JSON.stringify({ heading: 'Legacy props.text heading' }),
+            eyebrow: 'Kept prop',
+          },
+          content: {},
+        },
+        {
+          id: 'text-1',
+          type: 'text-block',
+          props: {
+            content: { text: 'Legacy props.content text' },
+            text: JSON.stringify({ text: 'Legacy props.text text' }),
+            align: 'center',
+          },
+        },
+        {
+          id: 'feature-1',
+          type: 'feature-grid',
+          data: {
+            content: { heading: 'Legacy data.content heading' },
+            text: JSON.stringify({ heading: 'Legacy data.text heading' }),
+            columns: 3,
+          },
+        },
+      ],
+    }, { mode: 'canonical-read' })
+
+    expect(result.pageContent.components[0].content).toEqual({})
+    expect(result.pageContent.components[0].props).toEqual({ eyebrow: 'Kept prop' })
+    expect(result.pageContent.components[1].content).toEqual({})
+    expect(result.pageContent.components[1].props).toEqual({ align: 'center' })
+    expect(result.pageContent.components[2].content).toEqual({})
+    expect(result.pageContent.components[2].props).toEqual({ columns: 3 })
+    expect(result.pageContent.components[2]).not.toHaveProperty('data')
+    expect(result.diagnostics).toEqual([])
+  })
+
   it('adapts legacy sections and componentType entries', () => {
     const result = normalizePageContent({
       sections: [

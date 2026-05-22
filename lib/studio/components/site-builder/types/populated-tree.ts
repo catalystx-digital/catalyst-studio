@@ -1,5 +1,6 @@
 import { TreeNode } from '@/lib/types/site-structure.types';
 import { ContentTypeCategory } from '@/lib/generated/prisma';
+import { normalizePageContent } from '@/lib/studio/page-content';
 
 /**
  * TreeNode with populated relations for transform operations
@@ -66,25 +67,7 @@ export function getNodeComponents(node: PopulatedTreeNode & { components?: unkno
   
   // Then check websitePage content
   if (hasPopulatedContent(node) && node.websitePage?.content) {
-    // Handle both string (JSON) and object content
-    const content = node.websitePage.content;
-    
-    if (typeof content === 'string') {
-      try {
-        const parsed = JSON.parse(content);
-        return parsed.components || [];
-      } catch {
-        return [];
-      }
-    } else if (typeof content === 'object' && content !== null) {
-      // Check if components exists directly or nested
-      if ('components' in content) {
-        return (content as any).components || [];
-      } else if (Array.isArray(content)) {
-        // If content is directly an array, it might be the components
-        return content;
-      }
-    }
+    return normalizePageContent(node.websitePage.content, { mode: 'canonical-read' }).pageContent.components;
   }
   return [];
 }

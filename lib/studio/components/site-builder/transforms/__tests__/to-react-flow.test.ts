@@ -10,6 +10,7 @@ describe('transformToReactFlow', () => {
       children: [],
       websiteId: 'test',
       contentItemId: 'content-1',
+      websitePageId: 'page-1',
       parentId: null,
       fullPath: '/home',
       pathDepth: 1,
@@ -132,14 +133,10 @@ describe('transformToReactFlow', () => {
       updatedAt: new Date()
     };
 
-    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
     const result = transformToReactFlow(treeNode);
 
-    expect(consoleSpy).toHaveBeenCalled();
     expect(result.nodes).toHaveLength(0);  // No valid nodes processed
     expect(result.edges).toHaveLength(0);
-
-    consoleSpy.mockRestore();
   });
 
   it('should handle array of root nodes', () => {
@@ -181,5 +178,118 @@ describe('transformToReactFlow', () => {
     expect(result.nodes).toHaveLength(2);
     expect(result.edges).toHaveLength(0);
     expect(result.nodes.map(n => n.id)).toEqual(['root-1', 'root-2']);
+  });
+
+  it('normalizes website page content with canonical content winning over stale props.content', () => {
+    const result = transformToReactFlow({
+      id: 'node-1',
+      slug: 'home',
+      title: 'Home',
+      children: [],
+      websiteId: 'test',
+      websitePageId: 'page-1',
+      parentId: null,
+      position: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      websitePage: {
+        title: 'Home',
+        type: 'page',
+        metadata: null,
+        content: {
+          components: [
+            {
+              id: 'component-1',
+              type: 'hero-banner',
+              props: {
+                content: { heading: 'Stale props.content heading' },
+              },
+              content: { heading: 'Canonical heading' },
+            },
+          ],
+        },
+      },
+    } as any);
+
+    expect(result.nodes[0].data.components?.[0]).toMatchObject({
+      id: 'component-1',
+      type: 'hero-banner',
+      content: { heading: 'Canonical heading' },
+    });
+  });
+
+  it('normalizes website page content by ignoring stale props.content when canonical content is empty', () => {
+    const result = transformToReactFlow({
+      id: 'node-1',
+      slug: 'home',
+      title: 'Home',
+      children: [],
+      websiteId: 'test',
+      websitePageId: 'page-1',
+      parentId: null,
+      position: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      websitePage: {
+        title: 'Home',
+        type: 'page',
+        metadata: null,
+        content: {
+          components: [
+            {
+              id: 'component-1',
+              type: 'hero-banner',
+              props: {
+                content: { heading: 'Legacy props.content heading' },
+              },
+              content: {},
+            },
+          ],
+        },
+      },
+    } as any);
+
+    const component = result.nodes[0].data.components?.[0];
+    expect(component).toMatchObject({
+      id: 'component-1',
+      type: 'hero-banner',
+      content: {},
+    });
+    expect(component.props).not.toHaveProperty('content');
+  });
+
+  it('normalizes JSON string website page content', () => {
+    const result = transformToReactFlow({
+      id: 'node-1',
+      slug: 'home',
+      title: 'Home',
+      children: [],
+      websiteId: 'test',
+      websitePageId: 'page-1',
+      parentId: null,
+      position: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      websitePage: {
+        title: 'Home',
+        type: 'page',
+        metadata: null,
+        content: JSON.stringify({
+          components: [
+            {
+              id: 'component-1',
+              type: 'hero-banner',
+              content: { heading: 'Parsed heading' },
+            },
+          ],
+        }),
+      },
+    } as any);
+
+    expect(result.nodes[0].data.components?.[0]).toMatchObject({
+      id: 'component-1',
+      type: 'hero-banner',
+      content: { heading: 'Parsed heading' },
+    });
   });
 });
