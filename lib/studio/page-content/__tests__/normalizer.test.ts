@@ -91,6 +91,35 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('reports malformed root JSON-like page string in legacy-read', () => {
+    const result = normalizePageContent('{"components":')
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+        severity: 'warn',
+        path: '$',
+      }),
+    ]))
+  })
+
+  it('throws for malformed root JSON-like page string in strict-write', () => {
+    try {
+      normalizePageContent('{"components":', { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+          severity: 'error',
+          path: '$',
+        }),
+      ]))
+    }
+  })
+
   it('parses JSON content from props.text without overwriting non-empty content', () => {
     const props = normalizeProps({
       text: JSON.stringify({
@@ -107,6 +136,110 @@ describe('page content normalizer', () => {
       heading: 'Existing heading',
       slides: [{ title: 'Slide 1' }],
     })
+  })
+
+  it('reports malformed props.content in legacy-read but continues', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          props: { content: '{"text":' },
+          content: {},
+        },
+      ],
+    })
+
+    expect(result.pageContent.components[0].props.content).toBe('{"text":')
+    expect(result.pageContent.components[0].content).toEqual({})
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_JSON_PARSE_FAILED',
+        severity: 'warn',
+        path: 'components[0].props.content',
+      }),
+    ]))
+  })
+
+  it('reports malformed props.text in legacy-read while plain text does not', () => {
+    const malformed = normalizePageContent({
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          props: { text: '{"heading":' },
+          content: {},
+        },
+      ],
+    })
+    const plain = normalizePageContent({
+      components: [
+        {
+          id: 'text-2',
+          type: 'text-block',
+          props: { text: 'plain text' },
+          content: {},
+        },
+      ],
+    })
+
+    expect(malformed.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+        severity: 'warn',
+        path: 'components[0].props.text',
+      }),
+    ]))
+    expect(plain.diagnostics.map(diagnostic => diagnostic.code)).not.toContain(
+      'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED'
+    )
+  })
+
+  it.each([
+    '[Learn more](https://example.com)',
+    '[todo]',
+    '[- draft]',
+    '[2026 Roadmap]',
+    '[null hypothesis]',
+    '{{name}}',
+  ])('does not report parse diagnostics for plain props.text starting with JSON delimiters in legacy-read: %s', (text) => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          props: { text },
+          content: {},
+        },
+      ],
+    })
+
+    expect(result.pageContent.components[0].props.text).toBe(text)
+    expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain(
+      'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED'
+    )
+  })
+
+  it('reports malformed component.content in legacy-read', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          props: {},
+          content: '{"text":',
+        },
+      ],
+    })
+
+    expect(result.pageContent.components[0].content).toEqual({})
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED',
+        severity: 'warn',
+        path: 'components[0].content',
+      }),
+    ]))
   })
 
   it('normalizes legacy blog-list props.text blogs into canonical posts', () => {
@@ -416,15 +549,58 @@ describe('page content normalizer', () => {
         throw new Error('Expected strict canonical write to throw')
       } catch (error) {
         expect(error).toBeInstanceOf(PageContentNormalizationError)
-        expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
           expect.objectContaining({
             code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
             path: 'components[0].props.content',
             severity: 'error',
           }),
-        ])
+        ]))
       }
     }
+  })
+
+  it('rejects malformed JSON-like props.text in strict-write', () => {
+    for (const text of ['{"heading":', '[{"x":']) {
+      try {
+        toCanonicalPageContent({}, [
+          {
+            id: 'text-1',
+            type: 'text-block',
+            props: { text },
+            content: {},
+          },
+        ], { mode: 'strict-write' })
+        throw new Error('Expected strict canonical write to throw')
+      } catch (error) {
+        expect(error).toBeInstanceOf(PageContentNormalizationError)
+        expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+            path: 'components[0].props.text',
+            severity: 'error',
+          }),
+        ]))
+      }
+    }
+  })
+
+  it.each([
+    '[Draft] Title',
+    '[todo]',
+    '[- draft]',
+    '[2026 Roadmap]',
+    '[null hypothesis]',
+    '{{name}}',
+  ])('does not reject plain props.text starting with JSON delimiters in strict-write: %s', (text) => {
+    expect(() => toCanonicalPageContent({}, [
+      {
+        id: 'text-1',
+        type: 'text-block',
+        props: { text },
+        content: {},
+      },
+    ], { mode: 'strict-write' })).not.toThrow()
   })
 
   it('rejects invalid strict-write page metadata while legacy-read drops it', () => {

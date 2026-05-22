@@ -11,6 +11,13 @@ import {
 
 type AnyRecord = Record<string, unknown>
 type StrictDiagnosticsOptions = Required<NormalizePageContentOptions>
+interface ParseJsonDiagnosticOptions {
+  diagnostics: PageContentDiagnostic[]
+  options: StrictDiagnosticsOptions
+  path: string
+  code: string
+  message: string
+}
 
 export class PageContentNormalizationError extends Error {
   readonly diagnostics: PageContentDiagnostic[]
@@ -63,6 +70,31 @@ function throwOnStrictErrors(options: StrictDiagnosticsOptions, diagnostics: Pag
   }
 }
 
+function isJsonIntentString(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  const firstChar = trimmed[0]
+  const secondToken = trimmed.slice(1).trimStart()[0]
+
+  if (firstChar === '{') {
+    return secondToken === '"' || secondToken === '}'
+  }
+
+  if (firstChar === '[') {
+    return (
+      secondToken === '{'
+      || secondToken === '['
+      || secondToken === '"'
+      || secondToken === ']'
+    )
+  }
+
+  return false
+}
+
 export function parseJsonString(value: unknown): unknown {
   if (typeof value !== 'string') {
     return value
@@ -86,7 +118,58 @@ export function parseJsonString(value: unknown): unknown {
   return value
 }
 
-export function normalizeProps(value: unknown): Record<string, unknown> {
+function parseJsonStringWithDiagnostics(
+  value: unknown,
+  parseOptions: ParseJsonDiagnosticOptions
+): unknown {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed || !isJsonIntentString(trimmed)) {
+    return value
+  }
+
+  try {
+    return JSON.parse(trimmed)
+  } catch (error) {
+    addDiagnostic(parseOptions.diagnostics, {
+      code: parseOptions.code,
+      severity: isStrictWrite(parseOptions.options) ? 'error' : 'warn',
+      message: parseOptions.message,
+      path: parseOptions.path,
+      context: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    })
+    return value
+  }
+}
+
+function jsonParseFailureCodeForProp(key: string): string {
+  if (key === 'text') {
+    return 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED'
+  }
+
+  if (key === 'content') {
+    return 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_JSON_PARSE_FAILED'
+  }
+
+  if (key === 'data') {
+    return 'PAGE_CONTENT_COMPONENT_PROPS_DATA_JSON_PARSE_FAILED'
+  }
+
+  return 'PAGE_CONTENT_COMPONENT_PROPS_JSON_PARSE_FAILED'
+}
+
+export function normalizeProps(
+  value: unknown,
+  diagnostics: PageContentDiagnostic[] = [],
+  path = 'props',
+  optionsInput?: NormalizePageContentOptions
+): Record<string, unknown> {
+  const options = resolveOptions(optionsInput)
   if (!isRecord(value)) {
     return {}
   }
@@ -96,13 +179,25 @@ export function normalizeProps(value: unknown): Record<string, unknown> {
 
   Object.entries(value).forEach(([key, entry]) => {
     if (key === 'content' || key === 'data' || key.endsWith('Json')) {
-      normalized[key] = parseJsonString(entry)
+      normalized[key] = parseJsonStringWithDiagnostics(entry, {
+        diagnostics,
+        options,
+        path: `${path}.${key}`,
+        code: jsonParseFailureCodeForProp(key),
+        message: `Component props.${key} contains malformed JSON-like text and was left unchanged.`,
+      })
       return
     }
 
     if (key === 'text' && typeof entry === 'string') {
       normalized[key] = entry
-      const parsed = parseJsonString(entry)
+      const parsed = parseJsonStringWithDiagnostics(entry, {
+        diagnostics,
+        options,
+        path: `${path}.text`,
+        code: jsonParseFailureCodeForProp(key),
+        message: 'Component props.text contains malformed JSON-like text and was left unchanged.',
+      })
       if (isRecord(parsed)) {
         parsedTextContent = parsed
       }
@@ -433,8 +528,15 @@ export function normalizeComponent(
     ? instance.parentId
     : null
   const position = typeof instance.position === 'number' ? instance.position : fallbackPosition
-  const props = normalizeProps(instance.props ?? instance.data)
-  const rawContent = parseJsonString(instance.content)
+  const propsSourcePath = isRecord(instance.props) || hasOwn(instance, 'props') ? `${path}.props` : `${path}.data`
+  const props = normalizeProps(instance.props ?? instance.data, diagnostics, propsSourcePath, options)
+  const rawContent = parseJsonStringWithDiagnostics(instance.content, {
+    diagnostics,
+    options,
+    path: `${path}.content`,
+    code: 'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED',
+    message: 'Component content contains malformed JSON-like text and was left unchanged.',
+  })
   const propsContent = isRecord(props.content) ? props.content : {}
   const usesPropsContent = !hasContent(rawContent)
   const content = normalizeContentForComponentType(
@@ -458,7 +560,13 @@ export function normalizeComponent(
     props.content = content
   }
   const styles = isRecord(instance.styles) ? instance.styles : {}
-  const rawMetadata = parseJsonString(instance.metadata)
+  const rawMetadata = parseJsonStringWithDiagnostics(instance.metadata, {
+    diagnostics,
+    options,
+    path: `${path}.metadata`,
+    code: 'PAGE_CONTENT_COMPONENT_METADATA_JSON_PARSE_FAILED',
+    message: 'Component metadata contains malformed JSON-like text and was left unchanged.',
+  })
   const metadata = isRecord(rawMetadata) ? rawMetadata : {}
   const globalComponentId = typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
   const sharedComponentId = typeof instance.sharedComponentId === 'string' ? instance.sharedComponentId : undefined
@@ -617,7 +725,13 @@ export function normalizePageContent(
 ): NormalizePageContentResult {
   const options = resolveOptions(optionsInput)
   const diagnostics: PageContentDiagnostic[] = []
-  const parsedContent = parseJsonString(content)
+  const parsedContent = parseJsonStringWithDiagnostics(content, {
+    diagnostics,
+    options,
+    path: '$',
+    code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+    message: 'Page content contains malformed JSON-like text and was left unchanged.',
+  })
   if (typeof content === 'string' && parsedContent !== content) {
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_JSON_STRING',

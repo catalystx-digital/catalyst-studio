@@ -13,8 +13,8 @@ import {
   normalizeProps,
   normalizeRegionSummary,
   normalizeTemplateProps,
-  parseJsonString,
   resolveCmsComponentType,
+  type PageContentDiagnostic,
 } from '@/lib/studio/page-content'
 import { applyTemplateOverrides } from '@/lib/studio/headless/site-snapshot/templates'
 import type {
@@ -265,6 +265,23 @@ function normalizeSharedComponentContent(
   return sharedComponent && isRecord(sharedComponent.content) ? cloneJson(sharedComponent.content) : {}
 }
 
+function mapNormalizerDiagnosticToGenerator(
+  diagnostic: PageContentDiagnostic,
+  context: Record<string, unknown>
+): GeneratorDiagnostic {
+  return {
+    code: diagnostic.code,
+    level: diagnostic.severity,
+    message: diagnostic.message,
+    context: {
+      ...context,
+      ...(diagnostic.path ? { path: diagnostic.path } : {}),
+      ...(diagnostic.componentId ? { componentId: diagnostic.componentId } : {}),
+      ...(diagnostic.context ?? {}),
+    },
+  }
+}
+
 interface PrismaPageWithStructure {
   id: string
   title: string
@@ -388,7 +405,14 @@ class PrismaSiteSnapshotBuilder {
   }
 
   private toSnapshotPage(page: PrismaPageWithStructure): SnapshotPage {
-    const { pageContent } = normalizePageContent(page.content)
+    const { pageContent, diagnostics } = normalizePageContent(page.content)
+    diagnostics.forEach(diagnostic => {
+      this.diagnostics.push(mapNormalizerDiagnosticToGenerator(diagnostic, {
+        websiteId: this.websiteId,
+        pageId: page.id,
+        source: 'page.content',
+      }))
+    })
     const regions = pageContent.regions ?? []
     const components = pageContent.components
       .map(component => {

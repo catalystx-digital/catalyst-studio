@@ -6,7 +6,7 @@ import {
   normalizeTemplateProps,
   extractSiteOriginFromMetadata
 } from '@/lib/studio/headless/ucs/snapshot-builder'
-import { normalizePageContent } from '@/lib/studio/page-content'
+import { normalizePageContent, type PageContentDiagnostic } from '@/lib/studio/page-content'
 import type {
   SnapshotPage,
   SnapshotSharedComponent,
@@ -64,6 +64,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function cloneNode<T>(value: T): T {
   return value ? JSON.parse(JSON.stringify(value)) as T : value
+}
+
+function mapNormalizerDiagnosticToResolver(
+  diagnostic: PageContentDiagnostic,
+  context: Record<string, unknown>
+): ResolverDiagnostic {
+  return {
+    code: diagnostic.code,
+    level: diagnostic.severity,
+    message: diagnostic.message,
+    context: {
+      ...context,
+      ...(diagnostic.path ? { path: diagnostic.path } : {}),
+      ...(diagnostic.componentId ? { componentId: diagnostic.componentId } : {}),
+      ...(diagnostic.context ?? {}),
+    },
+  }
 }
 
 const structureChildSelect = Prisma.validator<Prisma.WebsiteStructureSelect>()({
@@ -331,7 +348,15 @@ export async function resolveUcsPageBySlug(
   }
 
   const pageRecord = structureRecord.websitePage
-  const { pageContent } = normalizePageContent(pageRecord.content)
+  const { pageContent, diagnostics: normalizerDiagnostics } = normalizePageContent(pageRecord.content)
+  normalizerDiagnostics.forEach(diagnostic => {
+    diagnostics.push(mapNormalizerDiagnosticToResolver(diagnostic, {
+      websiteId: options.websiteId,
+      pageId: pageRecord.id,
+      source: 'page.content',
+      fullPath: structureRecord.fullPath ?? canonicalPath,
+    }))
+  })
   const regions = pageContent.regions ?? []
   const components = pageContent.components
   const sharedComponentIds = Array.from(

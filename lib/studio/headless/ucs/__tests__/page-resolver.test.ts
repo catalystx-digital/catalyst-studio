@@ -159,7 +159,7 @@ describe('resolveUcsPageBySlug', () => {
       resolveMedia: false
     })
 
-    expect(result.diagnostics).toEqual([
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
         level: 'warn',
@@ -168,7 +168,68 @@ describe('resolveUcsPageBySlug', () => {
           componentType: 'two-column'
         })
       })
-    ])
+    ]))
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+        level: 'warn',
+        context: expect.objectContaining({
+          pageId: 'page-home',
+          path: 'components[0].props.text',
+          source: 'page.content'
+        })
+      })
+    ]))
+  })
+
+  it('returns normalizer parse diagnostics for malformed page content', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'struct-home',
+      parentId: null,
+      slug: 'home',
+      fullPath: '/',
+      position: 0,
+      websitePageId: 'page-home',
+      websitePage: {
+        id: 'page-home',
+        title: 'Home',
+        ...basePage,
+        content: '{"components":'
+      },
+      children: []
+    })
+    const prisma = createPrismaMock({
+      websiteStructure: {
+        findFirst,
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    })
+
+    const result = await resolveUcsPageBySlug({
+      prisma,
+      websiteId: 'site',
+      slug: [],
+      sharedComponentCache: new Map(),
+      resolveMedia: false
+    })
+
+    expect(result.payload?.page.components).toEqual([])
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+        level: 'warn',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-home',
+          path: '$',
+          source: 'page.content',
+          fullPath: '/'
+        })
+      })
+    ]))
   })
 
   it('resolves nested slug with single ancestor query', async () => {

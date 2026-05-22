@@ -176,5 +176,83 @@ describe('buildUcsSiteSnapshot', () => {
         })
       })
     ]))
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+        level: 'warn',
+        context: expect.objectContaining({
+          pageId: 'page-1',
+          path: 'components[0].props.text',
+          source: 'page.content'
+        })
+      })
+    ]))
+  })
+
+  it('returns normalizer parse diagnostics for malformed page content', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'site',
+          name: 'Site',
+          description: null,
+          metadata: {},
+          settings: {}
+        })
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websitePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'page-1',
+            title: 'Home',
+            content: '{"components":',
+            templateKey: null,
+            templateProps: {},
+            metadata: {},
+            structures: [
+              {
+                id: 'structure-1',
+                fullPath: '/',
+                slug: 'home',
+                parentId: null,
+                position: 0
+              }
+            ]
+          }
+        ])
+      },
+      websiteStructure: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      redirect: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.pages[0].components).toEqual([])
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+        level: 'warn',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-1',
+          path: '$',
+          source: 'page.content'
+        })
+      })
+    ]))
   })
 })
