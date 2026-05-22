@@ -9,7 +9,7 @@ const ENABLE_QUERY_LOG = process.env.PRISMA_QUERY_LOG === 'true';
 let queryCount = 0;
 const queryCountByModel: Record<string, number> = {};
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient {
   const client = new PrismaClient({
     log: ENABLE_QUERY_LOG
       ? [
@@ -56,14 +56,14 @@ function createPrismaClient() {
 
   const databaseUrl = process.env.DATABASE_URL ?? '';
   if (databaseUrl.startsWith('prisma://') || databaseUrl.startsWith('prisma+postgres://')) {
-    return client.$extends(withAccelerate());
+    return client.$extends(withAccelerate()) as unknown as PrismaClient;
   }
 
   return client;
 }
 
-// Export the extended client type for use in function signatures
-export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
+// Export a stable client type for use in function signatures.
+export type ExtendedPrismaClient = PrismaClient;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: ExtendedPrismaClient | undefined;

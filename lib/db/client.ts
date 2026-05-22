@@ -1,14 +1,14 @@
 import { PrismaClient } from '../generated/prisma'
 import { withAccelerate } from '@prisma/extension-accelerate'
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient {
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  }).$extends(withAccelerate())
+  }).$extends(withAccelerate()) as unknown as PrismaClient
 }
 
-// Export the extended client type for use in function signatures
-export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>
+// Export a stable client type for use in function signatures
+export type ExtendedPrismaClient = PrismaClient
 
 // Singleton pattern for Prisma client
 // This prevents multiple instances during hot reload in development

@@ -155,38 +155,38 @@ export async function GET(request: NextRequest) {
       totalIntegrations,
       enabledIntegrations,
     ] = await Promise.all([
-      (prisma as any).importJob?.count?.({
+      prisma.importJob.count({
         where: {
           createdAt: { gte: importFallbackStart },
           website: { accountId },
         },
-      }) ?? Promise.resolve(0),
-      (prisma as any).website?.count?.({
+      }),
+      prisma.website.count({
         where: {
           accountId,
           category: 'imported',
           createdAt: { gte: importFallbackStart },
         },
-      }) ?? Promise.resolve(0),
-      (prisma as any).website?.count?.({
+      }),
+      prisma.website.count({
         where: {
           accountId,
           createdAt: { gte: importFallbackStart },
         },
-      }) ?? Promise.resolve(0),
-      (prisma as any).aIContext?.findMany?.({
+      }),
+      prisma.aIContext.findMany({
         where: {
           website: { accountId },
           updatedAt: { gte: chatFallbackStart },
         },
         select: { metadata: true },
-      }) ?? Promise.resolve([]),
-      (prisma as any).accountIntegration?.count?.({
+      }),
+      prisma.accountIntegration.count({
         where: { accountId },
-      }) ?? Promise.resolve(0),
-      (prisma as any).accountIntegration?.count?.({
+      }),
+      prisma.accountIntegration.count({
         where: { accountId, status: 'enabled' },
-      }) ?? Promise.resolve(0),
+      }),
     ]);
 
     const quotas: UsageSummary['quotas'] = {} as UsageSummary['quotas'];
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
     if (period === 'day') where.occurredAt = { gte: startOfDay() };
     if (kind !== 'all') where.kind = kind;
 
-    await (prisma as any).usageEvent?.deleteMany?.({ where });
+    await prisma.usageEvent.deleteMany({ where });
     const kindsToReset = kind === 'all' ? [...QUOTA_KINDS] : [kind];
     await recordUsageResetMetadata(accountId, kindsToReset, period);
 
