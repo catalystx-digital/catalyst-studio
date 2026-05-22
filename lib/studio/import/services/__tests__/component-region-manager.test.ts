@@ -81,7 +81,7 @@ const createTemplate = (
 describe('ComponentRegionManager strict validation', () => {
   const manager = new ComponentRegionManager()
 
-  it('throws when props.content.region conflicts with props.region', () => {
+  it('throws when component.content.region conflicts with props.region', () => {
     const template = createTemplate({
       optionalRegions: [
         { region: 'hero', allowedComponents: ['hero-banner' as any] },
@@ -89,7 +89,8 @@ describe('ComponentRegionManager strict validation', () => {
       ]
     })
     const component = createComponent('hero-banner', {
-      region: 'hero',
+      region: 'hero'
+    }, {
       content: { region: 'main' }
     })
 
@@ -108,10 +109,10 @@ describe('ComponentRegionManager strict validation', () => {
         componentTypes: [createComponentType('hero-banner')],
         pageData: createPageData()
       })
-    ).toThrow('props.content.region "main" conflicts with props.region "hero"')
+    ).toThrow('component.content.region "main" conflicts with props.region "hero"')
   })
 
-  it('throws when props.content.region conflicts with metadata.region', () => {
+  it('throws when component.content.region conflicts with metadata.region', () => {
     const template = createTemplate({
       optionalRegions: [
         { region: 'hero', allowedComponents: ['hero-banner' as any] },
@@ -119,7 +120,8 @@ describe('ComponentRegionManager strict validation', () => {
       ]
     })
     const component = createComponent('hero-banner', {
-      metadata: { region: 'hero' },
+      metadata: { region: 'hero' }
+    }, {
       content: { region: 'main' }
     })
 
@@ -130,17 +132,17 @@ describe('ComponentRegionManager strict validation', () => {
         componentTypes: [createComponentType('hero-banner')],
         pageData: createPageData()
       })
-    ).toThrow('props.content.region "main" conflicts with metadata.region "hero"')
+    ).toThrow('component.content.region "main" conflicts with metadata.region "hero"')
   })
 
-  it('throws when props.content.region conflicts with props.content.metadata.region', () => {
+  it('throws when component.content.region conflicts with component.content.metadata.region', () => {
     const template = createTemplate({
       optionalRegions: [
         { region: 'hero', allowedComponents: ['hero-banner' as any] },
         { region: 'main', allowedComponents: ['hero-banner' as any] }
       ]
     })
-    const component = createComponent('hero-banner', {
+    const component = createComponent('hero-banner', {}, {
       content: {
         region: 'main',
         metadata: { region: 'hero' }
@@ -154,10 +156,10 @@ describe('ComponentRegionManager strict validation', () => {
         componentTypes: [createComponentType('hero-banner')],
         pageData: createPageData()
       })
-    ).toThrow('props.content.region "main" conflicts with props.content.metadata.region "hero"')
+    ).toThrow('component.content.region "main" conflicts with component.content.metadata.region "hero"')
   })
 
-  it('throws when props.content.metadata.region conflicts with props.region', () => {
+  it('throws when component.content.metadata.region conflicts with props.region', () => {
     const template = createTemplate({
       optionalRegions: [
         { region: 'hero', allowedComponents: ['hero-banner' as any] },
@@ -165,7 +167,8 @@ describe('ComponentRegionManager strict validation', () => {
       ]
     })
     const component = createComponent('hero-banner', {
-      region: 'hero',
+      region: 'hero'
+    }, {
       content: {
         metadata: { region: 'main' }
       }
@@ -178,10 +181,10 @@ describe('ComponentRegionManager strict validation', () => {
         componentTypes: [createComponentType('hero-banner')],
         pageData: createPageData()
       })
-    ).toThrow('props.content.metadata.region "main" conflicts with props.region "hero"')
+    ).toThrow('component.content.metadata.region "main" conflicts with props.region "hero"')
   })
 
-  it('throws when props.content.metadata.region conflicts with metadata.region', () => {
+  it('throws when component.content.metadata.region conflicts with metadata.region', () => {
     const template = createTemplate({
       optionalRegions: [
         { region: 'hero', allowedComponents: ['hero-banner' as any] },
@@ -189,7 +192,8 @@ describe('ComponentRegionManager strict validation', () => {
       ]
     })
     const component = createComponent('hero-banner', {
-      metadata: { region: 'hero' },
+      metadata: { region: 'hero' }
+    }, {
       content: {
         metadata: { region: 'main' }
       }
@@ -202,7 +206,7 @@ describe('ComponentRegionManager strict validation', () => {
         componentTypes: [createComponentType('hero-banner')],
         pageData: createPageData()
       })
-    ).toThrow('props.content.metadata.region "main" conflicts with metadata.region "hero"')
+    ).toThrow('component.content.metadata.region "main" conflicts with metadata.region "hero"')
   })
 
   it('throws when props.region conflicts with metadata.region', () => {

@@ -29,6 +29,10 @@ function normalizeRegionValue(value: unknown): string | undefined {
   return undefined
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 interface RegionSanitizeResult {
   components: ComponentInstance[]
   modified: boolean
@@ -177,31 +181,29 @@ export class ComponentRegionManager {
         const regionAssignment = this.getComponentRegionAssignment(node)
         const currentRegion = regionAssignment.region
 
+        const content = isRecord(node.content) ? node.content : undefined
         const contentRegion =
-          node.props?.content && typeof (node.props.content as Record<string, any>)?.region === 'string'
-            ? normalizeRegionValue((node.props.content as Record<string, any>).region)
+          typeof content?.region === 'string'
+            ? normalizeRegionValue(content.region)
             : undefined
+        const contentMetadata = isRecord(content?.metadata) ? content.metadata : undefined
         const contentMetadataRegion =
-          node.props?.content &&
-          typeof (node.props.content as Record<string, any>)?.metadata === 'object' &&
-          typeof ((node.props.content as Record<string, any>).metadata as Record<string, any>)?.region === 'string'
-            ? normalizeRegionValue(
-                ((node.props.content as Record<string, any>).metadata as Record<string, any>).region
-              )
+          typeof contentMetadata?.region === 'string'
+            ? normalizeRegionValue(contentMetadata.region)
             : undefined
         if (contentRegion && regionAssignment.rootRegion && contentRegion !== regionAssignment.rootRegion) {
           throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: props.content.region "${contentRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
+            `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
           )
         }
         if (contentRegion && regionAssignment.metadataRegion && contentRegion !== regionAssignment.metadataRegion) {
           throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: props.content.region "${contentRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+            `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
           )
         }
         if (contentRegion && contentMetadataRegion && contentRegion !== contentMetadataRegion) {
           throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: props.content.region "${contentRegion}" conflicts with props.content.metadata.region "${contentMetadataRegion}". Page: ${pageUrl}`
+            `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with component.content.metadata.region "${contentMetadataRegion}". Page: ${pageUrl}`
           )
         }
         if (
@@ -210,7 +212,7 @@ export class ComponentRegionManager {
           contentMetadataRegion !== regionAssignment.rootRegion
         ) {
           throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: props.content.metadata.region "${contentMetadataRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
+            `Component "${node.id}" has conflicting region assignments: component.content.metadata.region "${contentMetadataRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
           )
         }
         if (
@@ -219,7 +221,7 @@ export class ComponentRegionManager {
           contentMetadataRegion !== regionAssignment.metadataRegion
         ) {
           throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: props.content.metadata.region "${contentMetadataRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+            `Component "${node.id}" has conflicting region assignments: component.content.metadata.region "${contentMetadataRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
           )
         }
         if (

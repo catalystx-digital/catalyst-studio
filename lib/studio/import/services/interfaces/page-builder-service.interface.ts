@@ -14,6 +14,7 @@ export interface ComponentInstance {
   parentId: string | null
   position: number
   props: Record<string, any>
+  content?: unknown
   children?: ComponentInstance[]
 }
 

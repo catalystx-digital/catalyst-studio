@@ -1,4 +1,4 @@
-import { extractComponentProps } from '../page-builder/component-helpers'
+import { extractComponentPayload } from '../page-builder/component-helpers'
 import {
   consumeNormalizationWarnings,
   getNormalizationWarningSeverity,
@@ -30,9 +30,29 @@ const createComponentType = (type: string): ImportComponentType =>
     patterns: []
   } as unknown as ImportComponentType)
 
-describe('normalizeComponentContent through extractComponentProps', () => {
+function extractComponentProps(detection: DetectionResult, componentType: ImportComponentType): Record<string, any> {
+  const payload = extractComponentPayload(detection, componentType)
+  return { ...payload.props, content: payload.content }
+}
+
+describe('normalizeComponentContent through extractComponentPayload', () => {
   beforeEach(() => {
     consumeNormalizationWarnings()
+  })
+
+  it('keeps normalized content on the canonical payload instead of props mirrors', () => {
+    const detection: DetectionResult = {
+      type: 'hero-simple',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: { heading: 'Hello' }
+    }
+
+    const payload = extractComponentPayload(detection, createComponentType('hero-simple'))
+
+    expect(payload.content).toEqual(expect.objectContaining({ heading: 'Hello' }))
+    expect(payload.props).not.toHaveProperty('content')
+    expect(payload.props).not.toHaveProperty('text')
   })
 
   it('classifies fatal and nonfatal normalization issues', () => {
@@ -497,7 +517,7 @@ describe('normalizeComponentContent through extractComponentProps', () => {
     )
   })
 
-  it('passes two-column layout payloads through unchanged', () => {
+  it('normalizes two-column layout payloads without using props content mirrors', () => {
     const detection: DetectionResult = {
       id: 'two-column-1',
       type: 'two-column',
@@ -541,7 +561,19 @@ describe('normalizeComponentContent through extractComponentProps', () => {
 
     const props = extractComponentProps(detection, createComponentType('two-column'))
 
-    expect(props.content).toMatchObject(detection.content)
+    expect(props.content).toMatchObject({
+      columnRatio: '60-40',
+      reverseOnMobile: true,
+      gap: 'medium',
+      region: 'main',
+      leftColumn: [
+        { type: 'text-block' },
+        { type: 'cta-simple' }
+      ],
+      rightColumn: [
+        { type: 'image-gallery' }
+      ]
+    })
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 

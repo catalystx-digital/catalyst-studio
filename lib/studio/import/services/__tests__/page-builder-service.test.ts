@@ -1024,11 +1024,12 @@ describe('PageBuilderService', () => {
         parentId: null,
         position: 0,
         props: expect.objectContaining({
-          content: 'Welcome to Our Site',
-          text: 'Welcome to Our Site',
           styles: { backgroundColor: '#ffffff' }
-        })
+        }),
+        content: { text: 'Welcome to Our Site' }
       }))
+      expect(result[0].props).not.toHaveProperty('content')
+      expect(result[0].props).not.toHaveProperty('text')
       expect(result[0].id).toMatch(/^cms-hero-banner-0-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-\d+)?$/i)
     })
 
@@ -1057,11 +1058,10 @@ describe('PageBuilderService', () => {
       expect(result[0].children![0]).toEqual(expect.objectContaining({
         type: 'hero-banner',
         typeId: 'hero-type-1',
-        props: expect.objectContaining({
-          content: 'Button Text',
-          text: 'Button Text'
-        })
+        content: { text: 'Button Text' }
       }))
+      expect(result[0].children![0].props).not.toHaveProperty('content')
+      expect(result[0].children![0].props).not.toHaveProperty('text')
     })
   })
 
@@ -1299,7 +1299,8 @@ describe('PageBuilderService', () => {
             typeId: 'type-1',
             parentId: null,
             position: 0,
-            props: { content: { text: 'Hello' } }
+            props: {},
+            content: { text: 'Hello' }
           }
         ],
         metadata: { totalComponents: 1, maxDepth: 0, componentTypes: ['text-block'] }
@@ -1323,7 +1324,7 @@ describe('PageBuilderService', () => {
       expect(result.components[0].props).not.toHaveProperty('content')
     })
 
-    it('throws strict diagnostics for malformed JSON-like props.content strings', () => {
+    it('throws strict diagnostics when legacy props.content remains before write', () => {
       const tree: ComponentTree = {
         components: [
           {
@@ -1346,8 +1347,7 @@ describe('PageBuilderService', () => {
         expect(error).toBeInstanceOf(PageContentNormalizationError)
         const codes = (error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)
         expect(codes).toEqual(expect.arrayContaining([
-          'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
-          'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_JSON_PARSE_FAILED'
+          'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING'
         ]))
       }
     })
@@ -1382,17 +1382,9 @@ describe('PageBuilderService', () => {
       }
     })
 
-    it('wraps plain non-JSON props.content and component.content strings as text content', () => {
+    it('rejects plain component.content strings instead of wrapping in formatPageContent', () => {
       const tree: ComponentTree = {
         components: [
-          {
-            id: 'props-text-1',
-            type: 'text-block',
-            typeId: 'type-1',
-            parentId: null,
-            position: 0,
-            props: { content: '[todo]' }
-          },
           {
             id: 'content-text-1',
             type: 'text-block',
@@ -1403,23 +1395,10 @@ describe('PageBuilderService', () => {
             content: '{{name}}'
           }
         ],
-        metadata: { totalComponents: 2, maxDepth: 0, componentTypes: ['text-block'] }
+        metadata: { totalComponents: 1, maxDepth: 0, componentTypes: ['text-block'] }
       }
 
-      const result = service.formatPageContent(tree, 'components')
-
-      expect(result.components).toEqual([
-        expect.objectContaining({
-          id: 'props-text-1',
-          props: {},
-          content: { text: '[todo]' }
-        }),
-        expect.objectContaining({
-          id: 'content-text-1',
-          props: {},
-          content: { text: '{{name}}' }
-        })
-      ])
+      expect(() => service.formatPageContent(tree, 'components')).toThrow(PageContentNormalizationError)
     })
   })
 
@@ -1543,7 +1522,8 @@ describe('PageBuilderService', () => {
       expect(result.confidence).toBe(0.95)
       expect(result.metadata).toEqual({ test: 'value', summary: 'Test content' })
       expect(result.defaultProp).toBe('defaultValue')
-      expect(result.content).toBe('Test content')
+      expect(result).not.toHaveProperty('content')
+      expect(result).not.toHaveProperty('text')
     })
 
     it('should handle null values in resolveParentPage', async () => {

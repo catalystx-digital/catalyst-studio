@@ -28,7 +28,7 @@ import {
 import { calculatePositions, deduplicateComponents } from './page-builder/component-tree-utils'
 import { generateComponentId, extractComponentProps } from './page-builder/component-helpers'
 import { normalizeImportUrl } from './import-run-service'
-import { parseJsonString, toCanonicalPageContent } from '@/lib/studio/page-content'
+import { toCanonicalPageContent } from '@/lib/studio/page-content'
 
 const PageDataSchema = z.object({
   title: z.string().min(1, 'Page title is required'),
@@ -61,35 +61,6 @@ interface PreparedPage {
   isValid: boolean
   validationIssues: TemplateValidationIssue[]
   contentTypeId: string
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isJsonIntentString(value: string): boolean {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return false
-  }
-
-  const firstChar = trimmed[0]
-  const secondToken = trimmed.slice(1).trimStart()[0]
-
-  if (firstChar === '{') {
-    return secondToken === '"' || secondToken === '}'
-  }
-
-  if (firstChar === '[') {
-    return (
-      secondToken === '{'
-      || secondToken === '['
-      || secondToken === '"'
-      || secondToken === ']'
-    )
-  }
-
-  return false
 }
 
 export class PageBuilderService implements IPageBuilderService {
@@ -172,35 +143,10 @@ export class PageBuilderService implements IPageBuilderService {
         ? component.props
         : {}
       const props = { ...propsSource }
-      const parsedContent = parseJsonString(props.content)
-      if (props.content !== undefined && typeof props.content === 'string') {
-        props.content = isPlainObject(parsedContent)
-          ? parsedContent
-          : isJsonIntentString(props.content)
-            ? props.content
-            : { text: props.content }
-      }
-      const parsedText = parseJsonString(props.text)
-      if (typeof props.text === 'string' && isPlainObject(parsedText)) {
-        delete props.text
-      }
-      const parsedComponentContent = parseJsonString(component.content)
-      const content = isPlainObject(parsedComponentContent)
-        ? parsedComponentContent
-        : typeof component.content === 'string'
-          ? isJsonIntentString(component.content)
-            ? component.content
-            : { text: component.content }
-        : isPlainObject(props.content)
-          ? props.content
-          : undefined
-      if (content !== undefined && props.content !== undefined) {
-        delete props.content
-      }
       const { props: _props, content: _content, ...componentBase } = component
-      return content
-        ? { ...componentBase, props, content }
-        : { ...componentBase, props }
+      return component.content === undefined
+        ? { ...componentBase, props }
+        : { ...componentBase, props, content: component.content }
     })
 
     return toCanonicalPageContent({

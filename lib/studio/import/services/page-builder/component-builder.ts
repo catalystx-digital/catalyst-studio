@@ -7,7 +7,7 @@ import {
 import {
   canonicalizeComponentType,
   escapeHtml,
-  extractComponentProps,
+  extractComponentPayload,
   generateComponentId,
   toCmsComponentType
 } from './component-helpers'
@@ -138,7 +138,7 @@ export class ComponentBuilder {
         }
 
         const instanceId = generateComponentId(normalizedType, index)
-        const props = extractComponentProps(detection, resolvedType)
+        const { props, content } = extractComponentPayload(detection, resolvedType)
         const region = resolveRegion(detection)
         const placementBucket = (() => {
           if (region === 'header') return 'top'
@@ -152,8 +152,8 @@ export class ComponentBuilder {
         if (region) {
           const existingRegion = normalizeRegionValue((props as any).region)
           const existingContentRegion =
-            isRecord(props.content) && 'region' in (props.content as Record<string, any>)
-              ? normalizeRegionValue((props.content as Record<string, any>).region)
+            isRecord(content) && 'region' in (content as Record<string, any>)
+              ? normalizeRegionValue((content as Record<string, any>).region)
               : undefined
           if (!existingRegion || (existingContentRegion && existingContentRegion !== region)) {
             ;(props as any).region = region
@@ -166,8 +166,8 @@ export class ComponentBuilder {
         }
 
         const contentRegion =
-          isRecord(props.content) && 'region' in (props.content as Record<string, any>)
-            ? normalizeRegionValue((props.content as Record<string, any>).region)
+          isRecord(content) && 'region' in (content as Record<string, any>)
+            ? normalizeRegionValue((content as Record<string, any>).region)
             : undefined
         const assignedRegion = normalizeRegionValue((props as any).region)
         const metadataRegion = normalizeRegionValue((props as any).metadata?.region)
@@ -198,6 +198,7 @@ export class ComponentBuilder {
           parentId: null,
           position: index,
           props,
+          ...(content === undefined ? {} : { content }),
           children: detection.children
             ? this.mapToComponentInstances(detection.children, types)
             : undefined
@@ -314,8 +315,8 @@ function mergeTimelineProcessCtas(components: ComponentInstance[]): ComponentIns
     if (canonicalCurrent === 'timeline') {
       const next = components[index + 1]
       const canonicalNext = next ? canonicalizeComponentType(next.type) : undefined
-      if (next && canonicalNext === 'cta-simple' && shouldFoldProcessCtaIntoTimeline(next.props, current.props)) {
-        const action = extractPrimaryActionFromCta(next.props)
+      if (next && canonicalNext === 'cta-simple' && shouldFoldProcessCtaIntoTimeline(next.props, current.props, next.content, current.content)) {
+        const action = extractPrimaryActionFromCta(next.props, next.content)
         if (action) {
           attachFooterCta(current, action)
           merged.push(current)
@@ -368,13 +369,13 @@ function mergeTwoColumnInlineCtas(components: ComponentInstance[]): ComponentIns
 type InlineColumn = 'left' | 'right'
 
 function mergeInlineCtaIntoTwoColumn(cta: ComponentInstance, target: ComponentInstance): boolean {
-  const action = extractPrimaryActionFromCta(cta.props)
+  const action = extractPrimaryActionFromCta(cta.props, cta.content)
   if (!action) {
     return false
   }
 
-  const content = isRecord(target.props?.content) ? (target.props.content as Record<string, any>) : undefined
-  if (!content) {
+  const targetContent = isRecord(target.content) ? (target.content as Record<string, any>) : undefined
+  if (!targetContent) {
     return false
   }
 
@@ -383,8 +384,8 @@ function mergeInlineCtaIntoTwoColumn(cta: ComponentInstance, target: ComponentIn
     return false
   }
 
-  const leftEntries = getColumnEntries(content, 'left')
-  const rightEntries = getColumnEntries(content, 'right')
+  const leftEntries = getColumnEntries(targetContent, 'left')
+  const rightEntries = getColumnEntries(targetContent, 'right')
   const targetEntry = findTextBlockEntry(leftEntries) ?? findTextBlockEntry(rightEntries)
 
   if (targetEntry) {
@@ -393,8 +394,8 @@ function mergeInlineCtaIntoTwoColumn(cta: ComponentInstance, target: ComponentIn
   }
 
   const fallback =
-    ensureColumnArray(content, 'left') ??
-    ensureColumnArray(content, 'right')
+    ensureColumnArray(targetContent, 'left') ??
+    ensureColumnArray(targetContent, 'right')
 
   if (!fallback) {
     return false
@@ -553,7 +554,9 @@ function buildInlineCtaMarkup(action: { text: string; url: string; variant?: str
 
 function shouldFoldProcessCtaIntoTimeline(
   ctaProps: Record<string, any> | undefined,
-  timelineProps: Record<string, any> | undefined
+  timelineProps: Record<string, any> | undefined,
+  ctaContent: unknown,
+  timelineContent: unknown
 ): boolean {
   if (!ctaProps || !timelineProps) {
     return false
@@ -570,18 +573,18 @@ function shouldFoldProcessCtaIntoTimeline(
     return true
   }
 
-  if (isRecord(ctaProps.content)) {
+  if (isRecord(ctaContent)) {
     const contentHeading = normalizeString(
-      (ctaProps.content as Record<string, any>).heading ??
-        (ctaProps.content as Record<string, any>).title ??
-        (ctaProps.content as Record<string, any>).eyebrow
+      (ctaContent as Record<string, any>).heading ??
+        (ctaContent as Record<string, any>).title ??
+        (ctaContent as Record<string, any>).eyebrow
     )
     if (contentHeading && contentHeading.toLowerCase().includes('process')) {
       return true
     }
   }
 
-  if (isRecord(timelineProps.content) && isRecord((timelineProps.content as Record<string, any>).footerCta)) {
+  if (isRecord(timelineContent) && isRecord((timelineContent as Record<string, any>).footerCta)) {
     return false
   }
 
@@ -589,15 +592,17 @@ function shouldFoldProcessCtaIntoTimeline(
 }
 
 function extractPrimaryActionFromCta(
-  props: Record<string, any> | undefined
+  props: Record<string, any> | undefined,
+  content: unknown
 ): { text: string; url: string; variant?: string; external?: boolean } | null {
   if (!props) {
     return null
   }
+  const contentRecord = isRecord(content) ? content as Record<string, any> : undefined
 
   const primary =
     props.primaryButton ??
-    (isRecord(props.content) ? (props.content as Record<string, any>).primaryButton : undefined) ??
+    contentRecord?.primaryButton ??
     (Array.isArray(props.ctaButtons) && props.ctaButtons.length > 0 ? props.ctaButtons[0] : undefined)
 
   if (!isRecord(primary)) {
@@ -636,7 +641,7 @@ function attachFooterCta(
     timelineComponent.props = {}
   }
   const props = timelineComponent.props
-  const content = isRecord(props.content) ? (props.content as Record<string, any>) : {}
+  const content = isRecord(timelineComponent.content) ? (timelineComponent.content as Record<string, any>) : {}
 
   if (isRecord(content.footerCta) && Object.keys(content.footerCta).length > 0) {
     return
@@ -649,7 +654,7 @@ function attachFooterCta(
     ...(action.variant ? { variant: action.variant } : {})
   }
 
-  props.content = content
+  timelineComponent.content = content
 }
 
 function normalizeTokenArray(value: unknown): string[] {

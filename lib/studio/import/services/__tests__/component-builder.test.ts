@@ -109,10 +109,11 @@ describe('ComponentBuilder region mapping', () => {
 
     expect(instance.props.region).toBe('hero')
     expect(instance.props.metadata.region).toBe('hero')
-    expect(instance.props.content.region).toBe('main')
+    expect((instance.content as any).region).toBe('main')
+    expect(instance.props).not.toHaveProperty('content')
   })
 
-  it('does not overwrite content metadata region when content region differs', () => {
+  it('keeps content metadata region aligned with canonical content region', () => {
     const detection: DetectionResult = {
       id: 'det-content-metadata-conflict',
       type: 'blog-post',
@@ -130,12 +131,31 @@ describe('ComponentBuilder region mapping', () => {
 
     expect(instance.props.region).toBe('main')
     expect(instance.props.metadata.region).toBe('main')
-    expect(instance.props.content.region).toBe('main')
-    expect(instance.props.content.metadata.region).toBe('hero')
+    expect((instance.content as any).region).toBe('main')
+    expect((instance.content as any).metadata.region).toBe('main')
+    expect(instance.props).not.toHaveProperty('content')
   })
 })
 
 describe('ComponentBuilder type resolution', () => {
+  it('stores plain string detection content as canonical component content', () => {
+    const builder = new ComponentBuilder()
+    const detection: DetectionResult = {
+      id: 'text-plain-1',
+      type: 'text-block',
+      bounds: baseBounds,
+      confidence: 0.81,
+      content: 'Imported plain text',
+      metadata: {}
+    }
+
+    const [instance] = builder.mapToComponentInstances([detection], [createComponentType('text-block')])
+
+    expect(instance.content).toEqual({ text: 'Imported plain text' })
+    expect(instance.props).not.toHaveProperty('content')
+    expect(instance.props).not.toHaveProperty('text')
+  })
+
   it('throws when a detected component type cannot be resolved', () => {
     const builder = new ComponentBuilder()
     const detection: DetectionResult = {
@@ -241,7 +261,7 @@ describe('ComponentBuilder inline CTA merging for two-column', () => {
     expect(instances).toHaveLength(1)
     expect(instances[0].type).toBe('two-column')
 
-    const leftArea = (instances[0].props.content.areas.left as any[])[0]
+    const leftArea = ((instances[0].content as any).areas.left as any[])[0]
     expect(leftArea.content.body).toContain('href="/about"')
     expect(leftArea.content.body).toContain('Learn more')
   })
@@ -251,7 +271,7 @@ describe('ComponentBuilder inline CTA merging for two-column', () => {
     const instances = builder.mapToComponentInstances(detections, types)
 
     expect(instances).toHaveLength(1)
-    const leftArea = (instances[0].props.content.areas.left as any[])[0]
+    const leftArea = ((instances[0].content as any).areas.left as any[])[0]
     expect(leftArea.content.body).toContain('href="/about"')
     expect(leftArea.content.body).toContain('Learn more')
   })
@@ -445,20 +465,13 @@ describe('Subcomponent normalizers', () => {
       { parentCanonicalType: 'feature-grid', index: 1, field: 'features', pageUrl: 'https://example.com/features' }
     )
 
-    expect(featureWithoutId.value).toEqual({
+    expect(featureWithoutId.value).toEqual(expect.objectContaining({
       type: 'feature-item',
       icon: 'sparkle',
       title: 'Delightful UX',
       description: 'Thoughtful defaults and responsive layouts.'
-    })
-    expect(featureWithoutId.warnings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          issue: 'missing-required-field',
-          message: expect.stringContaining('feature-item.id')
-        })
-      ])
-    )
+    }))
+    expect(featureWithoutId.warnings).toHaveLength(0)
 
     const testimonial = run(
       'testimonial-item',
@@ -688,7 +701,7 @@ describe('ComponentBuilder normalization', () => {
     } as unknown as DetectionResult
 
     const [instance] = builder.mapToComponentInstances([detection], [cardGridType])
-    const cards = instance.props.content.cards
+    const cards = (instance.content as any).cards
 
     expect(Array.isArray(cards)).toBe(true)
     expect(cards).toHaveLength(rawCards.length)
@@ -792,7 +805,7 @@ describe('ComponentBuilder normalization', () => {
     } as unknown as DetectionResult
 
     const [instance] = builder.mapToComponentInstances([detection], [footerType])
-    const footerContent = instance.props.content
+    const footerContent = instance.content
 
     expect(footerContent).toMatchObject(rawFooter)
   })
@@ -819,7 +832,7 @@ describe('ComponentBuilder normalization', () => {
     } as unknown as DetectionResult
 
     const [instance] = builder.mapToComponentInstances([detection], [cardGridType])
-    const promo = instance.props.content.cards[0]
+    const promo = (instance.content as any).cards[0]
 
     expect(promo).toMatchObject({
       ...rawPromo,

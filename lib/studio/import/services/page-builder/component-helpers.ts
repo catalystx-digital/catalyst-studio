@@ -59,8 +59,6 @@ interface RegistryEntry {
 interface ExtendedComponentProps extends Record<string, unknown> {
   confidence?: number
   metadata?: DetectionMetadata
-  text?: string
-  content?: unknown
   styles?: Record<string, unknown>
   region?: ComponentRegion
   menuItemCount?: string
@@ -102,6 +100,11 @@ interface ParsedContent extends Record<string, unknown> {
   label?: string
   text?: string
   summary?: string
+}
+
+interface ComponentPayload {
+  props: ExtendedComponentProps
+  content?: unknown
 }
 import {
   SUBCOMPONENT_NORMALIZERS,
@@ -436,19 +439,24 @@ function applyRegionToProps(props: Record<string, unknown> | undefined, region: 
     props.metadata = { region }
   }
 
-  const content = props.content as Record<string, unknown> | undefined
-  if (isRecord(content)) {
-    if (normalizeComponentRegionValue(content.region) === undefined) {
-      content.region = region
+}
+
+function applyRegionToContent(content: unknown, region: ComponentRegion): void {
+  if (!isRecord(content)) {
+    return
+  }
+
+  if (normalizeComponentRegionValue(content.region) !== region) {
+    content.region = region
+  }
+
+  const contentMetadata = isRecord(content.metadata) ? content.metadata : undefined
+  if (contentMetadata) {
+    if (normalizeComponentRegionValue(contentMetadata.region) !== region) {
+      content.metadata = { ...contentMetadata, region }
     }
-    const contentMetadata = content.metadata as Record<string, unknown> | undefined
-    if (isRecord(contentMetadata)) {
-      if (normalizeComponentRegionValue(contentMetadata.region) === undefined) {
-        content.metadata = { ...contentMetadata, region }
-      }
-    } else if (normalizeComponentRegionValue(content.region) === region) {
-      content.metadata = { region }
-    }
+  } else {
+    content.metadata = { region }
   }
 }
 
@@ -461,7 +469,11 @@ function normalizeTokenList(tokens: string[] | undefined): string[] {
     .filter(token => token.length > 0)
 }
 
-function shouldForceHeaderUtilityCta(tokens: string[] | undefined, props: Record<string, unknown>): boolean {
+function shouldForceHeaderUtilityCta(
+  tokens: string[] | undefined,
+  props: Record<string, unknown>,
+  content?: Record<string, unknown>
+): boolean {
   const normalizedTokens = normalizeTokenList(tokens)
   const hasQuickExitToken = normalizedTokens.some(
     token => token.includes('quick-exit') || token.includes('quickexit') || (token.includes('quick') && token.includes('exit'))
@@ -478,15 +490,9 @@ function shouldForceHeaderUtilityCta(tokens: string[] | undefined, props: Record
     return true
   }
 
-  const contentRecord = isRecord(props.content) ? (props.content as Record<string, unknown>) : undefined
-  const contentHeading =
-    contentRecord &&
-    normalizeString(
-      contentRecord.heading ??
-        contentRecord.title ??
-        contentRecord.eyebrow ??
-        contentRecord.body
-    )
+  const contentHeading = content
+    ? normalizeString(content.heading ?? content.title ?? content.eyebrow ?? content.body)
+    : undefined
   const heading = normalizeString(props.heading ?? props.title ?? props.eyebrow ?? props.body ?? contentHeading)
   if (!heading) {
     return false
@@ -504,12 +510,13 @@ function maybeForceHeaderUtilityCtaRegion(
   detection: DetectionResult,
   props: Record<string, unknown>,
   canonicalComponentType: string | undefined,
-  semanticTokens: string[] | undefined
+  semanticTokens: string[] | undefined,
+  content?: Record<string, unknown>
 ): void {
   if (canonicalComponentType !== 'cta-simple') {
     return
   }
-  if (!shouldForceHeaderUtilityCta(semanticTokens, props)) {
+  if (!shouldForceHeaderUtilityCta(semanticTokens, props, content)) {
     return
   }
   if (getDetectionRegion(detection) === 'header') {
@@ -517,6 +524,7 @@ function maybeForceHeaderUtilityCtaRegion(
   }
   applyRegionToDetection(detection, 'header')
   applyRegionToProps(props, 'header')
+  applyRegionToContent(content, 'header')
 }
 
 /**
@@ -615,8 +623,41 @@ export function extractComponentProps(
   detection: DetectionResult,
   componentType: ComponentType
 ): ExtendedComponentProps {
+  return extractComponentPayload(detection, componentType).props
+}
+
+function isJsonIntentString(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  const firstChar = trimmed[0]
+  const secondToken = trimmed.slice(1).trimStart()[0]
+
+  if (firstChar === '{') {
+    return secondToken === '"' || secondToken === '}'
+  }
+
+  if (firstChar === '[') {
+    return (
+      secondToken === '{' ||
+      secondToken === '[' ||
+      secondToken === '"' ||
+      secondToken === ']'
+    )
+  }
+
+  return false
+}
+
+export function extractComponentPayload(
+  detection: DetectionResult,
+  componentType: ComponentType
+): ComponentPayload {
   const props: ExtendedComponentProps = {}
   let parsedContent: ParsedContent | undefined
+  let canonicalContent: unknown
   let normalizedContentRegion: ComponentRegion | undefined
   let rawContentRegion: ComponentRegion | undefined
   const canonicalComponentType = canonicalizeComponentType(componentType.type) ?? componentType.type
@@ -632,16 +673,20 @@ export function extractComponentProps(
 
   if (detection.content != null) {
     if (typeof detection.content === 'string') {
-      props.text = detection.content
+      if (isJsonIntentString(detection.content)) {
+        canonicalContent = detection.content
+      } else {
+        canonicalContent = { text: detection.content }
+        parsedContent = canonicalContent as ParsedContent
+      }
     } else {
-      props.text = JSON.stringify(detection.content)
+      canonicalContent = detection.content
     }
-    props.content = detection.content
     try {
       const parsed = typeof detection.content === 'string' ? JSON.parse(detection.content) : detection.content
       if (parsed && typeof parsed === 'object') {
         parsedContent = parsed as ParsedContent
-        props.content = parsedContent
+        canonicalContent = parsedContent
 
         if (isRecord(parsedContent)) {
           rawContentRegion = rawContentRegion ?? extractRegionFromRecord(parsedContent)
@@ -651,7 +696,7 @@ export function extractComponentProps(
               parentCanonicalType: canonicalComponentType,
               pageUrl
             })
-            props.content = normalizedContent
+            canonicalContent = normalizedContent
             parsedContent = normalizedContent as ParsedContent
             if (normalizationWarnings.length > 0) {
               for (const warning of normalizationWarnings) {
@@ -728,11 +773,13 @@ export function extractComponentProps(
         const semanticTokens = Array.from(new Set(semanticSources))
         props.semanticTokens = semanticTokens
 
-        maybeForceHeaderUtilityCtaRegion(detection, props, canonicalComponentType, semanticTokens)
+        maybeForceHeaderUtilityCtaRegion(detection, props, canonicalComponentType, semanticTokens, parsedContent)
       }
       normalizedContentRegion = extractRegionFromRecord(parsedContent)
     } catch {
-      // Ignore JSON parse errors from detection content
+      if (typeof detection.content === 'string' && isJsonIntentString(detection.content)) {
+        canonicalContent = detection.content
+      }
     }
   }
 
@@ -774,12 +821,15 @@ export function extractComponentProps(
   ) {
     const configRecord = componentType.defaultConfig as Record<string, unknown>
     const defaultProps = (isRecord(configRecord.props) ? configRecord.props : {}) as Record<string, unknown>
-    // Keys that should only be merged from defaultConfig if they don't exist in props.content either.
+    // Keys that should only be merged from defaultConfig if they don't exist in canonical content either.
     // This prevents sample/fallback data from contaminating actual extracted content.
     const navigationContentKeys = new Set(['menuItems', 'cta', 'logo', 'columns', 'socialLinks', 'legalLinks'])
-    const contentRecord = isRecord(props.content) ? (props.content as Record<string, unknown>) : {}
+    const contentRecord = isRecord(canonicalContent) ? (canonicalContent as Record<string, unknown>) : {}
 
     Object.keys(defaultProps).forEach(key => {
+      if (key === 'content' || key === 'text') {
+        return
+      }
       if (key in props) {
         return // Already exists at root level, skip
       }
@@ -804,12 +854,13 @@ export function extractComponentProps(
 
   const detectionRegion = getDetectionRegion(detection)
   const currentRegion = extractRegionFromRecord(props)
-  const derivedContentRegion = isRecord(props.content)
-    ? extractRegionFromRecord(props.content as Record<string, unknown>)
+  const derivedContentRegion = isRecord(canonicalContent)
+    ? extractRegionFromRecord(canonicalContent as Record<string, unknown>)
     : undefined
   const desiredRegion = normalizedContentRegion ?? rawContentRegion ?? detectionRegion ?? derivedContentRegion
   if (desiredRegion && currentRegion !== desiredRegion) {
     applyRegionToProps(props, desiredRegion)
+    applyRegionToContent(canonicalContent, desiredRegion)
   }
 
   const summaryCandidate =
@@ -817,11 +868,11 @@ export function extractComponentProps(
       ? props.metadata.summary
       : undefined) ??
     (parsedContent ? parsedContent.summary : undefined) ??
-    (props.content && typeof props.content === 'object'
-      ? (props.content as Record<string, unknown>).summary
+    (parsedContent ? parsedContent.text : undefined) ??
+    (isRecord(canonicalContent)
+      ? (canonicalContent as Record<string, unknown>).summary
       : undefined) ??
-    (typeof props.content === 'string' ? extractSummaryFromJsonString(props.content) : undefined) ??
-    (typeof props.text === 'string' ? extractSummaryFromJsonString(props.text) : undefined)
+    (typeof canonicalContent === 'string' ? extractSummaryFromJsonString(canonicalContent) : undefined)
 
   const normalizedSummary = clampSummary(summaryCandidate)
 
@@ -832,5 +883,7 @@ export function extractComponentProps(
     props.metadata.summary = normalizedSummary
   }
 
-  return props
+  return canonicalContent === undefined
+    ? { props }
+    : { props, content: canonicalContent }
 }
