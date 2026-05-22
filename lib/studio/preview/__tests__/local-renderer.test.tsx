@@ -349,4 +349,76 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
       })
     )
   })
+
+  it('renders a diagnostic error panel and skips PageRendererHelper for legacy sections content', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage({
+        contentItem: {
+          ...resolvedPage().contentItem,
+          content: {
+            sections: [
+              {
+                id: 'section-1',
+                type: 'text-block',
+                parentId: null,
+                position: 0,
+                props: {},
+                content: { text: 'Hello' },
+              },
+            ],
+          },
+        },
+      }),
+    })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })
+
+    const html = renderToStaticMarkup(element as React.ReactElement)
+    expect(html).toContain('Preview unavailable')
+    expect(html).toContain('PAGE_CONTENT_LEGACY_SECTIONS')
+    expect(html).toContain('Legacy sections page content is not valid PageContentV1 content')
+    expect(html).toContain('sections')
+    expect(html).toContain('/about')
+    expect(html).toContain('page-1')
+    expect(mockPageRendererHelper).not.toHaveBeenCalled()
+  })
+
+  it('renders a diagnostic error panel and skips PageRendererHelper for legacy single-component content', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage({
+        contentItem: {
+          ...resolvedPage().contentItem,
+          content: {
+            id: 'component-1',
+            type: 'text-block',
+            parentId: null,
+            position: 0,
+            props: {},
+            content: { text: 'Hello' },
+          },
+        },
+      }),
+    })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })
+
+    const html = renderToStaticMarkup(element as React.ReactElement)
+    expect(html).toContain('Preview unavailable')
+    expect(html).toContain('PAGE_CONTENT_LEGACY_SINGLE_COMPONENT')
+    expect(html).toContain('Single component page content is not valid PageContentV1 content')
+    expect(html).toContain('$')
+    expect(html).toContain('/about')
+    expect(html).toContain('page-1')
+    expect(mockPageRendererHelper).not.toHaveBeenCalled()
+  })
 })

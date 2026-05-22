@@ -33,7 +33,7 @@ describe('normalizeAssetUrl', () => {
 })
 
 describe('buildUcsSiteSnapshot', () => {
-  it('adapts legacy sections without promoting data.content into snapshot page components', async () => {
+  it('rejects legacy sections without promoting data.content into snapshot page components', async () => {
     const prisma = {
       website: {
         findUnique: jest.fn().mockResolvedValue({
@@ -87,20 +87,25 @@ describe('buildUcsSiteSnapshot', () => {
       }
     }
 
-    const { snapshot } = await buildUcsSiteSnapshot({
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
       prisma: prisma as any,
       websiteId: 'site',
       resolveMedia: false
     })
 
-    expect(snapshot.pages[0].components).toEqual([
+    expect(snapshot.pages[0].components).toEqual([])
+    expect(diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'section-1',
-        type: 'text-block',
-        content: {}
+        code: 'PAGE_CONTENT_LEGACY_SECTIONS',
+        level: 'warn',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-1',
+          path: 'sections',
+          source: 'page.content'
+        })
       })
-    ])
-    expect(snapshot.pages[0].components[0].props).not.toHaveProperty('content')
+    ]))
   })
 
   it('keeps canonical component content out of snapshot component props', async () => {

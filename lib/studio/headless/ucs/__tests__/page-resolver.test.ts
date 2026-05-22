@@ -63,7 +63,7 @@ describe('resolveUcsPageBySlug', () => {
     expect(result.diagnostics).toHaveLength(0)
   })
 
-  it('adapts legacy sections without promoting data.content into snapshot page components', async () => {
+  it('rejects legacy sections without promoting data.content into snapshot page components', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',
       parentId: null,
@@ -104,14 +104,20 @@ describe('resolveUcsPageBySlug', () => {
       sharedComponentCache: new Map()
     })
 
-    expect(result.payload?.page.components).toEqual([
+    expect(result.payload?.page.components).toEqual([])
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'section-1',
-        type: 'text-block',
-        content: {}
+        code: 'PAGE_CONTENT_LEGACY_SECTIONS',
+        level: 'warn',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-home',
+          path: 'sections',
+          source: 'page.content',
+          fullPath: '/'
+        })
       })
-    ])
-    expect(result.payload?.page.components[0].props).not.toHaveProperty('content')
+    ]))
   })
 
   it('keeps canonical component content out of resolved page component props', async () => {

@@ -112,6 +112,68 @@ describe('preview data component extraction', () => {
       }),
     ])
   })
+
+  it('returns diagnostics for legacy sections content', () => {
+    const diagnosticResult = extractComponentsWithDiagnostics(
+      {
+        sections: [
+          {
+            id: 'section-1',
+            type: 'text-block',
+            content: { text: 'Legacy sections content' },
+          },
+        ],
+      },
+      {
+        pageId: 'page-1',
+        pageTitle: 'About',
+        slug: 'about',
+        fullPath: '/about',
+      }
+    )
+
+    expect(diagnosticResult.components).toEqual([])
+    expect(diagnosticResult.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_LEGACY_SECTIONS',
+        severity: 'warn',
+        path: 'sections',
+        pageId: 'page-1',
+        pageTitle: 'About',
+        slug: 'about',
+        fullPath: '/about',
+      }),
+    ])
+  })
+
+  it('returns diagnostics for legacy single-component content', () => {
+    const diagnosticResult = extractComponentsWithDiagnostics(
+      {
+        id: 'component-1',
+        type: 'text-block',
+        content: { text: 'Legacy single component content' },
+      },
+      {
+        pageId: 'page-1',
+        pageTitle: 'About',
+        slug: 'about',
+        fullPath: '/about',
+      }
+    )
+
+    expect(diagnosticResult.components).toEqual([])
+    expect(diagnosticResult.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
+        severity: 'warn',
+        path: '$',
+        pageId: 'page-1',
+        pageTitle: 'About',
+        slug: 'about',
+        fullPath: '/about',
+      }),
+    ])
+  })
 })
 
 describe('preview data GET diagnostics', () => {
@@ -219,6 +281,82 @@ describe('preview data GET diagnostics', () => {
           code: 'PAGE_CONTENT_LEGACY_ARRAY',
           severity: 'warn',
           message: expect.stringContaining('Legacy array page content is not valid PageContentV1 content'),
+          path: '$',
+          pageId: 'page-1',
+          pageTitle: 'About',
+          slug: 'about',
+          fullPath: '/about',
+        }),
+      ],
+    })
+  })
+
+  it('returns 422 with page-context diagnostics for legacy sections page content', async () => {
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'About',
+        content: {
+          sections: [
+            {
+              id: 'section-1',
+              type: 'text-block',
+              content: { text: 'Legacy sections content' },
+            },
+          ],
+        },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body).toEqual({
+      success: false,
+      error: 'Preview data contains invalid page content',
+      diagnostics: [
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_LEGACY_SECTIONS',
+          severity: 'warn',
+          message: expect.stringContaining('Legacy sections page content is not valid PageContentV1 content'),
+          path: 'sections',
+          pageId: 'page-1',
+          pageTitle: 'About',
+          slug: 'about',
+          fullPath: '/about',
+        }),
+      ],
+    })
+  })
+
+  it('returns 422 with page-context diagnostics for legacy single-component page content', async () => {
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'About',
+        content: {
+          id: 'component-1',
+          type: 'text-block',
+          content: { text: 'Legacy single component content' },
+        },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body).toEqual({
+      success: false,
+      error: 'Preview data contains invalid page content',
+      diagnostics: [
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
+          severity: 'warn',
+          message: expect.stringContaining('Single component page content is not valid PageContentV1 content'),
           path: '$',
           pageId: 'page-1',
           pageTitle: 'About',

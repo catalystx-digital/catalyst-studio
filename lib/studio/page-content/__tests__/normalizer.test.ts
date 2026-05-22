@@ -224,6 +224,44 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('rejects legacy sections page content in canonical-read', () => {
+    const result = normalizePageContent({
+      sections: [
+        {
+          id: 'section-1',
+          type: 'text-block',
+          content: { text: 'Legacy sections content' },
+        },
+      ],
+    })
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_LEGACY_SECTIONS',
+        severity: 'warn',
+        path: 'sections',
+      }),
+    ])
+  })
+
+  it('rejects legacy single-component page content in canonical-read', () => {
+    const result = normalizePageContent({
+      id: 'component-1',
+      type: 'text-block',
+      content: { text: 'Legacy single component content' },
+    })
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
+        severity: 'warn',
+        path: '$',
+      }),
+    ])
+  })
+
   it('throws for legacy root-array page content in strict-write', () => {
     expect(() => normalizePageContent([
       {
@@ -249,6 +287,47 @@ describe('page content normalizer', () => {
           code: 'PAGE_CONTENT_LEGACY_ARRAY',
           severity: 'error',
           path: '$',
+        }),
+      ])
+    }
+  })
+
+  it.each([
+    [
+      'sections',
+      {
+        sections: [
+          {
+            id: 'section-1',
+            type: 'text-block',
+            content: { text: 'Legacy sections content' },
+          },
+        ],
+      },
+      'PAGE_CONTENT_LEGACY_SECTIONS',
+      'sections',
+    ],
+    [
+      'single component',
+      {
+        id: 'component-1',
+        type: 'text-block',
+        content: { text: 'Legacy single component content' },
+      },
+      'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
+      '$',
+    ],
+  ])('throws for legacy %s page content in strict-write', (_label, content, code, path) => {
+    try {
+      normalizePageContent(content, { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect.objectContaining({
+          code,
+          severity: 'error',
+          path,
         }),
       ])
     }
@@ -550,6 +629,52 @@ describe('page content normalizer', () => {
     }
   })
 
+  it.each([
+    [
+      'sections',
+      {
+        sections: [{ id: 'legacy-section', type: 'text-block' }],
+      },
+      'PAGE_CONTENT_LEGACY_SECTIONS',
+      'sections',
+    ],
+    [
+      'single component',
+      {
+        id: 'legacy-component',
+        type: 'text-block',
+        content: { text: 'Legacy single component content' },
+      },
+      'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
+      '$',
+    ],
+  ])('rejects strict-write legacy %s source even when components are provided separately', (_label, source, code, path) => {
+    try {
+      toCanonicalPageContent(
+        source,
+        [
+          {
+            id: 'hero-1',
+            type: 'hero-banner',
+            props: {},
+            content: { heading: 'Canonical source' },
+          },
+        ],
+        { mode: 'strict-write' }
+      )
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect.objectContaining({
+          code,
+          path,
+          severity: 'error',
+        }),
+      ])
+    }
+  })
+
   it('rejects strict-write blog-list entries that would fabricate post fields', () => {
     try {
       toCanonicalPageContent({}, [
@@ -721,7 +846,6 @@ describe('page content normalizer', () => {
     const content = toCanonicalPageContent(
       {
         customField: 'keep-me',
-        sections: [{ id: 'legacy-section', type: 'text-block' }],
         metadata: { source: 'test' },
       },
       [

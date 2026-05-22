@@ -689,25 +689,25 @@ function extractComponentCandidates(
   if (Array.isArray(content.sections)) {
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_SECTIONS',
-      severity: isStrictWrite(options) ? 'error' : 'info',
+      severity: isStrictWrite(options) ? 'error' : 'warn',
       message: isStrictWrite(options)
         ? 'Legacy sections page content is not valid for strict writes.'
-        : 'Legacy sections page content was adapted to PageContentV1 components.',
+        : 'Legacy sections page content is not valid PageContentV1 content.',
       path: 'sections',
     })
-    return content.sections
+    return []
   }
 
   if (typeof content.type === 'string' || typeof content.componentType === 'string') {
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
-      severity: isStrictWrite(options) ? 'error' : 'info',
+      severity: isStrictWrite(options) ? 'error' : 'warn',
       message: isStrictWrite(options)
         ? 'Single component page content is not valid for strict writes.'
-        : 'Single component page content was adapted to PageContentV1 components.',
+        : 'Single component page content is not valid PageContentV1 content.',
       path: '$',
     })
-    return [content]
+    return []
   }
 
   return []
@@ -799,6 +799,29 @@ export function toCanonicalPageContent(
       code: 'PAGE_CONTENT_COMPONENTS_INVALID',
       message: 'Components value is not an array; strict writes require a components array.',
       path: 'components',
+    })
+    throwOnStrictErrors(options, diagnostics)
+  }
+
+  if (isStrictWrite(options) && isRecord(content) && Array.isArray(content.sections)) {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_LEGACY_SECTIONS',
+      message: 'Legacy sections page content is not valid for strict writes.',
+      path: 'sections',
+    })
+    throwOnStrictErrors(options, diagnostics)
+  }
+
+  if (
+    isStrictWrite(options)
+    && isRecord(content)
+    && !hasOwn(content, 'components')
+    && (typeof content.type === 'string' || typeof content.componentType === 'string')
+  ) {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
+      message: 'Single component page content is not valid for strict writes.',
+      path: '$',
     })
     throwOnStrictErrors(options, diagnostics)
   }
