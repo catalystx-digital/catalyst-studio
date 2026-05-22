@@ -25,7 +25,7 @@ import {
 } from '@/app/api/studio/preview/data/route'
 
 describe('preview data component extraction', () => {
-  it('emits props.content from canonical component.content over stale props.content', () => {
+  it('emits canonical component.content without props.content projection', () => {
     const [component] = extractComponents({
       components: [
         {
@@ -44,7 +44,7 @@ describe('preview data component extraction', () => {
     })
 
     expect(component.content).toEqual({ heading: 'Canonical heading' })
-    expect(component.props.content).toEqual({ heading: 'Canonical heading' })
+    expect(component.props).not.toHaveProperty('content')
   })
 
   it('returns diagnostics for malformed page content without changing extractComponents compatibility', () => {

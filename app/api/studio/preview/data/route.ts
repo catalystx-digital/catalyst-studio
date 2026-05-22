@@ -262,9 +262,6 @@ export function extractComponentsWithDiagnostics(
 
   const components = pageContent.components.map((component): PreviewComponentConfig => {
     const props = { ...component.props }
-    if (Object.keys(component.content).length > 0) {
-      props.content = component.content
-    }
 
     return {
       id: component.id,
