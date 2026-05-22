@@ -1313,7 +1313,8 @@ describe('PageBuilderService', () => {
           expect.objectContaining({
             id: 'section-1',
             type: 'text-block',
-            props: { content: { text: 'Hello' } }
+            props: {},
+            content: { text: 'Hello' }
           })
         ],
         metadata: tree.metadata
@@ -1409,12 +1410,12 @@ describe('PageBuilderService', () => {
       expect(result.components).toEqual([
         expect.objectContaining({
           id: 'props-text-1',
-          props: { content: { text: '[todo]' } },
+          props: {},
           content: { text: '[todo]' }
         }),
         expect.objectContaining({
           id: 'content-text-1',
-          props: { content: { text: '{{name}}' } },
+          props: {},
           content: { text: '{{name}}' }
         })
       ])

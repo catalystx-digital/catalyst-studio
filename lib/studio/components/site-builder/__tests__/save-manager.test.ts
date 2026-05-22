@@ -166,7 +166,41 @@ describe('SaveManager', () => {
       type: 'COMPONENT_UPDATE',
       nodeId: 'page-1',
       componentId: 'component-1',
-      data: { props: { content: { title: 'Edited' }, text: { title: 'Edited' } } },
+      data: { content: { title: 'Edited' } },
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/studio/site-builder/page-components/component-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          pageId: 'page-1',
+          overrides: { title: 'Edited' },
+        }),
+      })
+    );
+  });
+
+  it('merges pending same-component update data before saving page-only overrides', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      data: { content: { title: 'Edited' } },
+    });
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      data: { props: { metadata: { schema: 'hero' } } },
     });
 
     await saveManager.saveNow();
@@ -293,6 +327,128 @@ describe('SaveManager', () => {
     expect((fetch as jest.Mock).mock.calls[0][0]).not.toContain('/page-components/');
   });
 
+  it('does not persist stale props content mirrors when a pending structural component is canonically edited before save', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_ADD',
+      nodeId: 'page-1',
+      componentId: 'component-2',
+      data: {
+        components: [
+          {
+            id: 'component-2',
+            type: 'hero',
+            parentId: null,
+            position: 0,
+            props: {
+              content: { title: 'Stale props.content title' },
+              text: { title: 'Stale props.text title' },
+              metadata: { schema: 'old-hero' },
+            },
+            content: { title: 'Initial title' },
+            styles: {},
+            metadata: {},
+          },
+        ],
+      },
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-2',
+      data: {
+        content: { title: 'Canonical title' },
+        props: {
+          metadata: { schema: 'hero' },
+          sharedComponentId: 'shared-1',
+          overrides: { title: 'Canonical title' },
+          hasOverrides: true,
+        },
+      },
+    });
+
+    await saveManager.saveNow();
+
+    const body = JSON.parse((fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.components[0]).toEqual({
+      id: 'component-2',
+      type: 'hero',
+      parentId: null,
+      position: 0,
+      props: {
+        metadata: { schema: 'hero' },
+        sharedComponentId: 'shared-1',
+        overrides: { title: 'Canonical title' },
+        hasOverrides: true,
+      },
+      content: { title: 'Canonical title' },
+      styles: {},
+      metadata: {},
+    });
+    expect(body.components[0].props).not.toHaveProperty('content');
+    expect(body.components[0].props).not.toHaveProperty('text');
+  });
+
+  it('preserves canonical content while merging legitimate props into a pending same-component structural update', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_ADD',
+      nodeId: 'page-1',
+      componentId: 'component-2',
+      data: {
+        components: [
+          {
+            id: 'component-2',
+            type: 'hero',
+            parentId: null,
+            position: 0,
+            props: {
+              metadata: { schema: 'hero' },
+              sharedComponentId: 'shared-1',
+            },
+            content: { title: 'Canonical title' },
+            styles: {},
+            metadata: {},
+          },
+        ],
+      },
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-2',
+      data: {
+        props: {
+          overrides: { title: 'Override title' },
+          hasOverrides: true,
+        },
+      },
+    });
+
+    await saveManager.saveNow();
+
+    const body = JSON.parse((fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.components[0].content).toEqual({ title: 'Canonical title' });
+    expect(body.components[0].props).toEqual({
+      metadata: { schema: 'hero' },
+      sharedComponentId: 'shared-1',
+      overrides: { title: 'Override title' },
+      hasOverrides: true,
+    });
+  });
+
   it('uses returned structural page timestamp for later structural saves', async () => {
     saveManager.initialize('test-website');
     (fetch as jest.Mock)
@@ -366,6 +522,42 @@ describe('SaveManager', () => {
       'COMPONENT_DELETE requires data.components for structural page content persistence'
     );
     expect(saveManager.getStatus()).toBe('error');
+  });
+
+  it('keeps global component update coalescing as latest update wins', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      globalComponentId: 'global-1',
+      data: { content: { title: 'First global title' }, props: { metadata: { schema: 'old' } } },
+    });
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      globalComponentId: 'global-1',
+      data: { content: { title: 'Latest global title' } },
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/studio/site-builder/global-components/global-1',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          content: { content: { title: 'Latest global title' } },
+        }),
+      })
+    );
   });
 
   it('surfaces global component save errors', async () => {

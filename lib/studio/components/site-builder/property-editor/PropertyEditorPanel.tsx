@@ -150,17 +150,19 @@ export const getCanonicalPropertyEditorContent = (component: any): Record<string
 export const buildCanonicalPropertyEditorUpdate = (
   component: any,
   nextContent: Record<string, any>
-) => ({
-  content: nextContent,
-  props: {
-    ...(component?.props || {}),
-    text: nextContent,
+) => {
+  const { content: _content, text: _text, ...props } = component?.props || {}
+
+  return {
     content: nextContent,
-    ...(component?.props?.sharedComponentId
-      ? { overrides: nextContent, hasOverrides: true }
-      : {}),
-  },
-})
+    props: {
+      ...props,
+      ...(component?.props?.sharedComponentId
+        ? { overrides: nextContent, hasOverrides: true }
+        : {}),
+    },
+  }
+}
 
 export interface PropertyEditorPanelProps {
   isOpen: boolean

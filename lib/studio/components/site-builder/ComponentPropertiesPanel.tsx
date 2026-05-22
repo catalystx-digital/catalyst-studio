@@ -131,10 +131,7 @@ export const buildCanonicalComponentProps = (
   component: ComponentInstance,
   nextContent: Record<string, any>
 ): Record<string, unknown> => {
-  const updatedProps: Record<string, unknown> = {
-    text: nextContent,
-    content: nextContent,
-  }
+  const updatedProps: Record<string, unknown> = {}
 
   if (component.props?.metadata) {
     updatedProps.metadata = component.props.metadata
@@ -2083,6 +2080,5 @@ export const ComponentPropertiesPanel: React.FC<ComponentPropertiesPanelProps> =
     </>
   )
 }
-
 
 

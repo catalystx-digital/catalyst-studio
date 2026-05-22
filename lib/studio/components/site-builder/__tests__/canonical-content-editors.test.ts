@@ -83,7 +83,7 @@ describe('editor canonical component content cleanup', () => {
     expect(() => getCanonicalComponentProperties(component)).toThrow('Component canonical content must be an object')
   })
 
-  it('ComponentPropertiesPanel writes canonical object mirrors and preserves metadata/shared props', () => {
+  it('ComponentPropertiesPanel writes canonical props without content mirrors and preserves metadata/shared props', () => {
     const component = makeComponent({
       props: {
         metadata: { schema: [{ name: 'heading', type: 'string' }] },
@@ -96,8 +96,6 @@ describe('editor canonical component content cleanup', () => {
     const nextContent = { heading: 'Edited heading', cta: { label: 'Start' } }
 
     expect(buildCanonicalComponentProps(component, nextContent)).toEqual({
-      text: nextContent,
-      content: nextContent,
       metadata: component.props.metadata,
       sharedComponentId: 'shared-1',
       _resolvedSharedContent: component.props._resolvedSharedContent,
@@ -153,7 +151,7 @@ describe('editor canonical component content cleanup', () => {
     expect(() => getCanonicalPropertyEditorContent(component)).toThrow('Component canonical content must be an object')
   })
 
-  it('PropertyEditorPanel edit payload uses object mirrors while preserving existing props', () => {
+  it('PropertyEditorPanel edit payload uses canonical content without props mirrors while preserving existing props', () => {
     const component = makeComponent({
       props: {
         metadata: { properties: [{ name: 'title' }] },
@@ -161,6 +159,7 @@ describe('editor canonical component content cleanup', () => {
         overrides: { title: 'Old override' },
         content: JSON.stringify({ title: 'Old mirror' }),
         text: JSON.stringify({ title: 'Old mirror' }),
+        analyticsId: 'hero-title',
       },
     })
     const nextContent = { title: 'Edited title', body: { html: '<p>Body</p>' } }
@@ -170,10 +169,9 @@ describe('editor canonical component content cleanup', () => {
       props: {
         metadata: component.props.metadata,
         sharedComponentId: 'shared-2',
+        analyticsId: 'hero-title',
         overrides: nextContent,
         hasOverrides: true,
-        content: nextContent,
-        text: nextContent,
       },
     })
   })

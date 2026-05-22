@@ -33,6 +33,37 @@ function isPlainObject(value: unknown): value is Record<string, any> {
   return proto === Object.prototype || proto === null;
 }
 
+function mergeComponentUpdateData(
+  pendingData: Record<string, any> | undefined,
+  nextData: Record<string, any> | undefined
+): Record<string, any> | undefined {
+  if (!pendingData) return nextData;
+  if (!nextData) return pendingData;
+
+  const hasNextProps = Object.prototype.hasOwnProperty.call(nextData, 'props');
+  const merged = {
+    ...pendingData,
+    ...nextData,
+  };
+
+  if (isPlainObject(pendingData.props) && (!hasNextProps || isPlainObject(nextData.props))) {
+    const nextProps = isPlainObject(nextData.props) ? nextData.props : {};
+    merged.props = {
+      ...pendingData.props,
+      ...nextProps,
+    };
+
+    if (!Object.prototype.hasOwnProperty.call(nextProps, 'content')) {
+      delete merged.props.content;
+    }
+    if (!Object.prototype.hasOwnProperty.call(nextProps, 'text')) {
+      delete merged.props.text;
+    }
+  }
+
+  return merged;
+}
+
 export function toPageComponentOverrides(data: unknown): Record<string, any> | null {
   if (!isPlainObject(data)) {
     throw new SaveError('Page component update payload must be an object');
@@ -169,7 +200,10 @@ class SaveManager {
           !Array.isArray(component) &&
           (component as Record<string, unknown>).id === operation.componentId
         ) {
-          return { ...(component as Record<string, unknown>), ...(operation.data || {}) };
+          return mergeComponentUpdateData(
+            component as Record<string, any>,
+            operation.data
+          ) || component;
         }
         return component;
       });
@@ -186,7 +220,16 @@ class SaveManager {
     }
 
     const key = `${operation.nodeId}:${operation.componentId}`;
-    this.pendingComponentOperations.set(key, operation);
+    const pendingUpdate = this.pendingComponentOperations.get(key);
+    this.pendingComponentOperations.set(key, pendingUpdate?.type === 'COMPONENT_UPDATE'
+      && !pendingUpdate.globalComponentId
+      && !operation.globalComponentId
+      ? {
+          ...pendingUpdate,
+          ...operation,
+          data: mergeComponentUpdateData(pendingUpdate.data, operation.data),
+        }
+      : operation);
     this.debounceComponentSave();
   }
 
