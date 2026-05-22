@@ -183,6 +183,218 @@ describe('SaveManager', () => {
     );
   });
 
+  it.each([
+    ['COMPONENT_ADD' as const, 'component-2'],
+    ['COMPONENT_DELETE' as const, 'component-1'],
+    ['COMPONENT_REORDER' as const, 'reorder'],
+  ])('persists %s structurally without calling override PATCH', async (type, componentId) => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    const components = [
+      {
+        id: 'component-1',
+        type: 'hero',
+        parentId: null,
+        position: 0,
+        props: {},
+        content: {},
+        styles: {},
+        metadata: {},
+      },
+    ];
+
+    saveManager.addComponentOperation({
+      type,
+      nodeId: 'page-1',
+      componentId,
+      data: { components },
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/studio/site-builder/pages/page-1/components',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          pageId: 'page-1',
+          components,
+        }),
+      })
+    );
+    expect((fetch as jest.Mock).mock.calls[0][0]).not.toContain('/page-components/');
+  });
+
+  it('keeps structural add pending when the added component is edited before save', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_ADD',
+      nodeId: 'page-1',
+      componentId: 'component-2',
+      data: {
+        components: [
+          {
+            id: 'component-2',
+            type: 'hero',
+            parentId: null,
+            position: 0,
+            props: {},
+            content: {},
+            styles: {},
+            metadata: {},
+          },
+        ],
+        ifUnchangedSince: '2026-05-22T00:00:00.000Z',
+      },
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-2',
+      data: { content: { title: 'Edited before save' } },
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/studio/site-builder/pages/page-1/components',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          pageId: 'page-1',
+          components: [
+            {
+              id: 'component-2',
+              type: 'hero',
+              parentId: null,
+              position: 0,
+              props: {},
+              content: { title: 'Edited before save' },
+              styles: {},
+              metadata: {},
+            },
+          ],
+          ifUnchangedSince: '2026-05-22T00:00:00.000Z',
+        }),
+      })
+    );
+    expect((fetch as jest.Mock).mock.calls[0][0]).not.toContain('/page-components/');
+  });
+
+  it('uses returned structural page timestamp for later structural saves', async () => {
+    saveManager.initialize('test-website');
+    (fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, updatedAt: '2026-05-22T00:10:00.000Z' })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, updatedAt: '2026-05-22T00:11:00.000Z' })
+      });
+
+    const components = [
+      {
+        id: 'component-1',
+        type: 'hero',
+        parentId: null,
+        position: 0,
+        props: {},
+        content: {},
+        styles: {},
+        metadata: {},
+      },
+    ];
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_REORDER',
+      nodeId: 'page-1',
+      componentId: 'reorder',
+      data: {
+        components,
+        ifUnchangedSince: '2026-05-22T00:00:00.000Z',
+      },
+    });
+    await saveManager.saveNow();
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_REORDER',
+      nodeId: 'page-1',
+      componentId: 'reorder',
+      data: {
+        components,
+        ifUnchangedSince: '2026-05-22T00:00:00.000Z',
+      },
+    });
+    await saveManager.saveNow();
+
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body).ifUnchangedSince)
+      .toBe('2026-05-22T00:00:00.000Z');
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[1][1].body).ifUnchangedSince)
+      .toBe('2026-05-22T00:10:00.000Z');
+  });
+
+  it('surfaces missing structural components payloads instead of calling override PATCH', async () => {
+    const errorCallback = jest.fn();
+    saveManager.initialize('test-website', {
+      onError: errorCallback
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_DELETE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+    });
+
+    await saveManager.saveNow();
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+    expect((errorCallback.mock.calls[0][0] as Error).message).toBe(
+      'COMPONENT_DELETE requires data.components for structural page content persistence'
+    );
+    expect(saveManager.getStatus()).toBe('error');
+  });
+
+  it('surfaces global component save errors', async () => {
+    const errorCallback = jest.fn();
+    saveManager.initialize('test-website', {
+      onError: errorCallback
+    });
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: async () => ({ error: 'Invalid global content' })
+    });
+
+    saveManager.addComponentOperation({
+      type: 'COMPONENT_UPDATE',
+      nodeId: 'page-1',
+      componentId: 'component-1',
+      globalComponentId: 'global-1',
+      data: { title: 'Bad global update' },
+    });
+
+    await saveManager.saveNow();
+
+    expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+    expect((errorCallback.mock.calls[0][0] as Error).message).toBe('Invalid global content');
+    expect(saveManager.getStatus()).toBe('error');
+  });
+
   it('surfaces page component PATCH errors', async () => {
     const errorCallback = jest.fn();
     saveManager.initialize('test-website', {

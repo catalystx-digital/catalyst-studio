@@ -27,6 +27,18 @@ function deepCloneNodes<T>(items: T[]): T[] {
 let storeStateUpdater: ((canUndo: boolean, canRedo: boolean) => void) | undefined;
 let loadStructureRequestSeq = 0;
 
+function cloneComponentsForSave(components: ComponentInstanceArray): Record<string, any>[] {
+  return JSON.parse(JSON.stringify(components));
+}
+
+function pageUpdatedAtForSave(node: { data?: Record<string, any> } | undefined): string | undefined {
+  const value = node?.data?.updatedAt;
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
 // Create undoManager instance with proper initialization
 const undoManager = new UndoManager({
   maxHistorySize: 50,
@@ -1755,11 +1767,15 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
 
       // Queue save operation
       if (!get().isUndoRedoInProgress && pageId) {
+        const updatedNode = get().nodes.find(n => n.id === nodeId);
+        const components = Array.isArray(updatedNode?.data.components)
+          ? cloneComponentsForSave(updatedNode.data.components as ComponentInstanceArray)
+          : undefined;
         saveManager.addComponentOperation({
           type: 'COMPONENT_ADD',
           nodeId: pageId,
           componentId: component.id,
-          data: component as unknown as Record<string, any>
+          data: { components, ifUnchangedSince: pageUpdatedAtForSave(updatedNode as any) }
         });
       }
     },
@@ -1823,10 +1839,15 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
 
       // Queue delete operation
       if (!get().isUndoRedoInProgress && pageId) {
+        const updatedNode = get().nodes.find(n => n.id === nodeId);
+        const components = Array.isArray(updatedNode?.data.components)
+          ? cloneComponentsForSave(updatedNode.data.components as ComponentInstanceArray)
+          : undefined;
         saveManager.addComponentOperation({
           type: 'COMPONENT_DELETE',
           nodeId: pageId,
-          componentId
+          componentId,
+          data: { components, ifUnchangedSince: pageUpdatedAtForSave(updatedNode as any) }
         });
       }
     },
@@ -1854,7 +1875,7 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
           type: 'COMPONENT_REORDER',
           nodeId: pageId,
           componentId: 'reorder', // Special marker for reorder operations
-          data: { componentOrder: components.map(c => c.id) }
+          data: { components: cloneComponentsForSave(components), ifUnchangedSince: pageUpdatedAtForSave(node as any) }
         });
       }
     },

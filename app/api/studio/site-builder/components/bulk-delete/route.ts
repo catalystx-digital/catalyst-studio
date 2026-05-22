@@ -5,6 +5,8 @@ import { getContentSource, updateContentSource } from '@/lib/utils/content-sourc
 import { getAuthContext } from '@/lib/auth/context'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
 
+const db = prisma as any
+
 // Request validation schema
 const bulkDeleteRequestSchema = z.object({
   componentIds: z.array(z.string()).min(1),
@@ -36,14 +38,14 @@ export async function DELETE(request: NextRequest) {
     const { componentIds, contentItemId, confirmDeletion } = validation.data
 
     // Get content item to find websiteId for ownership check
-    const page = await prisma.websitePage.findUnique({
+    const page = await db.websitePage.findUnique({
       where: { id: contentItemId },
       select: { websiteId: true }
     });
     if (!page) {
       return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
     }
-    await assertWebsiteOwnership(prisma as any, auth.accountId, page.websiteId);
+    await assertWebsiteOwnership(db, auth.accountId, page.websiteId);
 
     if (!confirmDeletion) {
       return NextResponse.json(
@@ -53,7 +55,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Start transaction for atomic operation
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: any) => {
       const startTime = Date.now()
       
       // Get content source using shared utility
@@ -135,7 +137,7 @@ export async function DELETE(request: NextRequest) {
       // Log deletion for future audit capability
       const totalTime = Date.now() - startTime
       console.log('Bulk delete completed:', {
-        userId,
+        userId: auth.userId ?? null,
         action: 'BULK_DELETE_COMPONENTS',
         contentItemId,
         model: source.model,

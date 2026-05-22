@@ -57,6 +57,22 @@ export function toPageComponentOverrides(data: unknown): Record<string, any> | n
   return data;
 }
 
+function getStructuralComponents(op: ComponentOperation): unknown[] {
+  const components = op.data?.components;
+  if (!Array.isArray(components)) {
+    throw new SaveError(`${op.type} requires data.components for structural page content persistence`);
+  }
+  return components;
+}
+
+function getStructuralIfUnchangedSince(op: ComponentOperation): string | undefined {
+  const value = op.data?.ifUnchangedSince;
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function getStudioSessionId(): string {
   if (typeof window === 'undefined') {
     return 'server';
@@ -88,6 +104,7 @@ class SaveManager {
   private currentStatus: SaveStatus = 'idle';
   private abortController: AbortController | null = null;
   private websiteRevision: number | null = null;
+  private structuralPageUpdatedAt: Map<string, string> = new Map();
 
   // Component-specific debounce configuration
   private readonly componentDebounceMs = 500;  // Faster for component changes
@@ -129,10 +146,52 @@ class SaveManager {
    * Uses componentId as key to dedupe rapid updates to same component
    */
   addComponentOperation(operation: ComponentOperation) {
-    // Use componentId as key - later updates overwrite earlier ones
+    const structuralKey = `${operation.nodeId}:__structure`;
+
+    if (operation.type !== 'COMPONENT_UPDATE') {
+      this.pendingComponentOperations.set(structuralKey, operation);
+
+      for (const [key, pending] of this.pendingComponentOperations.entries()) {
+        if (key !== structuralKey && pending.nodeId === operation.nodeId && !pending.globalComponentId) {
+          this.pendingComponentOperations.delete(key);
+        }
+      }
+      this.debounceComponentSave();
+      return;
+    }
+
+    const pendingStructural = this.pendingComponentOperations.get(structuralKey);
+    if (pendingStructural && !operation.globalComponentId) {
+      const components = getStructuralComponents(pendingStructural).map(component => {
+        if (
+          component &&
+          typeof component === 'object' &&
+          !Array.isArray(component) &&
+          (component as Record<string, unknown>).id === operation.componentId
+        ) {
+          return { ...(component as Record<string, unknown>), ...(operation.data || {}) };
+        }
+        return component;
+      });
+
+      this.pendingComponentOperations.set(structuralKey, {
+        ...pendingStructural,
+        data: {
+          ...(pendingStructural.data || {}),
+          components,
+        },
+      });
+      this.debounceComponentSave();
+      return;
+    }
+
     const key = `${operation.nodeId}:${operation.componentId}`;
     this.pendingComponentOperations.set(key, operation);
     this.debounceComponentSave();
+  }
+
+  private getStructuralIfUnchangedSinceForPage(op: ComponentOperation): string | undefined {
+    return this.structuralPageUpdatedAt.get(op.nodeId) ?? getStructuralIfUnchangedSince(op);
   }
 
   private debounceComponentSave() {
@@ -153,27 +212,36 @@ class SaveManager {
     const operations = Array.from(this.pendingComponentOperations.values());
     this.pendingComponentOperations.clear();
 
-    // Group by global vs page-only
-    const globalOps = operations.filter(op => op.globalComponentId);
-    const pageOps = operations.filter(op => !op.globalComponentId);
+    const updateOps = operations.filter(op => op.type === 'COMPONENT_UPDATE');
+    const structuralOps = operations.filter(op => op.type !== 'COMPONENT_UPDATE');
+    // Group update operations by global vs page-only. Structural operations always
+    // persist the canonical WebsitePage.content JSON for the page.
+    const globalOps = updateOps.filter(op => op.globalComponentId);
+    const pageUpdateOps = updateOps.filter(op => !op.globalComponentId);
 
     this.updateStatus('saving');
 
     try {
       // Save global component updates
       if (globalOps.length > 0) {
-        await Promise.all(globalOps.map(op =>
-          fetch(`/api/studio/site-builder/global-components/${op.globalComponentId}`, {
+        await Promise.all(globalOps.map(async op => {
+          const response = await fetch(`/api/studio/site-builder/global-components/${op.globalComponentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'x-studio-session-id': getStudioSessionId() },
             body: JSON.stringify({ content: op.data })
-          })
-        ));
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new SaveError(errorData.error || `Global component save failed: ${response.statusText}`);
+          }
+        }));
       }
 
-      // Save page-only component updates
-      if (pageOps.length > 0) {
-        await Promise.all(pageOps.map(async op => {
+      // Save page-only component override updates. Only COMPONENT_UPDATE may call
+      // the page-component override PATCH endpoint.
+      if (pageUpdateOps.length > 0) {
+        await Promise.all(pageUpdateOps.map(async op => {
           const overrides = toPageComponentOverrides(op.data);
 
           const response = await fetch(`/api/studio/site-builder/page-components/${op.componentId}`, {
@@ -188,6 +256,37 @@ class SaveManager {
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new SaveError(errorData.error || `Component save failed: ${response.statusText}`);
+          }
+        }));
+      }
+
+      if (structuralOps.length > 0) {
+        const latestStructuralByPage = new Map<string, ComponentOperation>();
+        for (const op of structuralOps) {
+          getStructuralComponents(op);
+          latestStructuralByPage.set(op.nodeId, op);
+        }
+
+        await Promise.all(Array.from(latestStructuralByPage.values()).map(async op => {
+          const ifUnchangedSince = this.getStructuralIfUnchangedSinceForPage(op);
+          const response = await fetch(`/api/studio/site-builder/pages/${op.nodeId}/components`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'x-studio-session-id': getStudioSessionId() },
+            body: JSON.stringify({
+              pageId: op.nodeId,
+              components: getStructuralComponents(op),
+              ...(ifUnchangedSince ? { ifUnchangedSince } : {})
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new SaveError(errorData.error || `Structural component save failed: ${response.statusText}`);
+          }
+
+          const result = await response.json().catch(() => ({}));
+          if (typeof result.updatedAt === 'string') {
+            this.structuralPageUpdatedAt.set(op.nodeId, result.updatedAt);
           }
         }));
       }
@@ -222,6 +321,7 @@ class SaveManager {
     }
     this.pendingOperations = [];
     this.pendingComponentOperations.clear();
+    this.structuralPageUpdatedAt.clear();
     this.retryCount = 0;
     this.updateStatus('idle');
   }
@@ -461,6 +561,7 @@ class SaveManager {
     }
     this.pendingOperations = [];
     this.pendingComponentOperations.clear();
+    this.structuralPageUpdatedAt.clear();
     this.callbacks = {};
   }
 }
