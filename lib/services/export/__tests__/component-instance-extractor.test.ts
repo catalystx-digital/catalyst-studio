@@ -163,6 +163,93 @@ describe('ComponentInstanceExtractor', () => {
       expect(result).toEqual([])
     })
 
+    it('does not extract legacy page component arrays when components is missing', () => {
+      const pageContent = {
+        sections: [
+          {
+            id: 'legacy-section',
+            type: 'hero',
+            properties: { title: 'Legacy section' }
+          }
+        ],
+        blocks: [
+          {
+            id: 'legacy-block',
+            type: 'text-block',
+            properties: { text: 'Legacy block' }
+          }
+        ]
+      }
+
+      const result = extractor.extractFromPageContent(pageContent)
+
+      expect(result).toEqual([])
+    })
+
+    it('rejects legacy props.content instead of promoting it', () => {
+      const pageContent = {
+        components: [
+          {
+            id: 'legacy-props-content',
+            type: 'hero',
+            props: { content: { heading: 'Legacy heading' } }
+          }
+        ]
+      }
+
+      expect(() => extractor.extractFromPageContent(pageContent)).toThrow(
+        'ComponentInstanceExtractor: props.content is not accepted; use component.content'
+      )
+    })
+
+    it('does not parse JSON strings from text or content buckets', () => {
+      const pageContent = {
+        components: [
+          {
+            id: 'json-text',
+            type: 'text-block',
+            props: {
+              text: '{"heading":"Legacy heading"}'
+            }
+          },
+          {
+            id: 'json-content',
+            type: 'text-block',
+            properties: {
+              content: '{"heading":"Legacy content"}'
+            }
+          }
+        ]
+      }
+
+      const result = extractor.extractFromPageContent(pageContent)
+
+      expect(result[0].properties).toEqual({ text: '{"heading":"Legacy heading"}' })
+      expect(result[0].properties).not.toHaveProperty('heading')
+      expect(result[1].properties).toEqual({ content: '{"heading":"Legacy content"}' })
+      expect(result[1].properties).not.toHaveProperty('heading')
+    })
+
+    it('exports canonical component.content as properties', () => {
+      const pageContent = {
+        components: [
+          {
+            id: 'canonical-content',
+            type: 'hero',
+            props: { variant: 'minimal' },
+            content: { heading: 'Canonical heading' }
+          }
+        ]
+      }
+
+      const result = extractor.extractFromPageContent(pageContent)
+
+      expect(result[0].properties).toEqual({
+        variant: 'minimal',
+        heading: 'Canonical heading'
+      })
+    })
+
     it('normalizes CTA alias without form into cta-simple', () => {
       const pageContent = {
         components: [
@@ -501,7 +588,7 @@ describe('ComponentInstanceExtractor', () => {
       expect(usage.has('promo-card')).toBe(true)
     })
 
-    it('applies defaultProps fallback when content is missing', async () => {
+    it('ignores shared component defaultProps when content is missing', async () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
@@ -529,7 +616,7 @@ describe('ComponentInstanceExtractor', () => {
       const result = await extractor.resolveSharedComponents(components, websiteId)
       expect(result).toHaveLength(1)
       expect(result[0].type).toBe('footer')
-      expect(result[0].properties).toEqual({ copyright: '2025' })
+      expect(result[0].properties).toEqual({})
     })
 
     it('deep-merges overrides with object/array/null semantics', async () => {

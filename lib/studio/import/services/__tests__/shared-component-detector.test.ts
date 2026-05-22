@@ -513,6 +513,66 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
   })
 
   describe('validateSharedComponent', () => {
+    it('builds text signatures from canonical content instead of stale props.content', () => {
+      const component = {
+        id: 'canonical-content',
+        type: 'hero',
+        typeId: 'hero-type',
+        parentId: null,
+        position: 0,
+        props: {
+          content: { heading: 'Legacy heading' }
+        },
+        content: {
+          heading: 'Canonical heading'
+        }
+      } as any
+
+      const signature = detector['buildCanonicalSignature'](component)
+
+      expect(signature.contentTokens).toContain('canonical')
+      expect(signature.contentTokens).toContain('heading')
+      expect(signature.contentTokens).not.toContain('legacy')
+    })
+
+    it('does not treat stale props.content as text structure', () => {
+      const component = {
+        id: 'legacy-content-only',
+        type: 'hero',
+        typeId: 'hero-type',
+        parentId: null,
+        position: 0,
+        props: {
+          content: { heading: 'Legacy heading' }
+        },
+        content: {}
+      } as any
+
+      expect(detector['hasTextContent'](component)).toBe(false)
+    })
+
+    it('does not build text signatures from direct props text fields', () => {
+      const component = {
+        id: 'direct-props-text',
+        type: 'hero',
+        typeId: 'hero-type',
+        parentId: null,
+        position: 0,
+        props: {
+          text: 'Legacy text',
+          title: 'Legacy title',
+          label: 'Legacy label',
+          alt: 'Legacy alt'
+        },
+        content: {}
+      } as any
+
+      const signature = detector['buildCanonicalSignature'](component)
+
+      expect(signature.contentTokens).toEqual([])
+      expect(detector['hasTextContent'](component)).toBe(false)
+    })
+
     it('should validate valid shared component', () => {
       const candidate: SharedComponentCandidate = {
         pattern: {

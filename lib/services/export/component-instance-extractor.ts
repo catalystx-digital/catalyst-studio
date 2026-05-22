@@ -341,6 +341,15 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
         Object.assign(collected, obj)
       }
     }
+
+    if (
+      comp?.props &&
+      typeof comp.props === 'object' &&
+      Object.prototype.hasOwnProperty.call(comp.props, 'content')
+    ) {
+      throw new Error('ComponentInstanceExtractor: props.content is not accepted; use component.content')
+    }
+
     mergeIfObject(comp?.properties)
     mergeIfObject(comp?.props)
     mergeIfObject(comp?.content)
@@ -348,40 +357,12 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
     mergeIfObject(comp?.fields)
     mergeIfObject(comp?.attributes)
 
-    const promoteJsonBucket = (raw: any) => {
-      if (typeof raw !== 'string') return undefined
-      const s = raw.trim()
-      if (!(s.startsWith('{') || s.startsWith('['))) return undefined
-      try {
-        const parsed = JSON.parse(s)
-        if (parsed && typeof parsed === 'object') return parsed
-      } catch {}
-      return undefined
-    }
-
-    // IMPORTANT: Process `content` object FIRST (normalized data), BEFORE `text` JSON string.
-    // This ensures normalized data (from import normalizers) takes precedence over raw LLM output in `text`.
-    // The import pipeline stores normalized data in `props.content` but also keeps raw LLM output in `props.text`.
     try {
       const objectBuckets = ['content', 'data'] as const
       for (const b of objectBuckets) {
         const val = collected[b]
         if (val && typeof val === 'object' && !Array.isArray(val)) {
           for (const [k, v] of Object.entries(val)) {
-            if (collected[k] === undefined) collected[k] = v
-          }
-          delete (collected as any)[b]
-        }
-      }
-    } catch {}
-
-    // Then process JSON string buckets (text, content) as fallback for any missing fields
-    try {
-      const buckets = ['text', 'content'] as const
-      for (const b of buckets) {
-        const parsed = promoteJsonBucket(collected[b])
-        if (parsed && typeof parsed === 'object') {
-          for (const [k, v] of Object.entries(parsed)) {
             if (collected[k] === undefined) collected[k] = v
           }
           delete (collected as any)[b]
@@ -615,19 +596,7 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
       console.log('[ComponentExtraction TRACE]', ...args)
     }
 
-    // Epic 16 stores components in content.components array (primary)
-    let components: any[] = Array.isArray(pageContent.components) ? pageContent.components : []
-    // Fallback: also look for other conventional arrays if primary missing
-    if (components.length === 0) {
-      const altKeys = ['contentArea', 'sections', 'blocks', 'widgets']
-      for (const k of altKeys) {
-        const arr = (pageContent as any)[k]
-        if (Array.isArray(arr) && arr.length > 0) {
-          components = arr
-          break
-        }
-      }
-    }
+    const components: any[] = Array.isArray(pageContent.components) ? pageContent.components : []
 
     console.log(`ComponentInstanceExtractor: Extracting ${components.length} components from page content`)
     const extracted: ExtractedComponent[] = []
@@ -734,7 +703,7 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
       const cfg = (sharedData?.config && typeof sharedData.config === 'object') ? sharedData.config as any : {}
       const base = (sharedData?.content && typeof sharedData.content === 'object')
         ? (sharedData.content as any)
-        : (cfg?.defaultProps || {})
+        : {}
 
       const props = (comp.properties && typeof comp.properties === 'object') ? { ...comp.properties } : {}
       let overrides: any = (props as any)?.overrides || {}

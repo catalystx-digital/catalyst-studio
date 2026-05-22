@@ -441,15 +441,17 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
   }
 
   private buildCanonicalSignature(component: ComponentInstance): CanonicalSignature {
-    // Include props in cache key to ensure different prop snapshots generate different signatures
+    // Include props/content in cache key to ensure different snapshots generate different signatures
     const propsHash = this.hashObject(component.props || {})
-    const cacheKey = component.id + component.type + propsHash
+    const contentHash = this.hashObject(component.content || {})
+    const cacheKey = component.id + component.type + propsHash + contentHash
 
     if (this.signatureCache.has(cacheKey)) {
       return this.signatureCache.get(cacheKey)!
     }
 
     const props = (component.props || {}) as Record<string, any>
+    const content = this.isRecord(component.content) ? component.content : {}
 
     // Normalize type
     const typeNorm = this.normalizeType(component.type)
@@ -479,8 +481,8 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     const structureHash = this.hashObject(structureData)
 
     // Content hash - semantic tokens and text content
-    const contentTokens = this.extractContentTokens(props)
-    const contentHash = this.hashContent(contentTokens)
+    const contentTokens = this.extractContentTokens(props, content)
+    const textContentHash = this.hashContent(contentTokens)
 
     // Placement
     const placement = (props.region && typeof props.region === 'string')
@@ -490,7 +492,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     const signature: CanonicalSignature = {
       typeNorm,
       structureHash,
-      contentHash,
+      contentHash: textContentHash,
       contentTokens, // Store actual tokens for similarity comparison
       placement,
       childrenTypes,
@@ -519,7 +521,10 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     return '9+'
   }
 
-  private extractContentTokens(props: Record<string, any>): string[] {
+  private extractContentTokens(
+    props: Record<string, any>,
+    content: Record<string, any> = {}
+  ): string[] {
     const tokens: string[] = []
 
     // Extract semantic tokens
@@ -531,18 +536,32 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
       })
     }
 
-    // Extract text content
-    const textFields = ['text', 'content', 'title', 'label', 'alt']
-    textFields.forEach(field => {
-      if (props[field] && typeof props[field] === 'string') {
-        // Simple tokenization - split on whitespace and clean
-        const words = props[field].toLowerCase()
-          .replace(/[^\w\s]/g, ' ')
-          .split(/\s+/)
-          .filter(word => word.length > 2) // Skip very short words
-        tokens.push(...words)
+    const tokenize = (value: unknown) => {
+      if (typeof value !== 'string') return
+      const words = value.toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 2)
+      tokens.push(...words)
+    }
+
+    const collectContentText = (value: unknown) => {
+      if (typeof value === 'string') {
+        tokenize(value)
+        return
       }
-    })
+
+      if (Array.isArray(value)) {
+        value.forEach(collectContentText)
+        return
+      }
+
+      if (this.isRecord(value)) {
+        Object.values(value).forEach(collectContentText)
+      }
+    }
+
+    collectContentText(content)
 
     // Remove duplicates and sort
     return Array.from(new Set(tokens)).sort()
@@ -558,6 +577,10 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
       hash = hash & hash // Convert to 32-bit integer
     }
     return Math.abs(hash).toString(36)
+  }
+
+  private isRecord(value: unknown): value is Record<string, any> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
   }
 
   /**
@@ -710,8 +733,24 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
   }
 
   private hasTextContent(component: ComponentInstance): boolean {
-    const props = component.props || {}
-    return !!(props.text || props.content || props.label || props.title)
+    const content = this.isRecord(component.content) ? component.content : {}
+    return this.hasStringContent(content)
+  }
+
+  private hasStringContent(value: unknown): boolean {
+    if (typeof value === 'string') {
+      return value.trim().length > 0
+    }
+
+    if (Array.isArray(value)) {
+      return value.some(item => this.hasStringContent(item))
+    }
+
+    if (this.isRecord(value)) {
+      return Object.values(value).some(item => this.hasStringContent(item))
+    }
+
+    return false
   }
 
   private hasImageContent(component: ComponentInstance): boolean {
