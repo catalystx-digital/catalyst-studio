@@ -530,7 +530,7 @@ describe('generated runtime scaffolding', () => {
     expect(props).not.toHaveProperty('text')
   })
 
-  it('falls back to props.content when generated instance content is empty', async () => {
+  it('ignores props.content when generated instance content is empty', async () => {
     const { pageRenderer, renderer } = createPageRendererHarness()
     const payload = {
       page: {
@@ -567,7 +567,7 @@ describe('generated runtime scaffolding', () => {
     })
 
     const [, props] = renderer.render.mock.calls[0] as [ComponentInstance, Record<string, unknown>]
-    expect(props.content).toEqual({ heading: 'Fallback props.content heading' })
+    expect(props.content).toEqual({})
   })
 
   it('does not synthesize or send generated renderer content from legacy props.text', async () => {

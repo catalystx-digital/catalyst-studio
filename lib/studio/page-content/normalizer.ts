@@ -31,7 +31,7 @@ export class PageContentNormalizationError extends Error {
 
 function resolveOptions(options?: NormalizePageContentOptions): StrictDiagnosticsOptions {
   return {
-    mode: options?.mode ?? 'legacy-read',
+    mode: options?.mode ?? 'canonical-read',
   }
 }
 

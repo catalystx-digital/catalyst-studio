@@ -89,7 +89,7 @@ describe('two-column legacy entry upgrades', () => {
     expect(areas.right[0].content.body).toBe('Canonical right')
   })
 
-  it('diagnoses malformed two-column props.text even when canonical content wins', () => {
+  it('ignores malformed two-column props.text when canonical content wins', () => {
     const component = createTwoColumnComponent({
       areas: {
         left: [
@@ -114,23 +114,14 @@ describe('two-column legacy entry upgrades', () => {
 
     expect(areas.left).toHaveLength(1)
     expect(areas.left[0].id).toBe('canonical-left')
-    expect(diagnostics).toEqual([
-      expect.objectContaining({
-        code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
-        level: 'warn',
-        context: expect.objectContaining({
-          componentId: 'two-column-1',
-          componentType: 'two-column'
-        })
-      })
-    ])
+    expect(diagnostics).toEqual([])
   })
 
   it.each([
     ['empty areas', { areas: { left: [], right: [] } }],
     ['empty legacy column', { leftColumn: [] }],
     ['metadata only', { columnRatio: '30-70' }]
-  ])('falls back to legacy props.content when canonical content has %s', (_label, content) => {
+  ])('does not upgrade legacy props.content when canonical content has %s', (_label, content) => {
     const component = createTwoColumnComponent(content)
     component.props = {
       content: {
@@ -145,18 +136,29 @@ describe('two-column legacy entry upgrades', () => {
 
     const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
     const enrichedContent = enriched.content as Record<string, any>
-    const areas = enrichedContent.areas
 
-    expect(areas.right).toHaveLength(1)
-    expect(areas.right[0].type).toBe(ComponentType.TextBlock)
-    expect(areas.right[0].content.body).toBe('Legacy fallback content')
-    expect(enrichedContent.leftColumn).toBeUndefined()
-    expect(enrichedContent.rightColumn).toBeUndefined()
-    expect(enrichedContent.areas.left).toBeUndefined()
+    expect(enrichedContent).toEqual(content)
+    expect(enriched.props.content).toEqual(content)
+    expect(JSON.stringify(enrichedContent)).not.toContain('Legacy fallback content')
+  })
 
-    if ('columnRatio' in content) {
-      expect(enrichedContent.columnRatio).toBe('30-70')
+  it('keeps empty canonical content empty instead of falling back to legacy props.content', () => {
+    const component = createTwoColumnComponent({})
+    component.props = {
+      content: {
+        rightColumn: [
+          {
+            type: 'text-block',
+            body: 'Legacy fallback content'
+          }
+        ]
+      }
     }
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+
+    expect(enriched.content).toEqual({})
+    expect(enriched.props).not.toHaveProperty('content')
   })
 
   it('converts image-gallery entries with nested URL objects', () => {

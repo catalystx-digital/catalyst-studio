@@ -85,15 +85,6 @@ function clone<T>(value: T): T {
   }
 }
 
-function mergeContent(primary: unknown, fallback: unknown): Record<string, unknown> {
-  const primaryRecord = isRecord(primary) ? clone(primary) : {}
-  if (Object.keys(primaryRecord).length > 0) {
-    return primaryRecord
-  }
-
-  return isRecord(fallback) ? clone(fallback) : {}
-}
-
 function normalizeRuntimeContent(
   content: Record<string, unknown>,
   componentType: string
@@ -195,7 +186,7 @@ function assignCoreAdapterProps(
     props.category = resolveComponentCategory((resolvedType ?? undefined) as string | undefined)
   }
 
-  const canonicalContent = mergeContent(node.instance.content, props.content)
+  const canonicalContent = isRecord(node.instance.content) ? clone(node.instance.content) : {}
   props.content = normalizeRuntimeContent(canonicalContent, node.instance.type)
   delete props.text
 

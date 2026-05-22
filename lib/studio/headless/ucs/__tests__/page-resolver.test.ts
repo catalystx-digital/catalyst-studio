@@ -63,7 +63,7 @@ describe('resolveUcsPageBySlug', () => {
     expect(result.diagnostics).toHaveLength(0)
   })
 
-  it('normalizes legacy sections content into snapshot page components', async () => {
+  it('adapts legacy sections without promoting data.content into snapshot page components', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',
       parentId: null,
@@ -108,12 +108,13 @@ describe('resolveUcsPageBySlug', () => {
       expect.objectContaining({
         id: 'section-1',
         type: 'text-block',
-        props: expect.objectContaining({ content: { text: 'Hello' } })
+        content: {}
       })
     ])
+    expect(result.payload?.page.components[0].props).not.toHaveProperty('content')
   })
 
-  it('returns a diagnostic for malformed two-column props.text during enrichment', async () => {
+  it('ignores malformed two-column props.text during canonical enrichment', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',
       parentId: null,
@@ -159,27 +160,10 @@ describe('resolveUcsPageBySlug', () => {
       resolveMedia: false
     })
 
-    expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
-        level: 'warn',
-        context: expect.objectContaining({
-          componentId: 'two-column-1',
-          componentType: 'two-column'
-        })
-      })
-    ]))
-    expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
-        level: 'warn',
-        context: expect.objectContaining({
-          pageId: 'page-home',
-          path: 'components[0].props.text',
-          source: 'page.content'
-        })
-      })
-    ]))
+    expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain('UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON')
+    expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain('PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED')
+    expect(result.payload?.page.components[0].content).toEqual({})
+    expect(result.payload?.page.components[0].props).not.toHaveProperty('text')
   })
 
   it('returns normalizer parse diagnostics for malformed page content', async () => {

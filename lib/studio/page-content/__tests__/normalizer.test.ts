@@ -16,8 +16,8 @@ describe('page content normalizer', () => {
           type: 'hero-banner',
           parentId: null,
           position: 0,
-          props: { content: { heading: 'Hello' } },
-          content: {},
+          props: { variant: 'split' },
+          content: { heading: 'Hello' },
           styles: { desktop: { paddingTop: 24 } },
           metadata: { source: 'test' },
         },
@@ -35,7 +35,8 @@ describe('page content normalizer', () => {
       type: 'hero-banner',
       parentId: null,
       position: 0,
-      props: { content: { heading: 'Hello' } },
+      props: { variant: 'split' },
+      content: { heading: 'Hello' },
     })
     expect(pageContentV1Schema.parse(result.pageContent)).toEqual(result.pageContent)
   })
@@ -62,7 +63,7 @@ describe('page content normalizer', () => {
     expect(result.diagnostics).toEqual([])
   })
 
-  it('canonical-read keeps empty content when canonical content is empty or missing and strips content/text mirror props', () => {
+  it('defaults to canonical-read and ignores legacy content mirrors when canonical content is empty or missing', () => {
     const result = normalizePageContent({
       components: [
         {
@@ -94,7 +95,7 @@ describe('page content normalizer', () => {
           },
         },
       ],
-    }, { mode: 'canonical-read' })
+    })
 
     expect(result.pageContent.components[0].content).toEqual({})
     expect(result.pageContent.components[0].props).toEqual({ eyebrow: 'Kept prop' })
@@ -116,7 +117,7 @@ describe('page content normalizer', () => {
           },
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     expect(result.pageContent.components).toHaveLength(1)
     expect(result.pageContent.components[0]).toMatchObject({
@@ -143,7 +144,7 @@ describe('page content normalizer', () => {
           data: { content: { text: 'Hello' } },
         },
       ],
-    }))
+    }), { mode: 'legacy-read' })
 
     expect(result.pageContent.components).toHaveLength(1)
     expect(result.pageContent.components[0]).toMatchObject({
@@ -160,7 +161,7 @@ describe('page content normalizer', () => {
   it('reports non-array components in legacy-read and returns an empty component list', () => {
     const result = normalizePageContent({
       components: { id: 'not-array' },
-    })
+    }, { mode: 'legacy-read' })
 
     expect(result.pageContent.components).toEqual([])
     expect(result.diagnostics).toEqual([
@@ -176,7 +177,7 @@ describe('page content normalizer', () => {
     ['null', null],
     ['undefined', undefined],
   ])('reports explicit %s components in legacy-read', (_label, components) => {
-    const result = normalizePageContent({ components })
+    const result = normalizePageContent({ components }, { mode: 'legacy-read' })
 
     expect(result.pageContent.components).toEqual([])
     expect(result.diagnostics).toEqual([
@@ -246,7 +247,7 @@ describe('page content normalizer', () => {
   })
 
   it('reports malformed root JSON-like page string in legacy-read', () => {
-    const result = normalizePageContent('{"components":')
+    const result = normalizePageContent('{"components":', { mode: 'legacy-read' })
 
     expect(result.pageContent.components).toEqual([])
     expect(result.diagnostics).toEqual(expect.arrayContaining([
@@ -284,7 +285,7 @@ describe('page content normalizer', () => {
         heading: 'Existing heading',
         slides: [],
       },
-    })
+    }, [], 'props', { mode: 'legacy-read' })
 
     expect(props.content).toEqual({
       heading: 'Existing heading',
@@ -302,7 +303,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     expect(result.pageContent.components[0].props.content).toBe('{"text":')
     expect(result.pageContent.components[0].content).toEqual({})
@@ -325,7 +326,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
     const plain = normalizePageContent({
       components: [
         {
@@ -335,7 +336,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     expect(malformed.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -366,7 +367,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     expect(result.pageContent.components[0].props.text).toBe(text)
     expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain(
@@ -384,7 +385,7 @@ describe('page content normalizer', () => {
           content: '{"text":',
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     expect(result.pageContent.components[0].content).toEqual({})
     expect(result.diagnostics).toEqual(expect.arrayContaining([
@@ -420,7 +421,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     const component = result.pageContent.components[0]
     const expectedContent = {
@@ -475,7 +476,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     const content = result.pageContent.components[0].content as Record<string, unknown>
     expect(content.posts).toEqual([{ id: 'canonical', title: 'Canonical post' }])
@@ -498,7 +499,7 @@ describe('page content normalizer', () => {
           content: {},
         },
       ],
-    })
+    }, { mode: 'legacy-read' })
 
     const content = result.pageContent.components[0].content as Record<string, unknown>
     expect(content.posts).toEqual([
@@ -765,7 +766,7 @@ describe('page content normalizer', () => {
       metadata: 'not-an-object',
     }
 
-    const legacy = normalizePageContent({ components: [malformedComponent] })
+    const legacy = normalizePageContent({ components: [malformedComponent] }, { mode: 'legacy-read' })
     expect(legacy.pageContent.components[0]).toMatchObject({
       id: 'bad-payload',
       type: 'text-block',

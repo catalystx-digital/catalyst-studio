@@ -33,7 +33,7 @@ describe('normalizeAssetUrl', () => {
 })
 
 describe('buildUcsSiteSnapshot', () => {
-  it('normalizes legacy sections content into snapshot page components', async () => {
+  it('adapts legacy sections without promoting data.content into snapshot page components', async () => {
     const prisma = {
       website: {
         findUnique: jest.fn().mockResolvedValue({
@@ -97,12 +97,13 @@ describe('buildUcsSiteSnapshot', () => {
       expect.objectContaining({
         id: 'section-1',
         type: 'text-block',
-        props: expect.objectContaining({ content: { text: 'Hello' } })
+        content: {}
       })
     ])
+    expect(snapshot.pages[0].components[0].props).not.toHaveProperty('content')
   })
 
-  it('returns a diagnostic for malformed two-column props.text during enrichment', async () => {
+  it('ignores malformed two-column props.text during canonical enrichment', async () => {
     const prisma = {
       website: {
         findUnique: jest.fn().mockResolvedValue({
@@ -160,33 +161,16 @@ describe('buildUcsSiteSnapshot', () => {
       }
     }
 
-    const { diagnostics } = await buildUcsSiteSnapshot({
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
       prisma: prisma as any,
       websiteId: 'site',
       resolveMedia: false
     })
 
-    expect(diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
-        level: 'warn',
-        context: expect.objectContaining({
-          componentId: 'two-column-1',
-          componentType: 'two-column'
-        })
-      })
-    ]))
-    expect(diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
-        level: 'warn',
-        context: expect.objectContaining({
-          pageId: 'page-1',
-          path: 'components[0].props.text',
-          source: 'page.content'
-        })
-      })
-    ]))
+    expect(diagnostics.map(diagnostic => diagnostic.code)).not.toContain('UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON')
+    expect(diagnostics.map(diagnostic => diagnostic.code)).not.toContain('PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED')
+    expect(snapshot.pages[0].components[0].content).toEqual({})
+    expect(snapshot.pages[0].components[0].props).not.toHaveProperty('text')
   })
 
   it('returns normalizer parse diagnostics for malformed page content', async () => {
