@@ -299,7 +299,7 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     expect(mockPageRendererHelper).not.toHaveBeenCalled()
   })
 
-  it('continues rendering for legacy array info-only diagnostics', async () => {
+  it('renders a diagnostic error panel and skips PageRendererHelper for legacy root-array content', async () => {
     mockResolveUrl.mockResolvedValue({
       success: true,
       data: resolvedPage({
@@ -325,16 +325,26 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     })
 
     const html = renderToStaticMarkup(element as React.ReactElement)
-    expect(html).toContain('Rendered page')
-    expect(mockPageRendererHelper).toHaveBeenCalledTimes(1)
-    expect(console.info).toHaveBeenCalledWith(
-      '[LocalPreview] Adapted page content for preview',
+    expect(html).toContain('Preview unavailable')
+    expect(html).toContain('PAGE_CONTENT_LEGACY_ARRAY')
+    expect(html).toContain('Legacy array page content is not valid PageContentV1 content')
+    expect(html).toContain('$')
+    expect(html).toContain('/about')
+    expect(html).toContain('page-1')
+    expect(mockPageRendererHelper).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith(
+      '[LocalPreview] Page content diagnostics blocked preview render',
       expect.objectContaining({
         requestPath: '/about',
         websiteId: 'website-1',
         pageId: 'page-1',
+        fullPath: '/about',
         diagnostics: expect.arrayContaining([
-          expect.objectContaining({ code: 'PAGE_CONTENT_LEGACY_ARRAY' }),
+          expect.objectContaining({
+            code: 'PAGE_CONTENT_LEGACY_ARRAY',
+            severity: 'warn',
+            path: '$',
+          }),
         ]),
       })
     )

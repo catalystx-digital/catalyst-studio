@@ -199,6 +199,55 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('rejects legacy root-array page content in canonical-read', () => {
+    const result = normalizePageContent([
+      {
+        id: 'component-1',
+        type: 'text-block',
+        content: { text: 'Legacy array content' },
+      },
+    ])
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_LEGACY_ARRAY',
+        severity: 'warn',
+        path: '$',
+      }),
+    ])
+  })
+
+  it('throws for legacy root-array page content in strict-write', () => {
+    expect(() => normalizePageContent([
+      {
+        id: 'component-1',
+        type: 'text-block',
+        content: { text: 'Legacy array content' },
+      },
+    ], { mode: 'strict-write' })).toThrow(PageContentNormalizationError)
+
+    try {
+      normalizePageContent([
+        {
+          id: 'component-1',
+          type: 'text-block',
+          content: { text: 'Legacy array content' },
+        },
+      ], { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_LEGACY_ARRAY',
+          severity: 'error',
+          path: '$',
+        }),
+      ])
+    }
+  })
+
   it('reports malformed root JSON-like page string in canonical-read', () => {
     const result = normalizePageContent('{"components":')
 

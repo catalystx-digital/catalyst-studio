@@ -641,13 +641,13 @@ function extractComponentCandidates(
   if (Array.isArray(content)) {
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_ARRAY',
-      severity: isStrictWrite(options) ? 'error' : 'info',
+      severity: isStrictWrite(options) ? 'error' : 'warn',
       message: isStrictWrite(options)
         ? 'Legacy array page content is not valid for strict writes.'
-        : 'Legacy array page content was adapted to PageContentV1.',
+        : 'Legacy array page content is not valid PageContentV1 content.',
       path: '$',
     })
-    return content
+    return []
   }
 
   if (!isRecord(content)) {
