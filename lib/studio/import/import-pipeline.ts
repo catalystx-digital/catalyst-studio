@@ -65,6 +65,8 @@ export interface ImportPipelineOptions {
   generateTemplates?: boolean
   websiteId?: string
   saveToDatabase?: boolean
+  /** Skip design token extraction and DOM probe capture */
+  skipDesignSystem?: boolean
   /** Checkpoint session for resumable imports */
   checkpointSession?: CheckpointSession
 }
@@ -241,9 +243,16 @@ export class ImportPipeline {
       // =========================================================================
       // STAGE 4: Design Token Extraction
       // =========================================================================
-      let designTokens: DesignTokens
+      let designTokens: DesignTokens = {
+        images: [],
+        textPatterns: [],
+        contentOrganization: [],
+        componentUsage: []
+      }
 
-      if (shouldSkipStage('tokens_extracted')) {
+      if (options.skipDesignSystem) {
+        this.reportProgress(options.onProgress, { message: 'Skipped design system extraction', progress: 85 })
+      } else if (shouldSkipStage('tokens_extracted')) {
         this.reportProgress(options.onProgress, { message: 'Loading design tokens from checkpoint...', progress: 83 })
         designTokens = await checkpointService!.loadAggregated<DesignTokens>(session!, 'designTokens')
           ?? this.extractDesignTokensFromDetection(detectionResults)
@@ -261,90 +270,94 @@ export class ImportPipeline {
       const domProbeEnabled = isDomProbeEnabledForWebsite(options.websiteId)
       const baselineKey = getDomProbeBaselineKey()
 
-      if (!domProbeEnabled) {
+      if (options.skipDesignSystem) {
+        this.reportProgress(options.onProgress, { message: 'Skipped DOM probe design system capture', progress: 88 })
+      } else if (!domProbeEnabled) {
         throw new Error(
           `DOM probe import is disabled for website ${options.websiteId ?? 'unknown'}`
         )
-      }
-
-      if (shouldSkipStage('dom_probe_done')) {
-        this.reportProgress(options.onProgress, { message: 'Loading DOM probe results from checkpoint...', progress: 87 })
-        designSystem = await checkpointService!.loadAggregated<CapturedDesignSystem>(session!, 'designSystem') ?? undefined
-
-        // Also load the dom probe capture if available
-        const cachedCapture = await checkpointService!.loadAggregated<CaptureDesignSystemResult>(session!, 'domProbeCapture')
-        if (cachedCapture) {
-          this.lastDomProbeCapture = cachedCapture
-        }
       } else {
-        this.reportProgress(options.onProgress, { message: 'Running DOM probe capture...', progress: 87 })
-        const domProbeStart = Date.now()
+        if (shouldSkipStage('dom_probe_done')) {
+          this.reportProgress(options.onProgress, { message: 'Loading DOM probe results from checkpoint...', progress: 87 })
+          designSystem = await checkpointService!.loadAggregated<CapturedDesignSystem>(session!, 'designSystem') ?? undefined
 
-        const targetUrl = this.resolveDomProbeTargetUrl(detectionResults, options.urls)
-        if (!targetUrl) {
-          throw new Error('Unable to determine target URL for DOM probe capture')
-        }
-
-        const captureWebsiteId = this.resolveDomProbeWebsiteId(options.websiteId, targetUrl)
-        const evaluationRequested = baselineKey ? shouldRunDomProbeEvaluation() : false
-
-        // Step 1: Capture DOM probe
-        const captureResult = await this.domProbeService.captureDesignSystem({
-          websiteId: captureWebsiteId,
-          targetUrl,
-          baselineKey,
-          refresh: true,
-          evaluation: evaluationRequested,
-          onProgress: options.progressCallback
-        })
-
-        this.lastDomProbeCapture = captureResult
-
-        // Step 2: Process design system using shared function (skips DOM probe since we pass capture)
-        const dsResult = await importDesignSystemFromUrl({
-          url: targetUrl,
-          websiteId: captureWebsiteId,
-          existingProbeCapture: captureResult,
-          onProgress: options.progressCallback,
-          jobId: session?.manifest.jobId,
-          useNewFormat: true
-        })
-
-        // Extract design system for pipeline output (use legacy format if available)
-        if (dsResult.designSystem) {
-          designSystem = dsResult.designSystem
+          // Also load the dom probe capture if available
+          const cachedCapture = await checkpointService!.loadAggregated<CaptureDesignSystemResult>(session!, 'domProbeCapture')
+          if (cachedCapture) {
+            this.lastDomProbeCapture = cachedCapture
+          }
         } else {
-          // Fallback: convert from capture if processing didn't return legacy format
-          const confidenceOverride = computeDomProbeConfidence(captureResult.evaluation)
-          designSystem = this.domProbeService.toCapturedDesignSystem(
-            captureResult.capture,
-            confidenceOverride
-          )
-        }
+          this.reportProgress(options.onProgress, { message: 'Running DOM probe capture...', progress: 87 })
+          const domProbeStart = Date.now()
 
-        // Save DOM probe results to checkpoint
-        await completeStage('dom_probe_done', Date.now() - domProbeStart, 'designSystem', designSystem)
-        if (session && checkpointService) {
-          await checkpointService.saveAggregated(session, 'domProbeCapture', captureResult)
+          const targetUrl = this.resolveDomProbeTargetUrl(detectionResults, options.urls)
+          if (!targetUrl) {
+            throw new Error('Unable to determine target URL for DOM probe capture')
+          }
+
+          const captureWebsiteId = this.resolveDomProbeWebsiteId(options.websiteId, targetUrl)
+          const evaluationRequested = baselineKey ? shouldRunDomProbeEvaluation() : false
+
+          // Step 1: Capture DOM probe
+          const captureResult = await this.domProbeService.captureDesignSystem({
+            websiteId: captureWebsiteId,
+            targetUrl,
+            baselineKey,
+            refresh: true,
+            evaluation: evaluationRequested,
+            onProgress: options.progressCallback
+          })
+
+          this.lastDomProbeCapture = captureResult
+
+          // Step 2: Process design system using shared function (skips DOM probe since we pass capture)
+          const dsResult = await importDesignSystemFromUrl({
+            url: targetUrl,
+            websiteId: captureWebsiteId,
+            existingProbeCapture: captureResult,
+            onProgress: options.progressCallback,
+            jobId: session?.manifest.jobId,
+            useNewFormat: true
+          })
+
+          // Extract design system for pipeline output (use legacy format if available)
+          if (dsResult.designSystem) {
+            designSystem = dsResult.designSystem
+          } else {
+            // Fallback: convert from capture if processing didn't return legacy format
+            const confidenceOverride = computeDomProbeConfidence(captureResult.evaluation)
+            designSystem = this.domProbeService.toCapturedDesignSystem(
+              captureResult.capture,
+              confidenceOverride
+            )
+          }
+
+          // Save DOM probe results to checkpoint
+          await completeStage('dom_probe_done', Date.now() - domProbeStart, 'designSystem', designSystem)
+          if (session && checkpointService) {
+            await checkpointService.saveAggregated(session, 'domProbeCapture', captureResult)
+          }
         }
       }
 
-      this.reportProgress(options.onProgress, {
-        message: designSystem
-          ? `Captured DOM probe design system (${this.formatConfidence(designSystem.designSystem.metadata.confidence)})`
-          : 'DOM probe design system loaded from checkpoint',
-        progress: 88,
-        details: this.lastDomProbeCapture ? {
-          strategy: 'dom-probe',
-          domProbe: {
-            runId: this.lastDomProbeCapture.metadata.runId,
-            runDir: this.lastDomProbeCapture.runDir,
-            evaluation: this.lastDomProbeCapture.evaluation?.summary ?? null
-          }
-        } : undefined
-      })
+      if (!options.skipDesignSystem) {
+        this.reportProgress(options.onProgress, {
+          message: designSystem
+            ? `Captured DOM probe design system (${this.formatConfidence(designSystem.designSystem.metadata.confidence)})`
+            : 'DOM probe design system loaded from checkpoint',
+          progress: 88,
+          details: this.lastDomProbeCapture ? {
+            strategy: 'dom-probe',
+            domProbe: {
+              runId: this.lastDomProbeCapture.metadata.runId,
+              runDir: this.lastDomProbeCapture.runDir,
+              evaluation: this.lastDomProbeCapture.evaluation?.summary ?? null
+            }
+          } : undefined
+        })
+      }
 
-      if (!designSystem) {
+      if (!options.skipDesignSystem && !designSystem) {
         throw new Error('DOM probe capture returned an empty design system payload')
       }
 

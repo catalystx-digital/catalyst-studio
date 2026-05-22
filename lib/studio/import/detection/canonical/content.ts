@@ -1,10 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { HtmlBlockDef } from '@/lib/studio/components/cms/content/html-block/html-block.def'
-import { ImageGalleryDef } from '@/lib/studio/components/cms/content/image-gallery/image-gallery.def'
-import { QuoteBlockDef } from '@/lib/studio/components/cms/content/quote-block/quote-block.def'
-import { TextBlockDef } from '@/lib/studio/components/cms/content/text-block/text-block.def'
-import { TwoColumnDef } from '@/lib/studio/components/cms/content/two-column/two-column.def'
-import { VideoPlayerDef } from '@/lib/studio/components/cms/content/video-player/video-player.def'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -14,7 +8,7 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.TextBlock,
     componentType: ComponentType.TextBlock,
-    summary: TextBlockDef.description,
+    summary: 'Text block for headings, subheadings, and rich body copy.',
     fragments: ['heading', 'subheading', 'rich-text'],
     cues: ['text block', 'rich text', 'content section'],
     sampleContent: {
@@ -78,7 +72,7 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.ImageGallery,
     componentType: ComponentType.ImageGallery,
-    summary: ImageGalleryDef.description,
+    summary: 'Image gallery section for media grids, photo collections, and captions.',
     fragments: ['image', 'caption', 'lightbox'],
     cues: ['image gallery', 'media grid', 'photo section'],
     sampleContent: {
@@ -105,7 +99,7 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.VideoPlayer,
     componentType: ComponentType.VideoPlayer,
-    summary: VideoPlayerDef.description,
+    summary: 'Video player for hosted video with poster image, captions, and playback controls.',
     fragments: ['video-player', 'play-button', 'caption'],
     cues: ['video player', 'product demo video', 'embedded video'],
     sampleContent: {
@@ -136,7 +130,7 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.QuoteBlock,
     componentType: ComponentType.QuoteBlock,
-    summary: QuoteBlockDef.description,
+    summary: 'Quote block for testimonials, pull quotes, or attributed statements.',
     fragments: ['quote', 'attribution'],
     cues: ['quote', 'testimonial quote', 'pull quote'],
     sampleContent: {
@@ -169,7 +163,7 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.HtmlBlock,
     componentType: ComponentType.HtmlBlock,
-    summary: HtmlBlockDef.description,
+    summary: 'HTML content block for imported rich text, documentation, or long-form page body content.',
     fragments: ['html-content', 'rich-text', 'page-body', 'article-content'],
     cues: ['content page', 'documentation', 'resource page', 'information page', 'wysiwyg content'],
     sampleContent: {
@@ -191,4 +185,3 @@ export function registerContentCanonicalComponents(): void {
 
   registered = true
 }
-

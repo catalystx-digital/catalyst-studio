@@ -1,6 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { DataTableDef } from '@/lib/studio/components/cms/data/data-table/data-table.def'
-import { StatisticsDef } from '@/lib/studio/components/cms/data/statistics/statistics.def'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -28,7 +26,7 @@ export const dataCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.Statistics,
     componentType: ComponentType.Statistics,
-    summary: StatisticsDef.description,
+    summary: 'Statistics section for metrics, KPIs, impact numbers, or quantified proof points.',
     fragments: ['stat', 'stat-label'],
     cues: ['statistics', 'kpi', 'metrics'],
     sampleContent: {
@@ -43,7 +41,7 @@ export const dataCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.DataTable,
     componentType: ComponentType.DataTable,
-    summary: DataTableDef.description,
+    summary: 'Data table for structured rows and columns such as feature matrices or comparisons.',
     fragments: ['table-header', 'table-row'],
     cues: ['data table', 'spec table', 'comparison table'],
     sampleContent: {
@@ -73,4 +71,3 @@ export function registerDataCanonicalComponents(): void {
 
   registered = true
 }
-

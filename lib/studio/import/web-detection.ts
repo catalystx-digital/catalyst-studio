@@ -1084,7 +1084,9 @@ export class DetectionService {
           pageUrl: url,
           accuracy: parsed.accuracy,
           resourcesSummary: lastFetch?.resourcesSummary,
-          outlineSections: lastFetch?.sections
+          outlineSections: lastFetch?.sections,
+          sourceHttpStatus: lastFetch?.status,
+          sourceFinalUrl: lastFetch?.finalUrl
         }
 
         telemetry.flush({

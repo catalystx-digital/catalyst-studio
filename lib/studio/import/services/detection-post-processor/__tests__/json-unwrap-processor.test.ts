@@ -1,11 +1,14 @@
 import { unwrapJsonContent } from '../json-unwrap-processor'
+import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 
 describe('unwrapJsonContent', () => {
   it('unwraps canonical bodyHtml JSON from component.content', () => {
     const components = [
       {
-        componentType: 'text-block',
+        component: ComponentType.TextBlock,
+        type: ComponentType.TextBlock,
+        confidence: 0.95,
         content: {
           body: JSON.stringify({
             title: 'Overview',
@@ -27,7 +30,9 @@ describe('unwrapJsonContent', () => {
   it('does not unwrap old props.text JSON into props or content', () => {
     const components = [
       {
-        componentType: 'breadcrumbs',
+        component: ComponentType.Breadcrumbs,
+        type: ComponentType.Breadcrumbs,
+        confidence: 0.95,
         props: {
           text: JSON.stringify({ heading: 'Old props text', items: [{ label: 'Home' }] }),
         },
@@ -43,5 +48,37 @@ describe('unwrapJsonContent', () => {
     expect((components[0] as any).props).not.toHaveProperty('heading')
     expect((components[0] as any).props).not.toHaveProperty('items')
     expect(components[0].content).toEqual({})
+  })
+
+  it('unwraps nested two-column lightweight children with type and content', () => {
+    const components = [
+      {
+        component: ComponentType.TwoColumn,
+        type: ComponentType.TwoColumn,
+        confidence: 0.95,
+        content: {
+          leftColumn: [
+            {
+              type: ComponentType.TextBlock,
+              content: {
+                body: JSON.stringify({
+                  title: 'Nested Overview',
+                  bodyHtml: '<p>Nested body</p>',
+                }),
+              },
+            },
+          ],
+          rightColumn: [],
+        },
+      },
+    ] as unknown as DetectedComponent[]
+
+    unwrapJsonContent(components)
+
+    expect((components[0].content.leftColumn as any[])[0].content).toEqual({
+      body: '<p>Nested body</p>',
+      bodyHtml: '<p>Nested body</p>',
+      heading: 'Nested Overview',
+    })
   })
 })

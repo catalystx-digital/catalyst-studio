@@ -1,6 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { BreadcrumbsDef } from '@/lib/studio/components/cms/navigation/breadcrumbs/breadcrumbs.def'
-import { MobileMenuDef } from '@/lib/studio/components/cms/navigation/mobile-menu/mobile-menu.def'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -10,7 +8,7 @@ export const navigationCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.MobileMenu,
     componentType: ComponentType.MobileMenu,
-    summary: MobileMenuDef.description,
+    summary: 'Mobile navigation menu with links, drawer state, and optional call-to-action.',
     fragments: ['mobile-nav', 'menu-links', 'cta-button'],
     cues: ['mobile navigation', 'hamburger menu', 'drawer navigation'],
     sampleContent: {
@@ -26,7 +24,7 @@ export const navigationCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.Breadcrumbs,
     componentType: ComponentType.Breadcrumbs,
-    summary: BreadcrumbsDef.description,
+    summary: 'Breadcrumb navigation trail showing page hierarchy and parent links.',
     fragments: ['breadcrumb-trail', 'breadcrumb-item'],
     cues: ['breadcrumbs', 'navigation trail', 'page hierarchy'],
     sampleContent: {
@@ -40,7 +38,7 @@ export const navigationCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: 'breadcrumb',
     componentType: ComponentType.Breadcrumbs,
-    summary: BreadcrumbsDef.description,
+    summary: 'Single breadcrumb-style navigation trail for hierarchical page context.',
     fragments: ['breadcrumb-trail', 'breadcrumb-item'],
     cues: ['breadcrumb', 'navigation trail'],
     sampleContent: {

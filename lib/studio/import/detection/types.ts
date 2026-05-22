@@ -97,6 +97,10 @@ export interface ImportDetectionResult {
   accuracy?: number
   resourcesSummary?: ResourcesSummary
   outlineSections?: SectionInfo[]
+  /** HTTP status returned by the source fetch, when known */
+  sourceHttpStatus?: number
+  /** Final URL after source fetch redirects, when known */
+  sourceFinalUrl?: string
   /** Redirect info if this page is a redirect (external or internal) */
   redirectInfo?: RedirectInfo
   /** Whether this result represents a redirect page (skip content storage) */

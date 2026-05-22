@@ -1,8 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { CTABannerDef } from '@/lib/studio/components/cms/cta/cta-banner/cta-banner.def'
-import { CTASimpleDef } from '@/lib/studio/components/cms/cta/cta-simple/cta-simple.def'
-import { CTAButtonGroupDef } from '@/lib/studio/components/cms/cta/cta-button-group/cta-button-group.def'
-import { CTANewsletterDef } from '@/lib/studio/components/cms/cta/cta-newsletter/cta-newsletter.def'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -12,7 +8,7 @@ export const ctaCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.CTASimple,
     componentType: ComponentType.CTASimple,
-    summary: CTASimpleDef.description,
+    summary: 'Simple call-to-action block with heading, supporting copy, and primary or secondary buttons.',
     fragments: ['eyebrow', 'heading', 'supporting-copy', 'primary-button'],
     cues: ['call to action', 'cta block', 'promo banner'],
     sampleContent: {
@@ -28,7 +24,7 @@ export const ctaCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.CTAWithForm,
     componentType: ComponentType.CTAWithForm,
-    summary: CTANewsletterDef.description,
+    summary: 'Call-to-action form for newsletter signup, lead capture, or access requests.',
     fragments: ['form-heading', 'input-field', 'submit-button'],
     cues: ['newsletter signup', 'lead capture form', 'cta form'],
     sampleContent: {
@@ -43,7 +39,7 @@ export const ctaCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.CTABanner,
     componentType: ComponentType.CTABanner,
-    summary: CTABannerDef.description,
+    summary: 'Full-width call-to-action banner with headline, supporting copy, and action buttons.',
     fragments: ['headline', 'supporting-copy', 'primary-button', 'secondary-button'],
     cues: ['cta banner', 'full-width cta', 'promo strip'],
     sampleContent: {
@@ -58,7 +54,7 @@ export const ctaCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.CTAButtonGroup,
     componentType: ComponentType.CTAButtonGroup,
-    summary: CTAButtonGroupDef.description,
+    summary: 'Button group section for multiple related calls to action or navigation choices.',
     fragments: ['button-group', 'cta-button'],
     cues: ['button group', 'cta buttons', 'link group'],
     sampleContent: {
@@ -84,4 +80,3 @@ export function registerCtaCanonicalComponents(): void {
 
   registered = true
 }
-

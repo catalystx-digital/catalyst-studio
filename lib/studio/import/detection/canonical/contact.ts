@@ -1,8 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { ContactFormDef } from '@/lib/studio/components/cms/contact/contact-form/contact-form.def'
-import { ContactInfoDef } from '@/lib/studio/components/cms/contact/contact-info/contact-info.def'
-import { LocationMapDef } from '@/lib/studio/components/cms/contact/location-map/location-map.def'
-import { SimpleFormDef } from '@/lib/studio/components/cms/contact/simple-form/simple-form.def'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -12,7 +8,7 @@ export const contactCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.ContactForm,
     componentType: ComponentType.ContactForm,
-    summary: ContactFormDef.description,
+    summary: 'Contact form for inquiries, lead capture, or support requests.',
     fragments: ['form', 'form-field', 'submit-button'],
     cues: ['contact form', 'lead form', 'inquiry form'],
     sampleContent: {
@@ -30,7 +26,7 @@ export const contactCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.ContactInfo,
     componentType: ComponentType.ContactInfo,
-    summary: ContactInfoDef.description,
+    summary: 'Contact information block with addresses, phone numbers, email, and support hours.',
     fragments: ['address', 'phone', 'email'],
     cues: ['contact info', 'office details', 'support contacts'],
     sampleContent: {
@@ -50,7 +46,7 @@ export const contactCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.LocationMap,
     componentType: ComponentType.LocationMap,
-    summary: LocationMapDef.description,
+    summary: 'Location map section for offices, venues, stores, or service locations.',
     fragments: ['map', 'location-pin', 'location-details'],
     cues: ['map embed', 'location map', 'store locator'],
     sampleContent: {
@@ -70,7 +66,7 @@ export const contactCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.SimpleForm,
     componentType: ComponentType.SimpleForm,
-    summary: SimpleFormDef.description,
+    summary: 'Simple form for newsletter signup, access requests, or compact lead capture.',
     fragments: ['form', 'input-field', 'submit-button'],
     cues: ['simple form', 'lead capture form', 'newsletter form'],
     sampleContent: {
@@ -96,4 +92,3 @@ export function registerContactCanonicalComponents(): void {
 
   registered = true
 }
-

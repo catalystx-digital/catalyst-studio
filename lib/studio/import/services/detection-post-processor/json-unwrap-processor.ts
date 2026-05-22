@@ -12,6 +12,7 @@
  */
 
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
+import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 
 interface NavMenuItem {
   type: string
@@ -57,10 +58,32 @@ function isBodyHtmlWrapper(value: unknown): value is BodyHtmlWrapper {
   return typeof value.bodyHtml === 'string' && value.bodyHtml.trim().length > 0
 }
 
+function isDetectedComponentLike(value: unknown): value is DetectedComponent {
+  return (
+    isRecord(value) &&
+    typeof value.component === 'string' &&
+    typeof value.type === 'string' &&
+    typeof value.confidence === 'number' &&
+    isRecord(value.content)
+  )
+}
+
+function isLightweightDetectedComponentLike(
+  value: unknown
+): value is { type: string; component?: string; content: Record<string, unknown> } {
+  return (
+    isRecord(value) &&
+    typeof value.type === 'string' &&
+    isRecord(value.content)
+  )
+}
+
 /**
  * Detects and unwraps JSON content in a single component (text-block or html-block)
  */
-function unwrapComponentJsonContent(component: DetectedComponent): void {
+function unwrapComponentJsonContent(
+  component: DetectedComponent | { type: string; component?: string; content: Record<string, unknown> }
+): void {
   const content = component.content
   if (!isRecord(content)) {
     return
@@ -109,7 +132,8 @@ function unwrapComponentJsonContent(component: DetectedComponent): void {
           }
 
           // Change component type to sidebar-nav
-          component.componentType = 'sidebar-nav'
+          component.component = ComponentType.SidebarNav
+          component.type = ComponentType.SidebarNav
 
           console.log('[JSONUnwrap] Converted nav-menu-item array to sidebar-nav component')
           return
@@ -132,7 +156,8 @@ function unwrapComponentJsonContent(component: DetectedComponent): void {
             }
 
             // Change component type to sidebar-nav
-            component.componentType = 'sidebar-nav'
+            component.component = ComponentType.SidebarNav
+            component.type = ComponentType.SidebarNav
 
             console.log('[JSONUnwrap] Converted wrapped nav-menu-item array to sidebar-nav component')
             return
@@ -174,7 +199,7 @@ function unwrapComponentJsonContent(component: DetectedComponent): void {
  */
 export function unwrapJsonContent(components: DetectedComponent[]): void {
   for (const component of components) {
-    const componentType = component.componentType
+    const componentType = component.type
 
     // Only process text-block and html-block components (where JSON might appear)
     if (componentType === 'text-block' || componentType === 'html-block') {
@@ -189,9 +214,9 @@ export function unwrapJsonContent(components: DetectedComponent[]): void {
         const processColumn = (columnArray: unknown) => {
           if (Array.isArray(columnArray)) {
             for (const child of columnArray) {
-              if (isRecord(child)) {
-                const childComponent = child as DetectedComponent
-                const childType = childComponent.type || childComponent.componentType
+              if (isDetectedComponentLike(child) || isLightweightDetectedComponentLike(child)) {
+                const childComponent = child
+                const childType = childComponent.type
                 if (childType === 'text-block' || childType === 'html-block') {
                   unwrapComponentJsonContent(childComponent)
                 }

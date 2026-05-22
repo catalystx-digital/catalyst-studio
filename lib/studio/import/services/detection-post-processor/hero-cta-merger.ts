@@ -36,14 +36,15 @@ const HERO_TYPES = new Set([
  * Checks if a component type is a hero variant
  */
 function isHeroComponent(type: string): boolean {
-  return HERO_TYPES.has(canonicalizeComponentType(type))
+  const canonical = canonicalizeComponentType(type)
+  return canonical ? HERO_TYPES.has(canonical) : false
 }
 
 /**
  * Checks if a component is a simple CTA banner (heading only, no buttons)
  */
 function isSimpleCtaBanner(component: DetectedComponent): boolean {
-  const type = canonicalizeComponentType(String(component.type))
+  const type = canonicalizeComponentType(component.type)
   if (type !== 'cta-banner') {
     return false
   }
@@ -54,7 +55,7 @@ function isSimpleCtaBanner(component: DetectedComponent): boolean {
   }
 
   // Must have a heading
-  const heading = normalizeString(content.heading as string)
+  const heading = typeof content.heading === 'string' ? normalizeString(content.heading) : undefined
   if (!heading) {
     return false
   }
@@ -65,8 +66,8 @@ function isSimpleCtaBanner(component: DetectedComponent): boolean {
                      (Array.isArray(content.buttons) && content.buttons.length > 0) ||
                      (Array.isArray(content.ctaButtons) && content.ctaButtons.length > 0)
 
-  const hasBody = Boolean(normalizeString(content.body as string)) ||
-                  Boolean(normalizeString(content.description as string))
+  const hasBody = (typeof content.body === 'string' && Boolean(normalizeString(content.body))) ||
+                  (typeof content.description === 'string' && Boolean(normalizeString(content.description)))
 
   // Simple CTA = has heading but no buttons and no body
   return !hasButtons && !hasBody
@@ -134,7 +135,7 @@ export function mergeHeroWithAdjacentCta(components: DetectedComponent[]): void 
     const next = components[i + 1]
 
     // Check if current is a hero and next is a simple CTA banner
-    if (!isHeroComponent(String(current.type))) {
+    if (!isHeroComponent(current.type)) {
       continue
     }
 
@@ -143,7 +144,7 @@ export function mergeHeroWithAdjacentCta(components: DetectedComponent[]): void 
     }
 
     const ctaContent = next.content as Record<string, unknown>
-    const ctaHeading = normalizeString(ctaContent.heading as string)
+    const ctaHeading = typeof ctaContent.heading === 'string' ? normalizeString(ctaContent.heading) : undefined
 
     if (!ctaHeading) {
       continue
@@ -158,7 +159,9 @@ export function mergeHeroWithAdjacentCta(components: DetectedComponent[]): void 
     const heroContent = (current.content ?? {}) as Record<string, unknown>
 
     // Only merge if hero doesn't already have a subheading
-    const existingSubheading = normalizeString(heroContent.subheading as string)
+    const existingSubheading = typeof heroContent.subheading === 'string'
+      ? normalizeString(heroContent.subheading)
+      : undefined
     if (existingSubheading) {
       continue
     }

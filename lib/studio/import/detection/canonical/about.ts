@@ -1,7 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { TeamGridDef } from '@/lib/studio/components/cms/about/team-grid/team-grid.def'
-import { AboutSectionDef } from '@/lib/studio/components/cms/about/about-section/about-section.def'
-import { TimelineDef } from '@/lib/studio/components/cms/data/timeline/timeline.def'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -11,7 +8,7 @@ export const aboutCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.TeamGrid,
     componentType: ComponentType.TeamGrid,
-    summary: TeamGridDef.description,
+    summary: 'Team grid section for leadership, staff, or contributor profiles.',
     fragments: ['team-member', 'profile-card'],
     cues: ['team grid', 'team members', 'leadership'],
     sampleContent: {
@@ -51,7 +48,7 @@ export const aboutCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.AboutSection,
     componentType: ComponentType.AboutSection,
-    summary: AboutSectionDef.description,
+    summary: 'About section combining company story, values, milestones, and supporting statistics.',
     fragments: ['story', 'values', 'milestones', 'stats'],
     cues: ['about section', 'company story', 'our mission'],
     sampleContent: {
@@ -92,7 +89,7 @@ export const aboutCanonicalDefinitions: CanonicalComponentDefinition[] = [
   {
     canonicalType: ComponentType.Timeline,
     componentType: ComponentType.Timeline,
-    summary: TimelineDef.description,
+    summary: 'Timeline section for chronological milestones, roadmap events, or history entries.',
     fragments: ['timeline-event', 'timeline-track'],
     cues: ['company timeline', 'roadmap timeline', 'chronology'],
     sampleContent: {
@@ -132,4 +129,3 @@ export function registerAboutCanonicalComponents(): void {
 
   registered = true
 }
-

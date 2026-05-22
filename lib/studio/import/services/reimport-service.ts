@@ -106,6 +106,26 @@ export interface ReImportServiceConfig {
   mediaIngestService?: MediaIngestService
 }
 
+interface DetectionComponentInput {
+  type?: unknown
+  content?: unknown
+  props?: unknown
+  children?: unknown
+}
+
+interface ReImportDetectionResult extends ImportDetectionResult {
+  sourceHttpStatus?: number
+  sourceFinalUrl?: string
+  httpStatus?: number
+  finalUrl?: string
+  metadata?: {
+    httpStatus?: unknown
+    sourceHttpStatus?: unknown
+    finalUrl?: unknown
+    redirectedTo?: unknown
+  }
+}
+
 // =============================================================================
 // Service Implementation
 // =============================================================================
@@ -204,13 +224,13 @@ export class ReImportService implements IReImportService {
               status: 'processing',
               startedAt: new Date(),
               // Store reimport metadata in detectionResults since ImportJob schema doesn't have a metadata field
-              detectionResults: {
+              detectionResults: this.toPrismaInputJson({
                 type: ReImportConfig.tracking.importJobType, // 'reimport' discriminator
                 urls: options.urls,
                 totalUrls: options.urls.length,
-                preserveCustomizations: options.preserveCustomizations,
-                skipDesignSystem: options.skipDesignSystem
-              } as Prisma.InputJsonValue
+                preserveCustomizations: mergedOptions.preserveCustomizations,
+                skipDesignSystem: mergedOptions.skipDesignSystem
+              }, 'importJob.detectionResults')
             }
           })
           importJobId = importJob.id
@@ -299,13 +319,13 @@ export class ReImportService implements IReImportService {
             data: {
               status: finalResult.success ? 'completed' : 'failed',
               completedAt: new Date(),
-              detectionResults: {
+              detectionResults: this.toPrismaInputJson({
                 type: ReImportConfig.tracking.importJobType, // Preserve type discriminator
                 urls: options.urls,
                 totalUrls: options.urls.length,
                 summary: finalResult.summary,
                 processingTimeMs: finalResult.processingTimeMs
-              } as Prisma.InputJsonValue
+              }, 'importJob.detectionResults')
             }
           })
         } catch (err) {
@@ -654,8 +674,7 @@ export class ReImportService implements IReImportService {
         enablePerformanceMonitoring: false,
         generateTemplates: false,
         saveToDatabase: false,
-        // Skip DOM probe if skipping design system
-        skipDomProbe: skipDesignSystem
+        skipDesignSystem,
       })
 
       const detections = result.data?.detectedComponents
@@ -678,8 +697,13 @@ export class ReImportService implements IReImportService {
         }
       }
 
-      // Check for HTTP errors in detection metadata
-      const httpStatus = (detection.metadata as any)?.httpStatus || 200
+      const httpStatus = this.getDetectionHttpStatus(detection as ReImportDetectionResult)
+      if (httpStatus === undefined) {
+        return {
+          success: false,
+          error: 'Source HTTP status is not available from detection pipeline result'
+        }
+      }
 
       if (httpStatus === 404) {
         return {
@@ -700,7 +724,8 @@ export class ReImportService implements IReImportService {
       return {
         success: true,
         detection,
-        httpStatus
+        httpStatus,
+        redirectedTo: this.getDetectionRedirectUrl(detection as ReImportDetectionResult)
       }
 
     } catch (error) {
@@ -809,8 +834,8 @@ export class ReImportService implements IReImportService {
       await tx.websitePage.update({
         where: { id: existingPage.id },
         data: {
-          content: { components: finalComponents },
-          metadata: metadata as Prisma.InputJsonValue,
+          content: this.toPrismaInputJson({ components: finalComponents }, 'websitePage.content'),
+          metadata: this.toPrismaInputJson(metadata, 'websitePage.metadata'),
           updatedAt: new Date()
         }
       })
@@ -846,8 +871,9 @@ export class ReImportService implements IReImportService {
     // Build map of existing shared component refs by type
     const sharedRefsByType = new Map<string, string>()
     for (const comp of existing) {
-      if ((comp.props as any)?.sharedComponentId) {
-        sharedRefsByType.set(comp.type, (comp.props as any).sharedComponentId)
+      const sharedComponentId = this.getSharedComponentId(comp)
+      if (sharedComponentId) {
+        sharedRefsByType.set(comp.type, sharedComponentId)
       }
     }
 
@@ -892,6 +918,10 @@ export class ReImportService implements IReImportService {
 
     const newComponents = this.buildComponentsFromDetection(detection)
     const pageTitle = this.extractPageTitle(detection, sourceUrl)
+    const sourceStatus = this.getDetectionHttpStatus(detection as ReImportDetectionResult)
+    if (sourceStatus === undefined) {
+      throw new Error('Re-import metadata.sourceStatus is unavailable from detection pipeline result')
+    }
 
     const metadata: PageMetadataWithReImport = {
       importSource: sourceUrl,
@@ -900,7 +930,7 @@ export class ReImportService implements IReImportService {
       reimportHistory: [{
         timestamp: new Date().toISOString(),
         changes: { componentsAdded: newComponents.length, componentsRemoved: 0, componentsUpdated: 0 },
-        sourceStatus: 200,
+        sourceStatus,
         preservedCustomizations: false
       }]
     }
@@ -935,8 +965,8 @@ export class ReImportService implements IReImportService {
           websiteId,
           type: 'page',
           title: pageTitle,
-          content: { components: newComponents },
-          metadata: metadata as Prisma.InputJsonValue,
+          content: this.toPrismaInputJson({ components: newComponents }, 'websitePage.content'),
+          metadata: this.toPrismaInputJson(metadata, 'websitePage.metadata'),
           contentTypeId: contentType.id,
           status: 'draft'
         }
@@ -1020,7 +1050,7 @@ export class ReImportService implements IReImportService {
       where: { id: pageId },
       data: {
         status: 'source-not-found',
-        metadata: metadata as Prisma.InputJsonValue
+        metadata: this.toPrismaInputJson(metadata, 'websitePage.metadata')
       }
     })
   }
@@ -1038,44 +1068,51 @@ export class ReImportService implements IReImportService {
         comp,
         `comp-${Date.now()}-${index}`,
         null,
+        index,
         `components[${index}]`
       )
     )
   }
 
   private buildComponentInstanceFromDetection(
-    component: any,
+    component: DetectionComponentInput,
     id: string,
     parentId: string | null,
+    position: number,
     path: string
   ): ComponentInstance {
     const children = Array.isArray(component.children)
-      ? component.children.map((child: any, childIndex: number) =>
-          this.buildComponentInstanceFromDetection(
+      ? component.children.map((child, childIndex) => {
+          if (!this.isRecord(child)) {
+            throw new Error(`Re-import detection ${path}.children[${childIndex}] must be an object`)
+          }
+          return this.buildComponentInstanceFromDetection(
             child,
             `${id}-${childIndex}`,
             id,
+            childIndex,
             `${path}.children[${childIndex}]`
           )
-        )
+        })
       : undefined
 
     if (typeof component.type !== 'string' || component.type.trim().length === 0) {
       throw new Error(`Re-import detection ${path}.type must be a non-empty string`)
     }
-    if (typeof component.position !== 'number' || !Number.isInteger(component.position) || component.position < 0) {
-      throw new Error(`Re-import detection ${path}.position must be a non-negative integer`)
-    }
 
-    return {
+    const instance: ComponentInstance = {
       id,
       type: component.type,
       parentId,
-      position: component.position,
-      props: {},
-      content: this.readDetectionComponentContent(component, path),
-      children
+      position,
+      props: this.readDetectionComponentContent(component, path),
     }
+
+    if (children !== undefined) {
+      instance.children = children
+    }
+
+    return instance
   }
 
   private readDetectionComponentContent(
@@ -1101,6 +1138,79 @@ export class ReImportService implements IReImportService {
 
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
+  }
+
+  private toPrismaInputJson(value: unknown, path: string): Prisma.InputJsonValue {
+    this.validatePrismaInputJson(value, path, new WeakSet<object>())
+    return value as Prisma.InputJsonValue
+  }
+
+  private validatePrismaInputJson(value: unknown, path: string, seen: WeakSet<object>): void {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+      return
+    }
+
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        throw new Error(`Re-import ${path} contains non-finite number`)
+      }
+      return
+    }
+
+    if (value === undefined) {
+      throw new Error(`Re-import ${path} contains undefined`)
+    }
+
+    if (typeof value === 'bigint') {
+      throw new Error(`Re-import ${path} contains BigInt`)
+    }
+
+    if (typeof value === 'function') {
+      throw new Error(`Re-import ${path} contains function`)
+    }
+
+    if (typeof value === 'symbol') {
+      throw new Error(`Re-import ${path} contains symbol`)
+    }
+
+    if (typeof value !== 'object') {
+      throw new Error(`Re-import ${path} contains unsupported ${typeof value}`)
+    }
+
+    if (seen.has(value)) {
+      throw new Error(`Re-import ${path} contains circular reference`)
+    }
+    seen.add(value)
+
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++) {
+        if (!(index in value)) {
+          throw new Error(`Re-import ${path}[${index}] contains sparse array hole`)
+        }
+        this.validatePrismaInputJson(value[index], `${path}[${index}]`, seen)
+      }
+      seen.delete(value)
+      return
+    }
+
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) {
+      const typeName = value.constructor?.name || 'object'
+      throw new Error(`Re-import ${path} contains unsupported ${typeName}`)
+    }
+
+    for (const [key, nested] of Object.entries(value)) {
+      this.validatePrismaInputJson(nested, `${path}.${key}`, seen)
+    }
+
+    seen.delete(value)
+  }
+
+  private getSharedComponentId(component: ComponentInstance): string | undefined {
+    const sharedComponentId = component.props.sharedComponentId
+    return typeof sharedComponentId === 'string' && sharedComponentId.trim().length > 0
+      ? sharedComponentId
+      : undefined
   }
 
   private mergeComponents(
@@ -1161,6 +1271,10 @@ export class ReImportService implements IReImportService {
   ): PageMetadataWithReImport {
     const now = new Date().toISOString()
     const newComponents = this.buildComponentsFromDetection(detection)
+    const sourceStatus = this.getDetectionHttpStatus(detection as ReImportDetectionResult)
+    if (sourceStatus === undefined) {
+      throw new Error('Re-import metadata.sourceStatus is unavailable from detection pipeline result')
+    }
 
     const historyEntry: ReImportHistoryEntry = {
       timestamp: now,
@@ -1169,19 +1283,57 @@ export class ReImportService implements IReImportService {
         componentsRemoved: 0,
         componentsUpdated: 0
       },
-      sourceStatus: 200,
+      sourceStatus,
       preservedCustomizations
     }
 
-    return {
+    const metadata: PageMetadataWithReImport = {
       ...existing,
       importSource: sourceUrl,
       lastReimportedAt: now,
-      reimportHistory: [...(existing?.reimportHistory || []), historyEntry].slice(-10), // Keep last 10
-      // Clear not-found status if source is now available
-      sourceNotFoundAt: undefined,
-      sourceMovedTo: undefined
+      reimportHistory: [...(existing?.reimportHistory || []), historyEntry].slice(-10) // Keep last 10
     }
+
+    // Clear not-found/moved status if source is now available without relying on
+    // JSON serialization to drop undefined fields.
+    delete metadata.sourceNotFoundAt
+    delete metadata.sourceMovedTo
+
+    return metadata
+  }
+
+  private getDetectionHttpStatus(detection: ReImportDetectionResult): number | undefined {
+    const candidates = [
+      detection.sourceHttpStatus,
+      detection.httpStatus,
+      detection.metadata?.sourceHttpStatus,
+      detection.metadata?.httpStatus
+    ]
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 100 && candidate <= 599) {
+        return candidate
+      }
+    }
+
+    return undefined
+  }
+
+  private getDetectionRedirectUrl(detection: ReImportDetectionResult): string | undefined {
+    const candidates = [
+      detection.sourceFinalUrl,
+      detection.finalUrl,
+      detection.metadata?.redirectedTo,
+      detection.metadata?.finalUrl
+    ]
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0 && candidate !== detection.pageUrl) {
+        return candidate
+      }
+    }
+
+    return undefined
   }
 
   // ===========================================================================
@@ -1271,8 +1423,8 @@ export class ReImportService implements IReImportService {
 
     // Find components with sharedComponentId
     const sharedRefs = components
-      .filter(c => (c.props as any)?.sharedComponentId)
-      .map(c => (c.props as any).sharedComponentId as string)
+      .map(c => this.getSharedComponentId(c))
+      .filter((sharedComponentId): sharedComponentId is string => Boolean(sharedComponentId))
 
     if (sharedRefs.length === 0) return
 
@@ -1292,7 +1444,7 @@ export class ReImportService implements IReImportService {
 
     // Update component props with latest shared data
     const updatedComponents = components.map(c => {
-      const sharedId = (c.props as any)?.sharedComponentId
+      const sharedId = this.getSharedComponentId(c)
       if (sharedId && sharedPropsMap.has(sharedId)) {
         return {
           ...c,
@@ -1310,7 +1462,7 @@ export class ReImportService implements IReImportService {
     await this.prisma.websitePage.update({
       where: { id: pageId },
       data: {
-        content: { components: updatedComponents }
+        content: this.toPrismaInputJson({ components: updatedComponents }, 'websitePage.content')
       }
     })
   }
@@ -1379,10 +1531,9 @@ export class ReImportService implements IReImportService {
   }
 
   private extractPageTitle(detection: ImportDetectionResult, url: string): string {
-    // Try to get title from detection metadata
-    const metadata = detection.metadata as any
-    if (metadata?.pageMetadata?.title) {
-      return metadata.pageMetadata.title
+    // Try to get title from current detection page metadata
+    if (detection.pageMetadata?.title) {
+      return detection.pageMetadata.title
     }
 
     // Extract from URL path

@@ -9,7 +9,6 @@ import type {
   ComponentSchema,
   DetectionSchemaBundle,
   SchemaArrayField,
-  SchemaArrayItem,
   SchemaField,
   SchemaFieldType
 } from './types'
@@ -22,8 +21,38 @@ import type {
  */
 
 const SCHEMA_VERSION = 1 as const
+const DETECTION_PRIMITIVE_FIELD_TYPES = new Set<SchemaFieldType>([
+  'string',
+  'number',
+  'boolean',
+  'url',
+  'richText',
+  'media',
+  'select',
+  'reference'
+])
 
-function convertUnifiedFieldToSchemaField(field: UnifiedField): SchemaField {
+function mapUnifiedFieldType(type: string | undefined, path: string): SchemaFieldType {
+  switch (type) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'url':
+    case 'richText':
+    case 'media':
+    case 'select':
+    case 'reference':
+    case 'array':
+    case 'object':
+      return type
+    case 'date':
+      return 'string'
+    default:
+      throw new Error(`Unsupported unified schema field type "${type ?? 'undefined'}" at ${path}`)
+  }
+}
+
+function convertUnifiedFieldToSchemaField(field: UnifiedField, path = field.name): SchemaField {
   if (field.fields) {
     // Object field
     return {
@@ -32,7 +61,7 @@ function convertUnifiedFieldToSchemaField(field: UnifiedField): SchemaField {
       required: field.required,
       description: field.description,
       rawType: field.rawType,
-      fields: field.fields.map(convertUnifiedFieldToSchemaField)
+      fields: field.fields.map(child => convertUnifiedFieldToSchemaField(child, `${path}.${child.name}`))
     }
   }
 
@@ -55,12 +84,16 @@ function convertUnifiedFieldToSchemaField(field: UnifiedField): SchemaField {
     } else if (field.items.kind === 'object') {
       schemaField.items = {
         kind: 'object',
-        fields: (field.items.fields ?? []).map(convertUnifiedFieldToSchemaField)
+        fields: (field.items.fields ?? []).map(child => convertUnifiedFieldToSchemaField(child, `${path}[].${child.name}`))
       }
     } else {
+      const itemType = mapUnifiedFieldType(field.items.type, `${path}[]`)
+      if (!DETECTION_PRIMITIVE_FIELD_TYPES.has(itemType)) {
+        throw new Error(`Unified schema array field "${path}" has non-primitive item type "${itemType}"`)
+      }
       schemaField.items = {
         kind: 'primitive',
-        type: field.items.type ?? 'unknown',
+        type: itemType,
         ...(field.items.options ? { options: field.items.options } : {})
       }
     }
@@ -69,9 +102,14 @@ function convertUnifiedFieldToSchemaField(field: UnifiedField): SchemaField {
   }
 
   // Scalar field
+  const type = mapUnifiedFieldType(field.type, path)
+  if (type === 'array' || type === 'object') {
+    throw new Error(`Unified schema field "${path}" is missing nested ${type} metadata`)
+  }
+
   return {
     name: field.name,
-    type: field.type as SchemaFieldType,
+    type,
     required: field.required,
     description: field.description,
     rawType: field.rawType,
@@ -81,6 +119,9 @@ function convertUnifiedFieldToSchemaField(field: UnifiedField): SchemaField {
 
 function convertUnifiedToDetectionBundle(unified: UnifiedSchemaBundle): DetectionSchemaBundle {
   const components: Record<string, ComponentSchema> = {}
+  if (unified.integrity.algorithm !== 'sha256') {
+    throw new Error(`Unsupported unified schema integrity algorithm "${unified.integrity.algorithm}"`)
+  }
 
   for (const [canonicalType, schema] of Object.entries(unified.componentsIndex)) {
     components[canonicalType] = {
@@ -89,7 +130,7 @@ function convertUnifiedToDetectionBundle(unified: UnifiedSchemaBundle): Detectio
       summary: schema.summary,
       description: schema.description,
       defaultRegion: schema.defaultRegion,
-      fields: schema.fields.map(convertUnifiedFieldToSchemaField),
+      fields: schema.fields.map(field => convertUnifiedFieldToSchemaField(field)),
       propsSource: schema.propsSource as 'propsMeta' | 'contract'
     }
   }
@@ -98,7 +139,11 @@ function convertUnifiedToDetectionBundle(unified: UnifiedSchemaBundle): Detectio
     version: SCHEMA_VERSION,
     generatedAt: unified.generatedAt,
     components,
-    integrity: unified.integrity,
+    integrity: {
+      algorithm: unified.integrity.algorithm,
+      hash: unified.integrity.hash,
+      componentCount: unified.integrity.componentCount
+    },
     warnings: unified.warnings
   }
 }

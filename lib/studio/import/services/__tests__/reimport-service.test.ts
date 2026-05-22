@@ -264,6 +264,98 @@ describe('ReImportService', () => {
       expect(mockPrisma.websitePage.update).toHaveBeenCalled()
     })
 
+    it('passes skipDesignSystem through to the import pipeline', async () => {
+      const existingPage = {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+
+      await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        skipDesignSystem: true,
+      })
+
+      expect(mockImportPipeline.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ skipDesignSystem: true })
+      )
+    })
+
+    it('records source status from detection metadata in reimport history', async () => {
+      const existingPage = {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about', reimportHistory: [] },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            pageUrl: 'https://example.com/about',
+            components: [{ type: 'hero', content: { title: 'About Us' } }],
+            metadata: { httpStatus: 206 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+      })
+
+      expect(result.results[0].status).toBe('updated')
+      expect(mockPrisma.websitePage.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            metadata: expect.objectContaining({
+              reimportHistory: [
+                expect.objectContaining({ sourceStatus: 206 }),
+              ],
+            }),
+          }),
+        })
+      )
+    })
+
+    it('fails explicitly when source status is unavailable', async () => {
+      const existingPage = {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            pageUrl: 'https://example.com/about',
+            components: [{ type: 'hero', content: { title: 'About Us' } }],
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('Source HTTP status is not available')
+    })
+
     it('creates new page when not found and createIfNotExists is true', async () => {
       mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
       mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(null)
@@ -423,7 +515,7 @@ describe('ReImportService', () => {
       expect(result.results[0].error).toContain('components[0].type must be a non-empty string')
     })
 
-    it('rejects detection components without an explicit position', async () => {
+    it('derives component positions from detection order', async () => {
       const existingPage = {
         id: 'page-1',
         content: { components: [] },
@@ -436,7 +528,7 @@ describe('ReImportService', () => {
         data: {
           detectedComponents: [{
             url: 'https://example.com/about',
-            components: [{ type: 'hero', content: { title: 'Missing position' } }],
+            components: [{ type: 'hero', content: { title: 'Ordered component' } }],
             metadata: { httpStatus: 200 },
           }],
         },
@@ -448,8 +540,8 @@ describe('ReImportService', () => {
         dryRun: true,
       })
 
-      expect(result.results[0].status).toBe('failed')
-      expect(result.results[0].error).toContain('components[0].position must be a non-negative integer')
+      expect(result.results[0].status).toBe('updated')
+      expect(result.results[0].error).toBeUndefined()
     })
 
     it('fails page creation when no content type is configured', async () => {
@@ -539,6 +631,28 @@ describe('ReImportService', () => {
 
       expect(result.results[0].status).toBe('failed')
       expect(result.results[0].error).toContain('components[0].children[0].children[0] uses legacy props content; use content')
+    })
+
+    it('rejects non-JSON values before Prisma serialization', () => {
+      const circular: Record<string, unknown> = {}
+      circular.self = circular
+      const sparse: unknown[] = []
+      sparse[1] = 'value'
+
+      expect(() => (service as any).toPrismaInputJson({ value: undefined }, 'websitePage.metadata'))
+        .toThrow('Re-import websitePage.metadata.value contains undefined')
+      expect(() => (service as any).toPrismaInputJson({ value: BigInt(1) }, 'websitePage.metadata'))
+        .toThrow('Re-import websitePage.metadata.value contains BigInt')
+      expect(() => (service as any).toPrismaInputJson({ value: () => undefined }, 'websitePage.metadata'))
+        .toThrow('Re-import websitePage.metadata.value contains function')
+      expect(() => (service as any).toPrismaInputJson({ value: Symbol('x') }, 'websitePage.metadata'))
+        .toThrow('Re-import websitePage.metadata.value contains symbol')
+      expect(() => (service as any).toPrismaInputJson(sparse, 'websitePage.content'))
+        .toThrow('Re-import websitePage.content[0] contains sparse array hole')
+      expect(() => (service as any).toPrismaInputJson({ value: new Date() }, 'websitePage.metadata'))
+        .toThrow('Re-import websitePage.metadata.value contains unsupported Date')
+      expect(() => (service as any).toPrismaInputJson(circular, 'websitePage.metadata'))
+        .toThrow('Re-import websitePage.metadata.self contains circular reference')
     })
 
     it('processes multiple URLs with correct summary', async () => {
