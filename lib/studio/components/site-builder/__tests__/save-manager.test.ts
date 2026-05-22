@@ -130,8 +130,10 @@ describe('SaveManager', () => {
     expect(toPageComponentOverrides({ title: 'Direct' })).toEqual({ title: 'Direct' });
     expect(toPageComponentOverrides({ content: { title: 'From content' }, props: { content: { title: 'Mirror' } } }))
       .toEqual({ title: 'From content' });
-    expect(toPageComponentOverrides({ props: { content: { title: 'From props content' } } }))
-      .toEqual({ title: 'From props content' });
+    expect(() => toPageComponentOverrides({ props: { content: { title: 'From props content' } } }))
+      .toThrow('Page component update payload contains malformed legacy content mirrors');
+    expect(() => toPageComponentOverrides({ props: { text: { title: 'From props text' } } }))
+      .toThrow('Page component update payload contains malformed legacy content mirrors');
   });
 
   it('surfaces malformed legacy page component wrappers instead of sending them', async () => {

@@ -74,9 +74,6 @@ export function toPageComponentOverrides(data: unknown): Record<string, any> | n
   }
 
   if (isPlainObject(data.props)) {
-    if (isPlainObject(data.props.content)) {
-      return data.props.content;
-    }
     if (
       Object.prototype.hasOwnProperty.call(data.props, 'content')
       || Object.prototype.hasOwnProperty.call(data.props, 'text')
