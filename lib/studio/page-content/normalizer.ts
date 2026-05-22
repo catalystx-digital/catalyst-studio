@@ -525,13 +525,19 @@ export function normalizeComponent(
   const position = typeof instance.position === 'number' ? instance.position : fallbackPosition
   const propsSourcePath = isRecord(instance.props) || hasOwn(instance, 'props') ? `${path}.props` : `${path}.data`
   const props = normalizeProps(instance.props ?? instance.data, diagnostics, propsSourcePath, options)
-  const rawContent = parseJsonStringWithDiagnostics(instance.content, {
-    diagnostics,
-    options,
-    path: `${path}.content`,
-    code: 'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED',
-    message: 'Component content contains malformed JSON-like text and was left unchanged.',
-  })
+  let rawContent = instance.content
+  if (typeof rawContent === 'string') {
+    addDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
+      severity: isStrictWrite(options) ? 'error' : 'warn',
+      message: isStrictWrite(options)
+        ? 'Component content must be an object for strict writes; string content is not accepted.'
+        : 'Component content must be an object; string content is not accepted.',
+      path: `${path}.content`,
+      componentId: id,
+    })
+    rawContent = {}
+  }
   const content = normalizeContentForComponentType(
     type,
     rawContent,
@@ -713,22 +719,32 @@ export function normalizePageContent(
 ): NormalizePageContentResult {
   const options = resolveOptions(optionsInput)
   const diagnostics: PageContentDiagnostic[] = []
-  const parsedContent = parseJsonStringWithDiagnostics(content, {
-    diagnostics,
-    options,
-    path: '$',
-    code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
-    message: 'Page content contains malformed JSON-like text and was left unchanged.',
-  })
-  if (typeof content === 'string' && parsedContent !== content) {
-    addDiagnostic(diagnostics, {
-      code: 'PAGE_CONTENT_JSON_STRING',
-      severity: isStrictWrite(options) ? 'error' : 'info',
-      message: isStrictWrite(options)
-        ? 'JSON string page content is not valid for strict writes.'
-        : 'JSON string page content was parsed before normalization.',
-      path: '$',
-    })
+  let parsedContent = content
+  if (typeof content === 'string') {
+    const trimmed = content.trim()
+    if (isJsonIntentString(trimmed)) {
+      try {
+        JSON.parse(trimmed)
+        addDiagnostic(diagnostics, {
+          code: 'PAGE_CONTENT_JSON_STRING',
+          severity: isStrictWrite(options) ? 'error' : 'warn',
+          message: isStrictWrite(options)
+            ? 'JSON string page content is not valid for strict writes; use PageContentV1 object content.'
+            : 'JSON string page content is not valid; use PageContentV1 object content.',
+          path: '$',
+        })
+      } catch (error) {
+        addDiagnostic(diagnostics, {
+          code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+          severity: isStrictWrite(options) ? 'error' : 'warn',
+          message: 'Page content contains malformed JSON-like text and was left unchanged.',
+          path: '$',
+          context: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
+      }
+    }
   }
 
   const source = isRecord(parsedContent) ? parsedContent : {}

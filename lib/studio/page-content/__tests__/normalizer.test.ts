@@ -162,22 +162,28 @@ describe('page content normalizer', () => {
     expect(result.pageContent.components[0].props).toEqual({})
   })
 
-  it('reports JSON string page content and non-array components diagnostics', () => {
+  it('rejects JSON string page content instead of parsing it', () => {
     const result = normalizePageContent(JSON.stringify({
-      components: { id: 'not-array' },
+      components: [
+        {
+          id: 'component-1',
+          type: 'text-block',
+          content: { text: 'Legacy string content' },
+        },
+      ],
     }))
 
     expect(result.pageContent.components).toEqual([])
     expect(result.diagnostics).toEqual([
       expect.objectContaining({
         code: 'PAGE_CONTENT_JSON_STRING',
-        severity: 'info',
+        severity: 'warn',
         path: '$',
       }),
       expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        code: 'PAGE_CONTENT_INVALID',
         severity: 'warn',
-        path: 'components',
+        path: '$',
       }),
     ])
   })
@@ -277,7 +283,7 @@ describe('page content normalizer', () => {
     }
   })
 
-  it('reports malformed component.content in canonical-read', () => {
+  it('rejects string component.content in canonical-read instead of parsing it', () => {
     const result = normalizePageContent({
       components: [
         {
@@ -292,11 +298,38 @@ describe('page content normalizer', () => {
     expect(result.pageContent.components[0].content).toEqual({})
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED',
+        code: 'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
         severity: 'warn',
         path: 'components[0].content',
+        componentId: 'text-1',
       }),
     ]))
+  })
+
+  it('rejects string component.content in strict-write', () => {
+    try {
+      normalizePageContent({
+        components: [
+          {
+            id: 'text-1',
+            type: 'text-block',
+            props: {},
+            content: '{"text":"Legacy string content"}',
+          },
+        ],
+      }, { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
+          severity: 'error',
+          path: 'components[0].content',
+          componentId: 'text-1',
+        }),
+      ]))
+    }
   })
 
   it('skips invalid component entries with diagnostics', () => {
@@ -561,10 +594,17 @@ describe('page content normalizer', () => {
       id: 'bad-payload',
       type: 'text-block',
       props: {},
-      content: { text: 'Canonical component content' },
+      content: {},
       styles: {},
       metadata: {},
     })
+    expect(canonical.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
+        severity: 'warn',
+        path: 'components[0].content',
+      }),
+    ]))
 
     try {
       toCanonicalPageContent({}, [malformedComponent], { mode: 'strict-write' })
@@ -578,6 +618,7 @@ describe('page content normalizer', () => {
         'PAGE_CONTENT_COMPONENT_CONTENT_INVALID',
         'PAGE_CONTENT_COMPONENT_STYLES_INVALID',
         'PAGE_CONTENT_COMPONENT_METADATA_INVALID',
+        'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
       ])
     }
   })
