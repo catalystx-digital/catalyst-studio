@@ -7,23 +7,6 @@ import { AccordionClient } from './accordion.client';
 import { AccordionProps } from './accordion.types';
 import { ComponentCategory } from '../../_core/types';
 import { sanitizeText } from '../../_core/security';
-import { SafeHtml } from '../../_core/safe-html';
-
-function normalizeItems(content: AccordionProps['content']) {
-  const areaItems = Array.isArray(content.areas?.items) ? content.areas.items : undefined;
-
-  if (areaItems && areaItems.length > 0) {
-    return areaItems.map((child) => ({
-      id: child.id,
-      title: child.content?.title ?? child.content?.heading ?? '',
-      content: child.content?.content ?? child.content?.body ?? '',
-      icon: child.content?.icon,
-      defaultOpen: Boolean(child.content?.defaultOpen),
-    }));
-  }
-
-  return Array.isArray(content.items) ? content.items : [];
-}
 
 export function AccordionServer({
   id,
@@ -39,7 +22,7 @@ export function AccordionServer({
   onItemToggle,
   onAllToggle,
 }: AccordionProps) {
-  const sourceItems = normalizeItems(content);
+  const sourceItems = Array.isArray(content.items) ? content.items : [];
 
   const preparedContent = {
     ...content,

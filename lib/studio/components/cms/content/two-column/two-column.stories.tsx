@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import TwoColumn from './index';
+import { ComponentCategory, ComponentType } from '../../_core/types';
 
 const meta = {
   title: 'Studio/CMS/Content/TwoColumn',
@@ -28,25 +29,37 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// Using data URL for placeholder image
-const placeholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDYwMCA0MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjYwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNlMGU3ZmYiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiBmaWxsPSIjNjM2NmY3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIj5JbWFnZSBQbGFjZWhvbGRlcjwvdGV4dD48L3N2Zz4=';
+const placeholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDYwMCA0MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZyI+PHJlY3Qgd2lkdGg9IjYwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNlMGU3ZmYiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiBmaWxsPSIjNjM2NmY3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIj5JbWFnZSBQbGFjZWhvbGRlcjwvdGV4dD48L3N2Zz4=';
 
-// Default two column
+function textBlock(id: string, heading: string, body: string) {
+  return {
+    id,
+    type: ComponentType.TextBlock,
+    category: ComponentCategory.Content,
+    content: { heading, body },
+  };
+}
+
+function imageBlock(id: string, alt: string) {
+  return {
+    id,
+    type: ComponentType.ImageGallery,
+    category: ComponentCategory.Content,
+    content: {
+      images: [{ src: placeholderImage, alt }],
+    },
+  };
+}
+
 export const Default: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Left Column',
-        body: 'This is the content for the left column. It can contain text, images, or other components.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Right Column',
-        body: 'This is the content for the right column. The two-column layout is perfect for comparing information or presenting related content side by side.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('left-column', 'Left Column', 'This is the content for the left column. It can contain text, images, or other components.'),
+      ],
+      rightColumn: [
+        textBlock('right-column', 'Right Column', 'The two-column layout is perfect for comparing information or presenting related content side by side.'),
+      ],
       columnRatio: '50-50',
       gap: 'medium',
       verticalAlignment: 'top'
@@ -54,22 +67,15 @@ export const Default: Story = {
   }
 };
 
-// Text and image
 export const TextAndImage: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Our Mission',
-        body: 'We strive to deliver exceptional value through innovative solutions. Our team is dedicated to pushing boundaries and creating meaningful impact in everything we do.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'image',
-        imageUrl: placeholderImage,
-        imageAlt: 'Mission illustration',
-        imageCaption: 'Innovation in action'
-      },
+      leftColumn: [
+        textBlock('mission-text', 'Our Mission', 'We strive to deliver exceptional value through innovative solutions.'),
+      ],
+      rightColumn: [
+        imageBlock('mission-image', 'Mission illustration'),
+      ],
       columnRatio: '50-50',
       gap: 'large',
       verticalAlignment: 'center'
@@ -77,21 +83,15 @@ export const TextAndImage: Story = {
   }
 };
 
-// Image and text (reversed)
 export const ImageAndText: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'image',
-        imageUrl: placeholderImage,
-        imageAlt: 'Feature illustration'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Feature Spotlight',
-        body: 'Discover powerful features designed to enhance your workflow. From automation to analytics, we have everything you need to succeed.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        imageBlock('feature-image', 'Feature illustration'),
+      ],
+      rightColumn: [
+        textBlock('feature-text', 'Feature Spotlight', 'Discover powerful features designed to enhance your workflow.'),
+      ],
       columnRatio: '40-60',
       gap: 'medium',
       verticalAlignment: 'center'
@@ -99,22 +99,15 @@ export const ImageAndText: Story = {
   }
 };
 
-// 60-40 ratio
 export const Ratio60_40: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Main Content Area',
-        body: 'This column takes up 60% of the available width, giving more emphasis to the primary content. This layout works well when you have a main article with supplementary information.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Sidebar',
-        body: 'The narrower column is perfect for related links, quick facts, or calls to action.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('main-content', 'Main Content Area', 'This column takes up 60% of the available width, giving more emphasis to the primary content.'),
+      ],
+      rightColumn: [
+        textBlock('sidebar', 'Sidebar', 'The narrower column is perfect for related links, quick facts, or calls to action.'),
+      ],
       columnRatio: '60-40',
       gap: 'large',
       verticalAlignment: 'top'
@@ -122,22 +115,15 @@ export const Ratio60_40: Story = {
   }
 };
 
-// 40-60 ratio
 export const Ratio40_60: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Quick Info',
-        body: 'A narrower left column for brief information.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Detailed Content',
-        body: 'The wider right column provides more space for detailed explanations, longer text, or larger images. This reversed ratio can create visual interest.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('quick-info', 'Quick Info', 'A narrower left column for brief information.'),
+      ],
+      rightColumn: [
+        textBlock('detailed-content', 'Detailed Content', 'The wider right column provides more space for detailed explanations, longer text, or larger images.'),
+      ],
       columnRatio: '40-60',
       gap: 'medium',
       verticalAlignment: 'top'
@@ -145,22 +131,15 @@ export const Ratio40_60: Story = {
   }
 };
 
-// 70-30 ratio
 export const Ratio70_30: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Primary Content',
-        body: 'With 70% of the width, this column dominates the layout. Perfect for blog posts with a small sidebar or main content with supplementary notes.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Notes',
-        body: 'Small sidebar for additional notes.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('primary-content', 'Primary Content', 'With 70% of the width, this column dominates the layout.'),
+      ],
+      rightColumn: [
+        textBlock('notes', 'Notes', 'Small sidebar for additional notes.'),
+      ],
       columnRatio: '70-30',
       gap: 'small',
       verticalAlignment: 'top'
@@ -168,21 +147,15 @@ export const Ratio70_30: Story = {
   }
 };
 
-// Center aligned vertically
 export const VerticalCenter: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Vertically Centered',
-        body: 'This content is centered vertically within its column.',
-        alignment: 'center'
-      },
-      rightColumn: {
-        type: 'image',
-        imageUrl: placeholderImage,
-        imageAlt: 'Centered image'
-      },
+      leftColumn: [
+        textBlock('centered-text', 'Vertically Centered', 'This content is centered vertically within its column.'),
+      ],
+      rightColumn: [
+        imageBlock('centered-image', 'Centered image'),
+      ],
       columnRatio: '50-50',
       gap: 'medium',
       verticalAlignment: 'center'
@@ -190,22 +163,15 @@ export const VerticalCenter: Story = {
   }
 };
 
-// Bottom aligned
 export const VerticalBottom: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Bottom Aligned',
-        body: 'Content aligned to the bottom of the column.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Also Bottom',
-        body: 'Both columns align their content to the bottom, useful for creating baseline alignment.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('bottom-left', 'Bottom Aligned', 'Content aligned to the bottom of the column.'),
+      ],
+      rightColumn: [
+        textBlock('bottom-right', 'Also Bottom', 'Both columns align their content to the bottom, useful for creating baseline alignment.'),
+      ],
       columnRatio: '50-50',
       gap: 'medium',
       verticalAlignment: 'bottom'
@@ -213,22 +179,15 @@ export const VerticalBottom: Story = {
   }
 };
 
-// Small gap
 export const SmallGap: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Tight Spacing',
-        body: 'Columns with minimal gap between them.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Close Together',
-        body: 'Small gaps work well for related content that should feel connected.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('tight-spacing', 'Tight Spacing', 'Columns with minimal gap between them.'),
+      ],
+      rightColumn: [
+        textBlock('close-together', 'Close Together', 'Small gaps work well for related content that should feel connected.'),
+      ],
       columnRatio: '50-50',
       gap: 'small',
       verticalAlignment: 'top'
@@ -236,22 +195,15 @@ export const SmallGap: Story = {
   }
 };
 
-// Large gap
 export const LargeGap: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'text',
-        heading: 'Spacious Layout',
-        body: 'Wide gap between columns creates breathing room.',
-        alignment: 'left'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Well Separated',
-        body: 'Large gaps help distinguish between different content areas.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        textBlock('spacious-layout', 'Spacious Layout', 'Wide gap between columns creates breathing room.'),
+      ],
+      rightColumn: [
+        textBlock('well-separated', 'Well Separated', 'Large gaps help distinguish between different content areas.'),
+      ],
       columnRatio: '50-50',
       gap: 'large',
       verticalAlignment: 'top'
@@ -259,21 +211,15 @@ export const LargeGap: Story = {
   }
 };
 
-// Reverse on mobile
 export const ReverseOnMobile: Story = {
   args: {
     content: {
-      leftColumn: {
-        type: 'image',
-        imageUrl: placeholderImage,
-        imageAlt: 'Mobile first image'
-      },
-      rightColumn: {
-        type: 'text',
-        heading: 'Mobile Optimized',
-        body: 'On mobile devices, these columns can be reversed to prioritize text content.',
-        alignment: 'left'
-      },
+      leftColumn: [
+        imageBlock('mobile-image', 'Mobile first image'),
+      ],
+      rightColumn: [
+        textBlock('mobile-text', 'Mobile Optimized', 'On mobile devices, these columns can be reversed to prioritize text content.'),
+      ],
       columnRatio: '40-60',
       gap: 'medium',
       verticalAlignment: 'center',

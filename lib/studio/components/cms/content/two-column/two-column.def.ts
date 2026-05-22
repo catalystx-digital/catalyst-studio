@@ -148,15 +148,21 @@ export const TwoColumnDef = defineComponent({
   sample: {
     leftColumn: [
       {
+        id: "sample-text-block",
         type: ComponentType.TextBlock,
-        heading: "Why Choose Us",
-        body: "We provide industry-leading solutions tailored to your needs.",
+        content: {
+          heading: "Why Choose Us",
+          body: "We provide industry-leading solutions tailored to your needs.",
+        },
       },
     ],
     rightColumn: [
       {
+        id: "sample-image-gallery",
         type: ComponentType.ImageGallery,
-        images: [{ src: "/images/feature-1.jpg", alt: "Feature showcase" }],
+        content: {
+          images: [{ src: "/images/feature-1.jpg", alt: "Feature showcase" }],
+        },
       },
     ],
     columnRatio: "50-50",

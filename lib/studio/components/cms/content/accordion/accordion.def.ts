@@ -8,7 +8,7 @@
 import { z } from 'zod'
 import { defineComponent } from '../../_core/component-definition'
 import { ComponentType, ComponentCategory } from '../../_core/types'
-import { FAQSchema, ContentAreaSchema } from '../../_core/value-objects'
+import { FAQSchema } from '../../_core/value-objects'
 
 /**
  * Accordion component definition
@@ -26,7 +26,6 @@ export const AccordionDef = defineComponent({
     defaultOpenItems: z.array(z.string()).optional().describe('IDs of items that should be open by default'),
     expandIcon: z.string().optional().describe('Icon displayed when item is collapsed'),
     collapseIcon: z.string().optional().describe('Icon displayed when item is expanded'),
-    areas: ContentAreaSchema.optional().describe('Named content slots containing component instances (e.g., items slot with accordion-item components)'),
   }),
 
   // Detection metadata

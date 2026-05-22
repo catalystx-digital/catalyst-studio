@@ -1,20 +1,8 @@
-import React from 'react';
-import { withPerformanceTracking } from '../../_core/monitoring';
-import { ComponentType } from '../../_core/types';
+import type React from 'react';
 import { TwoColumnServer } from './two-column.server';
-import { TwoColumnClient } from './two-column.client';
-import { TwoColumnProps } from './two-column.types';
+import type { TwoColumnProps } from './two-column.types';
 
-const TwoColumn: React.FC<TwoColumnProps> = React.memo((props) => {
-  return (
-    <>
-      <TwoColumnServer {...props} />
-      <TwoColumnClient {...props} />
-    </>
-  );
-});
+const TwoColumn = TwoColumnServer;
 
-TwoColumn.displayName = 'TwoColumn';
-
-export default withPerformanceTracking(TwoColumn, ComponentType.TwoColumn);
+export default TwoColumn as unknown as React.ComponentType<TwoColumnProps>;
 export { TwoColumn };

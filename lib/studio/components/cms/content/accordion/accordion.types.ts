@@ -13,15 +13,11 @@ export interface AccordionItem {
 export interface AccordionContent {
   heading?: ReactNode;
   subheading?: ReactNode;
-  items: AccordionItem[]; // legacy items (kept for compat)
+  items: AccordionItem[];
   allowMultiple?: boolean;
   defaultOpenItems?: string[];
   expandIcon?: ReactNode;
   collapseIcon?: ReactNode;
-  // Optional slot-based children
-  areas?: {
-    items?: CMSComponentProps[];
-  };
 }
 
 export interface AccordionProps extends Omit<CMSComponentProps, 'content'> {

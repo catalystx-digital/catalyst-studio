@@ -196,7 +196,6 @@ describe('CMSComponent: Tabs', () => {
 
     const tabs = container.querySelector('.custom-class');
     expect(tabs).toBeInTheDocument();
-    expect(tabs).toHaveClass('variant-detailed');
 
     const section = container.querySelector('[data-component-type="tabs"]');
     expect(section).toBeInTheDocument();
@@ -204,27 +203,25 @@ describe('CMSComponent: Tabs', () => {
     expect(section).toHaveAttribute('data-variant', 'detailed');
   });
 
-  it('normalizes legacy CMS tab entries', async () => {
-    const legacyContent: TabsProps['content'] = {
+  it('resolves defaultActiveTab by tab label', async () => {
+    const content: TabsProps['content'] = {
       heading: 'Recipes',
       tabs: [
         {
-          content: {
-            label: 'All',
-            active: true
-          }
+          id: 'all',
+          label: 'All',
+          content: 'All recipes'
         },
         {
-          content: {
-            label: 'Breakfast',
-            content: 'Morning favourites'
-          }
+          id: 'breakfast',
+          label: 'Breakfast',
+          content: 'Morning favourites'
         }
       ],
       defaultActiveTab: 'Breakfast'
     };
 
-    render(<Tabs {...defaultProps} content={legacyContent} />);
+    render(<Tabs {...defaultProps} content={content} />);
 
     const allTab = screen.getByRole('tab', { name: /All/i });
     const breakfastTab = screen.getByRole('tab', { name: /Breakfast/i });

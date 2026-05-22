@@ -8,7 +8,7 @@
 import { z } from 'zod'
 import { defineComponent } from '../../_core/component-definition'
 import { ComponentType, ComponentCategory } from '../../_core/types'
-import { ContentAreaSchema, TabItemSchema } from '../../_core/value-objects'
+import { TabItemSchema } from '../../_core/value-objects'
 
 /**
  * Tabs component definition
@@ -26,7 +26,6 @@ export const TabsDef = defineComponent({
     defaultActiveTab: z.string().optional().describe('Alias for defaultTab (alternative naming)'),
     orientation: z.enum(['horizontal', 'vertical']).optional().describe('Tabs layout direction'),
     align: z.enum(['left', 'center', 'right', 'justified']).optional().describe('Horizontal alignment of tab labels'),
-    areas: ContentAreaSchema.optional().describe('Named content slots containing component instances (e.g., items slot with tab-item components)'),
   }),
 
   // Detection metadata
@@ -102,19 +101,22 @@ export const TabsDef = defineComponent({
     subheading: 'Explore our key capabilities',
     tabs: [
       {
+        id: 'performance',
         label: 'Performance',
         content: 'Lightning-fast performance with optimized code and caching.',
       },
       {
+        id: 'security',
         label: 'Security',
         content: 'Enterprise-grade security with encryption and compliance.',
       },
       {
+        id: 'scalability',
         label: 'Scalability',
         content: 'Scale seamlessly from startup to enterprise.',
       },
     ],
-    defaultTab: 'tab-1',
+    defaultTab: 'performance',
     orientation: 'horizontal',
     align: 'left',
   },

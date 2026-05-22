@@ -1,173 +1,177 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ComponentType, ComponentCategory } from '../../_core/types';
+import type { CMSComponentProps } from '../../_core/types';
+
+const renderCMSComponents = jest.fn(async (components: CMSComponentProps[]) => {
+  if (!Array.isArray(components)) {
+    return [];
+  }
+
+  return components.map((component) => (
+    <div data-testid="mock-cms-component" key={component.id}>
+      {component.content?.heading ?? component.content?.title ?? component.id}
+    </div>
+  ));
+});
 
 jest.mock('../../_factory/renderer.server', () => ({
-  renderCMSComponents: jest.fn(async (components: unknown[]) => {
-    if (!Array.isArray(components)) {
-      return [];
-    }
-
-    return components.map((_, index) => (
-      <div data-testid="mock-cms-component" key={`mock-${index}`} />
-    ));
-  }),
-}));
-
-jest.mock('next/image', () => ({
-  __esModule: true,
-  default: ({
-    fill: _fill,
-    priority: _priority,
-    ...rest
-  }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean }) => (
-    // eslint-disable-next-line jsx-a11y/alt-text
-    <img {...rest} />
-  ),
+  renderCMSComponents: (...args: Parameters<typeof renderCMSComponents>) =>
+    renderCMSComponents(...args),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { TwoColumn } = require('./index');
+const { TwoColumnServer } = require('./two-column.server') as typeof import('./two-column.server');
+
+const childComponent = (id: string, heading: string): CMSComponentProps => ({
+  id,
+  type: ComponentType.TextBlock,
+  category: ComponentCategory.Content,
+  content: {
+    heading,
+    body: `<p>${heading} body</p>`,
+  },
+  metadata: {},
+  propsMeta: undefined,
+} as CMSComponentProps);
 
 describe('TwoColumn Component', () => {
+  beforeEach(() => {
+    renderCMSComponents.mockClear();
+  });
+
   const defaultProps = {
     id: 'test-two-column',
     type: ComponentType.TwoColumn,
     category: ComponentCategory.Content,
     content: {
-      leftColumn: {
-        type: 'text' as const,
-        heading: 'Left Heading',
-        body: '<p>Left column text content</p>'
-      },
-      rightColumn: {
-        type: 'text' as const,
-        heading: 'Right Heading',
-        body: '<p>Right column text content</p>'
-      },
-      columnRatio: '50-50' as const
-    }
+      leftColumn: [childComponent('left-text', 'Left Heading')],
+      rightColumn: [childComponent('right-text', 'Right Heading')],
+      columnRatio: '50-50' as const,
+    },
   };
 
-  it('renders both columns with text content', () => {
-    render(<TwoColumn {...defaultProps} />);
-    expect(screen.getByText('Left Heading')).toBeInTheDocument();
-    expect(screen.getByText('Right Heading')).toBeInTheDocument();
-    expect(screen.getByText('Left column text content')).toBeInTheDocument();
-    expect(screen.getByText('Right column text content')).toBeInTheDocument();
+  const renderServer = async (props = defaultProps) => {
+    const element = await TwoColumnServer(props);
+    return render(element as React.ReactElement);
+  };
+
+  it('renders canonical child component arrays in both columns', async () => {
+    await renderServer();
+
+    await waitFor(() => {
+      expect(renderCMSComponents).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'left-text', theme: 'auto' }),
+        ]),
+      );
+      expect(renderCMSComponents).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'right-text', theme: 'auto' }),
+        ]),
+      );
+    });
   });
 
-  it('renders text and image columns', () => {
-    const mixedProps = {
+  it('does not render legacy object columns', async () => {
+    await renderServer({
       ...defaultProps,
       content: {
         leftColumn: {
-          type: 'text' as const,
-          heading: 'Text Column',
-          body: '<p>Text content</p>'
+          type: 'text',
+          heading: 'Legacy Left',
+          body: '<p>Legacy body</p>',
         },
         rightColumn: {
-          type: 'image' as const,
-          imageUrl: '/test-image.jpg',
-          imageAlt: 'Test image'
-        }
-      }
-    };
-    
-    render(<TwoColumn {...mixedProps} />);
-    expect(screen.getByText('Text Column')).toBeInTheDocument();
-    expect(screen.getByAltText('Test image')).toBeInTheDocument();
+          type: 'image',
+          imageUrl: '/legacy.jpg',
+          imageAlt: 'Legacy image',
+        },
+      } as any,
+    });
+
+    expect(screen.queryByText('Legacy Left')).not.toBeInTheDocument();
+    expect(screen.queryByAltText('Legacy image')).not.toBeInTheDocument();
+    expect(renderCMSComponents).not.toHaveBeenCalled();
   });
 
-  it('applies correct column ratio classes', () => {
-    render(<TwoColumn {...defaultProps} />);
+  it('does not fall back to areas slots', async () => {
+    await renderServer({
+      ...defaultProps,
+      content: {
+        areas: {
+          left: [childComponent('legacy-left', 'Legacy Area Left')],
+          right: [childComponent('legacy-right', 'Legacy Area Right')],
+        },
+      } as any,
+    });
+
+    expect(screen.queryByText('Legacy Area Left')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy Area Right')).not.toBeInTheDocument();
+    expect(renderCMSComponents).not.toHaveBeenCalled();
+  });
+
+  it('applies correct column ratio classes', async () => {
+    await renderServer();
     expect(screen.getByTestId('two-column-grid')).toHaveClass('lg:grid-cols-2');
   });
 
-  it('applies theme classes correctly', () => {
-    const { container, rerender } = render(<TwoColumn {...defaultProps} />);
-    expect(container.firstChild).toHaveClass('cms-card');
+  it('applies theme classes correctly', async () => {
+    const { container, unmount } = await renderServer();
+    expect(container.firstChild).toHaveClass('cms-two-column');
 
-    rerender(<TwoColumn {...defaultProps} theme="dark" />);
-    expect(container.firstChild).toHaveClass('theme-dark');
+    unmount();
+    const darkElement = await TwoColumnServer({ ...defaultProps, theme: 'dark' });
+    const darkRender = render(darkElement as React.ReactElement);
+    expect(darkRender.container.firstChild).toHaveClass('theme-dark');
   });
 
-  it('applies gap classes based on gap prop', () => {
-    const { rerender } = render(
-      <TwoColumn {...defaultProps} content={{ ...defaultProps.content, gap: 'small' }} />
-    );
+  it('applies gap classes based on gap prop', async () => {
+    const { unmount } = await renderServer({
+      ...defaultProps,
+      content: { ...defaultProps.content, gap: 'small' },
+    });
     expect(screen.getByTestId('two-column-grid')).toHaveClass('ds-gap-md');
 
-    rerender(
-      <TwoColumn {...defaultProps} content={{ ...defaultProps.content, gap: 'large' }} />
-    );
-    expect(screen.getByTestId('two-column-grid')).toHaveClass('ds-gap-2xl');
+    unmount();
+    await renderServer({
+      ...defaultProps,
+      content: { ...defaultProps.content, gap: 'large' },
+    });
+    expect(screen.getAllByTestId('two-column-grid').at(-1)).toHaveClass('ds-gap-2xl');
   });
 
-  it('applies vertical alignment classes', () => {
-    const { rerender } = render(
-      <TwoColumn {...defaultProps} content={{ ...defaultProps.content, verticalAlignment: 'center' }} />
-    );
+  it('applies vertical alignment classes', async () => {
+    const { unmount } = await renderServer({
+      ...defaultProps,
+      content: { ...defaultProps.content, verticalAlignment: 'center' },
+    });
     expect(screen.getByTestId('two-column-grid')).toHaveClass('items-center');
 
-    rerender(
-      <TwoColumn {...defaultProps} content={{ ...defaultProps.content, verticalAlignment: 'bottom' }} />
-    );
-    expect(screen.getByTestId('two-column-grid')).toHaveClass('items-end');
-  });
-
-  it('sanitizes HTML in text columns', () => {
-    const dangerousProps = {
+    unmount();
+    await renderServer({
       ...defaultProps,
-      content: {
-        leftColumn: {
-          type: 'text' as const,
-          body: '<p>Safe content</p><script>alert("XSS")</script>'
-        },
-        rightColumn: {
-          type: 'text' as const,
-          body: '<p>Also safe</p>'
-        }
-      }
-    };
-    
-    render(<TwoColumn {...dangerousProps} />);
-    expect(screen.getByText('Safe content')).toBeInTheDocument();
-    expect(screen.queryByText('alert("XSS")')).not.toBeInTheDocument();
+      content: { ...defaultProps.content, verticalAlignment: 'bottom' },
+    });
+    expect(screen.getAllByTestId('two-column-grid').at(-1)).toHaveClass('items-end');
   });
 
-  it('renders video column correctly', () => {
-    const videoProps = {
+  it('applies custom className and styles', async () => {
+    const { container } = await renderServer({
       ...defaultProps,
-      content: {
-        leftColumn: {
-          type: 'text' as const,
-          heading: 'Text'
-        },
-        rightColumn: {
-          type: 'video' as const,
-          videoUrl: '/test-video.mp4'
-        }
-      }
-    };
-    
-    const { container } = render(<TwoColumn {...videoProps} />);
-    const video = container.querySelector('video');
-    expect(video).toBeInTheDocument();
-    expect(video?.querySelector('source')).toHaveAttribute('src', '/test-video.mp4');
-  });
-
-  it('applies custom className and styles', () => {
-    const { container } = render(
-      <TwoColumn {...defaultProps} className="custom-class" style={{ padding: '20px' }} />
-    );
+      className: 'custom-class',
+      style: { padding: '20px' },
+    });
     expect(container.firstChild).toHaveClass('custom-class');
     expect(container.firstChild).toHaveStyle({ padding: '20px' });
   });
 
-  it('includes analytics data attributes', () => {
-    const { container } = render(<TwoColumn {...defaultProps} analyticsId="two-col-001" />);
+  it('includes analytics data attributes', async () => {
+    const { container } = await renderServer({
+      ...defaultProps,
+      analyticsId: 'two-col-001',
+    });
     expect(container.firstChild).toHaveAttribute('data-analytics-id', 'two-col-001');
     expect(container.firstChild).toHaveAttribute('data-component-type', 'two-column');
   });

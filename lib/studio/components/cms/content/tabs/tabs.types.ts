@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { CMSComponentProps } from '../../_core/types';
 
 export interface TabHighlight {
@@ -22,7 +24,7 @@ export interface TabCta {
 export interface TabItem {
   id: string;
   label: string;
-  content?: string | React.ReactNode;
+  content?: string | ReactNode;
   description?: string;
   eyebrow?: string;
   icon?: string;
@@ -36,15 +38,11 @@ export interface TabItem {
 export interface TabsContent {
   heading?: string;
   subheading?: string;
-  tabs: TabItem[]; // legacy items (kept for compat)
+  tabs: TabItem[];
   defaultTab?: string;
-  defaultActiveTab?: string;  // For compatibility with stories
+  defaultActiveTab?: string;
   orientation?: 'horizontal' | 'vertical';
   align?: 'left' | 'center' | 'right' | 'justified';
-  // Optional slot-based children
-  areas?: {
-    items?: CMSComponentProps[];
-  }
 }
 
 export interface TabsProps extends Omit<CMSComponentProps, 'content'> {
