@@ -163,20 +163,23 @@ describe('two-column legacy entry upgrades', () => {
     expect(enriched.props).not.toHaveProperty('content')
   })
 
-  it('converts image-gallery entries with nested URL objects', () => {
+  it('keeps CMS-shaped image-gallery entries without legacy URL conversion', () => {
     const component = createTwoColumnComponent({
       leftColumn: [
         {
+          id: 'gallery-1',
           type: 'image-gallery',
-          images: [
-            {
-              url: {
-                mediaId: 'asset-123',
-                originalUrl: 'https://example.com/image.jpg'
+          content: {
+            images: [
+              {
+                url: {
+                  mediaId: 'asset-123',
+                  originalUrl: 'https://example.com/image.jpg'
+                },
+                alt: 'Sample image'
               },
-              alt: 'Sample image'
-            }
-          ]
+            ]
+          }
         }
       ]
     })
@@ -191,22 +194,27 @@ describe('two-column legacy entry upgrades', () => {
     expect(gallery.type).toBe(ComponentType.ImageGallery)
     expect(gallery.category).toBe(ComponentCategory.Content)
     expect(gallery.content.images).toHaveLength(1)
-    expect(gallery.content.images[0]?.url).toBe('https://example.com/image.jpg')
-    expect(gallery.content.images[0]?.mediaId).toBe('asset-123')
+    expect(gallery.content.images[0]?.url).toEqual({
+      mediaId: 'asset-123',
+      originalUrl: 'https://example.com/image.jpg'
+    })
     expect(gallery.content.images[0]?.alt).toBe('Sample image')
   })
 
-  it('converts cta-simple entries with nested URL objects', () => {
+  it('keeps CMS-shaped cta-simple entries without legacy URL conversion', () => {
     const component = createTwoColumnComponent({
       rightColumn: [
         {
+          id: 'cta-1',
           type: 'cta-simple',
-          heading: 'View career opportunities',
-          primaryButton: {
-            text: 'Explore roles',
-            url: {
-              mediaId: 'link-42',
-              originalUrl: 'https://careers.example.com'
+          content: {
+            heading: 'View career opportunities',
+            primaryButton: {
+              text: 'Explore roles',
+              url: {
+                mediaId: 'link-42',
+                originalUrl: 'https://careers.example.com'
+              }
             }
           }
         }
@@ -223,7 +231,10 @@ describe('two-column legacy entry upgrades', () => {
     expect(cta.type).toBe(ComponentType.CTASimple)
     expect(cta.category).toBe(ComponentCategory.CTA)
     expect(cta.content.heading).toBe('View career opportunities')
-    expect(cta.content.primaryButton.url).toBe('https://careers.example.com')
+    expect(cta.content.primaryButton.url).toEqual({
+      mediaId: 'link-42',
+      originalUrl: 'https://careers.example.com'
+    })
     expect(cta.content.primaryButton.text).toBe('Explore roles')
   })
 
@@ -231,9 +242,12 @@ describe('two-column legacy entry upgrades', () => {
     const component = createTwoColumnComponent({
       rightColumn: [
         {
+          id: 'html-1',
           type: 'html-block',
-          title: 'Canonical HTML',
-          bodyHtml: '<p>Canonical content</p>'
+          content: {
+            title: 'Canonical HTML',
+            bodyHtml: '<p>Canonical content</p>'
+          }
         }
       ]
     })
@@ -267,13 +281,7 @@ describe('two-column legacy entry upgrades', () => {
     const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
     const areas = (enriched.content as Record<string, any>).areas
 
-    expect(areas.right).toHaveLength(1)
-    expect(areas.right[0].type).toBe(ComponentType.HtmlBlock)
-    expect(areas.right[0].content).toEqual({
-      title: 'Canonical title',
-      bodyHtml: ''
-    })
-    expect(JSON.stringify(areas.right[0].content)).not.toContain('Legacy')
+    expect(enriched.content).toEqual({})
   })
 
   it.each([
@@ -306,5 +314,80 @@ describe('two-column legacy entry upgrades', () => {
     expect(JSON.stringify(areas.right[0].content)).not.toContain('Legacy')
     expect(areas.right[0].content).not.toHaveProperty('html')
     expect(areas.right[0].content).not.toHaveProperty('body')
+  })
+
+  it('ignores array, tuple, and random legacy entries instead of synthesizing components', () => {
+    const component = createTwoColumnComponent({
+      columnRatio: '50-50',
+      leftColumn: [
+        ['text-block', 0.9, { body: 'Tuple body' }],
+        {
+          type: 'text-block',
+          body: 'Typed legacy body'
+        },
+        {
+          id: 'typed-legacy-with-id',
+          type: 'text-block',
+          body: 'Typed legacy body with id'
+        },
+        {
+          heading: 'Legacy heading',
+          body: 'Legacy body'
+        }
+      ],
+      rightColumn: [
+        {
+          label: 'Legacy label',
+          items: [
+            {
+              type: 'nav-menu-item',
+              label: 'Legacy nav item',
+              url: '/legacy'
+            }
+          ]
+        }
+      ]
+    })
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const enrichedContent = enriched.content as Record<string, any>
+
+    expect(enrichedContent).toEqual({ columnRatio: '50-50' })
+    expect(JSON.stringify(enrichedContent)).not.toContain('Tuple body')
+    expect(JSON.stringify(enrichedContent)).not.toContain('Typed legacy body')
+    expect(JSON.stringify(enrichedContent)).not.toContain('Typed legacy body with id')
+    expect(JSON.stringify(enrichedContent)).not.toContain('Legacy body')
+    expect(JSON.stringify(enrichedContent)).not.toContain('Legacy nav item')
+  })
+
+  it('keeps existing canonical areas when legacy columns are dropped', () => {
+    const component = createTwoColumnComponent({
+      areas: {
+        left: [
+          {
+            id: 'canonical-left',
+            type: ComponentType.TextBlock,
+            category: ComponentCategory.Content,
+            theme: 'auto',
+            variant: 'default',
+            content: { body: 'Canonical left' }
+          }
+        ]
+      },
+      rightColumn: [
+        {
+          type: 'text-block',
+          body: 'Legacy right'
+        }
+      ]
+    })
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const enrichedContent = enriched.content as Record<string, any>
+
+    expect(enrichedContent.areas.left).toHaveLength(1)
+    expect(enrichedContent.areas.left[0].content.body).toBe('Canonical left')
+    expect(enrichedContent).not.toHaveProperty('rightColumn')
+    expect(JSON.stringify(enrichedContent)).not.toContain('Legacy right')
   })
 })
