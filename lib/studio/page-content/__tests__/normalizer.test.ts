@@ -91,6 +91,94 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('reports non-array components in legacy-read and returns an empty component list', () => {
+    const result = normalizePageContent({
+      components: { id: 'not-array' },
+    })
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        path: 'components',
+      }),
+    ])
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+  ])('reports explicit %s components in legacy-read', (_label, components) => {
+    const result = normalizePageContent({ components })
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        path: 'components',
+      }),
+    ])
+  })
+
+  it('reports JSON string page content and non-array components diagnostics', () => {
+    const result = normalizePageContent(JSON.stringify({
+      components: { id: 'not-array' },
+    }))
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_JSON_STRING',
+        severity: 'info',
+        path: '$',
+      }),
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        path: 'components',
+      }),
+    ])
+  })
+
+  it('reports JSON string page content with null components diagnostics', () => {
+    const result = normalizePageContent(JSON.stringify({
+      components: null,
+    }))
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_JSON_STRING',
+        severity: 'info',
+        path: '$',
+      }),
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        path: 'components',
+      }),
+    ])
+  })
+
+  it('treats explicit components as authoritative over legacy sections even when invalid', () => {
+    const result = normalizePageContent({
+      components: { id: 'not-array' },
+      sections: [
+        {
+          id: 'section-1',
+          type: 'text-block',
+        },
+      ],
+    })
+
+    expect(result.pageContent.components).toEqual([])
+    expect(result.diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+      'PAGE_CONTENT_COMPONENTS_INVALID',
+    ])
+  })
+
   it('reports malformed root JSON-like page string in legacy-read', () => {
     const result = normalizePageContent('{"components":')
 
@@ -434,6 +522,25 @@ describe('page content normalizer', () => {
 
     try {
       normalizePageContent({ components: { id: 'not-array' } }, { mode: 'strict-write' })
+      throw new Error('Expected strict normalization to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+          severity: 'error',
+          path: 'components',
+        }),
+      ])
+    }
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+  ])('rejects explicit %s components in strict-write', (_label, components) => {
+    try {
+      normalizePageContent({ components }, { mode: 'strict-write' })
       throw new Error('Expected strict normalization to throw')
     } catch (error) {
       expect(error).toBeInstanceOf(PageContentNormalizationError)

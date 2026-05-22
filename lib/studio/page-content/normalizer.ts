@@ -653,7 +653,7 @@ function extractComponentCandidates(
   content: unknown,
   diagnostics: PageContentDiagnostic[],
   options: StrictDiagnosticsOptions
-): unknown[] {
+): unknown {
   if (Array.isArray(content)) {
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_ARRAY',
@@ -680,7 +680,19 @@ function extractComponentCandidates(
     return []
   }
 
-  if (Array.isArray(content.components)) {
+  if (hasOwn(content, 'components')) {
+    if (content.components === undefined || content.components === null) {
+      addDiagnostic(diagnostics, {
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: isStrictWrite(options) ? 'error' : 'warn',
+        message: isStrictWrite(options)
+          ? 'Components value is not an array; strict writes require a components array.'
+          : 'Components value is not an array; using an empty component list.',
+        path: 'components',
+      })
+      return []
+    }
+
     return content.components
   }
 
@@ -706,14 +718,6 @@ function extractComponentCandidates(
       path: '$',
     })
     return [content]
-  }
-
-  if (isStrictWrite(options) && 'components' in content) {
-    addStrictDiagnostic(diagnostics, {
-      code: 'PAGE_CONTENT_COMPONENTS_INVALID',
-      message: 'Components value is not an array; strict writes require a components array.',
-      path: 'components',
-    })
   }
 
   return []
