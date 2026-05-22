@@ -124,12 +124,34 @@ interface SitemapMetadataSnapshot extends Record<string, unknown> {
   pending?: string[]
 }
 
+const hasCanonicalComponentContent = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length > 0
+}
+
+const readComponentContentWithLegacyFallback = (
+  component: { content?: unknown; props?: Record<string, unknown> }
+): Record<string, unknown> => {
+  if (hasCanonicalComponentContent(component.content)) {
+    return component.content
+  }
+
+  const legacyReadPropsContent = component.props?.content
+  if (hasCanonicalComponentContent(legacyReadPropsContent)) {
+    return legacyReadPropsContent
+  }
+
+  return {}
+}
+
 const ensureComponentInstances = (components: ProfessionalNodeData['components']): ComponentInstance[] => {
   if (!Array.isArray(components)) {
     return []
   }
   if (components.every((item) => typeof (item as ComponentInstance).id === 'string')) {
-    return components as ComponentInstance[]
+    return (components as ComponentInstance[]).map((component) => ({
+      ...component,
+      content: readComponentContentWithLegacyFallback(component),
+    }))
   }
 
   return (components as ComponentData[]).map((component, index) => {
@@ -138,7 +160,10 @@ const ensureComponentInstances = (components: ProfessionalNodeData['components']
     const parentId = component.parentId ?? null
     const position = component.position ?? index
     const props = component.props ?? {}
-    const content = (component as { content?: unknown }).content ?? (props as { content?: unknown }).content ?? {}
+    const content = readComponentContentWithLegacyFallback({
+      content: (component as { content?: unknown }).content,
+      props: props as Record<string, unknown>,
+    })
     const styles = (component as { styles?: unknown }).styles ?? (props as { styles?: unknown }).styles ?? {}
     const metadata = (component as { metadata?: unknown }).metadata ?? (props as { metadata?: unknown }).metadata ?? {}
 
@@ -148,7 +173,7 @@ const ensureComponentInstances = (components: ProfessionalNodeData['components']
       parentId,
       position,
       props,
-      content: typeof content === 'object' && content !== null ? (content as Record<string, unknown>) : {},
+      content,
       styles: typeof styles === 'object' && styles !== null ? (styles as Record<string, unknown>) : {},
       metadata: typeof metadata === 'object' && metadata !== null ? (metadata as Record<string, unknown>) : {},
       globalComponentId: resolveSharedComponentReference(component as ComponentInstance) ?? undefined,

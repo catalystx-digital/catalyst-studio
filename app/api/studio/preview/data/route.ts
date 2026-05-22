@@ -185,7 +185,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
 /**
  * Extract component configs from page content JSON
  */
-function extractComponents(content: unknown): PreviewComponentConfig[] {
+export function extractComponents(content: unknown): PreviewComponentConfig[] {
   const { pageContent, diagnostics } = normalizePageContent(content)
 
   if (diagnostics.length > 0 && process.env.NODE_ENV !== 'production') {
@@ -201,7 +201,7 @@ function extractComponents(content: unknown): PreviewComponentConfig[] {
 
   return pageContent.components.map((component): PreviewComponentConfig => {
     const props = { ...component.props }
-    if (!('content' in props) && Object.keys(component.content).length > 0) {
+    if (Object.keys(component.content).length > 0) {
       props.content = component.content
     }
 

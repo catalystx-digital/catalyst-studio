@@ -116,13 +116,30 @@ function extractSummaryField(source: unknown): string | undefined {
   return undefined
 }
 
-function getComponentSummary(component: ComponentInstance): string | undefined {
+function hasCanonicalContent(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length > 0
+}
+
+function getCanonicalContentWithLegacyReadFallback(component: any): Record<string, unknown> {
+  if (hasCanonicalContent(component.content)) {
+    return component.content
+  }
+
+  const legacyReadPropsContent = component.props?.content
+  if (hasCanonicalContent(legacyReadPropsContent)) {
+    return legacyReadPropsContent
+  }
+
+  return {}
+}
+
+export function getComponentSummary(component: ComponentInstance): string | undefined {
   const props = (component.props ?? {}) as Record<string, unknown>
   const sources: unknown[] = [
     props.metadata,
     (component as unknown as Record<string, unknown>).metadata,
-    props.content,
     component.content,
+    props.content,
     props.text
   ]
 
@@ -221,7 +238,7 @@ const seoScoreColors = (score: number) => {
  * Migration function to convert string arrays to ComponentInstance objects
  * This handles backward compatibility with existing data structures
  */
-const migrateComponentsToInstances = (components: any): ComponentInstanceArray => {
+export const migrateComponentsToInstances = (components: any): ComponentInstanceArray => {
   if (!components) return []
   
   // If already ComponentInstance array, return as-is
@@ -229,7 +246,10 @@ const migrateComponentsToInstances = (components: any): ComponentInstanceArray =
     if (process.env.NODE_ENV === 'development') {
     console.log('[Site Builder] Components already in new format')
     }
-    return components
+    return components.map((component) => ({
+      ...component,
+      content: getCanonicalContentWithLegacyReadFallback(component)
+    })) as ComponentInstanceArray
   }
   
   // If it's an array, check what type of data we have
@@ -303,7 +323,7 @@ const migrateComponentsToInstances = (components: any): ComponentInstanceArray =
           parentId: component.parentId || null,
           position: component.position ?? index,
           props: { ...extractedProps, ...(component.props || {}) },
-          content: component.props?.content || component.content || {},
+          content: getCanonicalContentWithLegacyReadFallback(component),
           styles: component.props?.styles || component.styles || {},
           metadata: component.props?.metadata || component.metadata || {},
           globalComponentId: component.globalComponentId
@@ -1323,7 +1343,6 @@ export const professionalNodeTypes = {
   folder: ProfessionalFolderNode,
   redirect: ProfessionalRedirectNode,
 }
-
 
 
 
