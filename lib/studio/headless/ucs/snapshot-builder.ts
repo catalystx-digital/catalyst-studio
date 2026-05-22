@@ -2270,10 +2270,6 @@ function enrichComponentFromShared(
     className
   }
 
-  if (Object.keys(normalizedContent).length > 0) {
-    nextProps.content = cloneJson(normalizedContent)
-  }
-
   if ((normalizedType === 'navigation' || normalizedType === 'navbar') && typeof nextProps.sticky !== 'boolean') {
     nextProps.sticky = true
   }

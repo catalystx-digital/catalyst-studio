@@ -55,7 +55,7 @@ describe('two-column legacy entry upgrades', () => {
     expect(areas.left).toHaveLength(1)
     expect(areas.left[0].id).toBe('canonical-left')
     expect(areas.left[0].content.body).toBe('Canonical content')
-    expect((enriched.props.content as Record<string, any>).areas.left[0].id).toBe('canonical-left')
+    expect(enriched.props).not.toHaveProperty('content')
   })
 
   it('keeps canonical content.areas when props.text contains stale JSON columns', () => {
@@ -87,6 +87,7 @@ describe('two-column legacy entry upgrades', () => {
     expect(areas.right).toHaveLength(1)
     expect(areas.right[0].id).toBe('canonical-right')
     expect(areas.right[0].content.body).toBe('Canonical right')
+    expect(enriched.props).not.toHaveProperty('text')
   })
 
   it('ignores malformed two-column props.text when canonical content wins', () => {
@@ -115,6 +116,7 @@ describe('two-column legacy entry upgrades', () => {
     expect(areas.left).toHaveLength(1)
     expect(areas.left[0].id).toBe('canonical-left')
     expect(diagnostics).toEqual([])
+    expect(enriched.props).not.toHaveProperty('text')
   })
 
   it.each([
@@ -138,7 +140,7 @@ describe('two-column legacy entry upgrades', () => {
     const enrichedContent = enriched.content as Record<string, any>
 
     expect(enrichedContent).toEqual(content)
-    expect(enriched.props.content).toEqual(content)
+    expect(enriched.props).not.toHaveProperty('content')
     expect(JSON.stringify(enrichedContent)).not.toContain('Legacy fallback content')
   })
 

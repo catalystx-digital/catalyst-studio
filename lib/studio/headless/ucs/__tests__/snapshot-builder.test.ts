@@ -103,6 +103,85 @@ describe('buildUcsSiteSnapshot', () => {
     expect(snapshot.pages[0].components[0].props).not.toHaveProperty('content')
   })
 
+  it('keeps canonical component content out of snapshot component props', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'site',
+          name: 'Site',
+          description: null,
+          metadata: {},
+          settings: {}
+        })
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websitePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'page-1',
+            title: 'Home',
+            content: {
+              regions: [],
+              components: [
+                {
+                  id: 'hero-1',
+                  type: 'hero-banner',
+                  props: {
+                    theme: 'dark'
+                  },
+                  content: {
+                    heading: 'Canonical heading',
+                    subheading: 'Canonical subheading'
+                  }
+                }
+              ]
+            },
+            templateKey: null,
+            templateProps: {},
+            metadata: {},
+            structures: [
+              {
+                id: 'structure-1',
+                fullPath: '/',
+                slug: 'home',
+                parentId: null,
+                position: 0
+              }
+            ]
+          }
+        ])
+      },
+      websiteStructure: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      redirect: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const { snapshot } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.pages[0].components[0].content).toEqual({
+      heading: 'Canonical heading',
+      subheading: 'Canonical subheading'
+    })
+    expect(snapshot.pages[0].components[0].props).toEqual(
+      expect.objectContaining({
+        theme: 'dark'
+      })
+    )
+    expect(snapshot.pages[0].components[0].props).not.toHaveProperty('content')
+  })
+
   it('ignores malformed two-column props.text during canonical enrichment', async () => {
     const prisma = {
       website: {

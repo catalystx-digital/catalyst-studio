@@ -114,6 +114,67 @@ describe('resolveUcsPageBySlug', () => {
     expect(result.payload?.page.components[0].props).not.toHaveProperty('content')
   })
 
+  it('keeps canonical component content out of resolved page component props', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'struct-home',
+      parentId: null,
+      slug: 'home',
+      fullPath: '/',
+      position: 0,
+      websitePageId: 'page-home',
+      websitePage: {
+        id: 'page-home',
+        title: 'Home',
+        ...basePage,
+        content: {
+          regions: [],
+          components: [
+            {
+              id: 'hero-1',
+              type: 'hero-banner',
+              props: {
+                theme: 'dark'
+              },
+              content: {
+                heading: 'Canonical heading',
+                subheading: 'Canonical subheading'
+              }
+            }
+          ]
+        }
+      },
+      children: []
+    })
+    const prisma = createPrismaMock({
+      websiteStructure: {
+        findFirst,
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    })
+
+    const result = await resolveUcsPageBySlug({
+      prisma,
+      websiteId: 'site',
+      slug: [],
+      sharedComponentCache: new Map(),
+      resolveMedia: false
+    })
+
+    expect(result.payload?.page.components[0].content).toEqual({
+      heading: 'Canonical heading',
+      subheading: 'Canonical subheading'
+    })
+    expect(result.payload?.page.components[0].props).toEqual(
+      expect.objectContaining({
+        theme: 'dark'
+      })
+    )
+    expect(result.payload?.page.components[0].props).not.toHaveProperty('content')
+  })
+
   it('ignores malformed two-column props.text during canonical enrichment', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',

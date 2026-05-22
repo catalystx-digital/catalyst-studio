@@ -23,8 +23,8 @@ describe('PageRendererHelper', () => {
       props: {
         theme: 'dark',
         content: {
-          heading: 'Launch faster with Catalyst',
-          subheading: 'Ship marketing sites without bottlenecks',
+          heading: 'Stale props.content heading',
+          subheading: 'Stale props.content subheading',
           eyebrow: 'Marketing Home'
         }
       },
@@ -122,10 +122,17 @@ describe('PageRendererHelper', () => {
     expect(rootComponent).not.toHaveProperty('onLoad');
     expect(rootComponent).not.toHaveProperty('onError');
     expect(rootComponent).not.toHaveProperty('onInteraction');
+    expect(rootComponent).toHaveProperty('content');
+    expect(rootComponent).not.toHaveProperty('text');
 
     const content = rootComponent.content as Record<string, unknown>;
-    expect(content).toBeDefined();
-    expect(content).toHaveProperty('heading', 'Launch faster with Catalyst');
+    expect(content).toEqual(expect.objectContaining({
+      heading: 'Launch faster with Catalyst'
+    }));
+    expect(content).not.toEqual(expect.objectContaining({
+      heading: 'Stale props.content heading'
+    }));
+    expect(content).not.toHaveProperty('eyebrow');
 
     const areas = (content.areas ?? {}) as Record<string, unknown>;
     expect(Array.isArray(areas.features)).toBe(true);
@@ -142,6 +149,47 @@ describe('PageRendererHelper', () => {
 
     const metadata = rootComponent.metadata as Record<string, unknown>;
     expect(metadata.position).toBe(0);
+  });
+
+  it('keeps empty canonical content instead of falling back to stale props.content', async () => {
+    const page: SnapshotPage = {
+      id: 'page-stale-props-content',
+      title: 'Stale Props Content',
+      fullPath: '/stale-props-content',
+      templateKey: 'test',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          parentId: null,
+          position: 0,
+          props: {
+            content: {
+              heading: 'Stale heading'
+            },
+            text: JSON.stringify({ heading: 'Stale text heading' })
+          },
+          content: {},
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {},
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    await PageRendererHelper({ page, sharedComponents: [], structure: undefined });
+
+    const [componentsArg] = mockRenderCMSComponents.mock.calls[0] as [
+      Array<Record<string, unknown>>,
+      Record<string, unknown>
+    ];
+    expect(componentsArg[0]).toHaveProperty('content');
+    expect(componentsArg[0].content).toEqual({});
+    expect(componentsArg[0]).not.toHaveProperty('text');
   });
 
   it('does not synthesize content from legacy props.text at render time', async () => {
