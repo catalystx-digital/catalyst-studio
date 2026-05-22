@@ -271,4 +271,72 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
       sharedComponents: [],
     }))
   })
+
+  it('renders a diagnostic error panel and skips PageRendererHelper for invalid page content', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage({
+        contentItem: {
+          ...resolvedPage().contentItem,
+          content: { components: { id: 'not-array' } },
+        },
+      }),
+    })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })
+
+    const html = renderToStaticMarkup(element as React.ReactElement)
+    expect(html).toContain('Preview unavailable')
+    expect(html).toContain('PAGE_CONTENT_COMPONENTS_INVALID')
+    expect(html).toContain('Components value is not an array')
+    expect(html).toContain('components')
+    expect(html).toContain('/about')
+    expect(html).toContain('page-1')
+    expect(mockPageRendererHelper).not.toHaveBeenCalled()
+  })
+
+  it('continues rendering for legacy array info-only diagnostics', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage({
+        contentItem: {
+          ...resolvedPage().contentItem,
+          content: [
+            {
+              id: 'component-1',
+              type: 'text-block',
+              parentId: null,
+              position: 0,
+              props: { content: { text: 'Hello' } },
+            },
+          ],
+        },
+      }),
+    })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })
+
+    const html = renderToStaticMarkup(element as React.ReactElement)
+    expect(html).toContain('Rendered page')
+    expect(mockPageRendererHelper).toHaveBeenCalledTimes(1)
+    expect(console.info).toHaveBeenCalledWith(
+      '[LocalPreview] Adapted page content for preview',
+      expect.objectContaining({
+        requestPath: '/about',
+        websiteId: 'website-1',
+        pageId: 'page-1',
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ code: 'PAGE_CONTENT_LEGACY_ARRAY' }),
+        ]),
+      })
+    )
+  })
 })

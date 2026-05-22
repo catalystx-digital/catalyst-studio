@@ -17,7 +17,14 @@ import { getClient } from '@/lib/db/client'
 import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import { getNormalizedDesignSystem, generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
 import type { PreviewDesignTokens, PreviewComponentConfig } from '@/lib/studio/preview/sandbox/types'
-import { normalizePageContent } from '@/lib/studio/page-content'
+import { normalizePageContent, type PageContentDiagnostic } from '@/lib/studio/page-content'
+
+export interface PreviewPageContentDiagnostic extends PageContentDiagnostic {
+  pageId?: string
+  pageTitle?: string
+  slug?: string
+  fullPath?: string
+}
 
 interface PreviewDataResponse {
   success: boolean
@@ -36,6 +43,52 @@ interface PreviewDataResponse {
     }>
   }
   error?: string
+  diagnostics?: PreviewPageContentDiagnostic[]
+}
+
+interface ExtractComponentsContext {
+  pageId?: string
+  pageTitle?: string
+  slug?: string
+  fullPath?: string
+}
+
+interface ExtractComponentsResult {
+  components: PreviewComponentConfig[]
+  diagnostics: PreviewPageContentDiagnostic[]
+}
+
+function hasBlockingDiagnostics(diagnostics: PreviewPageContentDiagnostic[]): boolean {
+  return diagnostics.some(diagnostic => diagnostic.severity === 'warn' || diagnostic.severity === 'error')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function appendBoundaryDiagnostics(
+  content: unknown,
+  diagnostics: PageContentDiagnostic[]
+): PageContentDiagnostic[] {
+  if (
+    isRecord(content) &&
+    Object.prototype.hasOwnProperty.call(content, 'components') &&
+    !Array.isArray(content.components) &&
+    !diagnostics.some(diagnostic => diagnostic.code === 'PAGE_CONTENT_COMPONENTS_INVALID' && diagnostic.path === 'components')
+  ) {
+    return [
+      ...diagnostics,
+      {
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        message: 'Components value is not an array; using an empty component list.',
+        path: 'components',
+        continued: true,
+      },
+    ]
+  }
+
+  return diagnostics
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<PreviewDataResponse>> {
@@ -146,18 +199,38 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
     }
 
     // Convert pages to preview format
+    const allDiagnostics: PreviewPageContentDiagnostic[] = []
     const previewPages = pages.map((page) => {
       const structure = structureMap.get(page.id)
-      const components = extractComponents(page.content)
+      const slug = structure?.slug || page.id
+      const fullPath = buildFullPath(structure?.id)
+      const { components, diagnostics } = extractComponentsWithDiagnostics(page.content, {
+        pageId: page.id,
+        pageTitle: page.title,
+        slug,
+        fullPath,
+      })
+      allDiagnostics.push(...diagnostics)
 
       return {
         id: page.id,
         title: page.title,
-        slug: structure?.slug || page.id,
-        fullPath: buildFullPath(structure?.id),
+        slug,
+        fullPath,
         components,
       }
     })
+
+    if (hasBlockingDiagnostics(allDiagnostics)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Preview data contains invalid page content',
+          diagnostics: allDiagnostics,
+        },
+        { status: 422 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
@@ -168,6 +241,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
         designSystemCss,
         pages: previewPages,
       },
+      ...(allDiagnostics.length > 0 ? { diagnostics: allDiagnostics } : {}),
     })
   } catch (error) {
     if (error && typeof error === 'object' && 'statusCode' in error) {
@@ -186,20 +260,36 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
  * Extract component configs from page content JSON
  */
 export function extractComponents(content: unknown): PreviewComponentConfig[] {
-  const { pageContent, diagnostics } = normalizePageContent(content)
+  return extractComponentsWithDiagnostics(content).components
+}
 
-  if (diagnostics.length > 0 && process.env.NODE_ENV !== 'production') {
+export function extractComponentsWithDiagnostics(
+  content: unknown,
+  context: ExtractComponentsContext = {}
+): ExtractComponentsResult {
+  const normalizedContent = normalizePageContent(content)
+  const pageContent = normalizedContent.pageContent
+  const diagnostics = appendBoundaryDiagnostics(content, normalizedContent.diagnostics)
+  const previewDiagnostics = diagnostics.map((diagnostic): PreviewPageContentDiagnostic => ({
+    ...diagnostic,
+    ...context,
+  }))
+
+  if (previewDiagnostics.length > 0 && process.env.NODE_ENV !== 'production') {
     console.info('[preview-data] Adapted page content for sandbox preview', {
-      diagnostics: diagnostics.map(diagnostic => ({
+      pageId: context.pageId,
+      fullPath: context.fullPath,
+      diagnostics: previewDiagnostics.map(diagnostic => ({
         code: diagnostic.code,
         severity: diagnostic.severity,
+        message: diagnostic.message,
         componentId: diagnostic.componentId,
         path: diagnostic.path,
       })),
     })
   }
 
-  return pageContent.components.map((component): PreviewComponentConfig => {
+  const components = pageContent.components.map((component): PreviewComponentConfig => {
     const props = { ...component.props }
     if (Object.keys(component.content).length > 0) {
       props.content = component.content
@@ -218,4 +308,6 @@ export function extractComponents(content: unknown): PreviewComponentConfig[] {
       ...(component.globalComponentId ? { globalComponentId: component.globalComponentId } : {}),
     }
   })
+
+  return { components, diagnostics: previewDiagnostics }
 }

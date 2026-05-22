@@ -8,6 +8,7 @@ import {
   normalizePageContent,
   normalizeMetadata,
   normalizeTemplateProps,
+  type PageContentDiagnostic,
 } from '@/lib/studio/page-content'
 import {
   enrichComponentFromShared,
@@ -83,6 +84,133 @@ function formatResolverError(error: unknown, requestPath: string, websiteId: str
   const message = typeof errorRecord.message === 'string' ? errorRecord.message : 'URL resolver failed'
 
   return `[LocalPreview] resolveUrl failed: code=${code} message=${message} path=${requestPath} website=${websiteId}`
+}
+
+function hasBlockingDiagnostics(diagnostics: PageContentDiagnostic[]): boolean {
+  return diagnostics.some(diagnostic => diagnostic.severity === 'warn' || diagnostic.severity === 'error')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function appendBoundaryDiagnostics(
+  content: unknown,
+  diagnostics: PageContentDiagnostic[]
+): PageContentDiagnostic[] {
+  if (
+    isRecord(content) &&
+    Object.prototype.hasOwnProperty.call(content, 'components') &&
+    !Array.isArray(content.components) &&
+    !diagnostics.some(diagnostic => diagnostic.code === 'PAGE_CONTENT_COMPONENTS_INVALID' && diagnostic.path === 'components')
+  ) {
+    return [
+      ...diagnostics,
+      {
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        message: 'Components value is not an array; using an empty component list.',
+        path: 'components',
+        continued: true,
+      },
+    ]
+  }
+
+  return diagnostics
+}
+
+function logInfoDiagnostics(
+  diagnostics: PageContentDiagnostic[],
+  context: { requestPath: string; websiteId: string; pageId?: string }
+): void {
+  const infoDiagnostics = diagnostics.filter(diagnostic => diagnostic.severity === 'info')
+  if (infoDiagnostics.length === 0) {
+    return
+  }
+
+  console.info('[LocalPreview] Adapted page content for preview', {
+    ...context,
+    diagnostics: infoDiagnostics.map(diagnostic => ({
+      code: diagnostic.code,
+      message: diagnostic.message,
+      path: diagnostic.path,
+      componentId: diagnostic.componentId,
+    })),
+  })
+}
+
+function renderPreviewUnavailablePanel({
+  diagnostics,
+  requestPath,
+  websiteId,
+  pageId,
+  pageTitle,
+  fullPath,
+}: {
+  diagnostics: PageContentDiagnostic[]
+  requestPath: string
+  websiteId: string
+  pageId: string
+  pageTitle?: string | null
+  fullPath: string
+}): React.ReactElement {
+  return (
+    <main className="min-h-screen bg-background-primary p-6 text-text-primary">
+      <section
+        role="alert"
+        className="mx-auto max-w-3xl rounded-md border border-red-300 bg-red-50 p-5 text-red-950 shadow-sm"
+      >
+        <h1 className="text-xl font-semibold">Preview unavailable</h1>
+        <p className="mt-2 text-sm">
+          Page content diagnostics must be resolved before this page can be rendered.
+        </p>
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="font-medium">Request path</dt>
+            <dd>{requestPath}</dd>
+          </div>
+          <div>
+            <dt className="font-medium">Page path</dt>
+            <dd>{fullPath}</dd>
+          </div>
+          <div>
+            <dt className="font-medium">Website</dt>
+            <dd>{websiteId}</dd>
+          </div>
+          <div>
+            <dt className="font-medium">Page</dt>
+            <dd>{pageTitle ?? pageId}</dd>
+          </div>
+        </dl>
+        <ul className="mt-4 space-y-3">
+          {diagnostics.map((diagnostic, index) => (
+            <li key={`${diagnostic.code}-${diagnostic.path ?? index}`} className="rounded border border-red-200 bg-white p-3 text-sm">
+              <div className="font-mono font-semibold">{diagnostic.code}</div>
+              <div className="mt-1">{diagnostic.message}</div>
+              <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
+                <div>
+                  <dt className="font-medium">Severity</dt>
+                  <dd>{diagnostic.severity}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium">Path</dt>
+                  <dd>{diagnostic.path ?? 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium">Component ID</dt>
+                  <dd>{diagnostic.componentId ?? 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium">Page ID</dt>
+                  <dd>{pageId}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </main>
+  )
 }
 
 async function resolveDesignSystemCss(websiteId: string, designConcept?: string): Promise<string | null> {
@@ -180,7 +308,36 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
       .split('/')
       .filter(Boolean)
 
-    const { pageContent } = normalizePageContent(contentItem.content)
+    const normalizedContent = normalizePageContent(contentItem.content)
+    const pageContent = normalizedContent.pageContent
+    const diagnostics = appendBoundaryDiagnostics(contentItem.content, normalizedContent.diagnostics)
+    logInfoDiagnostics(diagnostics, { requestPath, websiteId, pageId: contentItem.id })
+
+    if (hasBlockingDiagnostics(diagnostics)) {
+      console.warn('[LocalPreview] Page content diagnostics blocked preview render', {
+        requestPath,
+        websiteId,
+        pageId: contentItem.id,
+        fullPath: siteStructure.fullPath ?? requestPath,
+        diagnostics: diagnostics.map(diagnostic => ({
+          code: diagnostic.code,
+          severity: diagnostic.severity,
+          message: diagnostic.message,
+          path: diagnostic.path,
+          componentId: diagnostic.componentId,
+        })),
+      })
+
+      return renderPreviewUnavailablePanel({
+        diagnostics,
+        requestPath,
+        websiteId,
+        pageId: contentItem.id,
+        pageTitle: contentItem.title,
+        fullPath: siteStructure.fullPath ?? requestPath,
+      })
+    }
+
     let componentInstances = pageContent.components
 
     const sharedIds = Array.from(
