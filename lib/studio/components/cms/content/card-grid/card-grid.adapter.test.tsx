@@ -32,8 +32,8 @@ describe('CardGridAdapter', () => {
     CardGrid.mockClear();
   });
 
-  it('normalizes nested card content structures', () => {
-    const content: CardGridContent = {
+  it('preserves nested legacy card content without adapter coercion', () => {
+    const content = {
       heading: "What's On",
       cards: [
         {
@@ -52,7 +52,7 @@ describe('CardGridAdapter', () => {
         }
       ],
       columns: 3
-    };
+    } as unknown as CardGridContent;
 
     render(
       <CardGridAdapter
@@ -65,15 +65,14 @@ describe('CardGridAdapter', () => {
     const adapterProps = CardGrid.mock.calls[0][0] as { content: CardGridContent };
     const card = adapterProps.content.cards[0];
 
-    expect(card.title).toBe('Skechers : The Go Walk 8 Has Arrived');
-    expect(card.link).toBe('/Stores/Retail-Stores/Skechers/Articles/2025/09/Skechers--The-Go-Walk-8-Has-Arrived');
-    expect(card.image).toEqual({
+    expect(card.title).toBeUndefined();
+    expect((card as any).content.title).toBe('Skechers : The Go Walk 8 Has Arrived');
+    expect((card as any).content.href).toBe('/Stores/Retail-Stores/Skechers/Articles/2025/09/Skechers--The-Go-Walk-8-Has-Arrived');
+    expect((card as any).content.image).toEqual({
       src: 'https://cdn.example.com/skechers.png',
       alt: 'GW8U800x800'
     });
-    expect(card.metadata?.category).toBe('Offer');
-    expect(card.metadata?.date).toBe('18 Sep - 9 Nov');
-    expect(card.metadata?.tags).toEqual(['Optus']);
+    expect(card.metadata).toBeUndefined();
   });
 
   it('rejects stringified content instead of parsing legacy JSON', () => {
