@@ -100,6 +100,10 @@ function stripLegacyStrictWriteMirrors(component: Record<string, unknown>): Reco
   return next;
 }
 
+function isTextMirror(value: unknown): boolean {
+  return isRecord(value) || (typeof value === 'string' && isRecord(parseJsonString(value)));
+}
+
 const db = prisma as any;
 
 export const ContentRepository = {
@@ -242,19 +246,20 @@ export const ContentRepository = {
       // Clear overrides - reset props.text/content to remove override values
       delete props.overrides;
       delete props.hasOverrides;
-      if (typeof props.text === 'string' && isRecord(parseJsonString(props.text))) {
+      if (isTextMirror(props.text)) {
         delete props.text;
       }
       delete props.content;
+      comp.content = {};
     } else {
-      // Merge overrides into canonical component.content, then mirror as objects for
-      // legacy editor and renderer compatibility during migration.
+      // Merge overrides into canonical component.content, then keep the temporary
+      // props.content mirror for editor compatibility during migration.
 
       const existingContent = isPlainObject(comp.content) ? comp.content : {};
       const mergedContent = { ...existingContent, ...overrides };
-      // Update both props.text and props.content to keep them in sync without
-      // reintroducing legacy JSON string payloads that strict writes reject.
-      props.text = mergedContent;
+      if (isTextMirror(props.text)) {
+        delete props.text;
+      }
       props.content = mergedContent;
 
       // Also store overrides separately for tracking/rollback purposes

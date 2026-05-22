@@ -79,6 +79,132 @@ describe('ContentRepository.savePageOverrides contract', () => {
     jest.clearAllMocks()
   })
 
+  it('saves canonical content and transitional mirrors without props.text', async () => {
+    const page = {
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              text: { title: 'Stale mirror', body: 'Old body' },
+            },
+            content: { title: 'Canonical title', body: 'Canonical body' },
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    await ContentRepository.savePageOverrides('page-1', 'inst-1', { title: 'Edited title' })
+
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const component = updateCall.data.content.components[0]
+
+    expect(component.content).toEqual({
+      title: 'Edited title',
+      body: 'Canonical body',
+    })
+    expect(component.props).toEqual({
+      sharedComponentId: 'sc-1',
+      content: {
+        title: 'Edited title',
+        body: 'Canonical body',
+      },
+      overrides: { title: 'Edited title' },
+      hasOverrides: true,
+    })
+    expect(component.props).not.toHaveProperty('text')
+  })
+
+  it('preserves legitimate scalar props.text while removing only mirror-shaped text', async () => {
+    const page = {
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'button',
+            position: 0,
+            props: {
+              text: 'Click me',
+            },
+            content: { label: 'Click me', href: '/old' },
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    await ContentRepository.savePageOverrides('page-1', 'inst-1', { href: '/new' })
+
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const component = updateCall.data.content.components[0]
+
+    expect(component.content).toEqual({
+      label: 'Click me',
+      href: '/new',
+    })
+    expect(component.props.text).toBe('Click me')
+    expect(component.props.content).toEqual(component.content)
+  })
+
+  it('clears mirror-shaped props.text when overrides are removed', async () => {
+    const page = {
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              text: JSON.stringify({ title: 'Override title' }),
+              content: { title: 'Override title' },
+              overrides: { title: 'Override title' },
+              hasOverrides: true,
+            },
+            content: { title: 'Override title' },
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    await ContentRepository.savePageOverrides('page-1', 'inst-1', null)
+
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const component = updateCall.data.content.components[0]
+
+    expect(component.content).toEqual({})
+    expect(component.props).toEqual({
+      sharedComponentId: 'sc-1',
+    })
+    expect(component.props).not.toHaveProperty('text')
+    expect(component.props).not.toHaveProperty('content')
+    expect(component.props).not.toHaveProperty('overrides')
+    expect(component.props).not.toHaveProperty('hasOverrides')
+  })
+
   it.each([
     ['array', []],
     ['string', '{"title":"Legacy"}'],

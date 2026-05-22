@@ -63,7 +63,6 @@ describe('PATCH page overrides - concurrency and limits', () => {
               parentId: null,
               position: 0,
               props: expect.objectContaining({
-                text: { title: 'New' },
                 content: { title: 'New' },
                 sharedComponentId: 'sc-1',
                 overrides: { title: 'New' },
@@ -77,6 +76,10 @@ describe('PATCH page overrides - concurrency and limits', () => {
         }),
       },
     })
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const updatedComponent = updateCall.data.content.components[0]
+    expect(updatedComponent.props).not.toHaveProperty('text')
+    expect(updatedComponent.props.content).toEqual(updatedComponent.content)
   })
 
   it('merges overrides into canonical component content before stale props text', async () => {
@@ -115,8 +118,52 @@ describe('PATCH page overrides - concurrency and limits', () => {
       title: 'Edited title',
       body: 'Canonical body',
     })
-    expect(updatedComponent.props.text).toEqual(updatedComponent.content)
+    expect(updatedComponent.props).not.toHaveProperty('text')
     expect(updatedComponent.props.content).toEqual(updatedComponent.content)
+  })
+
+  it('clears canonical content and mirrors when overrides are null', async () => {
+    const page = {
+      ...basePage(new Date('2025-09-12T00:00:00Z')),
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              text: JSON.stringify({ title: 'Override title' }),
+              content: { title: 'Override title' },
+              overrides: { title: 'Override title' },
+              hasOverrides: true,
+            },
+            content: { title: 'Override title' },
+          },
+        ],
+      },
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    const req = new NextRequest('http://localhost:3000/api/studio/site-builder/page-components/inst-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ pageId: 'page-1', overrides: null }),
+    })
+    const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
+
+    expect(res.status).toBe(200)
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const updatedComponent = updateCall.data.content.components[0]
+
+    expect(updatedComponent.content).toEqual({})
+    expect(updatedComponent.props).toEqual({
+      sharedComponentId: 'sc-1',
+    })
+    expect(updatedComponent.props).not.toHaveProperty('text')
+    expect(updatedComponent.props).not.toHaveProperty('content')
+    expect(updatedComponent.props).not.toHaveProperty('overrides')
+    expect(updatedComponent.props).not.toHaveProperty('hasOverrides')
   })
 
   it('returns 409 when If-Unmodified-Since is stale', async () => {
