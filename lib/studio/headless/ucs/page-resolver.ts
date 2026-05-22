@@ -358,7 +358,7 @@ export async function resolveUcsPageBySlug(
     options.assetOrigin
 
   const hydratedComponents = components.map(component =>
-    enrichComponentFromShared(component, sharedComponents, { assetOrigin })
+    enrichComponentFromShared(component, sharedComponents, { assetOrigin, diagnostics })
   )
   const metadataRecord = metadata as Record<string, unknown>
   const metadataFullPath = typeof metadataRecord.fullPath === 'string' ? metadataRecord.fullPath : undefined

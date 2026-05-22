@@ -397,7 +397,8 @@ class PrismaSiteSnapshotBuilder {
         }
 
         return enrichComponentFromShared(component, this.sharedComponents, {
-          assetOrigin: this.siteOrigin
+          assetOrigin: this.siteOrigin,
+          diagnostics: this.diagnostics
         })
       })
     const templateProps = normalizeTemplateProps(page.templateProps)
@@ -2165,10 +2166,104 @@ function upgradeTwoColumnContent(
   return mutated ? result : content
 }
 
+interface EnrichComponentOptions {
+  assetOrigin?: string
+  diagnostics?: GeneratorDiagnostic[]
+}
+
+function hasTwoColumnAreas(content: Record<string, unknown>): boolean {
+  if (!isRecord(content.areas)) {
+    return false
+  }
+
+  return (
+    (Array.isArray(content.areas.left) && content.areas.left.length > 0) ||
+    (Array.isArray(content.areas.right) && content.areas.right.length > 0)
+  )
+}
+
+function hasTwoColumnColumns(content: Record<string, unknown>): boolean {
+  return (
+    (Array.isArray(content.leftColumn) && content.leftColumn.length > 0) ||
+    (Array.isArray(content.rightColumn) && content.rightColumn.length > 0)
+  )
+}
+
+function hasCanonicalTwoColumnContent(content: Record<string, unknown>): boolean {
+  return hasTwoColumnAreas(content) || hasTwoColumnColumns(content)
+}
+
+function parseLegacyTwoColumnPropsText(
+  component: ComponentInstance,
+  propsText: unknown,
+  diagnostics?: GeneratorDiagnostic[]
+): Record<string, unknown> | undefined {
+  if (
+    typeof propsText !== 'string' ||
+    (!propsText.includes('leftColumn') && !propsText.includes('rightColumn'))
+  ) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(propsText)
+    if (!isRecord(parsed) || (!Array.isArray(parsed.leftColumn) && !Array.isArray(parsed.rightColumn))) {
+      return undefined
+    }
+
+    // Transform LLM tuple format [[type, confidence, props]] to entry format
+    // The mapper expects entry.heading, entry.body, etc. at the top level.
+    const transformColumn = (column: unknown[]): unknown[] => {
+      if (!Array.isArray(column)) return []
+
+      // Handle double-nesting: [[[tuples]]] -> [[tuples]]
+      let items = column
+      while (items.length === 1 && Array.isArray(items[0])) {
+        items = items[0] as unknown[]
+      }
+
+      return items.map((item) => {
+        if (Array.isArray(item) && item.length >= 3) {
+          const [type, , itemProps] = item
+          return {
+            type: String(type),
+            ...(isRecord(itemProps) ? itemProps : {})
+          }
+        }
+        return item
+      })
+    }
+
+    return {
+      leftColumn: transformColumn(parsed.leftColumn as unknown[]),
+      rightColumn: transformColumn(parsed.rightColumn as unknown[]),
+      ...(typeof parsed.columnRatio === 'string' ? { columnRatio: parsed.columnRatio } : {})
+    }
+  } catch (error) {
+    diagnostics?.push({
+      code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
+      level: 'warn',
+      message: `Two-column component ${component.id} has malformed props.text JSON; legacy text fallback was skipped`,
+      context: {
+        componentId: component.id,
+        componentType: component.type,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    })
+
+    return undefined
+  }
+}
+
+function getTwoColumnMetadata(content: Record<string, unknown>): Record<string, unknown> {
+  const { areas: _areas, leftColumn: _leftColumn, rightColumn: _rightColumn, ...metadata } = content
+  return metadata
+}
+
 function enrichComponentFromShared(
   component: ComponentInstance,
   sharedComponents: SnapshotSharedComponent[] | undefined,
-  options?: { assetOrigin?: string }
+  options?: EnrichComponentOptions
 ): ComponentInstance {
   const props = normalizeProps(component.props)
   const normalizedType = normalizeComponentKey(component.type)
@@ -2204,72 +2299,22 @@ function enrichComponentFromShared(
   const propsContent = isRecord(props.content) ? props.content : undefined
 
   if (normalizedType === 'two-column') {
-    // Check if propsContent is already enriched with areas structure (from page-builder)
-    // If so, use it directly to preserve columnRatio and nested content (bodyHtml, etc.)
-    const propsHasEnrichedAreas =
-      isRecord(propsContent) &&
-      isRecord(propsContent.areas) &&
-      (Array.isArray((propsContent.areas as Record<string, unknown>).left) ||
-        Array.isArray((propsContent.areas as Record<string, unknown>).right))
+    const parsedTextContent = parseLegacyTwoColumnPropsText(component, props.text, options?.diagnostics)
 
-    if (propsHasEnrichedAreas) {
-      // propsContent already has the correct enriched data from page-builder
-      // Use it directly without running through upgradeTwoColumnContent again
-      normalizedContent = cloneJson(propsContent) as Record<string, unknown>
+    if (hasCanonicalTwoColumnContent(normalizedContent)) {
+      normalizedContent = upgradeTwoColumnContent(cloneJson(normalizedContent), component, assetOrigin)
     } else {
-      // Check if props.text contains the actual column data as JSON string (from LLM detection)
-      let parsedTextContent: Record<string, unknown> | undefined
-      if (typeof props.text === 'string' && props.text.includes('leftColumn')) {
-        try {
-          const parsed = JSON.parse(props.text)
-          if (isRecord(parsed) && (Array.isArray(parsed.leftColumn) || Array.isArray(parsed.rightColumn))) {
-            // Transform LLM tuple format [[type, confidence, props]] to entry format
-            // The mapper expects entry.heading, entry.body, etc. at the top level
-            const transformColumn = (column: unknown[]): unknown[] => {
-              if (!Array.isArray(column)) return []
-
-              // Handle double-nesting: [[[tuples]]] -> [[tuples]]
-              let items = column
-              while (items.length === 1 && Array.isArray(items[0])) {
-                items = items[0] as unknown[]
-              }
-
-              return items.map((item) => {
-                if (Array.isArray(item) && item.length >= 3) {
-                  const [type, , itemProps] = item
-                  // Flatten itemProps to entry level for mapper compatibility
-                  return {
-                    type: String(type),
-                    ...(isRecord(itemProps) ? itemProps : {})
-                  }
-                }
-                return item
-              })
-            }
-            parsedTextContent = {
-              leftColumn: transformColumn(parsed.leftColumn as unknown[]),
-              rightColumn: transformColumn(parsed.rightColumn as unknown[]),
-              // Preserve columnRatio if present (e.g., "25-75", "50-50")
-              ...(typeof parsed.columnRatio === 'string' ? { columnRatio: parsed.columnRatio } : {})
-            }
-          }
-        } catch {
-          // Invalid JSON, ignore
-        }
-      }
-
-      // Use parsedTextContent if available and normalizedContent is empty
-      const hasNonEmptyContent =
-        isRecord(normalizedContent) &&
-        ((Array.isArray(normalizedContent.leftColumn) && normalizedContent.leftColumn.length > 0) ||
-          (Array.isArray(normalizedContent.rightColumn) && normalizedContent.rightColumn.length > 0))
-
-      const sourceContent = hasNonEmptyContent
-        ? normalizedContent
-        : parsedTextContent ?? propsContent ?? (isRecord(normalizedContent) ? normalizedContent : {})
+      const sourceContent = parsedTextContent ?? propsContent ?? {}
 
       if (isRecord(sourceContent)) {
-        normalizedContent = upgradeTwoColumnContent(cloneJson(sourceContent), component, assetOrigin)
+        normalizedContent = upgradeTwoColumnContent(
+          cloneJson({
+            ...getTwoColumnMetadata(normalizedContent),
+            ...sourceContent
+          }),
+          component,
+          assetOrigin
+        )
       }
     }
   }

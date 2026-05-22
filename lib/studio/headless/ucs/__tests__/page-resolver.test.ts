@@ -113,6 +113,64 @@ describe('resolveUcsPageBySlug', () => {
     ])
   })
 
+  it('returns a diagnostic for malformed two-column props.text during enrichment', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'struct-home',
+      parentId: null,
+      slug: 'home',
+      fullPath: '/',
+      position: 0,
+      websitePageId: 'page-home',
+      websitePage: {
+        id: 'page-home',
+        title: 'Home',
+        ...basePage,
+        content: {
+          regions: [],
+          components: [
+            {
+              id: 'two-column-1',
+              type: 'two-column',
+              props: {
+                text: '{"leftColumn":'
+              },
+              content: {}
+            }
+          ]
+        }
+      },
+      children: []
+    })
+    const prisma = createPrismaMock({
+      websiteStructure: {
+        findFirst,
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    })
+
+    const result = await resolveUcsPageBySlug({
+      prisma,
+      websiteId: 'site',
+      slug: [],
+      sharedComponentCache: new Map(),
+      resolveMedia: false
+    })
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
+        level: 'warn',
+        context: expect.objectContaining({
+          componentId: 'two-column-1',
+          componentType: 'two-column'
+        })
+      })
+    ])
+  })
+
   it('resolves nested slug with single ancestor query', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-about',

@@ -17,6 +17,148 @@ function createTwoColumnComponent(content: Record<string, unknown>): ComponentIn
 }
 
 describe('two-column legacy entry upgrades', () => {
+  it('keeps canonical content.areas when props.content.areas is stale', () => {
+    const component = createTwoColumnComponent({
+      areas: {
+        left: [
+          {
+            id: 'canonical-left',
+            type: ComponentType.TextBlock,
+            category: ComponentCategory.Content,
+            theme: 'auto',
+            variant: 'default',
+            content: { body: 'Canonical content' }
+          }
+        ]
+      }
+    })
+    component.props = {
+      content: {
+        areas: {
+          left: [
+            {
+              id: 'stale-left',
+              type: ComponentType.TextBlock,
+              category: ComponentCategory.Content,
+              theme: 'auto',
+              variant: 'default',
+              content: { body: 'Stale content' }
+            }
+          ]
+        }
+      }
+    }
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const areas = (enriched.content as Record<string, any>).areas
+
+    expect(areas.left).toHaveLength(1)
+    expect(areas.left[0].id).toBe('canonical-left')
+    expect(areas.left[0].content.body).toBe('Canonical content')
+    expect((enriched.props.content as Record<string, any>).areas.left[0].id).toBe('canonical-left')
+  })
+
+  it('keeps canonical content.areas when props.text contains stale JSON columns', () => {
+    const component = createTwoColumnComponent({
+      areas: {
+        right: [
+          {
+            id: 'canonical-right',
+            type: ComponentType.TextBlock,
+            category: ComponentCategory.Content,
+            theme: 'auto',
+            variant: 'default',
+            content: { body: 'Canonical right' }
+          }
+        ]
+      }
+    })
+    component.props = {
+      text: JSON.stringify({
+        rightColumn: [
+          ['text-block', 0.9, { body: 'Stale JSON right' }]
+        ]
+      })
+    }
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const areas = (enriched.content as Record<string, any>).areas
+
+    expect(areas.right).toHaveLength(1)
+    expect(areas.right[0].id).toBe('canonical-right')
+    expect(areas.right[0].content.body).toBe('Canonical right')
+  })
+
+  it('diagnoses malformed two-column props.text even when canonical content wins', () => {
+    const component = createTwoColumnComponent({
+      areas: {
+        left: [
+          {
+            id: 'canonical-left',
+            type: ComponentType.TextBlock,
+            category: ComponentCategory.Content,
+            theme: 'auto',
+            variant: 'default',
+            content: { body: 'Canonical content' }
+          }
+        ]
+      }
+    })
+    component.props = {
+      text: '{"leftColumn":'
+    }
+    const diagnostics: any[] = []
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined, diagnostics })
+    const areas = (enriched.content as Record<string, any>).areas
+
+    expect(areas.left).toHaveLength(1)
+    expect(areas.left[0].id).toBe('canonical-left')
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
+        level: 'warn',
+        context: expect.objectContaining({
+          componentId: 'two-column-1',
+          componentType: 'two-column'
+        })
+      })
+    ])
+  })
+
+  it.each([
+    ['empty areas', { areas: { left: [], right: [] } }],
+    ['empty legacy column', { leftColumn: [] }],
+    ['metadata only', { columnRatio: '30-70' }]
+  ])('falls back to legacy props.content when canonical content has %s', (_label, content) => {
+    const component = createTwoColumnComponent(content)
+    component.props = {
+      content: {
+        rightColumn: [
+          {
+            type: 'text-block',
+            body: 'Legacy fallback content'
+          }
+        ]
+      }
+    }
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const enrichedContent = enriched.content as Record<string, any>
+    const areas = enrichedContent.areas
+
+    expect(areas.right).toHaveLength(1)
+    expect(areas.right[0].type).toBe(ComponentType.TextBlock)
+    expect(areas.right[0].content.body).toBe('Legacy fallback content')
+    expect(enrichedContent.leftColumn).toBeUndefined()
+    expect(enrichedContent.rightColumn).toBeUndefined()
+    expect(enrichedContent.areas.left).toBeUndefined()
+
+    if ('columnRatio' in content) {
+      expect(enrichedContent.columnRatio).toBe('30-70')
+    }
+  })
+
   it('converts image-gallery entries with nested URL objects', () => {
     const component = createTwoColumnComponent({
       leftColumn: [

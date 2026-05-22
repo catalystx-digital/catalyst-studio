@@ -101,4 +101,80 @@ describe('buildUcsSiteSnapshot', () => {
       })
     ])
   })
+
+  it('returns a diagnostic for malformed two-column props.text during enrichment', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'site',
+          name: 'Site',
+          description: null,
+          metadata: {},
+          settings: {}
+        })
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websitePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'page-1',
+            title: 'Home',
+            content: {
+              regions: [],
+              components: [
+                {
+                  id: 'two-column-1',
+                  type: 'two-column',
+                  props: {
+                    text: '{"leftColumn":'
+                  },
+                  content: {}
+                }
+              ]
+            },
+            templateKey: null,
+            templateProps: {},
+            metadata: {},
+            structures: [
+              {
+                id: 'structure-1',
+                fullPath: '/',
+                slug: 'home',
+                parentId: null,
+                position: 0
+              }
+            ]
+          }
+        ])
+      },
+      websiteStructure: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      redirect: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const { diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON',
+        level: 'warn',
+        context: expect.objectContaining({
+          componentId: 'two-column-1',
+          componentType: 'two-column'
+        })
+      })
+    ]))
+  })
 })
