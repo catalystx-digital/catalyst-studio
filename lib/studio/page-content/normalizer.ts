@@ -179,8 +179,6 @@ export function normalizeProps(
   }
 
   const normalized: Record<string, unknown> = {}
-  let parsedTextContent: Record<string, unknown> | null = null
-
   Object.entries(value).forEach(([key, entry]) => {
     if (isCanonicalRead(options) && (key === 'content' || key === 'text')) {
       return
@@ -199,42 +197,18 @@ export function normalizeProps(
 
     if (key === 'text' && typeof entry === 'string') {
       normalized[key] = entry
-      const parsed = parseJsonStringWithDiagnostics(entry, {
+      parseJsonStringWithDiagnostics(entry, {
         diagnostics,
         options,
         path: `${path}.text`,
         code: jsonParseFailureCodeForProp(key),
         message: 'Component props.text contains malformed JSON-like text and was left unchanged.',
       })
-      if (isRecord(parsed)) {
-        parsedTextContent = parsed
-      }
       return
     }
 
     normalized[key] = entry
   })
-
-  if (parsedTextContent) {
-    const existingContent = normalized.content
-    if (isRecord(existingContent)) {
-      const merged: Record<string, unknown> = { ...existingContent }
-      for (const [key, entry] of Object.entries(parsedTextContent)) {
-        const existing = merged[key]
-        const existingIsEmpty =
-          existing === undefined ||
-          existing === null ||
-          (Array.isArray(existing) && existing.length === 0) ||
-          (isRecord(existing) && Object.keys(existing).length === 0)
-        if (existingIsEmpty) {
-          merged[key] = entry
-        }
-      }
-      normalized.content = merged
-    } else {
-      normalized.content = parsedTextContent
-    }
-  }
 
   return normalized
 }
@@ -357,10 +331,6 @@ function normalizeContentForComponentType(
     ? normalizeBlogListContent(value, diagnostics, options, path)
     : value
   return isRecord(normalized) ? normalized : {}
-}
-
-function hasContent(value: unknown): value is Record<string, unknown> {
-  return isRecord(value) && Object.keys(value).length > 0
 }
 
 function hasOwn(value: AnyRecord, key: string): boolean {
@@ -545,7 +515,6 @@ export function normalizeComponent(
   const rawTypeId = typeof instance.typeId === 'string' ? instance.typeId : undefined
   const rawComponentTypeId =
     typeof instance.componentTypeId === 'string' ? instance.componentTypeId : rawTypeId
-  const componentType = resolveCmsComponentType(instance.componentType)
   const id = typeof instance.id === 'string' && instance.id.trim().length > 0
     ? instance.id
     : `component-${fallbackPosition}`
@@ -563,28 +532,13 @@ export function normalizeComponent(
     code: 'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED',
     message: 'Component content contains malformed JSON-like text and was left unchanged.',
   })
-  const propsContent = isRecord(props.content) ? props.content : {}
-  const usesPropsContent = options.mode === 'legacy-read' && !hasContent(rawContent)
   const content = normalizeContentForComponentType(
     type,
-    usesPropsContent ? propsContent : rawContent,
+    rawContent,
     diagnostics,
     options,
-    usesPropsContent ? `${path}.props.content` : `${path}.content`
+    `${path}.content`
   )
-  if (isRecord(props.content) && usesPropsContent) {
-    props.content = content
-  } else if (isRecord(props.content)) {
-    props.content = normalizeContentForComponentType(
-      type,
-      props.content,
-      diagnostics,
-      options,
-      `${path}.props.content`
-    )
-  } else if (hasContent(content)) {
-    props.content = content
-  }
   if (isStrictWrite(options)) {
     delete props.content
   }
@@ -603,9 +557,7 @@ export function normalizeComponent(
   const metadata = isRecord(rawMetadata) ? rawMetadata : {}
   const globalComponentId = typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
   const sharedComponentId = typeof instance.sharedComponentId === 'string' ? instance.sharedComponentId : undefined
-  const passthrough = isStrictWrite(options) || isCanonicalRead(options)
-    ? omitKeys(instance, STRICT_COMPONENT_SOURCE_KEYS)
-    : instance
+  const passthrough = omitKeys(instance, STRICT_COMPONENT_SOURCE_KEYS)
 
   if (type === 'unknown') {
     addDiagnostic(diagnostics, {
@@ -635,7 +587,6 @@ export function normalizeComponent(
     ...passthrough,
     id,
     type,
-    ...(componentType && !isStrictWrite(options) && !isCanonicalRead(options) ? { componentType } : {}),
     ...(rawComponentTypeId ? { componentTypeId: rawComponentTypeId } : {}),
     ...(rawTypeId ? { typeId: rawTypeId } : {}),
     parentId,

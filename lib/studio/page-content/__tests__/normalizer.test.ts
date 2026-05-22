@@ -3,7 +3,6 @@ import {
   PageContentNormalizationError,
   pageContentV1Schema,
   normalizeComponents,
-  normalizeProps,
   toCanonicalPageContent,
 } from '@/lib/studio/page-content'
 
@@ -41,29 +40,7 @@ describe('page content normalizer', () => {
     expect(pageContentV1Schema.parse(result.pageContent)).toEqual(result.pageContent)
   })
 
-  it('canonical-read uses component.content over stale props.content and strips mirror props', () => {
-    const result = normalizePageContent({
-      components: [
-        {
-          id: 'hero-1',
-          type: 'hero-banner',
-          props: {
-            content: { heading: 'Stale props.content heading' },
-            text: JSON.stringify({ heading: 'Stale props.text heading' }),
-            variant: 'split',
-          },
-          content: { heading: 'Canonical heading' },
-        },
-      ],
-    }, { mode: 'canonical-read' })
-
-    const component = result.pageContent.components[0]
-    expect(component.content).toEqual({ heading: 'Canonical heading' })
-    expect(component.props).toEqual({ variant: 'split' })
-    expect(result.diagnostics).toEqual([])
-  })
-
-  it('defaults to canonical-read and ignores legacy content mirrors when canonical content is empty or missing', () => {
+  it('defaults to canonical-read and derives content only from component.content', () => {
     const result = normalizePageContent({
       components: [
         {
@@ -107,111 +84,87 @@ describe('page content normalizer', () => {
     expect(result.diagnostics).toEqual([])
   })
 
-  it('adapts legacy sections and componentType entries', () => {
+  it('canonical-read uses component.content over stale props mirrors and strips props.content and props.text', () => {
     const result = normalizePageContent({
-      sections: [
+      components: [
         {
-          componentType: 'feature-grid',
-          data: {
-            content: { heading: 'Features' },
+          id: 'hero-1',
+          type: 'hero-banner',
+          props: {
+            content: { heading: 'Stale props.content heading' },
+            text: JSON.stringify({ heading: 'Stale props.text heading' }),
+            variant: 'split',
+          },
+          content: { heading: 'Canonical heading' },
+        },
+      ],
+    }, { mode: 'canonical-read' })
+
+    const component = result.pageContent.components[0]
+    expect(component.content).toEqual({ heading: 'Canonical heading' })
+    expect(component.props).toEqual({ variant: 'split' })
+    expect(result.diagnostics).toEqual([])
+  })
+
+  it('normalizes blog-list canonical content without reading legacy props mirrors', () => {
+    const result = normalizePageContent({
+      components: [
+        {
+          id: 'blog-1',
+          type: 'blog-list',
+          props: {
+            content: {
+              blogs: [{ id: 'legacy-id', title: 'Legacy post' }],
+            },
+          },
+          content: {
+            heading: 'News',
+            blogs: [
+              {
+                id: 'canonical-id',
+                title: 'Canonical post',
+                date: '2026-05-01',
+                topic: 'Product',
+                image: { src: '/launch.jpg' },
+              },
+            ],
           },
         },
       ],
-    }, { mode: 'legacy-read' })
-
-    expect(result.pageContent.components).toHaveLength(1)
-    expect(result.pageContent.components[0]).toMatchObject({
-      id: 'component-0',
-      type: 'feature-grid',
-      parentId: null,
-      position: 0,
-      props: {
-        content: { heading: 'Features' },
-      },
     })
-    expect(result.diagnostics.map(diagnostic => diagnostic.code)).toEqual([
-      'PAGE_CONTENT_LEGACY_SECTIONS',
-      'PAGE_CONTENT_COMPONENT_ID_MISSING',
-    ])
-  })
 
-  it('parses JSON string page content before adapting components', () => {
-    const result = normalizePageContent(JSON.stringify({
-      sections: [
+    expect(result.pageContent.components[0].content).toEqual({
+      heading: 'News',
+      title: 'News',
+      blogs: [
         {
-          id: 'section-1',
-          componentType: 'text-block',
-          data: { content: { text: 'Hello' } },
+          id: 'canonical-id',
+          title: 'Canonical post',
+          date: '2026-05-01',
+          topic: 'Product',
+          image: { src: '/launch.jpg' },
         },
       ],
-    }), { mode: 'legacy-read' })
-
-    expect(result.pageContent.components).toHaveLength(1)
-    expect(result.pageContent.components[0]).toMatchObject({
-      id: 'section-1',
-      type: 'text-block',
-      props: { content: { text: 'Hello' } },
+      posts: [
+        {
+          id: 'canonical-id',
+          title: 'Canonical post',
+          date: '2026-05-01',
+          topic: 'Product',
+          image: { src: '/launch.jpg' },
+          publishDate: '2026-05-01',
+          categories: ['Product'],
+          slug: 'canonical-id',
+          thumbnail: { src: '/launch.jpg' },
+        },
+      ],
     })
-    expect(result.diagnostics.map(diagnostic => diagnostic.code)).toEqual([
-      'PAGE_CONTENT_JSON_STRING',
-      'PAGE_CONTENT_LEGACY_SECTIONS',
-    ])
-  })
-
-  it('reports non-array components in legacy-read and returns an empty component list', () => {
-    const result = normalizePageContent({
-      components: { id: 'not-array' },
-    }, { mode: 'legacy-read' })
-
-    expect(result.pageContent.components).toEqual([])
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
-        severity: 'warn',
-        path: 'components',
-      }),
-    ])
-  })
-
-  it.each([
-    ['null', null],
-    ['undefined', undefined],
-  ])('reports explicit %s components in legacy-read', (_label, components) => {
-    const result = normalizePageContent({ components }, { mode: 'legacy-read' })
-
-    expect(result.pageContent.components).toEqual([])
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
-        severity: 'warn',
-        path: 'components',
-      }),
-    ])
+    expect(result.pageContent.components[0].props).toEqual({})
   })
 
   it('reports JSON string page content and non-array components diagnostics', () => {
     const result = normalizePageContent(JSON.stringify({
       components: { id: 'not-array' },
-    }))
-
-    expect(result.pageContent.components).toEqual([])
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_JSON_STRING',
-        severity: 'info',
-        path: '$',
-      }),
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
-        severity: 'warn',
-        path: 'components',
-      }),
-    ])
-  })
-
-  it('reports JSON string page content with null components diagnostics', () => {
-    const result = normalizePageContent(JSON.stringify({
-      components: null,
     }))
 
     expect(result.pageContent.components).toEqual([])
@@ -246,8 +199,8 @@ describe('page content normalizer', () => {
     ])
   })
 
-  it('reports malformed root JSON-like page string in legacy-read', () => {
-    const result = normalizePageContent('{"components":', { mode: 'legacy-read' })
+  it('reports malformed root JSON-like page string in canonical-read', () => {
+    const result = normalizePageContent('{"components":')
 
     expect(result.pageContent.components).toEqual([])
     expect(result.diagnostics).toEqual(expect.arrayContaining([
@@ -275,107 +228,7 @@ describe('page content normalizer', () => {
     }
   })
 
-  it('parses JSON content from props.text without overwriting non-empty content', () => {
-    const props = normalizeProps({
-      text: JSON.stringify({
-        heading: 'From text',
-        slides: [{ title: 'Slide 1' }],
-      }),
-      content: {
-        heading: 'Existing heading',
-        slides: [],
-      },
-    }, [], 'props', { mode: 'legacy-read' })
-
-    expect(props.content).toEqual({
-      heading: 'Existing heading',
-      slides: [{ title: 'Slide 1' }],
-    })
-  })
-
-  it('reports malformed props.content in legacy-read but continues', () => {
-    const result = normalizePageContent({
-      components: [
-        {
-          id: 'text-1',
-          type: 'text-block',
-          props: { content: '{"text":' },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-
-    expect(result.pageContent.components[0].props.content).toBe('{"text":')
-    expect(result.pageContent.components[0].content).toEqual({})
-    expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_JSON_PARSE_FAILED',
-        severity: 'warn',
-        path: 'components[0].props.content',
-      }),
-    ]))
-  })
-
-  it('reports malformed props.text in legacy-read while plain text does not', () => {
-    const malformed = normalizePageContent({
-      components: [
-        {
-          id: 'text-1',
-          type: 'text-block',
-          props: { text: '{"heading":' },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-    const plain = normalizePageContent({
-      components: [
-        {
-          id: 'text-2',
-          type: 'text-block',
-          props: { text: 'plain text' },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-
-    expect(malformed.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
-        severity: 'warn',
-        path: 'components[0].props.text',
-      }),
-    ]))
-    expect(plain.diagnostics.map(diagnostic => diagnostic.code)).not.toContain(
-      'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED'
-    )
-  })
-
-  it.each([
-    '[Learn more](https://example.com)',
-    '[todo]',
-    '[- draft]',
-    '[2026 Roadmap]',
-    '[null hypothesis]',
-    '{{name}}',
-  ])('does not report parse diagnostics for plain props.text starting with JSON delimiters in legacy-read: %s', (text) => {
-    const result = normalizePageContent({
-      components: [
-        {
-          id: 'text-1',
-          type: 'text-block',
-          props: { text },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-
-    expect(result.pageContent.components[0].props.text).toBe(text)
-    expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain(
-      'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED'
-    )
-  })
-
-  it('reports malformed component.content in legacy-read', () => {
+  it('reports malformed component.content in canonical-read', () => {
     const result = normalizePageContent({
       components: [
         {
@@ -385,7 +238,7 @@ describe('page content normalizer', () => {
           content: '{"text":',
         },
       ],
-    }, { mode: 'legacy-read' })
+    })
 
     expect(result.pageContent.components[0].content).toEqual({})
     expect(result.diagnostics).toEqual(expect.arrayContaining([
@@ -395,120 +248,6 @@ describe('page content normalizer', () => {
         path: 'components[0].content',
       }),
     ]))
-  })
-
-  it('normalizes legacy blog-list props.text blogs into canonical posts', () => {
-    const result = normalizePageContent({
-      components: [
-        {
-          id: 'blog-1',
-          type: 'blog-list',
-          props: {
-            text: JSON.stringify({
-              heading: 'News',
-              blogs: [
-                {
-                  title: 'Launch notes',
-                  excerpt: 'What changed this week',
-                  date: '2026-05-01',
-                  topic: 'Product',
-                  link: '/blog/launch-notes',
-                  image: { src: '/launch.jpg' },
-                },
-              ],
-            }),
-          },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-
-    const component = result.pageContent.components[0]
-    const expectedContent = {
-      heading: 'News',
-      title: 'News',
-      blogs: [
-        {
-          title: 'Launch notes',
-          excerpt: 'What changed this week',
-          date: '2026-05-01',
-          topic: 'Product',
-          link: '/blog/launch-notes',
-          image: { src: '/launch.jpg' },
-        },
-      ],
-      posts: [
-        {
-          id: 'post-1',
-          title: 'Launch notes',
-          excerpt: 'What changed this week',
-          date: '2026-05-01',
-          topic: 'Product',
-          link: '/blog/launch-notes',
-          image: { src: '/launch.jpg' },
-          publishDate: '2026-05-01',
-          categories: ['Product'],
-          slug: '/blog/launch-notes',
-          thumbnail: { src: '/launch.jpg' },
-        },
-      ],
-    }
-
-    expect(component.content).toEqual(expectedContent)
-    expect(component.props.content).toEqual(expectedContent)
-  })
-
-  it('does not overwrite non-empty blog-list posts with legacy blogs', () => {
-    const result = normalizePageContent({
-      components: [
-        {
-          id: 'blog-1',
-          type: 'blog-list',
-          props: {
-            content: {
-              posts: [{ id: 'canonical', title: 'Canonical post' }],
-            },
-            text: JSON.stringify({
-              heading: 'Legacy News',
-              blogs: [{ title: 'Legacy post' }],
-            }),
-          },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-
-    const content = result.pageContent.components[0].content as Record<string, unknown>
-    expect(content.posts).toEqual([{ id: 'canonical', title: 'Canonical post' }])
-  })
-
-  it('fills empty blog-list posts from legacy blogs', () => {
-    const result = normalizePageContent({
-      components: [
-        {
-          id: 'blog-1',
-          type: 'blog-list',
-          props: {
-            content: {
-              posts: [],
-            },
-            text: JSON.stringify({
-              blogs: [{ id: 'legacy-id', title: 'Legacy post' }],
-            }),
-          },
-          content: {},
-        },
-      ],
-    }, { mode: 'legacy-read' })
-
-    const content = result.pageContent.components[0].content as Record<string, unknown>
-    expect(content.posts).toEqual([
-      {
-        id: 'legacy-id',
-        title: 'Legacy post',
-        slug: 'legacy-id',
-      },
-    ])
   })
 
   it('skips invalid component entries with diagnostics', () => {
@@ -617,7 +356,7 @@ describe('page content normalizer', () => {
   it.each([
     { heading: 'Hello' },
     123,
-  ])('rejects non-string data.content as a strict-write source: %p', (content) => {
+  ])('rejects data.content as a strict-write source: %p', (content) => {
     try {
       toCanonicalPageContent(
         {},
@@ -640,7 +379,9 @@ describe('page content normalizer', () => {
       expect(error).toBeInstanceOf(PageContentNormalizationError)
       expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          code: 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_LEGACY',
+          code: typeof content === 'string'
+            ? 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_STRING'
+            : 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_LEGACY',
           path: 'components[0].data.content',
           severity: 'error',
         }),
@@ -752,7 +493,7 @@ describe('page content normalizer', () => {
     }
   })
 
-  it('rejects strict-write component payload fields that legacy-read coerces', () => {
+  it('rejects strict-write component payload fields that canonical-read ignores or strips', () => {
     const malformedComponent = {
       id: 'bad-payload',
       type: 'text-block',
@@ -761,20 +502,17 @@ describe('page content normalizer', () => {
         text: JSON.stringify({ text: 'Legacy text mirror' }),
       },
       data: 'not-an-object',
-      content: JSON.stringify({ text: 'Legacy component content' }),
+      content: JSON.stringify({ text: 'Canonical component content' }),
       styles: 'not-an-object',
       metadata: 'not-an-object',
     }
 
-    const legacy = normalizePageContent({ components: [malformedComponent] }, { mode: 'legacy-read' })
-    expect(legacy.pageContent.components[0]).toMatchObject({
+    const canonical = normalizePageContent({ components: [malformedComponent] })
+    expect(canonical.pageContent.components[0]).toMatchObject({
       id: 'bad-payload',
       type: 'text-block',
-      props: {
-        content: { text: 'Legacy content mirror' },
-        text: JSON.stringify({ text: 'Legacy text mirror' }),
-      },
-      content: { text: 'Legacy component content' },
+      props: {},
+      content: { text: 'Canonical component content' },
       styles: {},
       metadata: {},
     })
@@ -863,13 +601,13 @@ describe('page content normalizer', () => {
     ], { mode: 'strict-write' })).not.toThrow()
   })
 
-  it('rejects invalid strict-write page metadata while legacy-read drops it', () => {
-    const legacy = normalizePageContent({
+  it('rejects invalid strict-write page metadata while canonical-read drops it', () => {
+    const canonical = normalizePageContent({
       components: [{ id: 'a', type: 'text-block' }],
       metadata: 'not-an-object',
     })
 
-    expect(legacy.pageContent.metadata).toBeUndefined()
+    expect(canonical.pageContent.metadata).toBeUndefined()
 
     try {
       normalizePageContent({
