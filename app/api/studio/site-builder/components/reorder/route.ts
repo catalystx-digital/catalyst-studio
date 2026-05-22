@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
       const source = await getContentSource(tx, contentItemId)
       const content = source.content
 
-      // Normalize legacy/current content into the canonical component tree before mutating.
-      const normalized = normalizePageContent(content, { mode: 'legacy-read' })
+      // Normalize current content into the canonical component tree before mutating.
+      const normalized = normalizePageContent(content)
       const components = normalized.pageContent.components.map(stripLegacyStrictWriteMirrors) as unknown as ComponentType[]
 
       // Find the component to move

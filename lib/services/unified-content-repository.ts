@@ -142,7 +142,7 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>;
+    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
 
     const sharedIds = components
       .map((c) => {
@@ -235,7 +235,7 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = (normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
@@ -287,7 +287,7 @@ export const ContentRepository = {
     if (!page) throw new Error('Page not found');
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = [...(normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = [...(normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors)];
     components.splice(position, 0, {
       id: instanceId,
@@ -315,7 +315,7 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = (normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors);
     const filtered = components.filter((c) => (c.id as string) !== instanceId);
     await db.websitePage.update({
@@ -328,7 +328,7 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content, { mode: 'legacy-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = (normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');

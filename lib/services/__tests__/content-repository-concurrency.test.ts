@@ -121,7 +121,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
     expect(component.props).not.toHaveProperty('text')
   })
 
-  it('preserves legitimate scalar props.text while removing only mirror-shaped text', async () => {
+  it('does not persist props.text from canonical page mutations', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -154,7 +154,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
       label: 'Click me',
       href: '/new',
     })
-    expect(component.props.text).toBe('Click me')
+    expect(component.props).not.toHaveProperty('text')
     expect(component.props).not.toHaveProperty('content')
   })
 
@@ -201,6 +201,46 @@ describe('ContentRepository.savePageOverrides contract', () => {
     expect(component.props).not.toHaveProperty('hasOverrides')
   })
 
+  it('does not promote stale legacy mirrors when clearing overrides from missing canonical content', async () => {
+    const page = {
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              text: { title: 'Stale mirror title' },
+              content: { title: 'Stale props.content title' },
+              overrides: { title: 'Override title' },
+              hasOverrides: true,
+            },
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    await ContentRepository.savePageOverrides('page-1', 'inst-1', null)
+
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const component = updateCall.data.content.components[0]
+
+    expect(component.content).toEqual({})
+    expect(component.props).toEqual({
+      sharedComponentId: 'sc-1',
+    })
+    expect(component.props).not.toHaveProperty('text')
+    expect(component.props).not.toHaveProperty('content')
+  })
+
   it.each([
     ['array', []],
     ['string', '{"title":"Legacy"}'],
@@ -213,5 +253,56 @@ describe('ContentRepository.savePageOverrides contract', () => {
 
     expect(prisma.websitePage.findUnique).not.toHaveBeenCalled()
     expect(prisma.websitePage.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('ContentRepository page mutations canonical reads', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('does not promote stale props.content, props.text, or data.content when adding a shared instance', async () => {
+    const page = {
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        version: 1,
+        components: [
+          {
+            id: 'existing-1',
+            type: 'hero',
+            parentId: null,
+            position: 0,
+            props: {
+              content: { heading: 'Stale props.content' },
+              text: JSON.stringify({ heading: 'Stale props.text' }),
+              className: 'hero-shell',
+            },
+            data: {
+              content: { heading: 'Stale data.content' },
+            },
+            content: {},
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    await ContentRepository.addSharedInstanceToPage('page-1', 'sc-1', 1)
+
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const existing = updateCall.data.content.components.find((component: Record<string, unknown>) => (
+      component.id === 'existing-1'
+    ))
+
+    expect(existing.content).toEqual({})
+    expect(existing.props).toEqual({ className: 'hero-shell' })
+    expect(existing).not.toHaveProperty('data')
+    expect(existing.props).not.toHaveProperty('content')
+    expect(existing.props).not.toHaveProperty('text')
   })
 })
