@@ -90,35 +90,6 @@ function hasBlockingDiagnostics(diagnostics: PageContentDiagnostic[]): boolean {
   return diagnostics.some(diagnostic => diagnostic.severity === 'warn' || diagnostic.severity === 'error')
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function appendBoundaryDiagnostics(
-  content: unknown,
-  diagnostics: PageContentDiagnostic[]
-): PageContentDiagnostic[] {
-  if (
-    isRecord(content) &&
-    Object.prototype.hasOwnProperty.call(content, 'components') &&
-    !Array.isArray(content.components) &&
-    !diagnostics.some(diagnostic => diagnostic.code === 'PAGE_CONTENT_COMPONENTS_INVALID' && diagnostic.path === 'components')
-  ) {
-    return [
-      ...diagnostics,
-      {
-        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
-        severity: 'warn',
-        message: 'Components value is not an array; using an empty component list.',
-        path: 'components',
-        continued: true,
-      },
-    ]
-  }
-
-  return diagnostics
-}
-
 function logInfoDiagnostics(
   diagnostics: PageContentDiagnostic[],
   context: { requestPath: string; websiteId: string; pageId?: string }
@@ -310,7 +281,7 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
 
     const normalizedContent = normalizePageContent(contentItem.content)
     const pageContent = normalizedContent.pageContent
-    const diagnostics = appendBoundaryDiagnostics(contentItem.content, normalizedContent.diagnostics)
+    const diagnostics = normalizedContent.diagnostics
     logInfoDiagnostics(diagnostics, { requestPath, websiteId, pageId: contentItem.id })
 
     if (hasBlockingDiagnostics(diagnostics)) {

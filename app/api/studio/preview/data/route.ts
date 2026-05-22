@@ -62,35 +62,6 @@ function hasBlockingDiagnostics(diagnostics: PreviewPageContentDiagnostic[]): bo
   return diagnostics.some(diagnostic => diagnostic.severity === 'warn' || diagnostic.severity === 'error')
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function appendBoundaryDiagnostics(
-  content: unknown,
-  diagnostics: PageContentDiagnostic[]
-): PageContentDiagnostic[] {
-  if (
-    isRecord(content) &&
-    Object.prototype.hasOwnProperty.call(content, 'components') &&
-    !Array.isArray(content.components) &&
-    !diagnostics.some(diagnostic => diagnostic.code === 'PAGE_CONTENT_COMPONENTS_INVALID' && diagnostic.path === 'components')
-  ) {
-    return [
-      ...diagnostics,
-      {
-        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
-        severity: 'warn',
-        message: 'Components value is not an array; using an empty component list.',
-        path: 'components',
-        continued: true,
-      },
-    ]
-  }
-
-  return diagnostics
-}
-
 export async function GET(request: NextRequest): Promise<NextResponse<PreviewDataResponse>> {
   const websiteId = request.nextUrl.searchParams.get('websiteId')
   const designConceptSlug = request.nextUrl.searchParams.get('designConcept')
@@ -269,7 +240,7 @@ export function extractComponentsWithDiagnostics(
 ): ExtractComponentsResult {
   const normalizedContent = normalizePageContent(content)
   const pageContent = normalizedContent.pageContent
-  const diagnostics = appendBoundaryDiagnostics(content, normalizedContent.diagnostics)
+  const diagnostics = normalizedContent.diagnostics
   const previewDiagnostics = diagnostics.map((diagnostic): PreviewPageContentDiagnostic => ({
     ...diagnostic,
     ...context,
