@@ -1,8 +1,8 @@
-import { CMSComponentProps } from '../../_core/types';
+import { CMSComponentProps, ComponentContent } from '../../_core/types';
 import { RichText } from '../../_core/rich-text';
-import { type Image } from '@/lib/studio/components/cms/_core/value-objects';
+import { type Image, type SmartLink } from '@/lib/studio/components/cms/_core/value-objects';
 
-export interface LogoStripContent {
+export interface LogoStripContent extends ComponentContent {
   logos: LogoItem[];
   size?: 'small' | 'medium' | 'large'; // 32px, 48px, 64px
   animateScroll?: boolean;
@@ -14,6 +14,7 @@ export interface LogoStripContent {
 export interface LogoItem extends Image {
   id: string;
   link?: string;
+  href?: SmartLink | string;
   caption?: RichText;
 }
 

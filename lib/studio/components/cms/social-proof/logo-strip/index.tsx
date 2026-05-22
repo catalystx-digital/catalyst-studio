@@ -25,7 +25,9 @@ import {
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType, ComponentCategory } from '../../_core/types';
 import { SafeHtml } from '../../_core/safe-html';
-import { validateImageUrl, validateUrl } from '../../_utils/url-validation';
+import { validateUrl } from '../../_utils/url-validation';
+import { resolveImageSource } from '../../_utils/media-reference';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import type { LogoStripProps, LogoItem } from './logo-strip.types';
 
 type LogoSize = NonNullable<LogoStripProps['content']['size']>;
@@ -97,10 +99,11 @@ function prepareLogos(logos: LogoItem[]): PreparedLogo[] {
 
     const sanitizedAlt = sanitizePlainText(String(logo.alt ?? ''));
     const sanitizedCaption = sanitizeCaption(logo.caption);
-    const validatedHref = validateUrl(logo.link, {
+    const resolvedHref = resolveSmartLinkHref(logo.href) ?? resolveSmartLinkHref(logo.link);
+    const validatedHref = validateUrl(resolvedHref, {
       fallback: '',
     });
-    const validatedSrc = validateImageUrl(logo.src, '');
+    const validatedSrc = resolveImageSource(logo.src) ?? '';
     const resolvedId = safeStringTrim(logo.id) || key;
     const altText = sanitizedAlt || 'Company logo';
 

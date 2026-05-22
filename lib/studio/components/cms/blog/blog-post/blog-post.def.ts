@@ -130,8 +130,9 @@ export const BlogPostDef = defineComponent({
     tags: ['Next.js', 'React', 'Web Development'],
     categories: ['Technology', 'Tutorial'],
     heroImage: {
-      src: '/images/blog/nextjs-scalable.jpg',
+      src: { mediaId: 'sample-nextjs-scalable', mediaType: 'image', url: '/images/blog/nextjs-scalable.jpg' },
       alt: 'Next.js application architecture',
+      originalUrl: '/images/blog/nextjs-scalable.jpg',
     },
     author: {
       name: 'Alex Chen',

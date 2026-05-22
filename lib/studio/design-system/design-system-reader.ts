@@ -13,6 +13,9 @@ import { generateExportCss, type ShadcnDesignSystemTokens } from './shadcn-trans
 import { hexToHslString } from './utils/color-utils'
 import type { DesignSystem } from '@/lib/studio/import/types/design-system.types'
 
+type ShadcnTypography = NonNullable<ShadcnDesignSystemTokens['typography']>
+type ShadcnSpacing = NonNullable<ShadcnDesignSystemTokens['spacing']>
+
 /**
  * Check if a string produces a valid Date when parsed
  */
@@ -234,13 +237,13 @@ function convertLegacyTypography(
 ): ShadcnDesignSystemTokens['typography'] | undefined {
   if (!legacyTypography) return undefined
 
-  const heading: ShadcnDesignSystemTokens['typography']['heading'] = []
-  const body: ShadcnDesignSystemTokens['typography']['body'] = []
-  const ui: ShadcnDesignSystemTokens['typography']['ui'] = []
+  const heading: ShadcnTypography['heading'] = []
+  const body: ShadcnTypography['body'] = []
+  const ui: ShadcnTypography['ui'] = []
 
   // Convert headings
-  if (legacyTypography.headings) {
-    for (const h of legacyTypography.headings) {
+  if (legacyTypography.heading) {
+    for (const h of legacyTypography.heading) {
       heading.push({
         fontFamily: h.fontFamily || 'system-ui',
         fontSize: h.fontSize || '16px',
@@ -254,14 +257,29 @@ function convertLegacyTypography(
 
   // Convert body text
   if (legacyTypography.body) {
-    body.push({
-      fontFamily: legacyTypography.body.fontFamily || 'system-ui',
-      fontSize: legacyTypography.body.fontSize || '16px',
-      fontWeight: legacyTypography.body.fontWeight || '400',
-      lineHeight: legacyTypography.body.lineHeight,
-      letterSpacing: legacyTypography.body.letterSpacing,
-      role: 'body',
-    })
+    for (const b of legacyTypography.body) {
+      body.push({
+        fontFamily: b.fontFamily || 'system-ui',
+        fontSize: b.fontSize || '16px',
+        fontWeight: b.fontWeight || '400',
+        lineHeight: b.lineHeight,
+        letterSpacing: b.letterSpacing,
+        role: 'body',
+      })
+    }
+  }
+
+  if (legacyTypography.ui) {
+    for (const u of legacyTypography.ui) {
+      ui.push({
+        fontFamily: u.fontFamily || 'system-ui',
+        fontSize: u.fontSize || '16px',
+        fontWeight: u.fontWeight || '400',
+        lineHeight: u.lineHeight,
+        letterSpacing: u.letterSpacing,
+        role: 'ui',
+      })
+    }
   }
 
   if (heading.length === 0 && body.length === 0 && ui.length === 0) {
@@ -279,20 +297,15 @@ function convertLegacySpacing(
 ): ShadcnDesignSystemTokens['spacing'] | undefined {
   if (!legacySpacing) return undefined
 
-  const scale: ShadcnDesignSystemTokens['spacing']['scale'] = []
+  const scale: ShadcnSpacing['scale'] = []
 
-  // Legacy format has base and scale array
-  if (legacySpacing.scale && Array.isArray(legacySpacing.scale)) {
-    for (const s of legacySpacing.scale) {
-      if (typeof s === 'number') {
-        scale.push({ value: s, unit: 'px' })
-      } else if (typeof s === 'object' && s !== null) {
-        scale.push({
-          value: s.value ?? s.valuePx ?? 0,
-          unit: s.unit || 'px',
-          name: s.name,
-        })
-      }
+  if (Array.isArray(legacySpacing.values)) {
+    for (const s of legacySpacing.values) {
+      scale.push({
+        value: s.value,
+        unit: legacySpacing.unit || 'px',
+        name: s.name,
+      })
     }
   }
 

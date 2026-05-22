@@ -61,11 +61,12 @@ const MarkdownMessage = ({ content }: MarkdownMessageProps) => {
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
       components={{
-        code: ({ inline, className, children }) => {
+        code: ({ className, children }) => {
           const language = className?.replace('language-', '');
           const codeContent = String(children).replace(/\n$/, '');
+          const isInline = !className && !String(children).includes('\n');
 
-          if (inline) {
+          if (isInline) {
             return (
               <code className="bg-gray-700 rounded px-1 py-0.5 text-xs font-mono">
                 {children}

@@ -4,16 +4,20 @@ import { getClient } from '@/lib/db/client';
 import { businessRules } from '@/lib/ai-tools/business-rules';
 import { getContentType } from '@/lib/services/content-type-service';
 
+const updateContentItemInputSchema = z.object({
+  id: z.string().describe('The ID of the content item to update'),
+  title: z.string().optional().describe('Updated title for the content item'),
+  data: z.record(z.any()).optional().describe('Updated content data (will be merged with existing)'),
+  status: z.enum(['draft', 'published', 'archived']).optional().describe('Updated publication status')
+});
+
+type UpdateContentItemInput = z.infer<typeof updateContentItemInputSchema>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const updateContentItem = (tool as any)({
   description: 'Update page-level metadata (title, status) or custom content data fields. DO NOT use this for updating component properties like text, colors, or images - use updateComponentProperty instead for component-level changes.',
-  inputSchema: z.object({
-    id: z.string().describe('The ID of the content item to update'),
-    title: z.string().optional().describe('Updated title for the content item'),
-    data: z.record(z.any()).optional().describe('Updated content data (will be merged with existing)'),
-    status: z.enum(['draft', 'published', 'archived']).optional().describe('Updated publication status')
-  }),
-  execute: async ({ id, title, data, status }) => {
+  inputSchema: updateContentItemInputSchema,
+  execute: async ({ id, title, data, status }: UpdateContentItemInput) => {
     const startTime = Date.now();
     
     try {

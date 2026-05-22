@@ -3,10 +3,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { sanitizeText } from '../../_core/security';
-import { ImageGalleryProps } from './image-gallery.types';
+import { normalizeCmsImage } from '../../_utils/media-reference';
+import type { GalleryImage, ImageGalleryProps } from './image-gallery.types';
 
 // Duration to pause autoplay after manual navigation (ms)
 const MANUAL_PAUSE_DURATION = 5000;
+
+type PreparedGalleryImage = GalleryImage & { url: string };
 
 export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
   id,
@@ -25,6 +28,15 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const preparedImages = React.useMemo<PreparedGalleryImage[]>(
+    () => images
+      .map((image): PreparedGalleryImage | null => {
+        const normalized = normalizeCmsImage(image);
+        return normalized ? { ...image, url: normalized.src, alt: normalized.alt ?? image.alt } : null;
+      })
+      .filter((image): image is PreparedGalleryImage => Boolean(image)),
+    [images],
+  );
 
   // Interruptible animation state
   const [isHovering, setIsHovering] = useState(false);
@@ -58,14 +70,14 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
 
   // Handle carousel autoplay - now respects shouldPause for interruptibility
   useEffect(() => {
-    if (displayMode === 'carousel' && autoPlay && images.length > 1 && !shouldPause) {
+    if (displayMode === 'carousel' && autoPlay && preparedImages.length > 1 && !shouldPause) {
       const interval = setInterval(() => {
-        setCurrentSlide((prev) => (prev + 1) % images.length);
+        setCurrentSlide((prev) => (prev + 1) % preparedImages.length);
       }, autoPlayInterval);
 
       return () => clearInterval(interval);
     }
-  }, [displayMode, autoPlay, autoPlayInterval, images.length, shouldPause]);
+  }, [displayMode, autoPlay, autoPlayInterval, preparedImages.length, shouldPause]);
 
   // Update carousel position
   useEffect(() => {
@@ -106,10 +118,10 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
     const handleKeyNavigation = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
         temporarilyPause(); // Pause autoplay on manual navigation
-        setCurrentSlide((prev) => (prev - 1 + images.length) % images.length);
+        setCurrentSlide((prev) => (prev - 1 + preparedImages.length) % preparedImages.length);
       } else if (e.key === 'ArrowRight') {
         temporarilyPause(); // Pause autoplay on manual navigation
-        setCurrentSlide((prev) => (prev + 1) % images.length);
+        setCurrentSlide((prev) => (prev + 1) % preparedImages.length);
       }
     };
 
@@ -139,7 +151,7 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
         element.removeEventListener('mouseleave', handleMouseLeave);
       };
     }
-  }, [id, displayMode, images.length, onInteraction, pauseOnHover, temporarilyPause]);
+  }, [id, displayMode, preparedImages.length, onInteraction, pauseOnHover, temporarilyPause]);
 
   // Handle lightbox
   const openLightbox = useCallback((index: number) => {
@@ -157,12 +169,12 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
   const navigateLightbox = useCallback((direction: 'prev' | 'next') => {
     setLightboxIndex((prev) => {
       const newIndex = direction === 'next' 
-        ? (prev + 1) % images.length 
-        : (prev - 1 + images.length) % images.length;
+        ? (prev + 1) % preparedImages.length
+        : (prev - 1 + preparedImages.length) % preparedImages.length;
       onInteraction?.('lightbox-navigation', { direction, newIndex });
       return newIndex;
     });
-  }, [images.length, onInteraction]);
+  }, [preparedImages.length, onInteraction]);
 
   // Attach click handlers for grid/masonry images
   useEffect(() => {
@@ -186,6 +198,11 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
 
   // Render lightbox
   if (lightboxOpen && enableLightbox) {
+    const currentImage = preparedImages[lightboxIndex];
+    if (!currentImage) {
+      return null;
+    }
+
     return (
       <div className="cms-gallery-lightbox fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md transition-opacity duration-300">
         <button
@@ -196,7 +213,7 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
           <span className="text-3xl leading-none">&times;</span>
         </button>
 
-        {images.length > 1 && (
+        {preparedImages.length > 1 && (
           <>
             <button
               onClick={() => navigateLightbox('prev')}
@@ -217,8 +234,8 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
 
         <div className="relative flex h-full max-h-[90vh] w-full max-w-6xl items-center justify-center p-8">
           <Image
-            src={images[lightboxIndex].url}
-            alt={sanitizeText(images[lightboxIndex].alt)}
+            src={currentImage.url}
+            alt={sanitizeText(currentImage.alt ?? '')}
             width={1200}
             height={800}
             className="max-h-full max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-300"
@@ -226,10 +243,10 @@ export const ImageGalleryClient: React.FC<ImageGalleryProps> = ({
           />
         </div>
 
-        {images[lightboxIndex].caption && (
+        {currentImage.caption && (
           <div className="absolute bottom-6 left-0 right-0 px-4 text-center">
             <p className="inline-flex rounded-full bg-card/90 px-6 py-3 text-sm font-medium text-foreground shadow-lg backdrop-blur-sm">
-              {sanitizeText(images[lightboxIndex].caption as string)}
+              {sanitizeText(currentImage.caption as string)}
             </p>
           </div>
         )}

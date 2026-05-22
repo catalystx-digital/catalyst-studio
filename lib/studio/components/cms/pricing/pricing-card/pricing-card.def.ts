@@ -101,7 +101,7 @@ export const PricingCardDef = defineComponent({
     ],
     ctaText: 'Start Free Trial',
     ctaUrl: '/signup?plan=pro',
-    badge: { text: 'Popular', variant: 'accent' },
+    badge: { text: 'Popular', variant: 'primary' },
     highlighted: true,
   },
 

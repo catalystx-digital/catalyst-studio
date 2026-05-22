@@ -18,6 +18,20 @@ import {
   withEvents
 } from '@/lib/ai-tools/services/event-publisher';
 
+const createPageInputSchema = z.object({
+  websiteId: z.string().describe('The website ID for the page'),
+  contentTypeId: z.string().describe('The content type ID that defines the structure'),
+  title: z.string().describe('The page title'),
+  content: z.record(z.any()).describe('The content data matching the content type fields'),
+  parentId: z.string().optional().describe('The parent page ID for hierarchy (null for root pages)'),
+  slug: z.string().optional().describe('URL slug (auto-generated from title if not provided)'),
+  metadata: z.record(z.any()).optional().describe('Additional metadata for the page'),
+  status: z.enum(['draft', 'published']).default('draft').describe('Publication status'),
+  sourceUrl: z.string().optional().describe('URL used as idempotency key - if provided, will reuse existing page with this sourceUrl instead of creating duplicate')
+});
+
+type CreatePageInput = z.infer<typeof createPageInputSchema>;
+
 /**
  * Validates and sanitizes components array.
  * - Filters out invalid components (non-objects, missing type)
@@ -146,18 +160,8 @@ USE THIS TOOL ONLY when the user explicitly wants to:
 
 If the user says "change the hero heading" - that's a MODIFICATION, use findAndUpdateComponent.
 If the user says "create a new about page" - that's CREATION, use this tool.`,
-  inputSchema: z.object({
-    websiteId: z.string().describe('The website ID for the page'),
-    contentTypeId: z.string().describe('The content type ID that defines the structure'),
-    title: z.string().describe('The page title'),
-    content: z.record(z.any()).describe('The content data matching the content type fields'),
-    parentId: z.string().optional().describe('The parent page ID for hierarchy (null for root pages)'),
-    slug: z.string().optional().describe('URL slug (auto-generated from title if not provided)'),
-    metadata: z.record(z.any()).optional().describe('Additional metadata for the page'),
-    status: z.enum(['draft', 'published']).default('draft').describe('Publication status'),
-    sourceUrl: z.string().optional().describe('URL used as idempotency key - if provided, will reuse existing page with this sourceUrl instead of creating duplicate')
-  }),
-  execute: async (params) => {
+  inputSchema: createPageInputSchema,
+  execute: async (params: CreatePageInput) => {
     const startTime = Date.now();
 
     try {

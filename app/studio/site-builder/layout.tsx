@@ -166,7 +166,7 @@ function NavLayoutContent({ children, websiteId }: LayoutContentProps) {
 
 function SiteBuilderLayoutContent({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
-  const websiteId = searchParams.get('websiteId');
+  const websiteId = searchParams?.get('websiteId') ?? null;
 
   // If no websiteId, render without website context
   if (!websiteId) {

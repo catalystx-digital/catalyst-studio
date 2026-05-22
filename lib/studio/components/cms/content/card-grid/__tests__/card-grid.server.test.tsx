@@ -26,4 +26,27 @@ describe('CardGridServer', () => {
     expect(markup).toContain('data:image/png;base64,AAA');
     expect(markup).not.toContain('__next_image');
   });
+
+  it('renders canonical MediaReference image URLs', () => {
+    const markup = renderToStaticMarkup(
+      <CardGridServer
+        content={{
+          heading: 'Sample grid',
+          cards: [
+            {
+              id: 'card-1',
+              title: 'Primary card',
+              image: {
+                src: { mediaId: 'media-1', mediaType: 'image', url: '/images/card.jpg' },
+                alt: 'Canonical media image',
+              },
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain('/images/card.jpg');
+    expect(markup).toContain('Canonical media image');
+  });
 });

@@ -34,6 +34,7 @@ import { sanitizeText } from '../../_core/security';
 import { SafeHtml } from '../../_core/safe-html';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
 import { validateImageUrl } from '../../_utils/url-validation';
+import { resolveLinkHref } from '../../navigation/footer/footer-link';
 import { formatReadingTime } from '../utils/reading-time';
 import type { ArticleHeaderProps } from './article-header.types';
 
@@ -86,10 +87,7 @@ function buildBreadcrumbs(breadcrumbs?: ArticleHeaderProps['content']['breadcrum
 
   return breadcrumbs.reduce<BreadcrumbItem[]>((acc, crumb, index) => {
     const label = sanitizeText(crumb?.label ?? '');
-    const href =
-      typeof crumb?.href === 'string' && crumb.href.trim().length > 0
-        ? crumb.href
-        : undefined;
+    const href = resolveLinkHref(crumb?.href);
 
     if (!label || !href) {
       return acc;

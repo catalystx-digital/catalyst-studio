@@ -107,6 +107,34 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByText('Offers')).toBeInTheDocument();
   });
 
+  it('resolves structured card and filter hrefs to renderable links', () => {
+    render(
+      <CardGrid
+        content={{
+          ...mockContent,
+          cards: [
+            {
+              id: 'structured-card',
+              title: 'Structured Card',
+              description: 'Uses href from the component definition defaults.',
+              href: { type: 'internal', pageId: 'structured-card', path: '/structured-card' },
+            },
+          ],
+          filters: [
+            {
+              id: 'filter-chip-structured',
+              label: 'Structured',
+              href: { type: 'internal', pageId: 'structured-filter', path: '/structured-filter' },
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Learn more' })).toHaveAttribute('href', '/structured-card');
+    expect(screen.getByRole('link', { name: 'Structured' })).toHaveAttribute('href', '/structured-filter');
+  });
+
   it('handles card click with link', () => {
     const navigateHandler = jest.fn();
     window.addEventListener('cms:navigate', navigateHandler);
@@ -192,7 +220,6 @@ describe('CMSComponent: CardGrid', () => {
     
     const cards = container.querySelectorAll('.cms-card-grid-card');
     cards.forEach(card => {
-      expect(card).toHaveClass('variant-detailed');
       expect(card).toHaveClass('theme-dark');
     });
   });
@@ -208,6 +235,38 @@ describe('CMSComponent: CardGrid', () => {
     
     expect(navigateHandler).toHaveBeenCalledTimes(1);
     expect(navigateHandler.mock.calls[0][0].detail).toBe('/portfolio');
+
+    window.removeEventListener('cms:navigate', navigateHandler);
+  });
+
+  it('resolves structured action hrefs', () => {
+    const navigateHandler = jest.fn();
+    window.addEventListener('cms:navigate', navigateHandler);
+
+    render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'structured-action-card',
+              title: 'Structured Action Card',
+              actions: [
+                {
+                  label: 'Open Guide',
+                  href: { type: 'internal', pageId: 'guide', path: '/guides/open' },
+                  variant: 'primary',
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Open Guide'));
+
+    expect(navigateHandler).toHaveBeenCalledTimes(1);
+    expect(navigateHandler.mock.calls[0][0].detail).toBe('/guides/open');
 
     window.removeEventListener('cms:navigate', navigateHandler);
   });

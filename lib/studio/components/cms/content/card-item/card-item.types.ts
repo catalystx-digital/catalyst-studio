@@ -1,4 +1,5 @@
 import type { ComponentTheme, ComponentType, ComponentCategory } from '../../_core/types'
+import type { SmartLink } from '../../_core/value-objects'
 
 /**
  * Image structure that can come from import pipeline
@@ -6,7 +7,7 @@ import type { ComponentTheme, ComponentType, ComponentCategory } from '../../_co
  */
 export interface CardItemImage {
   [key: string]: unknown
-  src: string | { src: string; mediaId?: string; originalUrl?: string; renditions?: Array<{ src: string; width?: number; height?: number }> }
+  src: string | { src?: string; url?: string; mediaId?: string; mediaType?: 'image' | 'video' | 'file'; originalUrl?: string; renditions?: Array<{ src: string; width?: number; height?: number }> }
   alt?: string
   originalUrl?: string
   renditions?: Array<{ src: string; width?: number; height?: number }>
@@ -22,6 +23,7 @@ export interface CardItemContent {
   image?: string | CardItemImage
   imageAlt?: string
   link?: string
+  href?: SmartLink | string
   linkText?: string
   badge?: string
   icon?: string
@@ -33,7 +35,8 @@ export interface CardItemContent {
   }
   actions?: Array<{
     label: string
-    url: string
+    url?: string
+    href?: SmartLink | string
     variant?: 'primary' | 'secondary' | 'outline'
   }>
 }

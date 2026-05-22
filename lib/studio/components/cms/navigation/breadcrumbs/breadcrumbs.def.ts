@@ -59,9 +59,9 @@ export const BreadcrumbsDef = defineComponent({
   // Sample content for AI tools and testing
   sample: {
     items: [
-      { label: 'Home', href: '/' },
-      { label: 'Products', href: '/products' },
-      { label: 'Software', href: '/products/software' },
+      { label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } },
+      { label: 'Products', href: { type: 'internal', pageId: 'products', path: '/products' } },
+      { label: 'Software', href: { type: 'internal', pageId: 'products-software', path: '/products/software' } },
     ],
     separator: '>',
     showHome: true,

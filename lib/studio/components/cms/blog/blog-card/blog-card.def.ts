@@ -99,7 +99,11 @@ export const BlogCardDef = defineComponent({
   sample: {
     title: 'Getting Started with Next.js 14',
     excerpt: 'Learn how to build modern web applications with Next.js 14, featuring server components, improved routing, and enhanced performance.',
-    thumbnail: '/images/blog/nextjs-14.jpg',
+    thumbnail: {
+      src: { mediaId: 'sample-nextjs-14', mediaType: 'image', url: '/images/blog/nextjs-14.jpg' },
+      alt: 'Next.js 14 article thumbnail',
+      originalUrl: '/images/blog/nextjs-14.jpg',
+    },
     author: {
       name: 'John Smith',
       avatar: '/images/authors/john.jpg',

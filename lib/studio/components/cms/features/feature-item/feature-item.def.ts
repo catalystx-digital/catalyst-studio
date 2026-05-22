@@ -52,7 +52,7 @@ export const FeatureItemDef = defineComponent({
     icon: 'zap',
     title: 'Lightning Fast',
     description: 'Our platform delivers blazing fast performance',
-    link: { label: 'Learn More', href: '/features', variant: 'outline' },
+    link: { label: 'Learn More', href: { type: 'internal', pageId: 'features', path: '/features' }, variant: 'outline' },
   },
 
   // Mark as sub-component only

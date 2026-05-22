@@ -1,7 +1,7 @@
 'use client';
 
-import React, { Suspense, lazy, useEffect, useState, useRef, useCallback } from 'react';
-import { ErrorBoundary } from 'react-error-boundary';
+import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 import { CMSComponentProps, ComponentType, ComponentPerformanceMetrics } from '../_core/types';
 import { cmsComponentFactory } from './factory';
 import { performanceMonitor } from '../_core/monitoring';
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 
 export interface CMSComponentRendererProps extends CMSComponentProps {
   fallback?: React.ReactNode;
-  errorFallback?: React.ComponentType<{ error: Error; resetErrorBoundary: () => void }>;
+  errorFallback?: React.ComponentType<FallbackProps>;
   onMetrics?: (metrics: ComponentPerformanceMetrics) => void;
   suspenseDelay?: number;
 }
@@ -25,11 +25,9 @@ export interface CMSComponentRendererProps extends CMSComponentProps {
 // Error Fallback Component
 // ============================================================================
 
-const DefaultErrorFallback: React.FC<{
-  error: Error;
-  resetErrorBoundary: () => void;
-}> = ({ error, resetErrorBoundary }) => {
+const DefaultErrorFallback: React.FC<FallbackProps> = ({ error, resetErrorBoundary }) => {
   const showDiagnostics = process.env.NODE_ENV !== 'production';
+  const normalizedError = error instanceof Error ? error : new Error(String(error));
 
   return (
     <div className="cms-component-error rounded-md border border-border/60 bg-muted/70 p-4 text-sm text-muted-foreground">
@@ -50,7 +48,7 @@ const DefaultErrorFallback: React.FC<{
             Technical details
           </summary>
           <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-background p-3 font-mono text-[11px] text-destructive">
-            {(error.stack || error.message || String(error)).trim()}
+            {(normalizedError.stack || normalizedError.message || String(error)).trim()}
           </pre>
         </details>
       ) : null}
@@ -192,11 +190,12 @@ export const CMSComponentRenderer: React.FC<CMSComponentRendererProps> = ({
 
   // Handle component error
   const handleComponentError = useCallback(
-    (error: Error) => {
+    (error: unknown) => {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
       if (process.env.NODE_ENV === 'development') {
-      console.error(`Component ${componentProps.type} failed:`, error);
+        console.error(`Component ${componentProps.type} failed:`, normalizedError);
       }
-      componentProps.onError?.(error);
+      componentProps.onError?.(normalizedError);
     },
     [componentProps]
   );
@@ -262,7 +261,7 @@ export const CMSComponentRenderer: React.FC<CMSComponentRendererProps> = ({
 export interface CMSBatchRendererProps {
   components: CMSComponentProps[];
   fallback?: React.ReactNode;
-  errorFallback?: React.ComponentType<{ error: Error; resetErrorBoundary: () => void }>;
+  errorFallback?: React.ComponentType<FallbackProps>;
   onMetrics?: (metrics: ComponentPerformanceMetrics) => void;
   preload?: boolean;
 }

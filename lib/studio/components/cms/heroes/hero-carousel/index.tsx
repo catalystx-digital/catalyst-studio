@@ -14,6 +14,7 @@ import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentTheme, ComponentType } from '../../_core/types';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
 import { validateImageUrl } from '../../_utils/url-validation';
+import { resolveLinkHref } from '../../navigation/footer/footer-link';
 import type {
   HeroCarouselProps,
   HeroCarouselSlide,
@@ -130,10 +131,7 @@ function normalizeCta(button: HeroCarouselSlideCta | null | undefined): Normaliz
     return null;
   }
 
-  const href =
-    (typeof button.href === 'string' && button.href.trim().length > 0
-      ? button.href
-      : undefined);
+  const href = resolveLinkHref(button.href);
 
   if (!href) {
     return null;

@@ -95,8 +95,8 @@ export const CTABannerDef = defineComponent({
   sample: {
     heading: 'Ready to Get Started?',
     subheading: 'Join thousands of users already transforming their workflow',
-    primaryButton: { label: 'Sign Up Now', href: '/signup', variant: 'primary' },
-    secondaryButton: { label: 'Learn More', href: '/features', variant: 'outline' },
+    primaryButton: { label: 'Sign Up Now', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+    secondaryButton: { label: 'Learn More', href: { type: 'internal', pageId: 'features', path: '/features' }, variant: 'outline' },
     alignment: 'center',
     fullWidth: true,
   },

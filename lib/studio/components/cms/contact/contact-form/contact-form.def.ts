@@ -111,7 +111,6 @@ export const ContactFormDef = defineComponent({
         type: 'textarea',
         placeholder: 'Tell us more about your inquiry...',
         required: true,
-        rows: 5,
       },
     ],
     submitButton: {
@@ -131,7 +130,7 @@ export const ContactFormDef = defineComponent({
       label: 'I agree to the privacy policy',
       link: {
         label: 'privacy policy',
-        href: '/privacy',
+        href: { type: 'internal', pageId: 'privacy', path: '/privacy' },
       },
       required: true,
     },

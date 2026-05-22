@@ -20,10 +20,38 @@ export function resolveLinkHref(raw: unknown): string | undefined {
 
   if (raw && typeof raw === 'object') {
     const record = raw as Record<string, unknown>;
+    const type = record.type;
+
+    if (type === 'internal') {
+      return typeof record.path === 'string' ? record.path.trim() || undefined : undefined;
+    }
+
+    if (type === 'external') {
+      return typeof record.url === 'string' ? record.url.trim() || undefined : undefined;
+    }
+
+    if (type === 'email') {
+      const href = typeof record.href === 'string' ? record.href.trim() : '';
+      if (!href) return undefined;
+      return href.startsWith('mailto:') ? href : `mailto:${href}`;
+    }
+
+    if (type === 'phone') {
+      const href = typeof record.href === 'string' ? record.href.trim() : '';
+      if (!href) return undefined;
+      return href.startsWith('tel:') ? href : `tel:${href}`;
+    }
+
+    if (type === 'anchor') {
+      return typeof record.href === 'string' ? record.href.trim() || undefined : undefined;
+    }
+
     const candidate = record.originalUrl ?? record.url ?? record.href;
     if (typeof candidate === 'string') {
       return candidate.trim() || undefined;
     }
+
+    return resolveLinkHref(record.href);
   }
 
   return undefined;

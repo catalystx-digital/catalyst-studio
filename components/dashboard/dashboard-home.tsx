@@ -108,6 +108,10 @@ export function DashboardHome({ isAuthenticated }: DashboardHomeProps) {
   // Update URL when search/sort/filter changes
   const updateUrlParams = useCallback(
     (query: string, sort: SortOption, filter: FilterOption) => {
+      if (!pathname) {
+        return;
+      }
+
       const params = new URLSearchParams();
       if (query) params.set('q', query);
       if (sort !== 'recent') params.set('sort', sort);

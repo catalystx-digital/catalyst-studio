@@ -110,14 +110,15 @@ export const ArticleHeaderDef = defineComponent({
     categories: ['Technology', 'Web Development'],
     tags: ['React', 'Next.js', 'Performance'],
     featuredImage: {
-      src: '/images/blog/web-dev-2025.jpg',
+      src: { mediaId: 'sample-web-dev-2025', mediaType: 'image', url: '/images/blog/web-dev-2025.jpg' },
       alt: 'Modern web development workspace',
+      originalUrl: '/images/blog/web-dev-2025.jpg',
     },
     shareButtons: true,
     breadcrumbs: [
-      { label: 'Home', href: '/' },
-      { label: 'Blog', href: '/blog' },
-      { label: 'Technology', href: '/blog/technology' },
+      { label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } },
+      { label: 'Blog', href: { type: 'internal', pageId: 'blog', path: '/blog' } },
+      { label: 'Technology', href: { type: 'internal', pageId: 'blog-technology', path: '/blog/technology' } },
     ],
   },
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { CmsSection, cmsBody, cmsHeading, dsSpacing } from '../../_ui';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import type { CTABannerProps, CTABannerContent } from './cta-banner.types';
 
 export type { CTABannerProps, CTABannerContent } from './cta-banner.types';
@@ -19,10 +20,10 @@ const ALIGNMENT_CLASSES = {
   right: 'items-end text-right',
 } as const;
 
-function normalizeButton(btn?: { label?: string; href?: string; variant?: string } | null) {
-  if (typeof btn?.label !== 'string' || typeof btn?.href !== 'string') return null;
+function normalizeButton(btn?: { label?: string; href?: unknown; variant?: string } | null) {
+  if (typeof btn?.label !== 'string') return null;
   const label = btn.label.trim();
-  const href = btn.href.trim();
+  const href = resolveSmartLinkHref(btn.href);
   if (!label || !href) return null;
   return { label, href, variant: CTA_VARIANT_MAP[btn.variant ?? ''] ?? 'default' };
 }

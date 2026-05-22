@@ -10,7 +10,8 @@ import {
   resolveTheme,
 } from '../../_ui';
 import { shouldShowDevEmptyStateServer } from '../../_core/env-utils';
-import { validateImageUrl } from '../../_utils/url-validation';
+import { normalizeCmsImage } from '../../_utils/media-reference';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import { CardGridClient } from './card-grid.client';
 import {
   CardGridServerProps,
@@ -20,119 +21,27 @@ import {
   NormalizedCardItem,
 } from './card-grid.types';
 
-/**
- * Helper to check if a value is a nested media object (has src property as object with nested src).
- * This handles the structure from runtime-media-resolver: { src: { src: "url", mediaId: "...", renditions: [...] } }
- */
-function isNestedMediaObject(
-  value: unknown
-): value is { src: string; mediaId?: string; originalUrl?: string; renditions?: unknown[] } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'src' in value &&
-    typeof (value as Record<string, unknown>).src === 'string'
-  );
-}
-
 function normalizeCard(card: CardItem & { bgColor?: string }): NormalizedCardItem {
   const id = card.id || `card-${Math.random().toString(36).slice(2, 11)}`;
   const { image, imageAlt, bgColor, ...rest } = card;
+  const link = resolveSmartLinkHref(rest.link) ?? resolveSmartLinkHref(rest.href);
   const base: NormalizedCardItem = {
     ...rest,
     id,
     imageAlt,
+    ...(link ? { link } : {}),
     // Map bgColor from LLM output to backgroundColor expected by component
     backgroundColor: bgColor ?? rest.backgroundColor,
   };
 
-  if (!image) {
+  const normalizedImage = normalizeCmsImage(image, imageAlt ?? rest.title);
+  if (!normalizedImage) {
     return base;
   }
-
-  if (typeof image === 'string') {
-    const src = validateImageUrl(image);
-    if (!src) {
-      return base;
-    }
-
-    return {
-      ...base,
-      image: {
-        src,
-        alt: imageAlt ?? rest.title,
-      },
-    };
-  }
-
-  // Handle nested media object: image.src can be an object { src: "url", mediaId, renditions }
-  // This structure comes from runtime-media-resolver when mediaId references are resolved
-  let resolvedSrc: string | undefined;
-  let resolvedOriginalUrl: string | undefined;
-  let sourceRenditions: unknown[] | undefined;
-
-  if (typeof image.src === 'string') {
-    // Direct string src
-    resolvedSrc = validateImageUrl(image.src);
-    resolvedOriginalUrl = image.originalUrl;
-    sourceRenditions = image.renditions;
-  } else if (isNestedMediaObject(image.src)) {
-    // Nested object: image.src = { src: "url", mediaId: "...", originalUrl: "...", renditions: [...] }
-    resolvedSrc = validateImageUrl(image.src.src);
-    resolvedOriginalUrl = image.src.originalUrl ?? image.originalUrl;
-    sourceRenditions = Array.isArray(image.src.renditions)
-      ? image.src.renditions
-      : image.renditions;
-  }
-
-  const normalizedRenditions = Array.isArray(sourceRenditions)
-    ? sourceRenditions
-        .map(rendition => {
-          if (!rendition || typeof rendition !== 'object') {
-            return null;
-          }
-          const r = rendition as Record<string, unknown>;
-          const candidateSrc =
-            typeof r.src === 'string' ? validateImageUrl(r.src) : undefined;
-          if (!candidateSrc) {
-            return null;
-          }
-          return {
-            src: candidateSrc,
-            width: typeof r.width === 'number' ? r.width : null,
-            height: typeof r.height === 'number' ? r.height : null,
-          };
-        })
-        .filter(
-          (entry): entry is { src: string; width: number | null; height: number | null } =>
-            Boolean(entry),
-        )
-        .sort((a, b) => (a.width ?? 0) - (b.width ?? 0))
-    : undefined;
-
-  const fallbackSrc =
-    resolvedSrc ||
-    (normalizedRenditions && normalizedRenditions.length > 0
-      ? normalizedRenditions[normalizedRenditions.length - 1]?.src
-      : undefined);
-
-  if (!fallbackSrc) {
-    return base;
-  }
-
-  const resolvedAlt =
-    typeof image.alt === 'string' && image.alt.trim().length > 0
-      ? image.alt
-      : imageAlt ?? rest.title;
 
   return {
     ...base,
-    image: {
-      src: fallbackSrc,
-      alt: resolvedAlt,
-      originalUrl: resolvedOriginalUrl,
-      renditions: normalizedRenditions,
-    },
+    image: normalizedImage,
   };
 }
 
@@ -210,10 +119,14 @@ export function CardGridServer({
           ) : null;
 
           if (filter.href) {
+            const href = resolveSmartLinkHref(filter.href);
+            if (!href) {
+              return null;
+            }
             return (
               <a
                 key={key}
-                href={filter.href}
+                href={href}
                 className={chipClasses}
                 data-filter-id={filter.id}
                 aria-current={filter.isActive ? 'true' : undefined}

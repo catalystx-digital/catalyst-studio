@@ -1,7 +1,8 @@
 import { CMSComponentProps } from '../../_core/types';
-import { type CTAButton } from '@/lib/studio/components/cms/_core/value-objects';
+import { type CTAButton as RegistryCTAButton } from '@/lib/studio/components/cms/_core/value-objects';
 
 // CTAButton now imported from registry
+export type CTAButton = RegistryCTAButton;
 
 export interface HeroMinimalContent {
   heading: string;

@@ -1,15 +1,11 @@
 /**
  * Component Definition Loader
  *
- * Provides dual-format support for loading component metadata:
- * - New format: *.def.ts files using defineComponent()
- * - Old format: *.propsmeta.ts and *.ai.ts files
- *
- * This loader enables backward compatibility during the migration period.
+ * Loads current *.def.ts component definitions using defineComponent().
  */
 
 import { ComponentDefinition } from './component-definition'
-import { ComponentType, ComponentCategory } from './types'
+import { ComponentType } from './types'
 import { z } from 'zod'
 
 /**
@@ -199,19 +195,15 @@ export async function loadAllDefinitions(): Promise<void> {
 }
 
 /**
- * Get component metadata from either .def.ts or legacy format
- *
- * This is a helper function that checks for a .def.ts file first,
- * then falls back to legacy *.propsmeta.ts and *.ai.ts files.
+ * Get component metadata from the registered .def.ts definition.
  *
  * @param type - Component type
- * @returns Object with metadata sources or null if not found
+ * @returns Object with definition metadata or null if not found
  */
 export function getComponentMetadataSources(type: ComponentType): {
-  source: 'definition' | 'legacy'
-  definition?: ComponentDefinition<z.ZodObject<any>>
+  source: 'definition'
+  definition: ComponentDefinition<z.ZodObject<any>>
 } | null {
-  // Check for .def.ts file first
   const definition = getDefinition(type)
   if (definition) {
     return {
@@ -220,11 +212,7 @@ export function getComponentMetadataSources(type: ComponentType): {
     }
   }
 
-  // Legacy format exists if we can't find a definition
-  // The existing registry system will handle loading from .propsmeta.ts and .ai.ts
-  return {
-    source: 'legacy'
-  }
+  return null
 }
 
 /**
@@ -290,7 +278,7 @@ export function getComponentsForRegion(region: string): ComponentType[] {
   const results: ComponentType[] = []
 
   for (const [type, definition] of definitionRegistry.entries()) {
-    if (definition.aiMetadata?.pageLocation?.includes(region as any)) {
+    if (definition.detection?.pageLocation?.includes(region as any)) {
       results.push(type)
     }
   }

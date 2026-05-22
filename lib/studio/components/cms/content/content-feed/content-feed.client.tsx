@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
@@ -100,8 +100,6 @@ function ContentFeedList({
   const navigate = useNavigate();
   const resolvedTheme = resolveTheme(theme);
 
-  // Memoize theme class to avoid recalculating on every render
-  const resolvedThemeClass = useMemo(() => resolvedThemeClass, [resolvedTheme]);
   const listClass = buildCmsClassName({
     base: cn('cms-content-feed-list flex flex-col', dsSpacing.gap('md')),
     theme: resolvedTheme,

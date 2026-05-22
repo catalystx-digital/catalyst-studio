@@ -12,6 +12,12 @@ export interface IWebsiteStructureRepository {
   transaction<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T>;
 }
 
+function toNullableJsonInput(
+  value: Prisma.JsonValue
+): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
+  return value === null ? Prisma.DbNull : value as Prisma.InputJsonValue;
+}
+
 export class WebsiteStructureRepository implements IWebsiteStructureRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
   
@@ -144,13 +150,29 @@ export class WebsiteStructureRepository implements IWebsiteStructureRepository {
           fullPath: node.fullPath,
           pathDepth: node.pathDepth,
           position: node.position,
-          weight: node.weight
+          weight: node.weight,
+          iaMetadata: toNullableJsonInput(node.iaMetadata),
+          iaStatus: node.iaStatus
         }
       });
     } else {
       // Create new node
       return await db.websiteStructure.create({
-        data: node
+        data: {
+          id: node.id,
+          websiteId: node.websiteId,
+          websitePageId: node.websitePageId,
+          parentId: node.parentId,
+          slug: node.slug,
+          fullPath: node.fullPath,
+          pathDepth: node.pathDepth,
+          position: node.position,
+          weight: node.weight,
+          iaMetadata: toNullableJsonInput(node.iaMetadata),
+          iaStatus: node.iaStatus,
+          createdAt: node.createdAt,
+          updatedAt: node.updatedAt
+        }
       });
     }
   }

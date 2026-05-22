@@ -8,44 +8,27 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { CmsBadge, cmsBody, dsSpacing, resolveTheme, themeClass } from '../../_ui'
-import { validateImageUrl } from '../../_utils/url-validation'
+import { normalizeCmsImage } from '../../_utils/media-reference'
+import { resolveSmartLinkHref } from '../../_utils/smart-link'
 import type { CardItemProps, CardItemImage } from './card-item.types'
 
 /**
  * Resolve image source from various input formats
  */
 function resolveImageSrc(image: string | CardItemImage | undefined): { src: string; alt: string; srcSet?: string } | null {
-  if (!image) return null
+  const normalizedImage = normalizeCmsImage(image)
+  if (!normalizedImage) return null
 
-  // Simple string URL
-  if (typeof image === 'string') {
-    const src = validateImageUrl(image)
-    return src ? { src, alt: '' } : null
-  }
-
-  // Complex image object
-  let resolvedSrc: string | undefined
-
-  if (typeof image.src === 'string') {
-    resolvedSrc = validateImageUrl(image.src)
-  } else if (image.src && typeof image.src === 'object' && 'src' in image.src) {
-    resolvedSrc = validateImageUrl(image.src.src)
-  }
-
-  if (!resolvedSrc) return null
-
-  // Build srcSet from renditions if available
-  const renditions = image.renditions || (typeof image.src === 'object' && image.src?.renditions)
-  const srcSet = Array.isArray(renditions) && renditions.length > 0
-    ? renditions
-        .filter(r => r?.src && r?.width)
+  const srcSet = Array.isArray(normalizedImage.renditions) && normalizedImage.renditions.length > 0
+    ? normalizedImage.renditions
+        .filter(r => r.src && r.width)
         .map(r => `${r.src} ${r.width}w`)
         .join(', ')
     : undefined
 
   return {
-    src: resolvedSrc,
-    alt: image.alt || '',
+    src: normalizedImage.src,
+    alt: normalizedImage.alt || '',
     srcSet
   }
 }
@@ -88,19 +71,20 @@ export function CardItemClient({
   theme = 'auto',
   variant = 'default',
 }: CardItemProps) {
-  const { title, description, image, imageAlt, link, linkText, badge, actions } = content
+  const { title, description, image, imageAlt, link, href, linkText, badge, actions } = content
   const resolvedTheme = resolveTheme(theme)
   const media = resolveImageSrc(image)
-  const clickable = Boolean(link)
+  const resolvedLink = resolveSmartLinkHref(link) ?? resolveSmartLinkHref(href)
+  const clickable = Boolean(resolvedLink)
 
   const handleClick = () => {
-    if (link && typeof window !== 'undefined') {
-      window.location.href = link
+    if (resolvedLink && typeof window !== 'undefined') {
+      window.location.href = resolvedLink
     }
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if ((event.key === 'Enter' || event.key === ' ') && link) {
+    if ((event.key === 'Enter' || event.key === ' ') && resolvedLink) {
       event.preventDefault()
       handleClick()
     }
@@ -173,8 +157,9 @@ export function CardItemClient({
                 variant={action.variant === 'secondary' ? 'secondary' : action.variant === 'outline' ? 'outline' : 'default'}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (action.url && typeof window !== 'undefined') {
-                    window.location.href = action.url
+                  const actionHref = resolveSmartLinkHref(action.href) ?? resolveSmartLinkHref(action.url)
+                  if (actionHref && typeof window !== 'undefined') {
+                    window.location.href = actionHref
                   }
                 }}
               >
@@ -182,10 +167,10 @@ export function CardItemClient({
               </Button>
             ))}
           </CardFooter>
-        ) : link && linkText ? (
+        ) : resolvedLink && linkText ? (
           <CardFooter className="px-6 pb-6 pt-0">
             <a
-              href={link}
+              href={resolvedLink}
               className="inline-flex items-center gap-1 text-primary font-medium hover:underline transition-colors"
               onClick={(e) => e.stopPropagation()}
             >

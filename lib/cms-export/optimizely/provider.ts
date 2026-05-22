@@ -33,6 +33,7 @@ import {
 import type {
   UnifiedExportBundle,
   UnifiedBundleSyncResult,
+  UnifiedBundleSyncOptions,
   ContentTypeExport,
   CompiledTypeIndex,
   CompiledTypeSupport,
@@ -84,7 +85,7 @@ interface UnifiedContentItem {
   title: string
   contentType: string        // Optimizely content type key
   container: string          // Container ID (page container or block container)
-  properties: unknown[]      // Recursive properties array
+  properties: Record<string, unknown> // Recursive properties record
   status: string
   urlSegment?: string
   isSharedBlock?: boolean    // True for shared blocks
@@ -140,7 +141,7 @@ export class OptimizelyProvider implements ICMSProvider {
 
   async syncUnifiedBundle(
     bundle: UnifiedExportBundle,
-    options?: { publish?: boolean }
+    options?: UnifiedBundleSyncOptions & { publish?: boolean }
   ): Promise<UnifiedBundleSyncResult> {
     // Local state for this sync - passed explicitly through call chain
     const createdContent = new Map<string, string>()
@@ -267,8 +268,8 @@ export class OptimizelyProvider implements ICMSProvider {
         details: [{
           scope: 'other',
           id: 'fatal',
+          action: 'error',
           message: error instanceof Error ? error.message : String(error),
-          success: false,
         }],
       }
     }
@@ -316,7 +317,7 @@ export class OptimizelyProvider implements ICMSProvider {
             title: `${comp.type} - ${page.title}`,
             contentType: contentTypeKey,
             container: this.blockContainerId,
-            properties: properties as unknown[],
+            properties,
             status,
             isSharedBlock: true,
           })
@@ -456,7 +457,9 @@ export class OptimizelyProvider implements ICMSProvider {
 
     const response = await this.client.createContent(request)
     // API returns 'key' directly, not nested under contentLink.id
-    return response.key || response.contentLink?.id?.toString() || null
+    return typeof response.key === 'string'
+      ? response.key
+      : response.contentLink?.id?.toString() || null
   }
 
   // ============================================================================
@@ -1148,14 +1151,14 @@ export class OptimizelyProvider implements ICMSProvider {
         ...errors.map(e => ({
           scope: e.scope,
           id: e.id,
+          action: 'error' as const,
           message: e.message,
-          success: false,
         })),
         {
           scope: 'other' as const,
           id: 'summary',
+          action: failureCount === 0 ? 'created' as const : 'skipped' as const,
           message: `Synced ${successCount} items successfully, ${failureCount} failed`,
-          success: failureCount === 0,
         },
       ],
     }
@@ -1181,11 +1184,10 @@ export class OptimizelyProvider implements ICMSProvider {
 
         for (const ct of contentTypes) {
           // Apply Optimizely naming transformation: hyphens → underscores
-          const key = sanitizeOptiKey(ct.key || ct.id || ct.name)
-          // Check all possible fields: category (most common), type, baseType
-          const isPage = ct.category === 'page' || ct.type === 'page' || ct.baseType === '_page'
+          const key = sanitizeOptiKey(ct.key || ct.id || ct.name) || ct.id
+          const isPage = ct.category === 'page'
           const baseType: '_page' | '_component' = isPage ? '_page' : '_component'
-          const fields = ct.fields || []
+          const fields = Array.isArray(ct.fields) ? ct.fields : []
 
           byKey[key] = { fields, baseType }
           all.push({
@@ -1277,6 +1279,7 @@ export class OptimizelyProvider implements ICMSProvider {
             const contentType: OptimizelyContentType = {
               key,
               name: formatOptimizelyDisplayName(key),
+              guid: '',
               displayName: formatOptimizelyDisplayName(key),
               description: `Catalyst Studio: ${formatOptimizelyDisplayName(key)}`,
               baseType,

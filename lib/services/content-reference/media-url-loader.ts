@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 import { prisma } from '@/lib/prisma';
-import type { MediaStorageProvider as DbMediaStorageProvider } from '@prisma/client';
+import type { MediaStorageProvider as DbMediaStorageProvider } from '@/lib/generated/prisma';
 
 export interface MediaUrlInfo {
   mediaId: string;

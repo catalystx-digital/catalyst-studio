@@ -115,9 +115,60 @@ describe('HeroSimple component', () => {
     });
   });
 
+  it('resolves structured supporting link hrefs at render time', () => {
+    const onInteraction = jest.fn();
+    const props = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        supportingLinks: [
+          { label: 'Case studies', href: { type: 'internal', path: '/case-studies' } },
+          { label: 'Email us', href: { type: 'email', href: 'hello@example.com' } },
+          { label: 'Missing href', href: undefined },
+        ],
+      },
+    };
+
+    render(<HeroSimple {...props} onInteraction={onInteraction} />);
+
+    const caseStudiesLink = screen.getByRole('link', { name: 'Case studies' });
+    const emailLink = screen.getByRole('link', { name: 'Email us' });
+    expect(caseStudiesLink).toHaveAttribute('href', '/case-studies');
+    expect(emailLink).toHaveAttribute('href', 'mailto:hello@example.com');
+    expect(screen.queryByRole('link', { name: 'Missing href' })).not.toBeInTheDocument();
+
+    fireEvent.click(caseStudiesLink);
+    expect(onInteraction).toHaveBeenCalledWith('link-click', {
+      href: '/case-studies',
+      index: 0,
+      label: 'Case studies',
+    });
+  });
+
+  it('filters CTA buttons without resolved hrefs', () => {
+    const props = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        ctaButtons: [
+          { label: 'Missing href', variant: 'primary' as const },
+          { label: 'Valid CTA', href: { type: 'external', url: 'https://example.com' }, variant: 'secondary' as const },
+        ],
+      },
+    };
+
+    render(<HeroSimple {...props} />);
+
+    expect(screen.queryByRole('link', { name: 'Missing href' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Valid CTA' })).toHaveAttribute('href', 'https://example.com');
+  });
+
   it('calls onLoad after background image resolves', () => {
     const onLoad = jest.fn();
-    render(<HeroSimple {...defaultProps} onLoad={onLoad} />);
+    const { container } = render(<HeroSimple {...defaultProps} onLoad={onLoad} />);
+    const backgroundImage = container.querySelector('img');
+    expect(backgroundImage).toBeInTheDocument();
+    fireEvent.load(backgroundImage as HTMLImageElement);
     expect(onLoad).toHaveBeenCalled();
   });
 

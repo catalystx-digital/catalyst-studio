@@ -112,4 +112,27 @@ describe('resolveContentFeed', () => {
     expect(resolved.error).toBe('provider failed');
     expect(resolved.items[0]?.id).toBe('pinned');
   });
+
+  it('preserves pinned structured links and canonical media references', () => {
+    const content: ContentFeedContent = {
+      limit: 1,
+      pinned: [
+        {
+          id: 'pinned-structured',
+          title: 'Pinned structured item',
+          href: { type: 'internal', pageId: 'structured', path: '/news/structured' },
+          image: {
+            src: { mediaId: 'media-1', mediaType: 'image', url: '/images/structured.jpg' },
+            alt: 'Structured thumbnail',
+          },
+        },
+      ],
+    };
+
+    const resolved = resolveContentFeed(content);
+
+    expect(resolved.items[0]?.href).toBe('/news/structured');
+    expect(resolved.items[0]?.image?.src).toBe('/images/structured.jpg');
+    expect(resolved.items[0]?.image?.alt).toBe('Structured thumbnail');
+  });
 });

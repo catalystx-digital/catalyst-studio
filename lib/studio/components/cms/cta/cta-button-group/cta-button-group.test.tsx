@@ -16,8 +16,8 @@ describe('CTAButtonGroup Component', () => {
       heading: 'Choose your next step',
       subheading: 'Select the call to action that fits your workflow.',
       buttons: [
-        { text: 'Start Trial', url: '/trial', variant: 'primary' as const },
-        { text: 'Contact Sales', url: '/contact', variant: 'secondary' as const },
+        { label: 'Start Trial', href: '/trial', variant: 'primary' as const },
+        { label: 'Contact Sales', href: '/contact', variant: 'secondary' as const },
       ],
       alignment: 'center' as const,
       spacing: 'normal' as const,
@@ -47,18 +47,36 @@ describe('CTAButtonGroup Component', () => {
 
     expect(onInteraction).toHaveBeenCalledWith('button-click', {
       index: 0,
-      text: 'Start Trial',
-      url: '/trial',
+      label: 'Start Trial',
+      href: '/trial',
     });
     expect(onInteraction).toHaveBeenCalledWith('button-click', {
       index: 1,
-      text: 'Contact Sales',
-      url: '/contact',
+      label: 'Contact Sales',
+      href: '/contact',
     });
     expect(onInteraction).toHaveBeenCalledTimes(2);
   });
 
-  it('renders fallback alert when no buttons are provided', () => {
+  it('renders structured SmartLink button defaults', () => {
+    render(
+      <CTAButtonGroup
+        {...baseProps}
+        content={{
+          ...baseProps.content,
+          buttons: [
+            { label: 'Get Started', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+            { label: 'Learn More', href: { type: 'external', url: 'https://example.com/features' }, variant: 'outline' },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Get Started' })).toHaveAttribute('href', '/signup');
+    expect(screen.getByRole('link', { name: 'Learn More' })).toHaveAttribute('href', 'https://example.com/features');
+  });
+
+  it('omits links when no buttons are provided', () => {
     render(
       <CTAButtonGroup
         {...baseProps}
@@ -69,9 +87,7 @@ describe('CTAButtonGroup Component', () => {
       />,
     );
 
-    expect(
-      screen.getByText('Add one or more CTA buttons to display this component.'),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('stacks buttons vertically when orientation is set to vertical', () => {
@@ -87,7 +103,7 @@ describe('CTAButtonGroup Component', () => {
     );
 
     const group = container.querySelector('.cms-button-group');
-    expect(group).toHaveClass('sm:!flex-col');
+    expect(group).toHaveClass('flex-col');
 
     const buttons = screen.getAllByRole('link');
     buttons.forEach((element) => {

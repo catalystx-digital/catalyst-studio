@@ -88,17 +88,15 @@ export const TeamMemberDef = defineComponent({
     education: [
       {
         institution: 'MIT',
-        degree: 'Master of Science',
-        field: 'Computer Science',
+        degree: 'Master of Science in Computer Science',
         year: '2008',
       },
     ],
     experience: [
       {
         company: 'Tech Corp',
-        title: 'Senior Engineer',
-        startDate: '2015',
-        endDate: '2020',
+        position: 'Senior Engineer',
+        duration: '2015 - 2020',
         description: 'Led development of cloud infrastructure platform',
       },
     ],

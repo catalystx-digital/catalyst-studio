@@ -6,6 +6,8 @@ import {
   confidenceScorer,
   type ContentTypeDefinition 
 } from '@/lib/services/universal-types/validation';
+import type { ContentTypeFields, ContentTypeSettings } from '@/lib/services/content-type-service';
+import type { UpdateContentTypeRequest } from '@/lib/api/validation/content-type';
 
 const fieldSchema = z.object({
   id: z.string().optional(),
@@ -25,24 +27,31 @@ const fieldSchema = z.object({
   order: z.number().optional()
 });
 
+const updateContentTypeInputSchema = z.object({
+  id: z.string().describe('The content type ID to update'),
+  name: z.string().optional().describe('New name for the content type'),
+  category: z.enum(['page', 'component']).optional()
+    .describe('Update category - page for routable content, component for reusable blocks'),
+  fields: z.array(fieldSchema).optional()
+    .describe('Updated fields array (replaces existing fields)'),
+  addFields: z.array(fieldSchema).optional()
+    .describe('Fields to add to existing fields'),
+  removeFields: z.array(z.string()).optional()
+    .describe('Field names to remove'),
+  settings: z.record(z.any()).optional()
+    .describe('Updated settings object')
+});
+
+type ContentTypeFieldInput = z.infer<typeof fieldSchema>;
+type ExistingContentTypeField = NonNullable<ContentTypeFields['fields']>[number];
+type MutableContentTypeField = ExistingContentTypeField | ContentTypeFieldInput;
+type UpdateContentTypeInput = z.infer<typeof updateContentTypeInputSchema>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const updateContentType = (tool as any)({
   description: 'Update an existing content type with safe field modifications',
-  inputSchema: z.object({
-    id: z.string().describe('The content type ID to update'),
-    name: z.string().optional().describe('New name for the content type'),
-    category: z.enum(['page', 'component']).optional()
-      .describe('Update category - page for routable content, component for reusable blocks'),
-    fields: z.array(fieldSchema).optional()
-      .describe('Updated fields array (replaces existing fields)'),
-    addFields: z.array(fieldSchema).optional()
-      .describe('Fields to add to existing fields'),
-    removeFields: z.array(z.string()).optional()
-      .describe('Field names to remove'),
-    settings: z.record(z.any()).optional()
-      .describe('Updated settings object')
-  }),
-  execute: async ({ id, name, category, fields, addFields, removeFields, settings }) => {
+  inputSchema: updateContentTypeInputSchema,
+  execute: async ({ id, name, category, fields, addFields, removeFields, settings }: UpdateContentTypeInput) => {
     const startTime = Date.now();
     
     try {
@@ -58,24 +67,24 @@ export const updateContentType = (tool as any)({
       }
       
       // Get current fields from the existing content type
-      const currentFields = Array.isArray(existing.fields) 
-        ? existing.fields 
+      const currentFields: MutableContentTypeField[] = Array.isArray(existing.fields)
+        ? existing.fields
         : (existing.fields?.fields || []);
       
       // Prepare updated fields
-      let updatedFields = [...currentFields];
+      let updatedFields: MutableContentTypeField[] = [...currentFields];
       
       // If replacing all fields
       if (fields !== undefined) {
         // Warn about potential data loss when replacing all fields
-        console.warn(`Removing fields from content type with existing content items may cause data loss. Fields being removed: ${currentFields.map((f: any) => f.name).join(', ')}`);
+        console.warn(`Removing fields from content type with existing content items may cause data loss. Fields being removed: ${currentFields.map((f) => f.name).join(', ')}`);
         updatedFields = fields;
       } else {
         // Add new fields
         if (addFields) {
           addFields.forEach(newField => {
             // Check if field already exists
-            const existingIndex = updatedFields.findIndex((f: any) => f.name === newField.name);
+            const existingIndex = updatedFields.findIndex((f) => f.name === newField.name);
             if (existingIndex >= 0) {
               // Update existing field
               updatedFields[existingIndex] = { ...updatedFields[existingIndex], ...newField };
@@ -92,7 +101,7 @@ export const updateContentType = (tool as any)({
           if (removeFields.length > 0) {
             console.warn(`Removing fields from content type with existing content items may cause data loss. Fields being removed: ${removeFields.join(', ')}`);
           }
-          updatedFields = updatedFields.filter((f: any) => !removeFields.includes(f.name));
+          updatedFields = updatedFields.filter((f) => !removeFields.includes(f.name));
         }
       }
       
@@ -100,7 +109,7 @@ export const updateContentType = (tool as any)({
       const typeDefinition: ContentTypeDefinition = {
         name: name || existing.name,
         category: category || (existing.category as 'page' | 'component') || 'page',
-        fields: updatedFields.map((f: any) => ({
+        fields: updatedFields.map((f) => ({
           name: f.name,
           type: f.type,
           required: f.required || false,
@@ -117,24 +126,24 @@ export const updateContentType = (tool as any)({
       }
       
       // Prepare fields with proper IDs and order
-      const preparedFields = updatedFields.map((field: any, index) => ({
+      const preparedFields = updatedFields.map((field, index) => ({
         ...field,
         id: field.id || `field_${field.name}_${Date.now()}_${index}`,
         order: field.order || index + 1
       }));
       
       // Prepare update data
-      const updateData: any = {
+      const updateData: UpdateContentTypeRequest = {
         ...(name && { name }),
         ...(category && { category }),
-        fields: preparedFields,
+        fields: preparedFields as unknown as UpdateContentTypeRequest['fields'],
         relationships: existing.fields?.relationships || []
       };
       
       // Merge settings
       if (settings) {
-        const currentSettings = typeof existing.settings === 'object' 
-          ? existing.settings 
+        const currentSettings: ContentTypeSettings = typeof existing.settings === 'object'
+          ? existing.settings
           : {};
         
         updateData.pluralName = settings?.pluralName || currentSettings.pluralName;

@@ -2,12 +2,11 @@ import {
   ICMSProvider, 
   UniversalContentType,
   UniversalContentItem,
-  ContentFilter,
-  PaginationOptions,
   ContentValidationResult,
   ProviderCapabilities,
   ValidationResult
 } from '../types';
+import type { ContentFilter, PaginationOptions } from '../universal/types';
 import type {
   CompiledTypeIndex,
   ContentTypeExport,
@@ -1043,4 +1042,3 @@ export class MockProvider implements ICMSProvider {
     }
   }
 }
-

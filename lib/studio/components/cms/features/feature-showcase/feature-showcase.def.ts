@@ -55,7 +55,11 @@ export const FeatureShowcaseDef = defineComponent({
     subheading: 'Everything you need in one place',
     sections: [
       {
-        image: '/images/feature-1.jpg',
+        image: {
+          src: { mediaId: 'sample-feature-1', mediaType: 'image', url: '/images/feature-1.jpg' },
+          alt: 'Advanced analytics feature preview',
+          originalUrl: '/images/feature-1.jpg',
+        },
         title: 'Advanced Analytics',
         description: 'Deep insights into your data',
         checklist: ['Real-time reporting', 'Custom dashboards', 'Export capabilities'],

@@ -57,8 +57,7 @@ async function extractFromPDF(file: File): Promise<string> {
     const page = await pdf.getPage(i)
     const textContent = await page.getTextContent()
     const pageText = textContent.items
-      .filter((item): item is { str: string } => 'str' in item)
-      .map((item) => item.str)
+      .map((item) => ('str' in item ? item.str : ''))
       .join(' ')
     textParts.push(pageText)
   }

@@ -101,17 +101,14 @@ export const TabsDef = defineComponent({
     subheading: 'Explore our key capabilities',
     tabs: [
       {
-        id: 'performance',
         label: 'Performance',
         content: 'Lightning-fast performance with optimized code and caching.',
       },
       {
-        id: 'security',
         label: 'Security',
         content: 'Enterprise-grade security with encryption and compliance.',
       },
       {
-        id: 'scalability',
         label: 'Scalability',
         content: 'Scale seamlessly from startup to enterprise.',
       },

@@ -74,9 +74,25 @@ export const LogoStripDef = defineComponent({
   // Sample content for AI tools and testing
   sample: {
     logos: [
-      { id: '1', src: '/logos/company-a.png', alt: 'Company A' },
-      { id: '2', src: '/logos/company-b.png', alt: 'Company B', href: { type: 'external', url: 'https://companyb.com' } },
-      { id: '3', src: '/logos/company-c.png', alt: 'Company C' },
+      {
+        id: '1',
+        src: { mediaId: 'sample-company-a-logo', mediaType: 'image', url: '/logos/company-a.png' },
+        alt: 'Company A',
+        originalUrl: '/logos/company-a.png',
+      },
+      {
+        id: '2',
+        src: { mediaId: 'sample-company-b-logo', mediaType: 'image', url: '/logos/company-b.png' },
+        alt: 'Company B',
+        originalUrl: '/logos/company-b.png',
+        href: { type: 'external', url: 'https://companyb.com' },
+      },
+      {
+        id: '3',
+        src: { mediaId: 'sample-company-c-logo', mediaType: 'image', url: '/logos/company-c.png' },
+        alt: 'Company C',
+        originalUrl: '/logos/company-c.png',
+      },
     ],
     size: 'medium',
     animateScroll: false,

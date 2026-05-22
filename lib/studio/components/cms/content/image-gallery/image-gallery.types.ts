@@ -2,7 +2,8 @@ import { CMSComponentProps, ComponentContent } from '../../_core/types';
 import { type Image } from '@/lib/studio/components/cms/_core/value-objects';
 
 export interface GalleryImage extends Omit<Image, 'src'> {
-  url: string; // Kept for backward compatibility, maps to Image.src
+  url?: string; // Kept for existing renderer inputs; canonical Image.src is also accepted at render edges.
+  src?: Image['src'];
 }
 
 // Image Gallery specific content interface

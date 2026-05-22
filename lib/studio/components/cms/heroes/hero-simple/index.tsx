@@ -6,10 +6,16 @@ import { CmsSection, cmsBody, cmsHeading, dsSpacing, resolveTheme } from '../../
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { safeString } from '../../_core/safe-string';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import { HeroBackground } from '../_shared/hero-background';
 import { HeroCTA, type CTAButton } from '../_shared/hero-cta';
 import { ALIGNMENT_CLASSES, HEIGHT_CLASSES } from '../_shared';
 import type { HeroSimpleProps, HeroSimpleLink } from './hero-simple.types';
+
+type ResolvedSupportingLink = Omit<HeroSimpleLink, 'href' | 'label'> & {
+  href: string;
+  label: string;
+};
 
 const HeroSimpleComponent: React.FC<HeroSimpleProps> = ({
   id,
@@ -44,9 +50,17 @@ const HeroSimpleComponent: React.FC<HeroSimpleProps> = ({
     [onInteraction],
   );
 
-  const handleLinkClick = (link: HeroSimpleLink, index: number) => {
+  const handleLinkClick = (link: ResolvedSupportingLink, index: number) => {
     onInteraction?.('link-click', { label: link.label, href: link.href, index });
   };
+
+  const resolvedSupportingLinks = supportingLinks
+    ?.map((link) => {
+      const href = resolveSmartLinkHref(link.href);
+      const label = link.label?.trim();
+      return href && label ? { ...link, href, label } : null;
+    })
+    .filter((link): link is ResolvedSupportingLink => Boolean(link));
 
   // Compute height class - use HEIGHT_CLASSES for consistent hero sizing
   // Default to 'full' for maximum visual impact (homepage heroes)
@@ -109,9 +123,9 @@ const HeroSimpleComponent: React.FC<HeroSimpleProps> = ({
             />
           )}
 
-          {supportingLinks && supportingLinks.length > 0 && (
+          {resolvedSupportingLinks && resolvedSupportingLinks.length > 0 && (
             <div className={cn('flex flex-wrap text-sm gap-4', alignment === 'center' && 'justify-center')}>
-              {supportingLinks.map((link, index) => (
+              {resolvedSupportingLinks.map((link, index) => (
                 <a
                   key={`${link.href}-${index}`}
                   href={link.href}

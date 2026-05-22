@@ -14,6 +14,9 @@ import { HeroSimple } from '@/lib/studio/components/cms/heroes/hero-simple'
 import { Footer } from '@/lib/studio/components/cms/navigation/footer'
 import { FeatureGrid } from '@/lib/studio/components/cms/features/feature-grid'
 import { CTASimple } from '@/lib/studio/components/cms/cta/cta-simple'
+import { ComponentCategory, ComponentType } from '@/lib/studio/components/cms/_core/types'
+
+const anchorLink = (href: string) => ({ type: 'anchor' as const, href })
 
 // Sample content for NavBar
 const sampleNavBarContent = {
@@ -22,14 +25,14 @@ const sampleNavBarContent = {
     href: '#',
   },
   menuItems: [
-    { label: 'Home', href: '#' },
-    { label: 'Features', href: '#features' },
-    { label: 'Pricing', href: '#pricing' },
-    { label: 'About', href: '#about' },
+    { label: 'Home', href: anchorLink('#') },
+    { label: 'Features', href: anchorLink('#features') },
+    { label: 'Pricing', href: anchorLink('#pricing') },
+    { label: 'About', href: anchorLink('#about') },
   ],
   cta: {
     label: 'Get Started',
-    href: '#',
+    href: anchorLink('#'),
     variant: 'primary' as const,
   },
   sticky: false,
@@ -41,8 +44,8 @@ const sampleHeroContent = {
   heading: 'Welcome to Your Website',
   subheading: 'Experience the power of your design system in action. See how colors, typography, and spacing work together.',
   ctaButtons: [
-    { label: 'Get Started', href: '#', variant: 'primary' as const },
-    { label: 'Learn More', href: '#', variant: 'secondary' as const },
+    { label: 'Get Started', href: anchorLink('#'), variant: 'primary' as const },
+    { label: 'Learn More', href: anchorLink('#'), variant: 'secondary' as const },
   ],
   alignment: 'center' as const,
 }
@@ -77,34 +80,32 @@ const sampleCTAContent = {
   body: 'Join thousands of satisfied customers today.',
   primaryButton: {
     label: 'Start Free Trial',
-    href: '#',
+    href: anchorLink('#'),
   },
   secondaryButton: {
     label: 'Contact Sales',
-    href: '#',
+    href: anchorLink('#'),
   },
   backgroundVariant: 'accent' as const,
 }
 
 // Sample content for Footer
 const sampleFooterContent = {
-  logo: {
-    text: 'Your Brand',
-  },
+  logo: 'Your Brand',
   copyright: '© 2024 Your Company. All rights reserved.',
   columns: [
     {
       title: 'Product',
       links: [
-        { label: 'Features', href: '#' },
-        { label: 'Pricing', href: '#' },
+        { label: 'Features', href: anchorLink('#') },
+        { label: 'Pricing', href: anchorLink('#') },
       ],
     },
     {
       title: 'Company',
       links: [
-        { label: 'About', href: '#' },
-        { label: 'Contact', href: '#' },
+        { label: 'About', href: anchorLink('#') },
+        { label: 'Contact', href: anchorLink('#') },
       ],
     },
   ],
@@ -168,13 +169,38 @@ export default function DesignSystemSamplePage() {
       </style>
 
       <div className="preview-wrapper">
-        <NavBar content={sampleNavBarContent} />
+        <NavBar
+          id="design-system-sample-nav"
+          type={ComponentType.NavBar}
+          category={ComponentCategory.Navigation}
+          content={sampleNavBarContent}
+        />
         <main className="preview-main">
-          <HeroSimple content={sampleHeroContent} />
-          <FeatureGrid content={sampleFeatureContent} />
-          <CTASimple content={sampleCTAContent} />
+          <HeroSimple
+            id="design-system-sample-hero"
+            type={ComponentType.HeroSimple}
+            category={ComponentCategory.Heroes}
+            content={sampleHeroContent}
+          />
+          <FeatureGrid
+            id="design-system-sample-feature-grid"
+            type={ComponentType.FeatureGrid}
+            category={ComponentCategory.Features}
+            content={sampleFeatureContent}
+          />
+          <CTASimple
+            id="design-system-sample-cta"
+            type={ComponentType.CTASimple}
+            category={ComponentCategory.CTA}
+            content={sampleCTAContent}
+          />
         </main>
-        <Footer content={sampleFooterContent} />
+        <Footer
+          id="design-system-sample-footer"
+          type={ComponentType.Footer}
+          category={ComponentCategory.Navigation}
+          content={sampleFooterContent}
+        />
       </div>
 
       {!isReady && (

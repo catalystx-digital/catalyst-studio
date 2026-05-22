@@ -170,7 +170,7 @@ export const ContentFeedDef = defineComponent({
         title: 'Major Product Launch',
         excerpt: 'Introducing our newest innovation...',
         date: '2025-12-15',
-        href: { type: 'internal', pageId: 'product-launch-news' },
+        href: { type: 'internal', pageId: 'product-launch-news', path: '/news/product-launch' },
       },
     ],
     sorting: {
@@ -187,9 +187,6 @@ export const ContentFeedDef = defineComponent({
     contentFeedPromotion: {
       enabled: true,
       promotionPatterns: ['/news/', '/blog/', '/articles/'],
-      sourceComponents: ['card-grid', 'blog-list', 'feature-grid'],
-      minItems: 3,
-      urlMatchRatio: 0.6
     }
   },
 })

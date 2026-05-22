@@ -126,7 +126,11 @@ export const QuoteBlockDef = defineComponent({
       author: 'Sarah Johnson',
       title: 'CEO',
       organization: 'TechCorp Inc.',
-      image: '/images/sarah-johnson.jpg',
+      image: {
+        src: { mediaId: 'sample-sarah-johnson', mediaType: 'image', url: '/images/sarah-johnson.jpg' },
+        alt: 'Sarah Johnson headshot',
+        originalUrl: '/images/sarah-johnson.jpg',
+      },
     },
     style: 'testimonial',
     align: 'center',

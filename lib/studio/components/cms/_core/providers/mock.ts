@@ -152,8 +152,8 @@ const blogProvider: BlogPostProvider = {
 
     const filtered = mockBlogPosts.filter(post => {
       if (excludeIds.has(post.id)) return false;
-      const matchesCategory = !categories || categories.length === 0 || categories.some(cat => post.categories.includes(cat));
-      const matchesTag = !tags || tags.length === 0 || tags.some(tag => post.tags.includes(tag));
+      const matchesCategory = !categories || categories.length === 0 || categories.some(cat => (post.categories ?? []).includes(cat));
+      const matchesTag = !tags || tags.length === 0 || tags.some(tag => (post.tags ?? []).includes(tag));
       return matchesCategory && matchesTag;
     });
 
@@ -190,9 +190,9 @@ const teamProvider: TeamMemberProvider = {
     const excludeIds = new Set(filters?.excludeIds ?? []);
 
     const filtered = mockTeamMembers.filter(member => {
-      if (excludeIds.has(member.id)) return false;
+      if (member.id && excludeIds.has(member.id)) return false;
       const departmentMatch = !filters?.department || member.department?.toLowerCase() === filters.department.toLowerCase();
-      const roleMatch = !filters?.role || member.title.toLowerCase().includes(filters.role.toLowerCase());
+      const roleMatch = !filters?.role || (member.title ?? '').toLowerCase().includes(filters.role.toLowerCase());
       const locationMatch = !filters?.location || (member as any).location?.toLowerCase() === filters.location.toLowerCase();
       return departmentMatch && roleMatch && locationMatch;
     });
@@ -210,7 +210,7 @@ const teamProvider: TeamMemberProvider = {
 registerContentProvider(ContentResource.BlogPosts, blogProvider);
 registerContentProvider(ContentResource.TeamMembers, teamProvider);
 
-const mockFeedItems: ContentFeedItem[] = [
+const mockFeedItems: Array<ContentFeedItem & Record<string, unknown>> = [
   {
     id: 'feed-1',
     title: 'Dynamic feed placeholder',

@@ -36,6 +36,7 @@ import {
   dsSpacing,
 } from '../../_ui';
 import { ComponentTheme } from '../../_core/types';
+import { resolveLinkHref } from '../../navigation/footer/footer-link';
 import type {
   ContactFormProps,
   ContactFormField,
@@ -195,6 +196,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
   const consentFieldId = `${id ?? 'contact-form'}-consent`;
   const consentAccepted = form.watch(consentFieldName);
   const isSubmitDisabled = isSubmitting || (consentRequired && !consentAccepted);
+  const consentLinkHref = resolveLinkHref(consentConfig?.link?.href);
 
   const triggerDebouncedValidation = useMemo(
     () =>
@@ -243,6 +245,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
     successDescription,
     successCta,
   } = resolvedMessages;
+  const successCtaHref = resolveLinkHref(successCta?.href);
 
   const handleValidationChange = useCallback(
     (name: string, onChange: (value: unknown) => void, value: unknown) => {
@@ -599,9 +602,9 @@ const ContactForm: React.FC<ContactFormProps> = ({
                               </span>
                             ) : null}
                           </CmsFormLabel>
-                          {consentConfig.link ? (
+                          {consentConfig.link && consentLinkHref ? (
                             <a
-                              href={consentConfig.link.href}
+                              href={consentLinkHref}
                               className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none"
                               target="_blank"
                               rel="noreferrer"
@@ -653,7 +656,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
                       {submitStatus === 'success' && successDescription ? (
                         <p className="text-sm text-muted-foreground">{successDescription}</p>
                       ) : null}
-                      {submitStatus === 'success' && successCta ? (
+                      {submitStatus === 'success' && successCta && successCtaHref ? (
                         <Button
                           asChild
                           variant="default"
@@ -661,7 +664,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
                           className={dsSpacing.mt('xs')}
                         >
                           <a
-                            href={successCta.href}
+                            href={successCtaHref}
                             target={successCta.newTab ? '_blank' : undefined}
                             rel={successCta.newTab ? 'noreferrer' : undefined}
                           >

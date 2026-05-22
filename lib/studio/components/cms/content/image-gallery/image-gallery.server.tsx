@@ -16,6 +16,7 @@ import {
 } from '../../_ui';
 import { shouldShowDevEmptyStateServer } from '../../_core/env-utils';
 import { sanitizeText } from '../../_core/security';
+import { normalizeCmsImage } from '../../_utils/media-reference';
 import type { ImageGalleryProps, GalleryImage } from './image-gallery.types';
 
 const GRID_COLUMN_CLASSES: Record<
@@ -76,6 +77,21 @@ function resolveRatio(image: GalleryImage, fallback = DEFAULT_RATIO): number {
   return fallback;
 }
 
+function normalizeGalleryImage(image: GalleryImage): (GalleryImage & { url: string }) | null {
+  const normalized = normalizeCmsImage(image);
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    ...image,
+    url: normalized.src,
+    alt: normalized.alt ?? image.alt,
+    width: image.width,
+    height: image.height,
+  };
+}
+
 export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
   id,
   content,
@@ -96,6 +112,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
     subheading,
     maxWidth = 'large',
   } = content;
+  const preparedImages = images.map(normalizeGalleryImage).filter((image): image is GalleryImage & { url: string } => Boolean(image));
 
   const gridGapClass = GRID_GAP_CLASS[spacing] ?? GRID_GAP_CLASS.normal;
   const masonryColumnGapClass =
@@ -137,7 +154,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
   };
 
   const renderGridOrMasonry = () => {
-    if (images.length === 0) {
+    if (preparedImages.length === 0) {
       // In production/exported sites, hide empty galleries entirely
       if (!shouldShowDevEmptyStateServer()) {
         return null;
@@ -164,7 +181,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
           data-gallery-collection="grid"
           data-columns={columns}
         >
-          {images.map((image, index) => {
+          {preparedImages.map((image, index) => {
             const ratio = resolveRatio(image);
             return (
               <figure
@@ -184,7 +201,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
                 >
                   <Image
                     src={image.url}
-                    alt={sanitizeText(image.alt)}
+                    alt={sanitizeText(image.alt ?? '')}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     loading={index < 2 ? 'eager' : 'lazy'}
@@ -201,7 +218,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
   };
 
   const renderCarousel = () => {
-    if (images.length === 0) {
+    if (preparedImages.length === 0) {
       // In production/exported sites, hide empty carousels entirely
       if (!shouldShowDevEmptyStateServer()) {
         return null;
@@ -229,7 +246,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
             data-gallery-track
             style={{ transform: 'translateX(0%)' }}
           >
-            {images.map((image, index) => (
+            {preparedImages.map((image, index) => (
               <figure
                 key={`${image.url}-${index}`}
                 className={cn('flex w-full shrink-0 flex-col', dsSpacing.gap('sm'))}
@@ -241,7 +258,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
                 >
                   <Image
                     src={image.url}
-                    alt={sanitizeText(image.alt)}
+                    alt={sanitizeText(image.alt ?? '')}
                     fill
                     sizes="100vw"
                     priority={index === 0}
@@ -255,10 +272,10 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
           </div>
         </div>
 
-        {images.length > 1 && (
+        {preparedImages.length > 1 && (
           <div className={cn('flex items-center justify-center', dsSpacing.gap('sm'))}>
             <CmsButtonGroup>
-              {images.map((_, index) => (
+              {preparedImages.map((_, index) => (
                 <Button
                   key={`dot-${index}`}
                   type="button"

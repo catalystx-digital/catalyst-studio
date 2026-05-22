@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { CmsButtonGroup, CARD_TONES, themeClass, CmsSection, cmsBody, cmsHeading, dsSpacing } from '../../_ui';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import type { CTAButtonGroupProps, CTAButtonGroupContent, CTAButton } from './cta-button-group.types';
 
 export type { CTAButtonGroupProps, CTAButtonGroupContent, CTAButton } from './cta-button-group.types';
@@ -25,20 +26,35 @@ const ALIGNMENT = {
   right: { header: 'items-end text-right', align: 'end' as const },
 } as const;
 
+type NormalizedButton = {
+  label: string;
+  href: string;
+  variant: 'default' | 'secondary' | 'outline' | 'ghost' | 'link' | 'destructive';
+  size: 'lg';
+  icon?: string;
+  iconPosition: 'left' | 'right';
+  backgroundColor?: string;
+};
+
 function normalizeButtons(buttons?: CTAButton[]) {
   if (!Array.isArray(buttons)) return [];
-  return buttons.filter(b => {
-    if (typeof b?.label !== 'string' || typeof b?.href !== 'string') return false;
-    return b.label.trim() && b.href.trim();
-  }).map(b => ({
-    label: (b.label as string).trim(),
-    href: (b.href as string).trim(),
-    variant: VARIANT_MAP[b.variant ?? ''] ?? 'default',
-    size: 'lg',
-    icon: typeof b.icon === 'string' ? b.icon.trim() : undefined,
-    iconPosition: 'left',
-    backgroundColor: undefined,
-  }));
+  const normalized: NormalizedButton[] = [];
+  buttons.forEach(b => {
+    if (typeof b?.label !== 'string') return;
+    const label = b.label.trim();
+    const href = resolveSmartLinkHref(b.href);
+    if (!label || !href) return;
+    normalized.push({
+      label,
+      href,
+      variant: VARIANT_MAP[b.variant ?? ''] ?? 'default',
+      size: 'lg',
+      icon: typeof b.icon === 'string' ? b.icon.trim() : undefined,
+      iconPosition: 'left',
+      backgroundColor: undefined,
+    });
+  });
+  return normalized;
 }
 
 const CTAButtonGroupComponent: React.FC<CTAButtonGroupProps> = ({ id, type, content, className, style, theme, onInteraction }) => {

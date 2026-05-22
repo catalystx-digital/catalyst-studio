@@ -1,15 +1,16 @@
-import { CMSComponentProps } from '../../_core/types';
-import { type CTAButton, type Image } from '@/lib/studio/components/cms/_core/value-objects';
+import type { CMSComponentProps } from '../../_core/types';
+import { type CTAButton as RegistryCTAButton, type Image } from '@/lib/studio/components/cms/_core/value-objects';
 
 // CTAButton now imported from registry
+export type CTAButton = RegistryCTAButton;
 
-export interface HeroBannerBackgroundImage extends Image {
+export type HeroBannerBackgroundImage = Image & Record<string, unknown> & {
   renditions?: Array<{
     src?: string;
     width?: number | null;
     height?: number | null;
   }>;
-}
+};
 
 export interface HeroBannerContent {
   heading: string;

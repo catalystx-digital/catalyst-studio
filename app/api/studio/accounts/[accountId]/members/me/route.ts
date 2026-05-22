@@ -12,7 +12,11 @@ import { prisma } from '@/lib/prisma';
 import { handleApiError, ErrorHandlers } from '@/lib/api/errors';
 import { getAuthorizedContextForAccount } from '@/lib/auth/authorization';
 import { ROLE_PERMISSIONS } from '@/lib/auth/permissions';
-import { AccountRoleType } from '@/lib/auth/account';
+import { AccountRole, AccountRoleType } from '@/lib/auth/account';
+
+function isAccountRole(value: string): value is AccountRoleType {
+  return Object.values(AccountRole).includes(value as AccountRoleType);
+}
 
 // =============================================================================
 // GET - Get Current User's Membership
@@ -28,6 +32,9 @@ export async function GET(
     // Get authorization context for the target account
     // This will verify the user has a membership in this account
     const context = await getAuthorizedContextForAccount(request, accountId);
+    if (!context.userId) {
+      throw ErrorHandlers.unauthorized('Authentication required');
+    }
 
     // Get full membership details
     const membership = await prisma.accountMembership.findUnique({
@@ -37,18 +44,22 @@ export async function GET(
           userId: context.userId,
         },
       },
-      include: {
-        user: {
-          select: {
-            email: true,
-            name: true,
-          },
-        },
-      },
     });
 
     if (!membership) {
       throw ErrorHandlers.notFound('Membership');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: context.userId },
+      select: {
+        email: true,
+        name: true,
+      },
+    });
+
+    if (!isAccountRole(membership.role)) {
+      throw ErrorHandlers.internalError(`Invalid account role: ${membership.role}`);
     }
 
     // Get website names for specific access
@@ -62,15 +73,15 @@ export async function GET(
     }
 
     // Get permissions for this role
-    const permissions = ROLE_PERMISSIONS[membership.role as AccountRoleType] || [];
+    const permissions = ROLE_PERMISSIONS[membership.role];
 
     return NextResponse.json({
       data: {
         id: membership.id,
         userId: membership.userId,
         accountId: membership.accountId,
-        email: membership.user?.email || null,
-        name: membership.user?.name || null,
+        email: user?.email || null,
+        name: user?.name || null,
         role: membership.role,
         websiteAccess: membership.websiteAccess,
         websiteIds: membership.websiteIds,

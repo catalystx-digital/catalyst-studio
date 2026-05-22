@@ -3,16 +3,20 @@ import { z } from 'zod';
 import { businessRules } from '../../business-rules';
 import { WebsiteService } from '@/lib/services/website-service';
 
+const validateContentInputSchema = z.object({
+  websiteId: z.string().describe('The ID of the website to validate content for'),
+  contentType: z.string().describe('Type of content being validated (e.g., article, product, project)'),
+  content: z.record(z.any()).describe('The content object to validate'),
+  strictMode: z.boolean().optional().default(false).describe('If true, treat warnings as errors'),
+});
+
+type ValidateContentInput = z.infer<typeof validateContentInputSchema>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const validateContent = (tool as any)({
   description: 'Validates content against website business requirements and category rules',
-  inputSchema: z.object({
-    websiteId: z.string().describe('The ID of the website to validate content for'),
-    contentType: z.string().describe('Type of content being validated (e.g., article, product, project)'),
-    content: z.record(z.any()).describe('The content object to validate'),
-    strictMode: z.boolean().optional().default(false).describe('If true, treat warnings as errors'),
-  }),
-  execute: async ({ websiteId, contentType, content, strictMode }) => {
+  inputSchema: validateContentInputSchema,
+  execute: async ({ websiteId, contentType, content, strictMode }: ValidateContentInput) => {
     const startTime = Date.now();
     
     try {

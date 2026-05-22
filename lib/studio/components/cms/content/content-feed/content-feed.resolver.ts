@@ -1,5 +1,6 @@
 import { ContentResource, type ContentFeedFilters, type ContentQuery, type ContentFeedProvider, getContentProvider } from '../../_core/data-providers';
-import { validateImageUrl } from '../../_utils/url-validation';
+import { normalizeCmsImage } from '../../_utils/media-reference';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import type {
   ContentFeedContent,
   ContentFeedItem,
@@ -29,87 +30,11 @@ function normalizeArray(value: unknown): string[] {
     .filter((entry): entry is string => Boolean(entry));
 }
 
-/**
- * Checks if value is a nested media object: { src: "url", mediaId?, renditions?, ... }
- * This structure comes from runtime-media-resolver when mediaId references are resolved.
- */
-function isNestedMediaSrc(
-  value: unknown
-): value is { src: string; mediaId?: string; originalUrl?: string; renditions?: unknown[] } {
-  return (
-    isRecord(value) &&
-    typeof (value as Record<string, unknown>).src === 'string'
-  );
-}
-
-function normalizeImage(value: unknown) {
-  if (!value) {
-    return undefined;
-  }
-
-  if (typeof value === 'string') {
-    const src = validateImageUrl(value);
-    return src ? { src } : undefined;
-  }
-
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  // Handle nested media object: image.src = { src: "url", mediaId, originalUrl, renditions }
-  // This structure comes from runtime-media-resolver when mediaId references are resolved
-  let resolvedSrc: string | undefined;
-  let resolvedOriginalUrl: string | undefined;
-  let sourceRenditions: unknown[] | undefined;
-
-  if (typeof value.src === 'string') {
-    // Direct string src
-    resolvedSrc = validateImageUrl(value.src);
-    resolvedOriginalUrl = normalizeString(value.originalUrl);
-    sourceRenditions = value.renditions as unknown[] | undefined;
-  } else if (isNestedMediaSrc(value.src)) {
-    // Nested object: image.src = { src: "url", mediaId: "...", originalUrl: "...", renditions: [...] }
-    resolvedSrc = validateImageUrl(value.src.src);
-    resolvedOriginalUrl = normalizeString(value.src.originalUrl) ?? normalizeString(value.originalUrl);
-    sourceRenditions = Array.isArray(value.src.renditions)
-      ? value.src.renditions
-      : (value.renditions as unknown[] | undefined);
-  }
-
-  if (!resolvedSrc) {
-    return undefined;
-  }
-
-  const renditions = Array.isArray(sourceRenditions)
-    ? sourceRenditions
-        .map(entry => {
-          if (!isRecord(entry)) return null;
-          const renditionSrc = validateImageUrl(entry.src as string | undefined);
-          if (!renditionSrc) return null;
-          return {
-            src: renditionSrc,
-            width: typeof entry.width === 'number' ? entry.width : null,
-            height: typeof entry.height === 'number' ? entry.height : null,
-          };
-        })
-        .filter((entry): entry is { src: string; width: number | null; height: number | null } =>
-          Boolean(entry),
-        )
-    : undefined;
-
-  return {
-    src: resolvedSrc,
-    alt: normalizeString(value.alt),
-    originalUrl: resolvedOriginalUrl,
-    ...(renditions && renditions.length > 0 ? { renditions } : {}),
-  };
-}
-
 function resolveItemKey(item: ContentFeedItem, index: number): string {
   const candidates = [
     normalizeString(item.id),
     normalizeString(item.slug),
-    normalizeString(item.href),
+    resolveSmartLinkHref(item.href),
     normalizeString(item.url),
     normalizeString(item.title),
   ];
@@ -128,7 +53,7 @@ function normalizeItem(item: ContentFeedItem, index: number, isPinned = false): 
   const title = normalizeString(item.title) ?? 'Untitled';
   const summary =
     normalizeString(item.summary) ?? normalizeString(item.excerpt) ?? normalizeString(item.description);
-  const href = normalizeString(item.href) ?? normalizeString(item.url);
+  const href = resolveSmartLinkHref(item.href) ?? normalizeString(item.url);
 
   const tags = normalizeArray(item.tags ?? item.metadata?.tags);
   const categories = normalizeArray(item.categories ?? item.metadata?.categories);
@@ -140,7 +65,7 @@ function normalizeItem(item: ContentFeedItem, index: number, isPinned = false): 
   const updatedAt = normalizeString(item.updatedAt) ?? normalizeString(item.metadata?.updatedAt);
   const createdAt = normalizeString(item.createdAt) ?? normalizeString(item.metadata?.createdAt);
 
-  const image = normalizeImage(item.image);
+  const image = normalizeCmsImage(item.image, title);
 
   return {
     id,

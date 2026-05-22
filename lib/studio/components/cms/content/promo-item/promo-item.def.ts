@@ -96,11 +96,15 @@ export const PromoItemDef = defineComponent({
   sample: {
     headline: 'Limited Time Offer',
     body: 'Save 30% on all studio plans this week only',
-    image: '/images/promo-studio.jpg',
+    image: {
+      src: { mediaId: 'sample-promo-studio', mediaType: 'image', url: '/images/promo-studio.jpg' },
+      alt: 'Studio plan promotion',
+      originalUrl: '/images/promo-studio.jpg',
+    },
     imageAlt: 'Studio plan promotion',
     cta: {
       label: 'Claim Offer',
-      href: '/pricing?promo=30off',
+      href: { type: 'internal', pageId: 'pricing', path: '/pricing?promo=30off' },
       variant: 'primary',
     },
     ribbon: 'Save 30%',

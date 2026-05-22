@@ -42,17 +42,21 @@ export async function PATCH(
       return NextResponse.json({ error: 'Malformed request body' }, { status: 400 });
     }
 
-    const pageId: string | undefined = body?.pageId;
+    const pageId = typeof body.pageId === 'string' ? body.pageId : undefined;
     if (!Object.prototype.hasOwnProperty.call(body, 'overrides')) {
       return NextResponse.json({ error: 'Missing overrides' }, { status: 400 });
     }
     const overrides = body.overrides as unknown;
     const ifUnmodifiedSinceHeader = request.headers.get('If-Unmodified-Since') || request.headers.get('if-unmodified-since');
-    const ifBody = (body?.ifUnchangedSince as string | undefined) ?? undefined;
+    const ifBody = typeof body.ifUnchangedSince === 'string' ? body.ifUnchangedSince : undefined;
     const ifUnchangedSince = ifUnmodifiedSinceHeader ? new Date(ifUnmodifiedSinceHeader) : (ifBody ? new Date(ifBody) : undefined);
 
     if (!pageId || !instanceId) {
       return NextResponse.json({ error: 'Missing pageId or instanceId' }, { status: 400 });
+    }
+
+    if (ifUnchangedSince && Number.isNaN(ifUnchangedSince.getTime())) {
+      return NextResponse.json({ error: 'Invalid ifUnchangedSince value' }, { status: 400 });
     }
 
     if (overrides !== null && !isPlainObject(overrides)) {

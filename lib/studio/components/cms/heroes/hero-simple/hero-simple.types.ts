@@ -1,8 +1,9 @@
 import type { CMSComponentProps } from '../../_core/types';
-import { type CTAButton, type Link } from '@/lib/studio/components/cms/_core/value-objects';
+import { type CTAButton as RegistryCTAButton, type Link } from '@/lib/studio/components/cms/_core/value-objects';
 
 // HeroSimpleCTA and HeroSimpleLink are now imported as CTAButton and Link
 // Note: CTAButton supports both 'text' and 'label' properties for compatibility
+export type CTAButton = RegistryCTAButton;
 export type HeroSimpleCTA = CTAButton;
 export type HeroSimpleLink = Link;
 
@@ -43,6 +44,6 @@ export interface HeroSimpleContent {
   height?: HeroHeight;
 }
 
-export interface HeroSimpleProps extends CMSComponentProps {
+export interface HeroSimpleProps extends Omit<CMSComponentProps, 'content'> {
   content: HeroSimpleContent;
 }

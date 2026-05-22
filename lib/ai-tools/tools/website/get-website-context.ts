@@ -16,6 +16,12 @@ type MediaCatalogItem = {
   originalUrl: string | null;
 };
 
+const getWebsiteContextInputSchema = z.object({
+  websiteId: z.string().describe('The ID of the website to retrieve context for'),
+});
+
+type GetWebsiteContextInput = z.infer<typeof getWebsiteContextInputSchema>;
+
 const fetchMediaCatalog = async (websiteId: string): Promise<MediaCatalogItem[]> => {
   try {
     const mediaIds = await prisma.websiteMedia.findMany({
@@ -58,10 +64,8 @@ const fetchMediaCatalog = async (websiteId: string): Promise<MediaCatalogItem[]>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getWebsiteContext = (tool as any)({
   description: 'Retrieves current website metadata and business requirements',
-  inputSchema: z.object({
-    websiteId: z.string().describe('The ID of the website to retrieve context for'),
-  }),
-  execute: async ({ websiteId }) => {
+  inputSchema: getWebsiteContextInputSchema,
+  execute: async ({ websiteId }: GetWebsiteContextInput) => {
     const startTime = Date.now();
     
     try {

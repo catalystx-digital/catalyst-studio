@@ -1,6 +1,8 @@
 import { CMSComponentProps } from '../../_core/types';
 import { type CTAButton } from '@/lib/studio/components/cms/_core/value-objects';
 
+export type { CTAButton } from '@/lib/studio/components/cms/_core/value-objects';
+
 export interface CTAButtonGroupContent {
   heading?: string;
   subheading?: string;

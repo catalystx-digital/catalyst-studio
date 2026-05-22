@@ -6,6 +6,7 @@ import {
   confidenceScorer,
   type ContentTypeDefinition 
 } from '@/lib/services/universal-types/validation';
+import type { CreateContentTypeRequest } from '@/lib/api/validation/content-type';
 
 type FieldType = 'text' | 'textarea' | 'richtext' | 'number' | 'boolean' | 'date' | 'image' | 'richText' | 'reference' | 'select' | 'gallery' | 'tags' | 'json' | 'url';
 
@@ -27,28 +28,33 @@ const fieldSchema = z.object({
   order: z.number().optional()
 });
 
+const createContentTypeInputSchema = z.object({
+  websiteId: z.string().describe('The website ID'),
+  name: z.string().describe('The content type name'),
+  category: z.enum(['page', 'component', 'folder']).describe('Content type category - page for routable content, component for reusable blocks, folder for organizational structure'),
+  fields: z.array(fieldSchema).optional()
+    .describe('Custom fields (category-specific fields will be added automatically)'),
+  settings: z.record(z.any()).optional()
+    .describe('Additional settings for the content type')
+});
+
+type ContentTypeFieldInput = z.infer<typeof fieldSchema>;
+type CreateContentTypeInput = z.infer<typeof createContentTypeInputSchema>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const createContentType = (tool as any)({
   description: 'Create a new content type with automatic field inference based on category',
-  inputSchema: z.object({
-    websiteId: z.string().describe('The website ID'),
-    name: z.string().describe('The content type name'),
-    category: z.enum(['page', 'component', 'folder']).describe('Content type category - page for routable content, component for reusable blocks, folder for organizational structure'),
-    fields: z.array(fieldSchema).optional()
-      .describe('Custom fields (category-specific fields will be added automatically)'),
-    settings: z.record(z.any()).optional()
-      .describe('Additional settings for the content type')
-  }),
-  execute: async ({ websiteId, name, category, fields = [], settings = {} }) => {
+  inputSchema: createContentTypeInputSchema,
+  execute: async ({ websiteId, name, category, fields = [], settings = {} }: CreateContentTypeInput) => {
     const startTime = Date.now();
     
     try {
-      let inferredFields = [...fields];
+      let inferredFields: ContentTypeFieldInput[] = [...fields];
       
       // Apply category-specific default fields
       if (category === 'page' && inferredFields.length === 0) {
         // Add default page fields if no fields provided
-        const pageFields = [
+        const pageFields: ContentTypeFieldInput[] = [
           { name: 'title', type: 'text' as FieldType, required: true, label: 'Title', order: 1 },
           { name: 'slug', type: 'text' as FieldType, required: true, label: 'URL Slug', order: 2 },
           { name: 'content', type: 'richtext' as FieldType, required: true, label: 'Content', order: 3 }
@@ -57,7 +63,7 @@ export const createContentType = (tool as any)({
         inferredFields = pageFields;
       } else if (category === 'component' && inferredFields.length === 0) {
         // Add default component fields if no fields provided
-        const componentFields = [
+        const componentFields: ContentTypeFieldInput[] = [
           { name: 'title', type: 'text' as FieldType, required: true, label: 'Title', order: 1 },
           { name: 'content', type: 'richtext' as FieldType, required: false, label: 'Content', order: 2 }
         ];
@@ -82,7 +88,7 @@ export const createContentType = (tool as any)({
       console.log(`AI-generated type confidence: ${confidenceScore.total}% (${confidenceScore.threshold})`);
       
       // Prepare fields with proper IDs and type validation
-      const preparedFields = inferredFields.map((field: any, index) => ({
+      const preparedFields = inferredFields.map((field, index) => ({
         ...field,
         id: field.id || `field_${field.name}_${Date.now()}_${index}`,
         type: field.type as 'text' | 'textarea' | 'richtext' | 'number' | 'boolean' | 'date' | 'image' | 'richText' | 'reference' | 'select' | 'gallery' | 'tags' | 'json' | 'url',
@@ -97,7 +103,7 @@ export const createContentType = (tool as any)({
         icon: (settings.icon as string) || '📋',
         description: (settings.description as string) || '',
         category,
-        fields: preparedFields,
+        fields: preparedFields as unknown as CreateContentTypeRequest['fields'],
         relationships: []
       }, 'AI');
       

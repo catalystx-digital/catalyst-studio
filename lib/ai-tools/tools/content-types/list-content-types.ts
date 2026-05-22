@@ -2,13 +2,17 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { getContentTypes } from '@/lib/services/content-type-service';
 
+const listContentTypesInputSchema = z.object({
+  websiteId: z.string().optional().describe('Filter by website ID')
+});
+
+type ListContentTypesInput = z.infer<typeof listContentTypesInputSchema>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const listContentTypes = (tool as any)({
   description: 'List all content types with optional filtering by website',
-  inputSchema: z.object({
-    websiteId: z.string().optional().describe('Filter by website ID')
-  }),
-  execute: async ({ websiteId }) => {
+  inputSchema: listContentTypesInputSchema,
+  execute: async ({ websiteId }: ListContentTypesInput) => {
     const startTime = Date.now();
     
     try {

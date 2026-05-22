@@ -95,11 +95,15 @@ export const HeroCarouselDef = defineComponent({
         body: 'Experience the future of productivity',
         theme: 'dark',
         alignment: 'left',
-        image: { src: 'https://example.com/hero1.jpg', alt: 'Product showcase' },
+        image: {
+          src: { mediaId: 'sample-hero-carousel-1', mediaType: 'image', url: 'https://example.com/hero1.jpg' },
+          alt: 'Product showcase',
+          originalUrl: 'https://example.com/hero1.jpg',
+        },
         overlay: { color: '#000000', opacity: 0.4 },
         ctaButtons: [
-          { label: 'Learn More', href: '/product', variant: 'primary' },
-          { label: 'Watch Demo', href: '/demo', variant: 'outline' },
+          { label: 'Learn More', href: { type: 'internal', pageId: 'product', path: '/product' }, variant: 'primary' },
+          { label: 'Watch Demo', href: { type: 'internal', pageId: 'demo', path: '/demo' }, variant: 'outline' },
         ],
       },
       {
@@ -109,9 +113,13 @@ export const HeroCarouselDef = defineComponent({
         subheading: 'How companies achieve 10x growth with our platform',
         theme: 'light',
         alignment: 'center',
-        image: { src: 'https://example.com/hero2.jpg', alt: 'Success story' },
+        image: {
+          src: { mediaId: 'sample-hero-carousel-2', mediaType: 'image', url: 'https://example.com/hero2.jpg' },
+          alt: 'Success story',
+          originalUrl: 'https://example.com/hero2.jpg',
+        },
         ctaButtons: [
-          { label: 'Read Story', href: '/case-studies', variant: 'primary' },
+          { label: 'Read Story', href: { type: 'internal', pageId: 'case-studies', path: '/case-studies' }, variant: 'primary' },
         ],
       },
     ],

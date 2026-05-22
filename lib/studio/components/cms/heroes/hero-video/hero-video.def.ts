@@ -108,7 +108,7 @@ export const HeroVideoDef = defineComponent({
       heading: 'Experience Innovation',
       subheading: 'Watch how we transform digital experiences',
       ctaButtons: [
-        { label: 'Learn More', href: '/about', variant: 'primary' },
+        { label: 'Learn More', href: { type: 'internal', pageId: 'about', path: '/about' }, variant: 'primary' },
       ],
     },
     videoSettings: {

@@ -97,23 +97,26 @@ export const ImageGalleryDef = defineComponent({
   sample: {
     images: [
       {
-        src: '/images/gallery-1.jpg',
+        src: { mediaId: 'sample-gallery-1', mediaType: 'image', url: '/images/gallery-1.jpg' },
         alt: 'Mountain landscape at sunset',
+        originalUrl: '/images/gallery-1.jpg',
         caption: 'Sunset over the Rockies',
       },
       {
-        src: '/images/gallery-2.jpg',
+        src: { mediaId: 'sample-gallery-2', mediaType: 'image', url: '/images/gallery-2.jpg' },
         alt: 'Ocean waves crashing on shore',
+        originalUrl: '/images/gallery-2.jpg',
         caption: 'Pacific Coast Highway',
       },
       {
-        src: '/images/gallery-3.jpg',
+        src: { mediaId: 'sample-gallery-3', mediaType: 'image', url: '/images/gallery-3.jpg' },
         alt: 'Forest path in autumn',
+        originalUrl: '/images/gallery-3.jpg',
         caption: 'Fall colors in Vermont',
       },
     ],
     displayMode: 'grid',
-    columns: '3',
+    columns: 3,
     spacing: 'normal',
     showCaptions: true,
     enableLightbox: true,

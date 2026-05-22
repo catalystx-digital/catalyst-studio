@@ -20,6 +20,7 @@ import {
   themeClass,
 } from '../../_ui';
 import type { ComponentTheme } from '../../_core/types';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import {
   CardGridClientProps,
   NormalizedCardItem,
@@ -91,6 +92,10 @@ function navigateTo(url?: string): void {
   }
 
   window.location.href = url;
+}
+
+function resolveActionUrl(action: NonNullable<NormalizedCardItem['actions']>[number]): string | undefined {
+  return resolveSmartLinkHref(action.url) ?? resolveSmartLinkHref(action.href);
 }
 
 /**
@@ -357,7 +362,7 @@ export function CardGridClient({
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                navigateTo(action.url);
+                navigateTo(resolveActionUrl(action));
               }}
             >
               {action.label}

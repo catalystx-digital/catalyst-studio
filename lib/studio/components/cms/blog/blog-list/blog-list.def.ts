@@ -126,7 +126,7 @@ export const BlogListDef = defineComponent({
     title: 'Latest Articles',
     description: 'Explore our collection of technical articles and tutorials',
     viewMode: 'grid',
-    columns: '3',
+    columns: 3,
     showPagination: true,
     postsPerPage: 9,
     currentPage: 1,

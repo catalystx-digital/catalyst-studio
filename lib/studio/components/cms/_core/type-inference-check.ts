@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod'
-import { HeroWithImageDef, type HeroWithImageContent } from '../../heroes/hero-with-image/hero-with-image.def'
+import { HeroWithImageDef, type HeroWithImageContent } from '../heroes/hero-with-image/hero-with-image.def'
 
 // Test 1: Verify type inference from schema
 type InferredType = z.infer<typeof HeroWithImageDef.schema>
@@ -30,13 +30,21 @@ const validComplete: HeroWithImageContent = {
   layout: 'image-right',
   theme: 'light',
   image: {
-    src: 'test.jpg',
+    src: {
+      mediaId: 'test-image',
+      mediaType: 'image',
+      url: 'test.jpg'
+    },
     alt: 'Test image'
   },
   ctaButtons: [
     {
       label: 'Click me',
-      href: '/test'
+      href: {
+        type: 'internal',
+        pageId: 'test',
+        path: '/test'
+      }
     }
   ]
 }
@@ -56,7 +64,11 @@ const testLayout: HeroWithImageContent['layout'] = 'image-right' // Valid
 
 // Test 6: Verify nested object types (Image schema)
 const testImage: NonNullable<HeroWithImageContent['image']> = {
-  src: 'test.jpg',
+  src: {
+    mediaId: 'test-image',
+    mediaType: 'image',
+    url: 'test.jpg'
+  },
   alt: 'Test',
   width: 800,
   height: 600
@@ -66,12 +78,20 @@ const testImage: NonNullable<HeroWithImageContent['image']> = {
 const testCTAButtons: NonNullable<HeroWithImageContent['ctaButtons']> = [
   {
     label: 'Primary',
-    href: '/primary',
+    href: {
+      type: 'internal',
+      pageId: 'primary',
+      path: '/primary'
+    },
     variant: 'primary'
   },
   {
-    text: 'Secondary',
-    url: '/secondary',
+    label: 'Secondary',
+    href: {
+      type: 'internal',
+      pageId: 'secondary',
+      path: '/secondary'
+    },
     variant: 'secondary'
   }
 ]

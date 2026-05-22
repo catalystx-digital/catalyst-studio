@@ -74,9 +74,9 @@ export const CTAButtonGroupDef = defineComponent({
   sample: {
     heading: 'Choose Your Action',
     buttons: [
-      { label: 'Get Started', href: '/signup', variant: 'primary' },
-      { label: 'Learn More', href: '/features', variant: 'outline' },
-      { label: 'Contact Us', href: '/contact', variant: 'secondary' },
+      { label: 'Get Started', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+      { label: 'Learn More', href: { type: 'internal', pageId: 'features', path: '/features' }, variant: 'outline' },
+      { label: 'Contact Us', href: { type: 'internal', pageId: 'contact', path: '/contact' }, variant: 'secondary' },
     ],
     alignment: 'center',
     orientation: 'horizontal',

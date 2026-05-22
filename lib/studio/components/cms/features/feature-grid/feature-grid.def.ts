@@ -69,7 +69,7 @@ export const FeatureGridDef = defineComponent({
       { icon: 'shield', title: 'Secure', description: 'Enterprise-grade security' },
       { icon: 'users', title: 'Collaborative', description: 'Built for teams' },
     ],
-    columns: '3',
+    columns: 3,
   },
 
   // Human-readable description

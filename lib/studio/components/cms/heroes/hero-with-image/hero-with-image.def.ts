@@ -125,8 +125,13 @@ export const HeroWithImageDef = defineComponent({
     layout: 'image-right',
     theme: 'light',
     image: {
-      src: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&h=800&fit=crop',
+      src: {
+        mediaId: 'sample-hero-with-image',
+        mediaType: 'image',
+        url: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&h=800&fit=crop',
+      },
       alt: 'Team collaborating on digital project',
+      originalUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&h=800&fit=crop',
       width: 1200,
       height: 800,
       objectFit: 'cover',
@@ -135,12 +140,12 @@ export const HeroWithImageDef = defineComponent({
     ctaButtons: [
       {
         label: 'Get Started',
-        href: '/signup',
+        href: { type: 'internal', pageId: 'signup', path: '/signup' },
         variant: 'primary'
       },
       {
         label: 'Learn More',
-        href: '/features',
+        href: { type: 'internal', pageId: 'features', path: '/features' },
         variant: 'secondary'
       }
     ]

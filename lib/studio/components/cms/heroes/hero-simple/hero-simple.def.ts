@@ -127,12 +127,12 @@ export const HeroSimpleDef = defineComponent({
     subheading: 'Our platform helps businesses succeed in the modern digital landscape',
     body: 'Join thousands of companies already growing with our solution',
     ctaButtons: [
-      { label: 'Get Started', href: '/signup', variant: 'primary' },
-      { label: 'Learn More', href: '/about', variant: 'outline' },
+      { label: 'Get Started', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+      { label: 'Learn More', href: { type: 'internal', pageId: 'about', path: '/about' }, variant: 'outline' },
     ],
     supportingLinks: [
-      { label: 'View Demo', href: '/demo' },
-      { label: 'Contact Sales', href: '/contact' },
+      { label: 'View Demo', href: { type: 'internal', pageId: 'demo', path: '/demo' } },
+      { label: 'Contact Sales', href: { type: 'internal', pageId: 'contact', path: '/contact' } },
     ],
     alignment: 'center',
     height: 'full',

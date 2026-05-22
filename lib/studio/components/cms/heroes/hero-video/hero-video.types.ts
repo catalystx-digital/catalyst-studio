@@ -1,7 +1,8 @@
-import { CMSComponentProps } from '../../_core/types';
-import { type CTAButton, type VideoSource, type Image } from '@/lib/studio/components/cms/_core/value-objects';
+import type { CMSComponentProps } from '../../_core/types';
+import { type CTAButton as RegistryCTAButton, type VideoSource, type Image } from '@/lib/studio/components/cms/_core/value-objects';
 
 // CTAButton now imported from registry
+export type CTAButton = RegistryCTAButton;
 
 export interface VideoSettings {
   autoplay?: boolean;
@@ -33,6 +34,6 @@ export interface HeroVideoContent {
   alignment?: 'left' | 'center' | 'right';
 }
 
-export interface HeroVideoProps extends CMSComponentProps {
+export interface HeroVideoProps extends Omit<CMSComponentProps, 'content'> {
   content: HeroVideoContent;
 }

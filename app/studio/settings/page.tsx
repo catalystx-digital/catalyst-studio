@@ -29,8 +29,8 @@ interface Website {
 export default function UnifiedSettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const websiteId = searchParams.get('websiteId');
-  const defaultTab = searchParams.get('tab') || (websiteId ? 'general' : 'usage');
+  const websiteId = searchParams?.get('websiteId') ?? null;
+  const defaultTab = searchParams?.get('tab') || (websiteId ? 'general' : 'usage');
 
   const { toast } = useToast();
   const [website, setWebsite] = useState<Website | null>(null);

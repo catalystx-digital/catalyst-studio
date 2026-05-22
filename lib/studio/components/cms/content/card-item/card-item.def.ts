@@ -117,9 +117,13 @@ export const CardItemDef = defineComponent({
   sample: {
     title: 'Getting Started Guide',
     description: 'Learn the basics of our platform in just 10 minutes',
-    image: '/images/guide-thumbnail.jpg',
+    image: {
+      src: { mediaId: 'sample-guide-thumbnail', mediaType: 'image', url: '/images/guide-thumbnail.jpg' },
+      alt: 'Getting started guide thumbnail',
+      originalUrl: '/images/guide-thumbnail.jpg',
+    },
     imageAlt: 'Getting started guide thumbnail',
-    href: { type: 'internal', pageId: 'getting-started-guide' },
+    href: { type: 'internal', pageId: 'getting-started-guide', path: '/guides/getting-started' },
     linkText: 'Read Guide',
     badge: 'New',
     metadata: {
@@ -129,7 +133,7 @@ export const CardItemDef = defineComponent({
       tags: ['tutorial', 'beginner'],
     },
     actions: [
-      { label: 'Read More', href: { type: 'internal', pageId: 'getting-started-guide' }, variant: 'primary' },
+      { label: 'Read More', href: { type: 'internal', pageId: 'getting-started-guide', path: '/guides/getting-started' }, variant: 'primary' },
     ],
   },
 

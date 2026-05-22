@@ -2,13 +2,17 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { getContentType as getContentTypeService } from '@/lib/services/content-type-service';
 
+const getContentTypeInputSchema = z.object({
+  id: z.string().describe('The content type ID')
+});
+
+type GetContentTypeInput = z.infer<typeof getContentTypeInputSchema>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getContentType = (tool as any)({
   description: 'Get detailed information about a specific content type',
-  inputSchema: z.object({
-    id: z.string().describe('The content type ID')
-  }),
-  execute: async ({ id }) => {
+  inputSchema: getContentTypeInputSchema,
+  execute: async ({ id }: GetContentTypeInput) => {
     const startTime = Date.now();
     
     try {

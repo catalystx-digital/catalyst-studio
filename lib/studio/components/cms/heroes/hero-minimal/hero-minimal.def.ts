@@ -88,8 +88,8 @@ export const HeroMinimalDef = defineComponent({
     heading: 'Welcome to Our Platform',
     subheading: 'Simple, powerful, and built for you',
     ctaButtons: [
-      { label: 'Get Started', href: '/signup', variant: 'primary' },
-      { label: 'Learn More', href: '/about', variant: 'ghost' },
+      { label: 'Get Started', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+      { label: 'Learn More', href: { type: 'internal', pageId: 'about', path: '/about' }, variant: 'outline' },
     ],
     alignment: 'center',
     padding: 'large',

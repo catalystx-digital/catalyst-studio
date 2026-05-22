@@ -331,14 +331,7 @@ async function createDefaultDesignSystem(websiteId: string, originalPrompt?: str
       await designSystemRepo.create({
         websiteId,
         designConceptId: concept.id,
-        tokens: {
-          variables: result.tokens.variables,
-          extraction: {
-            ...result.tokens.extraction,
-            strategy: result.hasCustomColors ? 'llm-prompt' : 'shadcn-defaults',
-            sourceType: 'greenfield',
-          },
-        },
+        tokens: result.tokens,
       });
     }
     return true;

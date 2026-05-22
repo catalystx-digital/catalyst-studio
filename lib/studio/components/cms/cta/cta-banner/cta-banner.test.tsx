@@ -16,12 +16,12 @@ describe('CTABanner Component', () => {
       heading: 'Ready to launch?',
       subheading: 'Deploy your Catalyst site with a single click.',
       primaryButton: {
-        text: 'Get Started',
-        url: '/start',
+        label: 'Get Started',
+        href: '/start',
       },
       secondaryButton: {
-        text: 'Contact Sales',
-        url: '/contact',
+        label: 'Contact Sales',
+        href: '/contact',
       },
       alignment: 'center' as const,
     },
@@ -53,8 +53,32 @@ describe('CTABanner Component', () => {
     expect(onInteraction).toHaveBeenCalledTimes(2);
   });
 
-  it('applies background image styles when provided', () => {
+  it('renders structured SmartLink button defaults', () => {
     render(
+      <CTABanner
+        {...baseProps}
+        content={{
+          ...baseProps.content,
+          primaryButton: {
+            label: 'Sign Up Now',
+            href: { type: 'internal', pageId: 'signup', path: '/signup' },
+            variant: 'primary',
+          },
+          secondaryButton: {
+            label: 'Learn More',
+            href: { type: 'external', url: 'https://example.com/features' },
+            variant: 'outline',
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Sign Up Now' })).toHaveAttribute('href', '/signup');
+    expect(screen.getByRole('link', { name: 'Learn More' })).toHaveAttribute('href', 'https://example.com/features');
+  });
+
+  it('applies background image styles when provided', () => {
+    const { container } = render(
       <CTABanner
         {...baseProps}
         content={{
@@ -64,11 +88,11 @@ describe('CTABanner Component', () => {
       />,
     );
 
-    const card = screen.getByTestId('cta-banner-card');
+    const card = container.querySelector('.cms-cta-banner .rounded-xl') as HTMLElement;
     expect(card.style.backgroundImage).toContain('banner.png');
   });
 
-  it('renders fallback alert when no buttons are provided', () => {
+  it('omits links when no buttons are provided', () => {
     render(
       <CTABanner
         {...baseProps}
@@ -80,10 +104,6 @@ describe('CTABanner Component', () => {
       />,
     );
 
-    expect(
-      screen.getByText(
-        'Configure primary or secondary buttons to display call-to-action links.',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 });

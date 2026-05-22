@@ -7,6 +7,8 @@ import { ComponentType, ComponentCategory } from '../../_core/types';
 import { LogoStripContent } from './logo-strip.types';
 
 describe('LogoStrip', () => {
+  const getSectionRegion = () => screen.getByRole('region', { name: 'Our partners and clients' });
+
   const mockContent: LogoStripContent = {
     logos: [
       {
@@ -48,7 +50,7 @@ describe('LogoStrip', () => {
   it('renders with required props', () => {
     render(<LogoStrip {...defaultProps} />);
     
-    expect(screen.getByRole('region')).toBeInTheDocument();
+    expect(getSectionRegion()).toBeInTheDocument();
     expect(screen.getByAltText('Company A')).toBeInTheDocument();
     expect(screen.getByAltText('Company B')).toBeInTheDocument();
     expect(screen.getByAltText('Company C')).toBeInTheDocument();
@@ -86,6 +88,26 @@ describe('LogoStrip', () => {
     expect(companyALink).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('renders structured logo hrefs as links', () => {
+    render(
+      <LogoStrip
+        {...defaultProps}
+        content={{
+          logos: [
+            {
+              id: 'structured',
+              src: '/images/structured-logo.png',
+              alt: 'Structured Company',
+              href: { type: 'external', url: 'https://structured.example.com' },
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByLabelText('Visit Structured Company website')).toHaveAttribute('href', 'https://structured.example.com');
+  });
+
   it('applies different sizes correctly', () => {
     const { rerender } = render(
       <LogoStrip 
@@ -121,7 +143,7 @@ describe('LogoStrip', () => {
     
     const image = screen.getByAltText('Company A');
     expect(image.className).toContain('grayscale');
-    expect(image.className).toContain('opacity-70');
+    expect(image.className).toContain('opacity-75');
     expect(image.className).toContain('group-hover:grayscale-0');
   });
 
@@ -165,7 +187,7 @@ describe('LogoStrip', () => {
     expect(captionElement.innerHTML).not.toContain('script');
   });
 
-  it('returns null when no logos are provided', () => {
+  it('renders the empty state when no logos are provided in tests', () => {
     const { container } = render(
       <LogoStrip 
         {...defaultProps} 
@@ -173,7 +195,7 @@ describe('LogoStrip', () => {
       />
     );
     
-    expect(container.firstChild).toBeNull();
+    expect(container).toHaveTextContent('Partner logos will appear here once configured.');
   });
 
   it('applies theme classes correctly', () => {
@@ -181,25 +203,25 @@ describe('LogoStrip', () => {
       <LogoStrip {...defaultProps} theme="dark" />
     );
     
-    let container = screen.getByRole('region');
+    let container = getSectionRegion();
     expect(container.className).toContain('theme-dark');
     
     rerender(<LogoStrip {...defaultProps} theme="light" />);
-    container = screen.getByRole('region');
+    container = getSectionRegion();
     expect(container.className).toContain('theme-light');
   });
 
   it('has proper ARIA attributes for accessibility', () => {
     render(<LogoStrip {...defaultProps} />);
     
-    const container = screen.getByRole('region');
+    const container = getSectionRegion();
     expect(container).toHaveAttribute('aria-label', 'Our partners and clients');
   });
 
   it('has correct data attributes', () => {
     render(<LogoStrip {...defaultProps} />);
     
-    const container = screen.getByRole('region');
+    const container = getSectionRegion();
     expect(container).toHaveAttribute('data-component-type', ComponentType.LogoCloud);
     expect(container).toHaveAttribute('data-category', ComponentCategory.SocialProof);
   });

@@ -132,8 +132,8 @@ export const HeroBannerDef = defineComponent({
       opacity: 0.5,
     },
     ctaButtons: [
-      { label: 'Get Started Free', href: '/signup', variant: 'primary' },
-      { label: 'Watch Demo', href: '/demo', variant: 'outline' },
+      { label: 'Get Started Free', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+      { label: 'Watch Demo', href: { type: 'internal', pageId: 'demo', path: '/demo' }, variant: 'outline' },
     ],
     alignment: 'center',
     parallax: false,

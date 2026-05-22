@@ -12,7 +12,7 @@
  */
 
 import { getMediaStorageProvider } from '@/lib/studio/media/storage/media-storage-factory';
-import type { MediaStorageProvider as DbMediaStorageProvider } from '@prisma/client';
+import type { MediaStorageProvider as DbMediaStorageProvider } from '@/lib/generated/prisma';
 import { buildMediaApiUrl, type MediaUrlInfo } from './media-url-loader';
 
 /**

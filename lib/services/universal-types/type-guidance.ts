@@ -12,6 +12,14 @@ const canonicalize = (value: unknown): string => {
   return value === undefined || value === null ? '' : String(value);
 };
 
+const getArrayType = (field: z.ZodTypeAny): z.ZodArray<z.ZodTypeAny> | null => {
+  if (field instanceof z.ZodArray) return field
+  if (field instanceof z.ZodOptional && field._def.innerType instanceof z.ZodArray) {
+    return field._def.innerType as z.ZodArray<z.ZodTypeAny>
+  }
+  return null
+}
+
 export async function getRegisteredComponentTypeKeys(): Promise<string[]> {
   await initializeCMSComponents()
   const seen = new Set<string>()
@@ -39,10 +47,10 @@ export async function getContentAreaGuidanceFor(componentTypeKey: string): Promi
   const out: FieldGuidance[] = []
   for (const [name, zodType] of Object.entries(entry.schema.shape)) {
     const field = zodType as z.ZodTypeAny
+    const arrayType = getArrayType(field)
 
     // Check if this is an array of content/components
-    if (field instanceof z.ZodArray || (field instanceof z.ZodOptional && field._def.innerType instanceof z.ZodArray)) {
-      const arrayType = field instanceof z.ZodArray ? field : (field as z.ZodOptional)._def.innerType as z.ZodArray<any>
+    if (arrayType) {
       const typeString = zodSchemaToTypeString(arrayType)
 
       // content[] arrays should be tracked
@@ -71,10 +79,10 @@ export async function getAllContentAreaGuidance(): Promise<Record<string, FieldG
     const fields: FieldGuidance[] = []
     for (const [name, zodType] of Object.entries(entry.schema.shape)) {
       const field = zodType as z.ZodTypeAny
+      const arrayType = getArrayType(field)
 
       // Check if this is an array of content/components
-      if (field instanceof z.ZodArray || (field instanceof z.ZodOptional && field._def.innerType instanceof z.ZodArray)) {
-        const arrayType = field instanceof z.ZodArray ? field : (field as z.ZodOptional)._def.innerType as z.ZodArray<any>
+      if (arrayType) {
         const typeString = zodSchemaToTypeString(arrayType)
 
         // content[] arrays should be tracked

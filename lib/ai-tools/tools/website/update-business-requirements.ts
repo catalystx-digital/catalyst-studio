@@ -2,30 +2,39 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { getClient } from '@/lib/db/client';
 
+const updateBusinessRequirementsInputSchema = z.object({
+  websiteId: z.string().describe('The ID of the website to update'),
+  category: z.string().optional().describe('Website category (blog, ecommerce, portfolio, etc.)'),
+  contentTypes: z.array(z.string()).optional().describe('Supported content types for the website'),
+  requiredFields: z.record(z.array(z.string())).optional().describe('Required fields per content type'),
+  validationRules: z.record(z.any()).optional().describe('Custom validation rules'),
+  seoRequirements: z.object({
+    titleMinLength: z.number().optional(),
+    titleMaxLength: z.number().optional(),
+    descriptionMinLength: z.number().optional(),
+    descriptionMaxLength: z.number().optional(),
+    requireOgImage: z.boolean().optional(),
+    requireCanonicalUrl: z.boolean().optional(),
+  }).optional().describe('SEO-specific requirements'),
+  customRules: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    condition: z.string(),
+    action: z.string(),
+  })).optional().describe('Custom business rules'),
+});
+
+type UpdateBusinessRequirementsInput = z.infer<typeof updateBusinessRequirementsInputSchema>;
+type WebsiteBusinessRequirementsUpdate = {
+  updatedAt: Date;
+  metadata: string;
+  category?: string;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const updateBusinessRequirements = (tool as any)({
   description: 'Updates website business requirements and validation rules',
-  inputSchema: z.object({
-    websiteId: z.string().describe('The ID of the website to update'),
-    category: z.string().optional().describe('Website category (blog, ecommerce, portfolio, etc.)'),
-    contentTypes: z.array(z.string()).optional().describe('Supported content types for the website'),
-    requiredFields: z.record(z.array(z.string())).optional().describe('Required fields per content type'),
-    validationRules: z.record(z.any()).optional().describe('Custom validation rules'),
-    seoRequirements: z.object({
-      titleMinLength: z.number().optional(),
-      titleMaxLength: z.number().optional(),
-      descriptionMinLength: z.number().optional(),
-      descriptionMaxLength: z.number().optional(),
-      requireOgImage: z.boolean().optional(),
-      requireCanonicalUrl: z.boolean().optional(),
-    }).optional().describe('SEO-specific requirements'),
-    customRules: z.array(z.object({
-      name: z.string(),
-      description: z.string(),
-      condition: z.string(),
-      action: z.string(),
-    })).optional().describe('Custom business rules'),
-  }),
+  inputSchema: updateBusinessRequirementsInputSchema,
   execute: async ({
     websiteId,
     category,
@@ -34,7 +43,7 @@ export const updateBusinessRequirements = (tool as any)({
     validationRules,
     seoRequirements,
     customRules,
-  }) => {
+  }: UpdateBusinessRequirementsInput) => {
     const startTime = Date.now();
     
     try {
@@ -85,7 +94,7 @@ export const updateBusinessRequirements = (tool as any)({
         }
         
         // Prepare the update data
-        const updateData: any = {
+        const updateData: WebsiteBusinessRequirementsUpdate = {
           updatedAt: new Date(),
           metadata: JSON.stringify(updatedMetadata),
         };

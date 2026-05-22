@@ -12,6 +12,7 @@ import {
 
 import { cmsBody } from '../../_ui/typography';
 import { BreadcrumbsProps } from './breadcrumbs.types';
+import { resolveLinkHref } from '../footer/footer-link';
 
 interface BreadcrumbItem {
   label: string;
@@ -30,8 +31,7 @@ function normalizeItems(
     .map(item => {
       const label =
         typeof item.label === 'string' ? item.label.trim() : '';
-      const href =
-        typeof item.href === 'string' ? item.href.trim() : '#';
+      const href = resolveLinkHref(item.href) ?? '#';
       return { label, href };
     })
     .filter(item => item.label.length > 0);

@@ -95,7 +95,7 @@ export const ContactInfoDef = defineComponent({
       street: '123 Main Street',
       city: 'San Francisco',
       state: 'CA',
-      postalCode: '94102',
+      zip: '94102',
       country: 'United States',
     },
     phoneNumbers: [

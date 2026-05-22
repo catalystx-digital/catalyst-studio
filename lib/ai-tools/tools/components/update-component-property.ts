@@ -2,6 +2,14 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { ContentRepository } from '@/lib/services/unified-content-repository';
 
+const updateComponentPropertyInputSchema = z.object({
+  pageId: z.string().describe('The ID of the page containing the component'),
+  componentInstanceId: z.string().describe('The instance ID of the component to update'),
+  properties: z.record(z.any()).describe('The properties to update (e.g., { text: "New text", color: "blue" })')
+});
+
+type UpdateComponentPropertyInput = z.infer<typeof updateComponentPropertyInputSchema>;
+
 /**
  * Update a specific component's properties on a page
  * Uses the component overrides mechanism to persist changes
@@ -9,12 +17,8 @@ import { ContentRepository } from '@/lib/services/unified-content-repository';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const updateComponentProperty = (tool as any)({
   description: 'PREFERRED: Update properties of a specific component instance on a page (for visual/content changes to components like heading, text, colors, images, buttons, etc.). Always use this when modifying component properties. For page title/status changes, use updateContentItem instead.',
-  inputSchema: z.object({
-    pageId: z.string().describe('The ID of the page containing the component'),
-    componentInstanceId: z.string().describe('The instance ID of the component to update'),
-    properties: z.record(z.any()).describe('The properties to update (e.g., { text: "New text", color: "blue" })')
-  }),
-  execute: async ({ pageId, componentInstanceId, properties }) => {
+  inputSchema: updateComponentPropertyInputSchema,
+  execute: async ({ pageId, componentInstanceId, properties }: UpdateComponentPropertyInput) => {
     const startTime = Date.now();
 
     try {

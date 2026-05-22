@@ -867,8 +867,9 @@ export class OptimizelyClient {
 
     formData.append('metadata', JSON.stringify(metadata))
 
-    // Append the blob as a file
-    const blob = new Blob([request.blob], { type: request.contentType })
+    // Append a copied Uint8Array so DOM Blob receives an ArrayBuffer-backed BlobPart.
+    const blobPart = Uint8Array.from(request.blob)
+    const blob = new Blob([blobPart], { type: request.contentType })
     formData.append('file', blob, request.name)
 
     try {
@@ -958,4 +959,3 @@ export class OptimizelyClient {
     return 'GenericMedia'
   }
 }
-

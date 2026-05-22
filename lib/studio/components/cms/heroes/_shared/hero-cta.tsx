@@ -6,10 +6,17 @@ import { Button } from '@/components/ui/button';
 import { dsSpacing } from '../../_ui';
 import type { ComponentTheme } from '../../_core/types';
 import { safeString } from '../../_core/safe-string';
-import type { CTAButton } from '@/lib/studio/components/cms/_core/value-objects';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
+
+export interface CTAButton {
+  label: string;
+  href?: unknown;
+  variant?: string;
+  icon?: React.ReactNode;
+}
 
 interface HeroCTAProps {
-  buttons?: Array<{ label: string; href: string; variant?: string; icon?: React.ReactNode }>;
+  buttons?: CTAButton[];
   alignment?: 'left' | 'center' | 'right';
   theme?: ComponentTheme;
   onCtaClick?: (button: { label: string; href: string; variant?: string; icon?: React.ReactNode }, index: number) => void;
@@ -31,8 +38,14 @@ const ALIGNMENT_CLASSES: Record<string, string> = {
 };
 
 export function HeroCTA({ buttons, alignment = 'center', theme, onCtaClick, className }: HeroCTAProps) {
-  // Filter out buttons without labels (defensive rendering for malformed data)
-  const validButtons = buttons?.filter((button) => button.label?.trim());
+  const validButtons = buttons
+    ?.map((button) => {
+      const href = resolveSmartLinkHref(button.href);
+      return href ? { ...button, href } : null;
+    })
+    .filter((button): button is { label: string; href: string; variant?: string; icon?: React.ReactNode } =>
+      Boolean(button?.label?.trim()),
+    );
   if (!validButtons?.length) return null;
 
   return (

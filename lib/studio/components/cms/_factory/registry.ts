@@ -30,9 +30,6 @@ export class ComponentRegistry {
       if (process.env.NODE_ENV !== 'production') {
         throw new Error(message);
       }
-      if (process.env.NODE_ENV === 'development') {
-      console.warn(message);
-      }
       return;
     }
 

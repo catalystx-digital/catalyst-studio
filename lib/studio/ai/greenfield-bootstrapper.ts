@@ -328,8 +328,14 @@ export class GreenfieldBootstrapper {
         toolChoice: 'required',
         messages: [
           {
+            id: `greenfield-ia-${request.websiteId}`,
             role: 'user',
-            content: `Generate the site structure for websiteId: ${request.websiteId}`
+            parts: [
+              {
+                type: 'text',
+                text: `Generate the site structure for websiteId: ${request.websiteId}`
+              }
+            ]
           } as Message
         ],
         stopWhen: stepCountIs(5),
@@ -572,8 +578,14 @@ export class GreenfieldBootstrapper {
           toolChoice: 'required',
           messages: [
             {
+              id: `greenfield-page-${request.websiteId}-${page.slug}-${attempt}`,
               role: 'user',
-              content: messageContent
+              parts: [
+                {
+                  type: 'text',
+                  text: messageContent
+                }
+              ]
             } as Message
           ],
           stopWhen: stepCountIs(10),

@@ -17,6 +17,15 @@ import {
   type AIToolEvent
 } from '@/lib/ai-tools/services/event-publisher';
 
+const deletePageInputSchema = z.object({
+  pageId: z.string().optional().describe('The page ID to delete (provide either pageId or slug)'),
+  slug: z.string().optional().describe('The page slug to delete (provide either pageId or slug)'),
+  deleteChildren: z.boolean().default(false).describe('Delete child pages recursively (default: false)'),
+  websiteId: z.string().optional().describe('The website ID (required when using slug)')
+});
+
+type DeletePageInput = z.infer<typeof deletePageInputSchema>;
+
 /**
  * Delete a page and its associated content
  * - Deletes both WebsitePage and WebsiteStructure
@@ -44,13 +53,8 @@ Example scenarios:
 - "delete the about page" → delete single page (fails if has children)
 - "delete the blog section and all blog posts" → deleteChildren=true
 - "remove the contact page" → delete single page`,
-  inputSchema: z.object({
-    pageId: z.string().optional().describe('The page ID to delete (provide either pageId or slug)'),
-    slug: z.string().optional().describe('The page slug to delete (provide either pageId or slug)'),
-    deleteChildren: z.boolean().default(false).describe('Delete child pages recursively (default: false)'),
-    websiteId: z.string().optional().describe('The website ID (required when using slug)')
-  }),
-  execute: async (params) => {
+  inputSchema: deletePageInputSchema,
+  execute: async (params: DeletePageInput) => {
     const startTime = Date.now();
 
     try {

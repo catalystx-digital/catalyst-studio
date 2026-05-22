@@ -1,15 +1,18 @@
 import type { ComponentTheme } from '../../_core/types';
-import { type Link } from '../../_core/value-objects';
+import { type SmartLink } from '../../_core/value-objects';
 
 type CardMedia =
   | string
   | {
       src?: string | {
-        src: string;
+        src?: string;
+        url?: string;
         mediaId?: string;
+        mediaType?: 'image' | 'video' | 'file';
         originalUrl?: string;
         renditions?: unknown[];
       };
+      url?: string;
       alt?: string;
       originalUrl?: string;
       mediaId?: string;
@@ -28,6 +31,7 @@ export interface CardItem {
   imageAlt?: string;
   variant?: 'default' | 'muted' | 'accent' | 'minimal';
   link?: string;
+  href?: SmartLink | string;
   linkText?: string;
   badge?: string;
   icon?: string;
@@ -41,7 +45,8 @@ export interface CardItem {
   };
   actions?: Array<{
     label: string;
-    url: Link | string;
+    url?: SmartLink | string;
+    href?: SmartLink | string;
     variant?: 'primary' | 'secondary' | 'outline';
   }>;
 }
@@ -50,7 +55,7 @@ export interface CardGridFilter {
   id: string;
   label: string;
   value?: string;
-  href?: Link | string;
+  href?: SmartLink | string;
   isActive?: boolean;
   icon?: string;
 }

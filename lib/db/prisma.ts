@@ -17,7 +17,6 @@ function createPrismaClient() {
   });
 
   if (ENABLE_QUERY_LOG) {
-    // @ts-expect-error - Prisma event types
     client.$on('query', (e: { query: string; params: string; duration: number }) => {
       // Capture stack trace to identify caller
       const stack = new Error().stack?.split('\n').slice(3, 8).join('\n') || 'unknown';

@@ -308,10 +308,9 @@ function createTokensFromParsed(
     extraction: {
       timestamp: new Date().toISOString(),
       confidence: 0.8,
-      source: 'llm-prompt',
+      source: Object.keys(customVariables).length > 0 ? 'mixed' : 'default',
       detectedCount: Object.keys(customVariables).length,
       defaultCount: Object.keys(SHADCN_DEFAULTS).length - Object.keys(customVariables).length,
-      promptSource: prompt.substring(0, 100), // Store truncated prompt for reference
     },
   }
 }

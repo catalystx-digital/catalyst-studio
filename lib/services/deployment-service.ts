@@ -1,8 +1,4 @@
 import { PrismaClient } from '@/lib/generated/prisma';
-import { prisma } from '@/lib/prisma';
-// Old sync system imports removed - using BundleExporter now
-import { ProviderRegistry } from '../providers/registry';
-import { ProviderFactory } from '../providers/factory';
 
 export interface DeploymentConfig {
   deploymentId: string;
@@ -52,7 +48,7 @@ export class DeploymentService {
     // Query deployments where status = 'running' AND updatedAt > 1 hour ago
     const oneHourAgo = new Date(Date.now() - 3600000);
     
-    const stuckDeployments = await prisma.deployment.findMany({
+    const stuckDeployments = await this.prisma.deployment.findMany({
       where: {
         status: 'running',
         updatedAt: { lt: oneHourAgo }
@@ -64,7 +60,7 @@ export class DeploymentService {
     
     // Mark stuck deployments as failed
     if (interrupted.length > 0) {
-      await prisma.deployment.updateMany({
+      await this.prisma.deployment.updateMany({
         where: {
           id: { in: interrupted }
         },
@@ -87,7 +83,7 @@ export class DeploymentService {
    */
   async detectChanges(websiteId?: string): Promise<ChangeSummary> {
     // Query current deployment state
-    const latestDeployment = await prisma.deployment.findFirst({
+    const latestDeployment = await this.prisma.deployment.findFirst({
       where: websiteId ? { websiteId } : {},
       orderBy: { createdAt: 'desc' }
     });
@@ -124,7 +120,7 @@ export class DeploymentService {
    */
   async getChangeSummary(websiteId: string): Promise<ChangeSummary> {
     // Query last 2 deployments for the website
-    const deployments = await prisma.deployment.findMany({
+    const deployments = await this.prisma.deployment.findMany({
       where: { websiteId },
       orderBy: { createdAt: 'desc' },
       take: 2
@@ -198,7 +194,7 @@ export class DeploymentService {
     lastDeploymentDate: Date | null;
     successRate: number;
   }> {
-    const deployments = await prisma.deployment.findMany({
+    const deployments = await this.prisma.deployment.findMany({
       where: { websiteId },
       select: { status: true, createdAt: true }
     });

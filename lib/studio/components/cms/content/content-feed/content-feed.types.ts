@@ -1,4 +1,5 @@
 import type { ComponentCategory, ComponentContent, ComponentTheme, CMSComponentProps } from '../../_core/types';
+import type { SmartLink } from '../../_core/value-objects';
 
 export type ContentFeedLayout = 'list' | 'card-grid';
 
@@ -44,7 +45,7 @@ export interface ContentFeedItem extends ComponentContent {
   summary?: string;
   excerpt?: string;
   description?: string;
-  href?: string;
+  href?: SmartLink | string;
   url?: string;
   image?: ContentFeedImage | string;
   tags?: string[];

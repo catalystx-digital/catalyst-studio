@@ -92,6 +92,7 @@ export const PricingTableDef = defineComponent({
     subtitle: 'Select the perfect plan for your needs',
     plans: [
       {
+        id: 'starter',
         name: 'Starter',
         price: 0,
         currency: 'USD',
@@ -101,6 +102,7 @@ export const PricingTableDef = defineComponent({
         ctaUrl: '/signup?plan=starter',
       },
       {
+        id: 'professional',
         name: 'Professional',
         price: 49,
         currency: 'USD',
@@ -108,10 +110,11 @@ export const PricingTableDef = defineComponent({
         features: ['Unlimited projects', 'Priority support', '5 users'],
         ctaText: 'Start Trial',
         ctaUrl: '/signup?plan=pro',
-        badge: { text: 'Popular', variant: 'accent' },
+        badge: 'Popular',
         highlighted: true,
       },
       {
+        id: 'enterprise',
         name: 'Enterprise',
         price: 199,
         currency: 'USD',

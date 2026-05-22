@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 
 function DeclineInvitationContent() {
   const searchParams = useSearchParams();
-  const success = searchParams.get('success') === 'true';
+  const success = searchParams?.get('success') === 'true';
 
   if (!success) {
     return (

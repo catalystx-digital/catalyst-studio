@@ -31,6 +31,7 @@ import {
   type CmsCardTone,
 } from '../../_ui';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
+import { resolveImageSource } from '../../_utils/media-reference';
 import { validateImageUrl } from '../../_utils/url-validation';
 import { calculateReadingTime, formatReadingTime } from '../utils/reading-time';
 import type { BlogCardProps } from './blog-card.types';
@@ -128,7 +129,7 @@ export const BlogCard: React.FC<BlogCardProps> = ({
   } = content;
 
   const aspectRatio = ASPECT_RATIO_MAP[imageAspectRatio] ?? ASPECT_RATIO_MAP['3:2'];
-  const safeThumbnail = validateImageUrl(thumbnail);
+  const safeThumbnail = resolveImageSource(thumbnail);
   const safeAvatar = validateImageUrl(author?.avatar);
 
   const sanitizedTitle = useMemo(() => sanitizeText(title), [title]);

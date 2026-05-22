@@ -1,4 +1,4 @@
-import { FolderExporter, FolderHierarchy, FolderStatistics } from './folder-exporter'
+import { FolderExporter, FolderHierarchy } from './folder-exporter'
 import { EnhancedExportValidator } from './export-validator'
 import { ContentOrchestrator } from './content-orchestrator'
 import { ComponentInstanceExtractor } from './component-instance-extractor'

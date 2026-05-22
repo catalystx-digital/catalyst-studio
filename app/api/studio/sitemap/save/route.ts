@@ -422,7 +422,8 @@ export async function POST(request: NextRequest) {
                 );
 
                 // Check if op.data.metadata contains SEO or other fields to persist
-                const hasMetadataObject = op.data?.metadata && typeof op.data.metadata === 'object';
+                const metadataUpdate = op.data?.metadata;
+                const hasMetadataObject = metadataUpdate !== undefined && metadataUpdate !== null && typeof metadataUpdate === 'object';
 
                 if ((hasMetadataFields || hasMetadataObject) && existingNode.websitePageId) {
                   // Get current metadata
@@ -434,7 +435,7 @@ export async function POST(request: NextRequest) {
                   // Merge metadata object from op.data.metadata (SEO fields, etc.)
                   // This handles: title, description, keywords, ogImage, and any other metadata fields
                   if (hasMetadataObject) {
-                    Object.assign(updatedMetadata, op.data.metadata);
+                    Object.assign(updatedMetadata, metadataUpdate);
                   }
 
                   // Apply metadata-backed fields (these are sent as top-level fields in op.data)

@@ -216,15 +216,13 @@ export function DesignSystemCanvasInjector({
 
     const variables: Record<string, string> = {}
 
-    // Palette variables
-    if (designSystem.palette) {
-      Object.entries(designSystem.palette).forEach(([category, colors]) => {
-        colors.forEach((color, index) => {
-          const name = color.name || `${category}-${index + 1}`
-          variables[`ds-${category}-${name}`] = color.value
-        })
-      })
-    }
+    Object.entries(designSystem.variables).forEach(([key, value]) => {
+      variables[key.replace(/^--/, '')] = value
+    })
+
+    Object.entries(designSystem.darkVariables ?? {}).forEach(([key, value]) => {
+      variables[`dark-${key.replace(/^--/, '')}`] = value
+    })
 
     // Typography variables
     if (designSystem.typography) {
@@ -241,27 +239,15 @@ export function DesignSystemCanvasInjector({
     }
 
     // Spacing variables
-    if (designSystem.spacing?.values) {
-      designSystem.spacing.values.forEach((value, index) => {
+    if (designSystem.spacing?.scale) {
+      designSystem.spacing.scale.forEach((value, index) => {
         const name = value.name || `${index + 1}`
-        variables[`ds-spacing-${name}`] = `${value.value}${designSystem.spacing.unit}`
+        variables[`ds-spacing-${name}`] = `${value.value}${value.unit}`
       })
     }
 
-    // Border radius variables
-    if (designSystem.radii?.values) {
-      designSystem.radii.values.forEach((value, index) => {
-        const name = value.name || `${index + 1}`
-        variables[`ds-radius-${name}`] = `${value.value}${designSystem.radii.unit}`
-      })
-    }
-
-    // Shadow variables
-    if (designSystem.shadows) {
-      designSystem.shadows.forEach((shadow, index) => {
-        const name = shadow.name || `${index + 1}`
-        variables[`ds-shadow-${name}`] = shadow.value
-      })
+    if (designSystem.spacing?.baseUnitPx !== undefined && designSystem.spacing.baseUnitPx !== null) {
+      variables['ds-spacing-base'] = `${designSystem.spacing.baseUnitPx}px`
     }
 
     return variables
@@ -356,14 +342,13 @@ export function useDesignSystemCanvasInjection() {
     const variables: Record<string, string> = {}
 
     // Generate design system variables (same logic as component)
-    if (designSystem.palette) {
-      Object.entries(designSystem.palette).forEach(([category, colors]) => {
-        colors.forEach((color, index) => {
-          const name = color.name || `${category}-${index + 1}`
-          variables[`ds-${category}-${name}`] = color.value
-        })
-      })
-    }
+    Object.entries(designSystem.variables).forEach(([key, value]) => {
+      variables[key.replace(/^--/, '')] = value
+    })
+
+    Object.entries(designSystem.darkVariables ?? {}).forEach(([key, value]) => {
+      variables[`dark-${key.replace(/^--/, '')}`] = value
+    })
 
     // Add custom variables
     Object.assign(variables, customVariables)

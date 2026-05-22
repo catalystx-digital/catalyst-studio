@@ -97,8 +97,8 @@ export const HeroSplitDef = defineComponent({
     mediaPosition: 'right',
     splitRatio: '50-50',
     ctaButtons: [
-      { label: 'Start Building', href: '/signup', variant: 'primary' },
-      { label: 'View Templates', href: '/templates', variant: 'outline' },
+      { label: 'Start Building', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' },
+      { label: 'View Templates', href: { type: 'internal', pageId: 'templates', path: '/templates' }, variant: 'outline' },
     ],
     verticalAlign: 'center',
   },

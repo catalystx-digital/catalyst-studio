@@ -111,24 +111,27 @@ export const FooterDef = defineComponent({
 
   // Sample content for AI tools and testing
   sample: {
-    logo: '/logo.svg',
-    logoAlt: 'Company Logo',
+    logo: {
+      src: { mediaId: 'sample-footer-logo', mediaType: 'image', url: '/logo.svg' },
+      alt: 'Company Logo',
+      originalUrl: '/logo.svg',
+    },
     description: 'Building the future of digital experiences',
     columns: [
       {
         title: 'Products',
         links: [
-          { label: 'Features', href: '/features' },
-          { label: 'Pricing', href: '/pricing' },
-          { label: 'Security', href: '/security' },
+          { label: 'Features', href: { type: 'internal', pageId: 'features', path: '/features' } },
+          { label: 'Pricing', href: { type: 'internal', pageId: 'pricing', path: '/pricing' } },
+          { label: 'Security', href: { type: 'internal', pageId: 'security', path: '/security' } },
         ],
       },
       {
         title: 'Company',
         links: [
-          { label: 'About', href: '/about' },
-          { label: 'Blog', href: '/blog' },
-          { label: 'Careers', href: '/careers' },
+          { label: 'About', href: { type: 'internal', pageId: 'about', path: '/about' } },
+          { label: 'Blog', href: { type: 'internal', pageId: 'blog', path: '/blog' } },
+          { label: 'Careers', href: { type: 'internal', pageId: 'careers', path: '/careers' } },
         ],
       },
     ],
@@ -138,8 +141,8 @@ export const FooterDef = defineComponent({
       { platform: 'github', url: 'https://github.com/company' },
     ],
     legalLinks: [
-      { label: 'Privacy Policy', href: '/privacy' },
-      { label: 'Terms of Service', href: '/terms' },
+      { label: 'Privacy Policy', href: { type: 'internal', pageId: 'privacy', path: '/privacy' } },
+      { label: 'Terms of Service', href: { type: 'internal', pageId: 'terms', path: '/terms' } },
     ],
     newsletter: {
       heading: 'Subscribe to our newsletter',
