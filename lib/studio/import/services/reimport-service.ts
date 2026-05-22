@@ -1049,24 +1049,70 @@ export class ReImportService implements IReImportService {
     // Extract components from detection result
     const detectedComponents = detection.components || []
 
-    return detectedComponents.map((comp, index) => ({
-      id: `comp-${Date.now()}-${index}`,
-      type: comp.type || 'unknown',
-      parentId: (comp as any).parentId || null,
-      position: (comp as any).position ?? index,
-      // CMS components expect data in 'content' field, not 'props'
-      // The page-renderer reads from instance.content or props.content
+    return detectedComponents.map((comp, index) =>
+      this.buildComponentInstanceFromDetection(
+        comp,
+        `comp-${Date.now()}-${index}`,
+        null,
+        index,
+        `components[${index}]`
+      )
+    )
+  }
+
+  private buildComponentInstanceFromDetection(
+    component: any,
+    id: string,
+    parentId: string | null,
+    fallbackPosition: number,
+    path: string
+  ): ComponentInstance {
+    const children = Array.isArray(component.children)
+      ? component.children.map((child: any, childIndex: number) =>
+          this.buildComponentInstanceFromDetection(
+            child,
+            `${id}-${childIndex}`,
+            id,
+            childIndex,
+            `${path}.children[${childIndex}]`
+          )
+        )
+      : undefined
+
+    return {
+      id,
+      type: component.type || 'unknown',
+      parentId,
+      position: component.position ?? fallbackPosition,
       props: {},
-      content: comp.content || (comp as any).props || {},
-      children: (comp as any).children?.map((child: any, childIndex: number) => ({
-        id: `comp-${Date.now()}-${index}-${childIndex}`,
-        type: child.type || 'unknown',
-        parentId: `comp-${Date.now()}-${index}`,
-        position: child.position ?? childIndex,
-        props: {},
-        content: child.content || child.props || {}
-      }))
-    }))
+      content: this.readDetectionComponentContent(component, path),
+      children
+    }
+  }
+
+  private readDetectionComponentContent(
+    component: { content?: unknown; props?: unknown },
+    path: string
+  ): Record<string, unknown> {
+    if (component.content !== undefined && component.content !== null) {
+      if (this.isRecord(component.content)) {
+        return component.content
+      }
+
+      throw new Error(`Re-import detection ${path}.content must be an object`)
+    }
+
+    if (component.props !== undefined && component.props !== null) {
+      if (!this.isRecord(component.props) || Object.keys(component.props).length > 0) {
+        throw new Error(`Re-import detection ${path} uses legacy props content; use content`)
+      }
+    }
+
+    return {}
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
   }
 
   private mergeComponents(

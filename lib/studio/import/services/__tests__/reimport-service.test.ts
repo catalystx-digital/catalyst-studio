@@ -7,7 +7,9 @@ jest.mock('@/lib/generated/prisma', () => ({
   PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
 }))
 
-jest.mock('../../import-pipeline')
+jest.mock('../../import-pipeline', () => ({
+  ImportPipeline: jest.fn().mockImplementation(() => mockImportPipeline),
+}))
 jest.mock('../checkpoint-service', () => ({
   getCheckpointService: jest.fn().mockReturnValue({
     initializeSession: jest.fn().mockResolvedValue({
@@ -27,6 +29,7 @@ jest.mock('../checkpoint-service', () => ({
 }))
 
 const mockPrisma = {
+  $transaction: jest.fn(async (callback) => callback(mockPrisma)),
   website: {
     findUnique: jest.fn(),
   },
@@ -40,6 +43,10 @@ const mockPrisma = {
   websiteStructure: {
     findFirst: jest.fn(),
     create: jest.fn(),
+  },
+  importJob: {
+    create: jest.fn(),
+    update: jest.fn(),
   },
   contentType: {
     findFirst: jest.fn(),
@@ -56,6 +63,7 @@ describe('ReImportService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    process.env.OPENROUTER_API_KEY = 'test-api-key'
     ;(ImportPipeline as jest.Mock).mockImplementation(() => mockImportPipeline)
 
     service = new ReImportService({
@@ -73,6 +81,11 @@ describe('ReImportService', () => {
     mockPrisma.contentType.findFirst.mockResolvedValue({
       id: 'content-type-1',
     })
+
+    mockPrisma.importJob.create.mockResolvedValue({
+      id: 'import-job-1',
+    })
+    mockPrisma.importJob.update.mockResolvedValue({})
   })
 
   describe('validateUrls', () => {
@@ -181,14 +194,16 @@ describe('ReImportService', () => {
     beforeEach(() => {
       mockImportPipeline.execute.mockResolvedValue({
         success: true,
-        detections: [{
-          url: 'https://example.com/about',
-          components: [
-            { type: 'hero', props: { title: 'About Us' } },
-            { type: 'content', props: { text: 'Content here' } },
-          ],
-          metadata: { httpStatus: 200 },
-        }],
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [
+              { type: 'hero', content: { title: 'About Us' } },
+              { type: 'content', content: { text: 'Content here' } },
+            ],
+            metadata: { httpStatus: 200 },
+          }],
+        },
       })
     })
 
@@ -290,7 +305,7 @@ describe('ReImportService', () => {
       mockImportPipeline.execute.mockResolvedValueOnce({
         success: false,
         errors: ['Source page not found (404)'],
-        detections: [],
+        data: { detectedComponents: [] },
       })
 
       mockPrisma.websitePage.findFirst.mockResolvedValueOnce({
@@ -350,6 +365,105 @@ describe('ReImportService', () => {
       expect(mockPrisma.websitePage.update).not.toHaveBeenCalled()
     })
 
+    it('rejects detection components that only provide legacy props content', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{ type: 'hero', props: { title: 'Legacy title' } }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        dryRun: true,
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('components[0] uses legacy props content; use content')
+    })
+
+    it('rejects detection children that only provide legacy props content', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{
+              type: 'section',
+              content: {},
+              children: [{ type: 'text', props: { text: 'Legacy child text' } }],
+            }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        dryRun: true,
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('components[0].children[0] uses legacy props content; use content')
+    })
+
+    it('rejects deeply nested detection children that only provide legacy props content', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{
+              type: 'section',
+              content: {},
+              children: [{
+                type: 'column',
+                content: {},
+                children: [{ type: 'text', props: { text: 'Legacy grandchild text' } }],
+              }],
+            }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        dryRun: true,
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('components[0].children[0].children[0] uses legacy props content; use content')
+    })
+
     it('processes multiple URLs with correct summary', async () => {
       // First URL - existing page
       mockPrisma.websitePage.findFirst
@@ -374,11 +488,13 @@ describe('ReImportService', () => {
 
       mockImportPipeline.execute.mockResolvedValue({
         success: true,
-        detections: [{
-          url: 'test',
-          components: [{ type: 'hero', props: {} }],
-          metadata: { httpStatus: 200 },
-        }],
+        data: {
+          detectedComponents: [{
+            url: 'test',
+            components: [{ type: 'hero', content: {} }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
       })
 
       const result = await service.reimport({
@@ -412,11 +528,13 @@ describe('ReImportService', () => {
 
       mockImportPipeline.execute.mockResolvedValue({
         success: true,
-        detections: [{
-          url: 'test',
-          components: [{ type: 'hero', props: {} }],
-          metadata: { httpStatus: 200 },
-        }],
+        data: {
+          detectedComponents: [{
+            url: 'test',
+            components: [{ type: 'hero', content: {} }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
       })
 
       const result = await service.reimport({
