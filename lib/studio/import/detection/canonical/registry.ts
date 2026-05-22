@@ -1,6 +1,5 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import { canonicalizeComponentType as unifiedCanonicalize } from '@/lib/studio/components/cms/_core/canonicalization'
-import type { CanonicalSynthesizer } from './types'
 
 export interface CanonicalComponentDefinition {
   canonicalType: string
@@ -9,7 +8,6 @@ export interface CanonicalComponentDefinition {
   fragments: string[]
   cues: string[]
   sampleContent: Record<string, any>
-  synthesizer?: CanonicalSynthesizer
 }
 
 const registry = new Map<string, CanonicalComponentDefinition>()
@@ -40,8 +38,7 @@ export function registerCanonicalComponent(definition: CanonicalComponentDefinit
     canonicalType,
     fragments: [...definition.fragments],
     cues: [...definition.cues],
-    sampleContent: { ...definition.sampleContent },
-    synthesizer: definition.synthesizer
+    sampleContent: { ...definition.sampleContent }
   }
 
   registry.set(canonicalType, Object.freeze(normalized))

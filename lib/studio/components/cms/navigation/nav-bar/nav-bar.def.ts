@@ -124,7 +124,7 @@ export const NavBarDef = defineComponent({
   // NOTE: menuItems should only reference pages that actually exist in the site structure
   sample: {
     logo: {
-      src: '/logo.svg',
+      src: { mediaId: 'sample-logo', mediaType: 'image', url: '/logo.svg' },
       alt: 'Company Logo',
       text: 'Company Name',
       href: '/',
@@ -133,13 +133,13 @@ export const NavBarDef = defineComponent({
     },
     // Example structure only - actual items should match site pages
     menuItems: [
-      { label: 'Home', href: '/' },
-      { label: 'About', href: '/about' },
-      { label: 'Contact', href: '/contact' },
+      { label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } },
+      { label: 'About', href: { type: 'internal', pageId: 'about', path: '/about' } },
+      { label: 'Contact', href: { type: 'internal', pageId: 'contact', path: '/contact' } },
     ],
     cta: {
       label: 'Get Started',
-      href: '/signup',
+      href: { type: 'internal', pageId: 'signup', path: '/signup' },
       variant: 'primary',
     },
     search: {

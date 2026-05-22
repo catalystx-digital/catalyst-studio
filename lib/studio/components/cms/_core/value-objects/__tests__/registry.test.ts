@@ -6,7 +6,7 @@
  * - Type string generation for LLM consumption
  * - Field schema generation for property editor
  * - Schema validation
- * - Backward compatibility
+ * - Strict canonical schema validation
  */
 
 import { z } from 'zod'
@@ -82,13 +82,12 @@ describe('ValueObjectRegistry', () => {
       // Should be an object type string
       expect(typeString).toMatch(/^\{.*\}$/)
 
-      // Should contain both text/label fields for backward compatibility
-      expect(typeString).toContain('text?:')
-      expect(typeString).toContain('label?:')
+      expect(typeString).not.toContain('text?:')
+      expect(typeString).toContain('label:')
 
-      // Should contain both href/url fields
       expect(typeString).toContain('href?:')
-      expect(typeString).toContain('url?:')
+      expect(typeString).not.toContain('url?:')
+      expect(typeString).toContain("type: 'external'")
 
       // Should contain variant enum
       expect(typeString).toContain('variant?:')
@@ -131,11 +130,8 @@ describe('ValueObjectRegistry', () => {
         expect(typeString).toBeTruthy()
         expect(typeof typeString).toBe('string')
 
-        // MenuItem uses ZodLazy which returns 'any'
-        // SmartLink uses ZodDiscriminatedUnion which returns 'any'
-        // Others should be object syntax
-        if (name === 'MenuItem' || name === 'SmartLink') {
-          expect(typeString).toBe('any')
+        if (name === 'SmartLink') {
+          expect(typeString).toContain("type: 'external'")
         } else {
           expect(typeString).toMatch(/^\{/)
           expect(typeString).toMatch(/\}$/)
@@ -174,12 +170,11 @@ describe('ValueObjectRegistry', () => {
       // Should have fields
       expect(fieldSchema.fields).toBeDefined()
 
-      // Should contain backward compatibility fields
       const fieldNames = fieldSchema.fields!.map(f => f.name)
-      expect(fieldNames).toContain('text')
       expect(fieldNames).toContain('label')
       expect(fieldNames).toContain('href')
-      expect(fieldNames).toContain('url')
+      expect(fieldNames).not.toContain('text')
+      expect(fieldNames).not.toContain('url')
 
       // Variant field should be a select type
       const variantField = fieldSchema.fields!.find(f => f.name === 'variant')
@@ -230,9 +225,9 @@ describe('ValueObjectRegistry', () => {
         // Should have required properties
         expect(fieldSchema.name).toBe(name)
 
-        // MenuItem uses ZodLazy which converts to 'json' type in field schema
+        // MenuItem resolves to its recursive object shape.
         // SmartLink uses ZodDiscriminatedUnion which converts to 'json' type
-        if (name === 'MenuItem' || name === 'SmartLink') {
+        if (name === 'SmartLink') {
           expect(fieldSchema.type).toBe('json')
         } else {
           expect(fieldSchema.type).toBe('object')
@@ -247,7 +242,7 @@ describe('ValueObjectRegistry', () => {
     describe('Logo schema', () => {
       it('validates valid Logo data', () => {
         const validLogo = {
-          src: '/logo.png',
+          src: { mediaId: 'logo-media', mediaType: 'image' as const },
           alt: 'Company Logo',
           text: 'Company',
           href: '/',
@@ -271,7 +266,7 @@ describe('ValueObjectRegistry', () => {
 
       it('validates Logo with renditions', () => {
         const logoWithRenditions = {
-          src: '/logo.png',
+          src: { mediaId: 'logo-media', mediaType: 'image' as const },
           alt: 'Logo',
           renditions: [
             { src: '/logo-sm.png', width: 100, height: 25 },
@@ -308,8 +303,8 @@ describe('ValueObjectRegistry', () => {
     describe('CTAButton schema', () => {
       it('validates valid CTAButton data', () => {
         const validButton = {
-          text: 'Click Me',
-          href: '/contact',
+          label: 'Click Me',
+          href: { type: 'internal' as const, pageId: 'contact-page', path: '/contact' },
           variant: 'primary' as const,
           icon: '→',
         }
@@ -321,7 +316,7 @@ describe('ValueObjectRegistry', () => {
         }
       })
 
-      it('validates CTAButton with label instead of text (backward compatibility)', () => {
+      it('rejects CTAButton with raw string href', () => {
         const buttonWithLabel = {
           label: 'Click Me',
           href: '/contact',
@@ -329,53 +324,53 @@ describe('ValueObjectRegistry', () => {
         }
 
         const result = CTAButtonSchema.safeParse(buttonWithLabel)
-        expect(result.success).toBe(true)
+        expect(result.success).toBe(false)
       })
 
-      it('validates CTAButton with url instead of href (backward compatibility)', () => {
+      it('rejects CTAButton with url instead of href', () => {
         const buttonWithUrl = {
-          text: 'Click Me',
+          label: 'Click Me',
           url: '/contact',
           variant: 'outline' as const,
         }
 
         const result = CTAButtonSchema.safeParse(buttonWithUrl)
-        expect(result.success).toBe(true)
+        expect(result.success).toBe(false)
       })
 
-      it('validates CTAButton with both text/label fields', () => {
+      it('rejects legacy text when canonical label is present', () => {
         const button = {
           text: 'Text Value',
           label: 'Label Value',
-          href: '/page',
+          href: { type: 'internal' as const, pageId: 'page-1', path: '/page' },
         }
 
         const result = CTAButtonSchema.safeParse(button)
-        expect(result.success).toBe(true)
+        expect(result.success).toBe(false)
       })
 
-      it('validates CTAButton with both href/url fields', () => {
+      it('rejects legacy url when canonical href is present', () => {
         const button = {
-          text: 'Get Started',
-          href: '/page1',
+          label: 'Get Started',
+          href: { type: 'internal' as const, pageId: 'page-1', path: '/page1' },
           url: '/page2',
         }
 
         const result = CTAButtonSchema.safeParse(button)
-        expect(result.success).toBe(true)
+        expect(result.success).toBe(false)
       })
 
-      it('validates minimal CTAButton', () => {
+      it('rejects CTAButton without required label', () => {
         const minimalButton = {}
 
         const result = CTAButtonSchema.safeParse(minimalButton)
-        expect(result.success).toBe(true)
+        expect(result.success).toBe(false)
       })
 
       it('rejects invalid variant values', () => {
         const invalidButton = {
-          text: 'Click Me',
-          href: '/contact',
+          label: 'Click Me',
+          href: { type: 'internal' as const, pageId: 'contact-page', path: '/contact' },
           variant: 'invalid-variant', // Not a valid enum value
         }
 
@@ -385,8 +380,8 @@ describe('ValueObjectRegistry', () => {
 
       it('rejects invalid data types', () => {
         const invalidButton = {
-          text: 123, // Should be string
-          href: '/contact',
+          label: 123, // Should be string
+          href: { type: 'internal' as const, pageId: 'contact-page', path: '/contact' },
           external: 'yes', // Should be boolean
         }
 
@@ -396,8 +391,8 @@ describe('ValueObjectRegistry', () => {
 
       it('accepts valid boolean for external field', () => {
         const button = {
-          text: 'External Link',
-          href: 'https://example.com',
+          label: 'External Link',
+          href: { type: 'external' as const, url: 'https://example.com' },
           external: true,
         }
 
@@ -426,9 +421,11 @@ describe('ValueObjectRegistry', () => {
           'PricingFeature',
           'EducationEntry',
           'ExperienceEntry',
+          'CTAButton',
           'PageReference',
           'ExternalLink',
           'MediaReference',
+          'SmartLink',
         ]
 
         const schemaNames = [
@@ -579,11 +576,11 @@ describe('ValueObjectRegistry', () => {
 
       // This is a compile-time check, but we can verify runtime behavior
       const parsed = schema.parse({
-        src: '/logo.png',
+        src: { mediaId: 'logo-media', mediaType: 'image' },
         alt: 'Logo',
       })
 
-      expect(parsed.src).toBe('/logo.png')
+      expect(parsed.src).toEqual({ mediaId: 'logo-media', mediaType: 'image' })
       expect(parsed.alt).toBe('Logo')
     })
 
@@ -596,7 +593,7 @@ describe('ValueObjectRegistry', () => {
   describe('Edge cases', () => {
     it('handles unknown fields gracefully', () => {
       const logoWithExtra = {
-        src: '/logo.png',
+        src: { mediaId: 'logo-media', mediaType: 'image' },
         unknownField: 'should be stripped',
       }
 

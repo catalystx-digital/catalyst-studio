@@ -63,9 +63,9 @@ export const FeatureComparisonDef = defineComponent({
     heading: 'Compare Our Plans',
     subheading: 'Choose the perfect plan for your team',
     products: [
-      { name: 'Starter', price: '$9/month', recommended: false, cta: { text: 'Get Started', href: { type: 'internal', pageId: 'signup-starter' } } },
-      { name: 'Professional', price: '$29/month', recommended: true, cta: { text: 'Start Trial', href: { type: 'internal', pageId: 'signup-pro' } } },
-      { name: 'Enterprise', price: 'Custom', recommended: false, cta: { text: 'Contact Sales', href: { type: 'internal', pageId: 'contact-sales' } } },
+      { name: 'Starter', price: '$9/month', recommended: false, cta: { text: 'Get Started', href: { type: 'internal', pageId: 'signup-starter', path: '/signup/starter' } } },
+      { name: 'Professional', price: '$29/month', recommended: true, cta: { text: 'Start Trial', href: { type: 'internal', pageId: 'signup-pro', path: '/signup/pro' } } },
+      { name: 'Enterprise', price: 'Custom', recommended: false, cta: { text: 'Contact Sales', href: { type: 'internal', pageId: 'contact-sales', path: '/contact/sales' } } },
     ],
     features: [
       { name: 'Users', description: 'Number of team members', values: [5, 25, 'Unlimited'] },

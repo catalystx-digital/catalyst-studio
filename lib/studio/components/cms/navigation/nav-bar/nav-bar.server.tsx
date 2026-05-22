@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { cmsBody, dsSpacing } from '../../_ui';
 import type { ComponentTheme } from '../../_core/types';
 import { NavBarProps, MenuItem, CTAButton } from './nav-bar.types';
-import { normalizeCTA, normalizeMenuItems } from './nav-bar.transform';
+import { normalizeCTA, normalizeMenuItems, resolveHref } from './nav-bar.transform';
 import { buildHrefActiveChecker, buildMenuItemActiveChecker, normalizePathname } from './nav-bar.utils';
 import { SearchToggle } from './search-toggle';
 import { NavLogo } from './nav-logo';
@@ -51,6 +51,8 @@ function NavCTA({
   onInteraction: (event: string, payload: Record<string, unknown>) => void;
 }) {
   if (!cta) return null;
+  const href = resolveHref(cta.href);
+  if (!href) return null;
 
   return (
     <Button
@@ -60,13 +62,13 @@ function NavCTA({
       asChild
     >
       <Link
-        href={cta.href}
+        href={href}
         target={cta.external ? '_blank' : undefined}
         rel={cta.external ? 'noopener noreferrer' : undefined}
         onClick={() =>
           onInteraction('cta_click', {
             label: cta.label,
-            href: cta.href,
+            href,
             variant: cta.variant ?? 'primary',
             external: Boolean(cta.external),
             surface: 'desktop',
@@ -99,6 +101,9 @@ function DropdownLink({
   theme?: ComponentTheme;
   onInteraction: (event: string, payload: Record<string, unknown>) => void;
 }) {
+  const href = resolveHref(item.href);
+  if (!href) return null;
+
   return (
     <NavigationMenuLink
       key={`${parentLabel}-${groupIndex}-${item.label}-${childIndex}`}
@@ -107,13 +112,13 @@ function DropdownLink({
       data-active={isActive ? 'true' : undefined}
     >
       <Link
-        href={item.href}
+        href={href}
         target={item.external ? '_blank' : undefined}
         rel={item.external ? 'noopener noreferrer' : undefined}
         onClick={() =>
           onInteraction('nav_click', {
             label: item.label,
-            href: item.href,
+            href,
             index: childIndex,
             depth,
             parentLabel,
@@ -159,6 +164,7 @@ function NavMenuItem({
   ];
   const hasDropdown = combinedGroups.length > 0;
   const isActive = isMenuItemActive(item);
+  const href = resolveHref(item.href);
 
   const panelWidth =
     typeof item.panelWidth === 'number' ? `${item.panelWidth}px` : item.panelWidth ?? undefined;
@@ -181,7 +187,7 @@ function NavMenuItem({
                   <span className="text-xs font-semibold uppercase text-muted-foreground">{group.title}</span>
                 )}
                 {Array.isArray(group?.items) &&
-                  group.items.map((child, childIndex) => (
+                  (group.items as MenuItem[]).map((child: MenuItem, childIndex: number) => (
                     <DropdownLink
                       key={`${item.label}-${groupIndex}-${child.label}`}
                       item={child}
@@ -202,6 +208,10 @@ function NavMenuItem({
     );
   }
 
+  if (!href) {
+    return null;
+  }
+
   return (
     <NavigationMenuItem>
       <NavigationMenuLink
@@ -210,13 +220,13 @@ function NavMenuItem({
         data-active={isActive ? 'true' : undefined}
       >
         <Link
-          href={item.href}
+          href={href}
           target={item.external ? '_blank' : undefined}
           rel={item.external ? 'noopener noreferrer' : undefined}
           onClick={() =>
             onInteraction('nav_click', {
               label: item.label,
-              href: item.href,
+              href,
               index,
               external: Boolean(item.external),
               surface: 'desktop',
@@ -247,6 +257,9 @@ function UtilityNavLink({
   isActive: boolean;
   onInteraction: (event: string, payload: Record<string, unknown>) => void;
 }) {
+  const href = resolveHref(item.href);
+  if (!href) return null;
+
   return (
     <NavigationMenuItem>
       <NavigationMenuLink
@@ -255,13 +268,13 @@ function UtilityNavLink({
         data-active={isActive ? 'true' : undefined}
       >
         <Link
-          href={item.href}
+          href={href}
           target={item.external ? '_blank' : undefined}
           rel={item.external ? 'noopener noreferrer' : undefined}
           onClick={() =>
             onInteraction('nav_click', {
               label: item.label,
-              href: item.href,
+              href,
               index,
               external: Boolean(item.external),
               surface: 'desktop',
@@ -280,22 +293,11 @@ function UtilityNavLink({
   );
 }
 
-// Default fallback menu items when LLM extraction fails completely
-const FALLBACK_MENU_ITEMS: MenuItem[] = [
-  { label: 'Home', href: '/' },
-  { label: 'About', href: '/about' },
-  { label: 'Services', href: '/services' },
-  { label: 'Contact', href: '/contact' },
-];
-
 export function NavBarServer({ content, className, theme, onInteraction }: NavBarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Normalize menu items, using fallback if extraction failed completely
   const normalizedMenuItems = useMemo(() => {
-    const items = normalizeMenuItems(content.menuItems);
-    // Use fallback only if we got zero items after normalization
-    return items.length > 0 ? items : FALLBACK_MENU_ITEMS;
+    return normalizeMenuItems(content.menuItems);
   }, [content.menuItems]);
   const normalizedUtilityNav = useMemo(() => normalizeMenuItems(content.utilityNav ?? []), [content.utilityNav]);
   const normalizedCTA = useMemo(() => normalizeCTA(content.cta), [content.cta]);

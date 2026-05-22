@@ -108,6 +108,35 @@ describe('Component: FeatureList', () => {
     expect(screen.getByText('Popular')).toBeInTheDocument();
   });
 
+  it('does not render legacy item aliases', () => {
+    render(
+      <FeatureList
+        {...({
+          ...mockProps,
+          content: {
+            items: [
+              {
+                title: 'Canonical title',
+                body: 'Legacy body',
+                text: 'Legacy text',
+                linkUrl: '/legacy',
+                featured: true,
+                badge: 'Legacy badge',
+              },
+            ],
+          },
+        } as unknown as FeatureListProps)}
+      />,
+    );
+
+    expect(screen.getByText('Canonical title')).toBeInTheDocument();
+    expect(screen.queryByText('Legacy body')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy text')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy badge')).not.toBeInTheDocument();
+    expect(screen.queryByText('Featured')).not.toBeInTheDocument();
+  });
+
   it('handles keyboard navigation', () => {
     render(<FeatureList {...mockProps} />);
     const firstLink = screen.getByRole('link', { name: 'Learn more' });
@@ -123,18 +152,16 @@ describe('Component: FeatureList', () => {
   });
 
   it('handles interaction tracking', () => {
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-    render(<FeatureList {...mockProps} />);
+    const onInteraction = jest.fn();
+    render(<FeatureList {...mockProps} onInteraction={onInteraction} />);
     
     const link = screen.getByRole('link', { name: 'Learn more' });
     fireEvent.click(link);
     
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Interaction:',
+    expect(onInteraction).toHaveBeenCalledWith(
       'feature-list-link-click',
       '/features/ease'
     );
-    consoleSpy.mockRestore();
   });
 
   it('applies custom className and style', () => {

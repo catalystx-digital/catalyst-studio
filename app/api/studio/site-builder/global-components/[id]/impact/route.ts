@@ -137,14 +137,6 @@ export async function GET(
         // Type guard for component object
         const componentObj = obj as Record<string, unknown>;
         
-        if (componentObj.sharedComponentId === id) {
-          usages.push({
-            pageId: '',  // Will be filled later
-            position,
-            hasOverrides: !!componentObj.overrides || !!componentObj.customProps
-          });
-        }
-        // Newer shape: nested under props
         const props = componentObj.props as Record<string, unknown> | undefined;
         if (props && props.sharedComponentId === id) {
           const overrides = (props.overrides as Record<string, unknown>) || undefined;

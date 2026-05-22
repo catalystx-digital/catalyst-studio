@@ -1,19 +1,16 @@
 import { PrismaClient } from '@/lib/generated/prisma';
-import { ComponentTransformer } from '@/lib/studio/migrations/transform-existing-components';
 import { ComponentCompatibilityLayer } from '@/lib/studio/components/cms/_core/compatibility';
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
 // Mock Prisma client for testing
 const prisma = new PrismaClient();
 
 describe('Story 10.2: CMS Schema Migration Tests', () => {
-  let transformer: ComponentTransformer;
   let compatibility: ComponentCompatibilityLayer;
   let testWebsiteId: string;
 
   beforeAll(async () => {
     // Initialize test utilities
-    transformer = new ComponentTransformer(prisma);
     compatibility = new ComponentCompatibilityLayer(prisma);
     
     // Create a test website
@@ -30,13 +27,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
   afterAll(async () => {
     // Cleanup test data
     if (testWebsiteId) {
-      await prisma.cMSComponent.deleteMany({
-        where: { websiteId: testWebsiteId }
-      });
-      await prisma.contentItem.deleteMany({
-        where: { websiteId: testWebsiteId }
-      });
-      await prisma.contentType.deleteMany({
+      await prisma.websiteComponentType.deleteMany({
         where: { websiteId: testWebsiteId }
       });
       await prisma.website.delete({
@@ -47,15 +38,15 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
   });
 
   describe('Forward Migration Execution', () => {
-    it('should create CMSComponent table with all required fields', async () => {
-      // Test that we can create a CMSComponent
-      const component = await prisma.cMSComponent.create({
+    it('should create websiteComponentType table with all required fields', async () => {
+      // Test that we can create a websiteComponentType
+      const component = await prisma.websiteComponentType.create({
         data: {
           type: 'test-component',
           category: 'test',
           version: '1.0.0',
-          props: { test: true },
-          content: { message: 'Test content' },
+          defaultConfig: { test: true },
+          placeholderData: { message: 'Test placeholderData' },
           aiMetadata: { patterns: ['test'] },
           confidence: 0.95,
           websiteId: testWebsiteId
@@ -70,30 +61,30 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       expect(component.confidence).toBe(0.95);
 
       // Cleanup
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: component.id }
       });
     });
 
     it('should create ComponentAnalytics table with metrics fields', async () => {
-      // Create a CMSComponent first to properly test the foreign key relationship
-      const cmsComponent = await prisma.cMSComponent.create({
+      // Create a websiteComponentType first to properly test the foreign key relationship
+      const websiteComponentType = await prisma.websiteComponentType.create({
         data: {
           type: 'test-analytics-component',
           category: 'test',
           version: '1.0.0',
-          props: {},
-          content: {},
+          defaultConfig: {},
+          placeholderData: {},
           aiMetadata: { patterns: ['test'] },
           confidence: 0.8,
           websiteId: testWebsiteId
         }
       });
 
-      // Now create ComponentAnalytics with the actual CMSComponent ID
+      // Now create ComponentAnalytics with the actual websiteComponentType ID
       const analytics = await prisma.componentAnalytics.create({
         data: {
-          componentId: cmsComponent.id, // Use the actual CMSComponent ID
+          componentId: websiteComponentType.id, // Use the actual websiteComponentType ID
           componentType: 'test-analytics-component',
           renderCount: 100,
           avgRenderTime: 12.5,
@@ -109,7 +100,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
 
       expect(analytics).toBeDefined();
       expect(analytics.id).toBeDefined();
-      expect(analytics.componentId).toBe(cmsComponent.id); // Verify the foreign key
+      expect(analytics.componentId).toBe(websiteComponentType.id); // Verify the foreign key
       expect(analytics.renderCount).toBe(100);
       expect(analytics.avgRenderTime).toBe(12.5);
       expect(analytics.impressions).toBe(500);
@@ -118,30 +109,30 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       await prisma.componentAnalytics.delete({
         where: { id: analytics.id }
       });
-      await prisma.cMSComponent.delete({
-        where: { id: cmsComponent.id }
+      await prisma.websiteComponentType.delete({
+        where: { id: websiteComponentType.id }
       });
     });
 
     it('should have proper indexes for performance', async () => {
       // Create multiple components to test index performance
       const components = await Promise.all([
-        prisma.cMSComponent.create({
+        prisma.websiteComponentType.create({
           data: {
             type: 'nav-bar',
             category: 'navigation',
-            props: {},
-            content: {},
+            defaultConfig: {},
+            placeholderData: {},
             aiMetadata: {},
             websiteId: testWebsiteId
           }
         }),
-        prisma.cMSComponent.create({
+        prisma.websiteComponentType.create({
           data: {
             type: 'hero-banner',
             category: 'heroes',
-            props: {},
-            content: {},
+            defaultConfig: {},
+            placeholderData: {},
             aiMetadata: {},
             confidence: 0.9,
             websiteId: testWebsiteId
@@ -150,20 +141,20 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       ]);
 
       // Test indexed queries
-      const navComponents = await prisma.cMSComponent.findMany({
+      const navComponents = await prisma.websiteComponentType.findMany({
         where: {
           websiteId: testWebsiteId,
           type: 'nav-bar'
         }
       });
 
-      const heroComponents = await prisma.cMSComponent.findMany({
+      const heroComponents = await prisma.websiteComponentType.findMany({
         where: {
           category: 'heroes'
         }
       });
 
-      const highConfidence = await prisma.cMSComponent.findMany({
+      const highConfidence = await prisma.websiteComponentType.findMany({
         where: {
           confidence: {
             gte: 0.8
@@ -181,7 +172,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       // Cleanup
       await Promise.all(
         components.map(c => 
-          prisma.cMSComponent.delete({ where: { id: c.id } })
+          prisma.websiteComponentType.delete({ where: { id: c.id } })
         )
       );
     });
@@ -190,19 +181,19 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
   describe('Rollback Procedure', () => {
     it('should handle rollback simulation without data loss', async () => {
       // Create test data
-      const component = await prisma.cMSComponent.create({
+      const component = await prisma.websiteComponentType.create({
         data: {
           type: 'rollback-test',
           category: 'test',
-          props: { important: 'data' },
-          content: { preserve: 'this' },
+          defaultConfig: { important: 'data' },
+          placeholderData: { preserve: 'this' },
           aiMetadata: {},
           websiteId: testWebsiteId
         }
       });
 
       // Verify component exists
-      const beforeRollback = await prisma.cMSComponent.findUnique({
+      const beforeRollback = await prisma.websiteComponentType.findUnique({
         where: { id: component.id }
       });
       expect(beforeRollback).toBeDefined();
@@ -210,109 +201,83 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       // Simulate data preservation (in real rollback, this would be backed up)
       const preservedData = {
         id: component.id,
-        props: component.props,
-        content: component.content
+        defaultConfig: component.defaultConfig,
+        placeholderData: component.placeholderData
       };
 
       // Delete component (simulating rollback)
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: component.id }
       });
 
       // Verify component is gone
-      const afterRollback = await prisma.cMSComponent.findUnique({
+      const afterRollback = await prisma.websiteComponentType.findUnique({
         where: { id: component.id }
       });
       expect(afterRollback).toBeNull();
 
       // Verify we have preserved data
-      expect(preservedData.props).toEqual({ important: 'data' });
-      expect(preservedData.content).toEqual({ preserve: 'this' });
+      expect(preservedData.defaultConfig).toEqual({ important: 'data' });
+      expect(preservedData.placeholderData).toEqual({ preserve: 'this' });
     });
   });
 
   describe('Data Preservation', () => {
-    it('should preserve existing ContentItem component data during migration', async () => {
-      // Create a component content type
-      const contentType = await prisma.contentType.create({
+    it('should preserve WebsiteComponentType configuration and placeholder data', async () => {
+      const component = await prisma.websiteComponentType.create({
         data: {
-          key: 'legacy-component',
-          name: 'Legacy Component',
-          pluralName: 'Legacy Components',
-          category: 'component',
-          fields: {},
+          type: 'preserved-hero',
+          category: 'heroes',
+          defaultConfig: { title: 'Welcome' },
+          placeholderData: {
+            headline: 'Welcome',
+            styles: { backgroundColor: 'blue' }
+          },
+          styles: { backgroundColor: 'blue' },
+          aiMetadata: {},
           websiteId: testWebsiteId
         }
       });
 
-      // Create a legacy component as ContentItem
-      const legacyComponent = await prisma.contentItem.create({
-        data: {
-          contentTypeId: contentType.id,
-          websiteId: testWebsiteId,
-          title: 'Legacy Hero Component',
-          slug: 'legacy-hero',
-          status: 'published',
-          content: {
-            type: 'hero',
-            props: { title: 'Welcome' },
-            styles: { backgroundColor: 'blue' }
-          }
-        }
+      const storedComponent = await prisma.websiteComponentType.findUnique({
+        where: { id: component.id }
       });
 
-      // Transform the legacy component
-      const result = await transformer.transformExistingComponents();
-      
-      // Verify transformation preserves data
-      const migratedComponent = await prisma.cMSComponent.findFirst({
-        where: {
-          websiteId: testWebsiteId,
-          type: 'hero-banner'
-        }
+      expect(storedComponent?.defaultConfig).toEqual({ title: 'Welcome' });
+      expect(storedComponent?.placeholderData).toEqual({
+        headline: 'Welcome',
+        styles: { backgroundColor: 'blue' }
       });
-
-      if (migratedComponent) {
-        expect(migratedComponent.content).toBeDefined();
-        expect(migratedComponent.props).toBeDefined();
-      }
+      expect(storedComponent?.styles).toEqual({ backgroundColor: 'blue' });
 
       // Cleanup
-      await prisma.contentItem.delete({
-        where: { id: legacyComponent.id }
+      await prisma.websiteComponentType.delete({
+        where: { id: component.id }
       });
-      await prisma.contentType.delete({
-        where: { id: contentType.id }
-      });
-      if (migratedComponent) {
-        await prisma.cMSComponent.delete({
-          where: { id: migratedComponent.id }
-        });
-      }
     });
   });
 
   describe('Idempotency', () => {
     it('should handle multiple migration runs without errors', async () => {
       // First migration run
-      const component1 = await prisma.cMSComponent.create({
+      const component1 = await prisma.websiteComponentType.create({
         data: {
           type: 'idempotent-test',
           category: 'test',
-          props: {},
-          content: {},
+          defaultConfig: {},
+          placeholderData: {},
           aiMetadata: {},
           websiteId: testWebsiteId
         }
       });
 
       // Second migration run (should not fail)
-      const component2 = await prisma.cMSComponent.create({
+      const component2 = await prisma.websiteComponentType.create({
         data: {
           type: 'idempotent-test-2',
           category: 'test',
-          props: {},
-          content: {},
+          defaultConfig: {},
+          placeholderData: {},
           aiMetadata: {},
           websiteId: testWebsiteId
         }
@@ -323,7 +288,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       expect(component1.id).not.toBe(component2.id);
 
       // Cleanup
-      await prisma.cMSComponent.deleteMany({
+      await prisma.websiteComponentType.deleteMany({
         where: {
           websiteId: testWebsiteId,
           type: {
@@ -334,49 +299,64 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
     });
   });
 
-  describe('Zero-Downtime Strategy', () => {
-    it('should support dual-read capability', async () => {
-      // Create component in new table
-      const newComponent = await prisma.cMSComponent.create({
+  describe('Component Compatibility Layer', () => {
+    it('should read components from WebsiteComponentType only', async () => {
+      const newComponent = await prisma.websiteComponentType.create({
         data: {
-          type: 'dual-read-test',
+          type: 'read-test',
           category: 'test',
-          props: { source: 'new' },
-          content: {},
+          defaultConfig: { source: 'new' },
+          placeholderData: {},
           aiMetadata: {},
           websiteId: testWebsiteId
         }
       });
 
-      // Test dual-read through compatibility layer
       const component = await compatibility.readComponent(testWebsiteId, newComponent.id);
       
-      if (component) {
-        expect(component.id).toBe(newComponent.id);
-      }
+      expect(component).toMatchObject({
+        id: newComponent.id,
+        type: 'read-test',
+        defaultConfig: { source: 'new' },
+        _source: 'WebsiteComponentType'
+      });
 
       // Cleanup
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: newComponent.id }
       });
     });
 
-    it('should handle feature flag transitions', async () => {
-      // Test with different migration phases
-      process.env.CMS_MIGRATION_PHASE = 'legacy';
-      const legacyStatus = compatibility.getMigrationStatus();
-      expect(legacyStatus.phase).toBe('legacy');
+    it('should write, list, report stats, and check consistency against WebsiteComponentType', async () => {
+      const written = await compatibility.writeComponent(testWebsiteId, {
+        type: 'compatibility-write-test',
+        category: 'test',
+        defaultConfig: { enabled: true },
+        placeholderData: { label: 'Write test' },
+        aiMetadata: { source: 'test' },
+        confidence: 0.7
+      });
 
-      process.env.CMS_MIGRATION_PHASE = 'dual';
-      const dualStatus = compatibility.getMigrationStatus();
-      expect(dualStatus.phase).toBe('dual');
+      const listed = await compatibility.listComponents(testWebsiteId, 'test');
+      const stats = await compatibility.getMigrationStats(testWebsiteId);
+      const consistency = await compatibility.consistencyCheck(testWebsiteId);
 
-      process.env.CMS_MIGRATION_PHASE = 'new';
-      const newStatus = compatibility.getMigrationStatus();
-      expect(newStatus.phase).toBe('new');
+      expect(written).toMatchObject({
+        type: 'compatibility-write-test',
+        defaultConfig: { enabled: true },
+        placeholderData: { label: 'Write test' },
+        _source: 'WebsiteComponentType'
+      });
+      expect(listed.some(component => component.id === written.id)).toBe(true);
+      expect(stats.storage).toBe('websiteComponentType');
+      expect(stats.counts.components).toBeGreaterThan(0);
+      expect(consistency.consistent).toBe(true);
+      expect(consistency.componentCount).toBeGreaterThan(0);
 
-      // Reset to default
-      delete process.env.CMS_MIGRATION_PHASE;
+      // Cleanup
+      await prisma.websiteComponentType.delete({
+        where: { id: written.id }
+      });
     });
   });
 
@@ -385,12 +365,12 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       // Create test components
       const components = await Promise.all(
         Array.from({ length: 10 }, (_, i) => 
-          prisma.cMSComponent.create({
+          prisma.websiteComponentType.create({
             data: {
               type: `load-test-${i}`,
               category: 'test',
-              props: {},
-              content: { index: i },
+              defaultConfig: {},
+              placeholderData: { index: i },
               aiMetadata: {},
               confidence: Math.random(),
               websiteId: testWebsiteId
@@ -402,16 +382,16 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       // Simulate concurrent queries
       const startTime = Date.now();
       const queries = await Promise.all([
-        prisma.cMSComponent.findMany({
+        prisma.websiteComponentType.findMany({
           where: { websiteId: testWebsiteId, category: 'test' },
           take: 5
         }),
-        prisma.cMSComponent.findMany({
+        prisma.websiteComponentType.findMany({
           where: { confidence: { gte: 0.5 } },
           orderBy: { confidence: 'desc' },
           take: 5
         }),
-        prisma.cMSComponent.findFirst({
+        prisma.websiteComponentType.findFirst({
           where: { type: 'load-test-5' }
         })
       ]);
@@ -422,7 +402,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       expect(queries[0].length).toBeGreaterThan(0);
 
       // Cleanup
-      await prisma.cMSComponent.deleteMany({
+      await prisma.websiteComponentType.deleteMany({
         where: {
           websiteId: testWebsiteId,
           type: { startsWith: 'load-test-' }
@@ -435,22 +415,22 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
     it('should handle rollback after partial data migration', async () => {
       // Create components representing partial migration
       const components = await Promise.all([
-        prisma.cMSComponent.create({
+        prisma.websiteComponentType.create({
           data: {
             type: 'partial-1',
             category: 'test',
-            props: {},
-            content: {},
+            defaultConfig: {},
+            placeholderData: {},
             aiMetadata: {},
             websiteId: testWebsiteId
           }
         }),
-        prisma.cMSComponent.create({
+        prisma.websiteComponentType.create({
           data: {
             type: 'partial-2',
             category: 'test',
-            props: {},
-            content: {},
+            defaultConfig: {},
+            placeholderData: {},
             aiMetadata: {},
             websiteId: testWebsiteId
           }
@@ -458,7 +438,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       ]);
 
       // Simulate rollback by deleting components
-      const deletedCount = await prisma.cMSComponent.deleteMany({
+      const deletedCount = await prisma.websiteComponentType.deleteMany({
         where: {
           websiteId: testWebsiteId,
           type: { startsWith: 'partial-' }
@@ -468,7 +448,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       expect(deletedCount.count).toBe(2);
 
       // Verify components are gone
-      const remaining = await prisma.cMSComponent.findMany({
+      const remaining = await prisma.websiteComponentType.findMany({
         where: {
           websiteId: testWebsiteId,
           type: { startsWith: 'partial-' }
@@ -480,12 +460,12 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
 
     it('should handle rollback with active user sessions', async () => {
       // Simulate active session with component
-      const activeComponent = await prisma.cMSComponent.create({
+      const activeComponent = await prisma.websiteComponentType.create({
         data: {
           type: 'active-session-component',
           category: 'test',
-          props: { sessionActive: true },
-          content: { userEditing: true },
+          defaultConfig: { sessionActive: true },
+          placeholderData: { userEditing: true },
           aiMetadata: {},
           websiteId: testWebsiteId
         }
@@ -495,40 +475,40 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       const sessionComponentId = activeComponent.id;
 
       // Attempt rollback while "session active"
-      const deleted = await prisma.cMSComponent.delete({
+      const deleted = await prisma.websiteComponentType.delete({
         where: { id: sessionComponentId }
       });
 
       expect(deleted.id).toBe(sessionComponentId);
 
       // Verify component is removed despite active session
-      const found = await prisma.cMSComponent.findUnique({
+      const found = await prisma.websiteComponentType.findUnique({
         where: { id: sessionComponentId }
       });
 
       expect(found).toBeNull();
     });
 
-    it('should handle rollback after full migration but before phase switch', async () => {
+    it('should handle rollback after WebsiteComponentType data is created', async () => {
       // Create fully migrated components
       const migratedComponents = await Promise.all([
-        prisma.cMSComponent.create({
+        prisma.websiteComponentType.create({
           data: {
             type: 'migrated-hero',
             category: 'heroes',
-            props: { migrated: true },
-            content: { phase: 'complete' },
+            defaultConfig: { migrated: true },
+            placeholderData: { state: 'complete' },
             aiMetadata: { migration: 'full' },
             confidence: 0.95,
             websiteId: testWebsiteId
           }
         }),
-        prisma.cMSComponent.create({
+        prisma.websiteComponentType.create({
           data: {
             type: 'migrated-nav',
             category: 'navigation',
-            props: { migrated: true },
-            content: { phase: 'complete' },
+            defaultConfig: { migrated: true },
+            placeholderData: { state: 'complete' },
             aiMetadata: { migration: 'full' },
             confidence: 0.92,
             websiteId: testWebsiteId
@@ -539,12 +519,12 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       // Store data for verification
       const originalData = migratedComponents.map(c => ({
         type: c.type,
-        props: c.props,
-        content: c.content
+        defaultConfig: c.defaultConfig,
+        placeholderData: c.placeholderData
       }));
 
       // Simulate rollback
-      await prisma.cMSComponent.deleteMany({
+      await prisma.websiteComponentType.deleteMany({
         where: {
           websiteId: testWebsiteId,
           type: { startsWith: 'migrated-' }
@@ -554,7 +534,7 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       // Verify data was preserved for potential re-migration
       expect(originalData[0].type).toBe('migrated-hero');
       expect(originalData[1].type).toBe('migrated-nav');
-      expect(originalData[0].props).toEqual({ migrated: true });
+      expect(originalData[0].defaultConfig).toEqual({ migrated: true });
     });
 
     it('should verify data integrity after rollback', async () => {
@@ -562,14 +542,14 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       const testData = {
         type: 'integrity-test-complete',
         category: 'test',
-        props: { important: 'preserve-this', nested: { deep: 'value' } },
-        content: { critical: 'data', arrays: [1, 2, 3] },
+        defaultConfig: { important: 'preserve-this', nested: { deep: 'value' } },
+        placeholderData: { critical: 'data', arrays: [1, 2, 3] },
         aiMetadata: { key: 'value', patterns: ['test', 'integrity'] },
         confidence: 0.99,
         websiteId: testWebsiteId
       };
 
-      const component = await prisma.cMSComponent.create({
+      const component = await prisma.websiteComponentType.create({
         data: testData
       });
 
@@ -577,12 +557,12 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       const backup = JSON.parse(JSON.stringify(component));
 
       // Delete component (simulate rollback)
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: component.id }
       });
 
       // Re-create from backup (simulate re-migration)
-      const restored = await prisma.cMSComponent.create({
+      const restored = await prisma.websiteComponentType.create({
         data: {
           ...testData,
           id: backup.id
@@ -591,25 +571,25 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
 
       // Verify complete data integrity
       expect(restored.type).toBe(backup.type);
-      expect(restored.props).toEqual(backup.props);
-      expect(restored.content).toEqual(backup.content);
+      expect(restored.defaultConfig).toEqual(backup.defaultConfig);
+      expect(restored.placeholderData).toEqual(backup.placeholderData);
       expect(restored.aiMetadata).toEqual(backup.aiMetadata);
       expect(restored.confidence).toBe(backup.confidence);
 
       // Cleanup
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: restored.id }
       });
     });
 
     it('should test re-running migration after rollback', async () => {
       // Initial migration
-      const initial = await prisma.cMSComponent.create({
+      const initial = await prisma.websiteComponentType.create({
         data: {
           type: 're-run-test',
           category: 'test',
-          props: { version: 1 },
-          content: { attempt: 'first' },
+          defaultConfig: { version: 1 },
+          placeholderData: { attempt: 'first' },
           aiMetadata: {},
           websiteId: testWebsiteId
         }
@@ -618,28 +598,28 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       const initialId = initial.id;
 
       // Rollback (delete)
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: initialId }
       });
 
       // Re-run migration (create again with same type)
-      const second = await prisma.cMSComponent.create({
+      const second = await prisma.websiteComponentType.create({
         data: {
           type: 're-run-test',
           category: 'test',
-          props: { version: 2 },
-          content: { attempt: 'second' },
+          defaultConfig: { version: 2 },
+          placeholderData: { attempt: 'second' },
           aiMetadata: {},
           websiteId: testWebsiteId
         }
       });
 
       expect(second.type).toBe('re-run-test');
-      expect(second.props).toEqual({ version: 2 });
+      expect(second.defaultConfig).toEqual({ version: 2 });
       expect(second.id).not.toBe(initialId); // Different ID after re-run
 
       // Cleanup
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: second.id }
       });
     });
@@ -649,14 +629,14 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       const testData = {
         type: 'integrity-test',
         category: 'test',
-        props: { important: 'preserve-this' },
-        content: { critical: 'data' },
+        defaultConfig: { important: 'preserve-this' },
+        placeholderData: { critical: 'data' },
         aiMetadata: { key: 'value' },
         confidence: 0.99,
         websiteId: testWebsiteId
       };
 
-      const component = await prisma.cMSComponent.create({
+      const component = await prisma.websiteComponentType.create({
         data: testData
       });
 
@@ -664,11 +644,11 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
       const originalData = { ...component };
 
       // Delete and recreate (simulating rollback and re-migration)
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: component.id }
       });
 
-      const recreated = await prisma.cMSComponent.create({
+      const recreated = await prisma.websiteComponentType.create({
         data: {
           ...testData,
           id: originalData.id // Use same ID to simulate restoration
@@ -677,12 +657,12 @@ describe('Story 10.2: CMS Schema Migration Tests', () => {
 
       // Verify data integrity
       expect(recreated.type).toBe(originalData.type);
-      expect(recreated.props).toEqual(originalData.props);
-      expect(recreated.content).toEqual(originalData.content);
+      expect(recreated.defaultConfig).toEqual(originalData.defaultConfig);
+      expect(recreated.placeholderData).toEqual(originalData.placeholderData);
       expect(recreated.confidence).toBe(originalData.confidence);
 
       // Cleanup
-      await prisma.cMSComponent.delete({
+      await prisma.websiteComponentType.delete({
         where: { id: recreated.id }
       });
     });

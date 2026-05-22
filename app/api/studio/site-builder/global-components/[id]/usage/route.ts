@@ -10,7 +10,6 @@ interface PageContent {
   components: Array<{
     id: string;
     type: string;
-    sharedComponentId?: string;
     position: number;
     parentId?: string;
     props?: Record<string, unknown>;
@@ -71,10 +70,7 @@ export async function GET(
       FROM "WebsitePage" p,
            jsonb_array_elements(p.content->'components') AS component
       WHERE p."websiteId" = ${sharedComponent.websiteId}
-        AND (
-          component->>'sharedComponentId' = ${id}
-          OR component->'props'->>'sharedComponentId' = ${id}
-        )
+        AND component->'props'->>'sharedComponentId' = ${id}
     `;
 
     // Search for usage in WebsiteCustomContentData
@@ -87,7 +83,7 @@ export async function GET(
       SELECT DISTINCT c.id, c.title, c.data, c.status
       FROM "WebsiteCustomContentData" c
       WHERE c."websiteId" = ${sharedComponent.websiteId}
-        AND c.data::jsonb @> ${JSON.stringify({ sharedComponentId: id })}::jsonb
+        AND c.data::jsonb @> ${JSON.stringify({ props: { sharedComponentId: id } })}::jsonb
     `;
 
     // Get WebsiteStructure info for pages
@@ -105,14 +101,14 @@ export async function GET(
 
     const structureMap = new Map(structures.map(s => [s.websitePageId, s]));
 
-    // Build usage response maintaining backward compatibility
+    // Build usage response from canonical props.sharedComponentId references.
     const pageUsageDetails = pagesWithUsage.map((page, index) => {
       const structure = structureMap.get(page.id);
       const content = page.content as unknown as PageContent;
       
       // Find the component instance in the content
       const componentInstance = content.components?.find(
-        c => c.sharedComponentId === id || c.props?.sharedComponentId === id
+        c => c.props?.sharedComponentId === id
       );
       const overrides = (componentInstance?.props as Record<string, unknown> | undefined)?.overrides as Record<string, unknown> | undefined;
       const hasOverrides = !!(
@@ -303,7 +299,7 @@ export async function DELETE(
       await prisma.websiteSharedComponent.update({ where: { id }, data: { usageCount: { decrement: 1 } } });
       removedCount = 1;
     } else if (pageId) {
-      // Remove all matching instances from the specified page (both unified and legacy shapes)
+      // Remove all matching instances from the specified page.
       const page = await prisma.websitePage.findUnique({ where: { id: pageId } });
       if (!page) {
         return NextResponse.json({ error: 'Page not found' }, { status: 404 });
@@ -311,7 +307,7 @@ export async function DELETE(
       const content = (page.content || {}) as unknown as PageContent;
       const components = Array.isArray(content.components) ? content.components : [];
       const filtered = components.filter(
-        (c) => !(c?.props && (c.props as Record<string, unknown>).sharedComponentId === id) && c.sharedComponentId !== id
+        (c) => !(c?.props && (c.props as Record<string, unknown>).sharedComponentId === id)
       );
       removedCount = components.length - filtered.length;
       if (removedCount > 0) {

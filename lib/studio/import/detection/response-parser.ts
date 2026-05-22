@@ -1,17 +1,10 @@
 import { applyTemplateCanonicalization } from './canonicalization'
-import {
-  canonicalizeComponentType,
-  getCanonicalComponent
-} from './canonical'
 import type { ComponentPattern, DetectedComponent, DetectedPageTemplate, PageMetadata } from './types'
 import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import { ConfidenceConfig } from '../config'
-import { normalizePath, isHomePath } from '../utils/path-utils'
+import { normalizePath } from '../utils/path-utils'
 import {
   clampConfidence,
-  matchTemplateByRouteHints,
-  pickHomeTemplateKey,
-  inferTemplateKeyFromUrl,
   sanitizeReason,
   ensureHomeEligible
 } from '../services/page-builder/template-resolver'
@@ -34,28 +27,16 @@ interface ParseDetectionOutput {
   accuracy: number
 }
 
-/**
- * Raw template candidate from model output.
- * Can be a string (templateKey) or an object with metadata.
- */
-type RawTemplateCandidate = string | {
+type RawTemplateCandidate = {
   templateKey?: string
   confidence?: number
   reason?: string
-} | null | undefined
+}
 
-/**
- * Raw parsed content from model response.
- * Components may be in array format [name, confidence, content] or object format.
- */
-type RawParsedItem = [string, number, Record<string, unknown>] | {
-  component?: string
-  type?: string
-  name?: string
-  confidence?: number
-  score?: number
-  content?: Record<string, unknown>
-  data?: Record<string, unknown>
+type RawParsedItem = {
+  component: string
+  confidence: number
+  content: Record<string, unknown>
   location?: string
   [key: string]: unknown
 }
@@ -66,7 +47,7 @@ type RawParsedItem = [string, number, Record<string, unknown>] | {
 interface ParsedDetectionResponse {
   contentByField: Map<string, RawParsedItem[]>
   pageMetadata?: PageMetadata
-  pageTemplate?: RawTemplateCandidate
+  pageTemplate: RawTemplateCandidate
 }
 
 function deriveContentFieldNames(pageSummary: PageCatalogSummary): string[] {
@@ -97,11 +78,8 @@ export function parseDetectionResponse({
     contentFieldNames
   )
   const primaryField = contentFieldNames[0]
-  const primaryContent = contentByField.get(primaryField)
-    ?? Array.from(contentByField.values())[0]
-    ?? []
-  const normalizedComponents = normalizeComponentTriples(primaryContent)
-  const detectedComponents = parseComponentsArray(normalizedComponents, availableComponents, confidenceThreshold, url)
+  const primaryContent = contentByField.get(primaryField) ?? []
+  const detectedComponents = parseComponentsArray(primaryContent, availableComponents, confidenceThreshold, url)
   const resolvedTemplate = resolvePageTemplate(pageTemplate, pageSummary, url)
   const canonicalComponents = applyTemplateCanonicalization({
     components: detectedComponents,
@@ -128,153 +106,47 @@ function parseCombinedDetectionResponse(
   const contentByField = new Map<string, RawParsedItem[]>()
 
   const register = (field: string, value: unknown) => {
-    if (Array.isArray(value)) {
-      contentByField.set(field, value)
+    if (!Array.isArray(value)) {
+      throw new Error(`Detection response field "${field}" must be an array`)
     }
+    contentByField.set(field, value as RawParsedItem[])
   }
 
-  try {
-    const raw = JSON.parse(response)
-    for (const field of contentFieldNames) {
-      register(field, (raw as Record<string, unknown>)[field])
-    }
-    const pageMetadata: PageMetadata | undefined = (raw as any)?.pageMetadata || undefined
-    const pageTemplate = (raw as any)?.pageTemplate || undefined
-    if (contentByField.size > 0 || pageMetadata || pageTemplate) {
-      return { contentByField, pageMetadata, pageTemplate }
-    }
-  } catch {
-    /* fall through */
+  const raw = JSON.parse(response)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Detection response must be a JSON object')
   }
 
-  const objString = extractAndSanitizeJsonObject(response)
-  if (objString) {
-    try {
-      const obj = JSON.parse(objString)
-      for (const field of contentFieldNames) {
-        register(field, (obj as Record<string, unknown>)[field])
-      }
-      const pageMetadata: PageMetadata | undefined = (obj as any)?.pageMetadata || undefined
-      const pageTemplate = (obj as any)?.pageTemplate || undefined
-      if (contentByField.size > 0 || pageMetadata || pageTemplate) {
-        return { contentByField, pageMetadata, pageTemplate }
-      }
-    } catch (e) {
-      try {
-        for (const field of contentFieldNames) {
-          const arraySnippet = extractTopLevelArrayAfterKey(response, field)
-          if (!arraySnippet) continue
-          try {
-            const arr = JSON.parse(arraySnippet)
-            register(field, arr)
-          } catch {
-            // ignore parse failure per field
-          }
-        }
-        const metaStr = extractTopLevelObjectAfterKey(response, 'pageMetadata')
-        const templateStr = extractTopLevelObjectAfterKey(response, 'pageTemplate')
-        let pageMetadata: PageMetadata | undefined
-        if (metaStr) {
-          try {
-            pageMetadata = JSON.parse(metaStr)
-          } catch {
-            pageMetadata = undefined
-          }
-        }
-        let pageTemplate: any
-        if (templateStr) {
-          try {
-            pageTemplate = JSON.parse(templateStr)
-          } catch {
-            pageTemplate = templateStr
-          }
-        }
-        return { contentByField, pageMetadata, pageTemplate }
-      } catch (innerError) {
-        const rawMessage = innerError instanceof Error ? innerError.message : String(innerError)
-        const snippet = rawMessage.length > 240 ? rawMessage.slice(0, 237) + '...' : rawMessage
-        console.warn('Failed to parse JSON object, falling back to array extraction:', snippet)
-      }
-    }
-  }
-
+  const responseObject = raw as Record<string, unknown>
   for (const field of contentFieldNames) {
-    const arrayString = extractTopLevelArrayAfterKey(response, field) || extractAndSanitizeJsonArray(response)
-    if (arrayString) {
-      try {
-        const arr = JSON.parse(arrayString)
-        register(field, arr)
-        // break after first successful parse to avoid overriding with generic fallback
-        break
-      } catch {
-        /* ignore */
-      }
+    if (Object.prototype.hasOwnProperty.call(responseObject, field)) {
+      register(field, responseObject[field])
     }
   }
 
   if (contentByField.size === 0) {
-    const items = extractArrayItems(response)
-    if (items.length > 0) {
-      register(contentFieldNames[0], items)
-    }
+    throw new Error(`Detection response must include one of: ${contentFieldNames.join(', ')}`)
   }
 
-  return { contentByField, pageMetadata: undefined, pageTemplate: undefined }
-}
-
-
-function normalizeComponentTriples(components: unknown[]): RawParsedItem[] {
-  const normalized: RawParsedItem[] = []
-  for (let index = 0; index < components.length; index++) {
-    const item = components[index]
-    if (typeof item === 'string') {
-      const next = components[index + 1]
-      const afterNext = components[index + 2]
-      if (typeof next === 'number' && afterNext && typeof afterNext === 'object' && !Array.isArray(afterNext)) {
-        normalized.push([item, next, afterNext as Record<string, unknown>])
-        index += 2
-        continue
-      }
-    }
-    // Push as-is, parseComponentsArray will handle type validation
-    normalized.push(item as RawParsedItem)
+  const rawPageTemplate = responseObject.pageTemplate
+  if (!rawPageTemplate || typeof rawPageTemplate !== 'object' || Array.isArray(rawPageTemplate)) {
+    throw new Error('Detection response must include pageTemplate object')
   }
-  return normalized
-}
-
-const canonicalPatternFallbackCache = new Map<string, ComponentPattern>()
-
-function resolveCanonicalPatternFallback(componentName: string): ComponentPattern | undefined {
-  const canonicalType = canonicalizeComponentType(componentName)
-  if (!canonicalType) {
-    return undefined
+  const pageTemplate = rawPageTemplate as RawTemplateCandidate
+  if (typeof pageTemplate.templateKey !== 'string' || pageTemplate.templateKey.trim().length === 0) {
+    throw new Error('Detection response pageTemplate.templateKey must be a non-empty string')
   }
 
-  const cached = canonicalPatternFallbackCache.get(canonicalType)
-  if (cached) {
-    return cached
-  }
+  const pageMetadata =
+    responseObject.pageMetadata && typeof responseObject.pageMetadata === 'object' && !Array.isArray(responseObject.pageMetadata)
+      ? responseObject.pageMetadata as PageMetadata
+      : undefined
 
-  const definition = getCanonicalComponent(canonicalType)
-  if (!definition) {
-    return undefined
+  return {
+    contentByField,
+    pageMetadata,
+    pageTemplate
   }
-
-  const pattern: ComponentPattern = {
-    type: definition.componentType ?? canonicalType,
-    confidence: typeof definition.sampleContent?.confidence === 'number'
-      ? Number(definition.sampleContent.confidence)
-      : 0.6,
-    description: definition.summary,
-    metadata: {
-      source: 'canonical-fallback',
-      fragments: definition.fragments,
-      cues: definition.cues
-    }
-  }
-
-  canonicalPatternFallbackCache.set(canonicalType, pattern)
-  return pattern
 }
 
 function parseComponentsArray(
@@ -283,150 +155,46 @@ function parseComponentsArray(
   confidenceThreshold: number,
   pageUrl?: string
 ): DetectedComponent[] {
-  try {
-    const validComponents: DetectedComponent[] = []
-    const componentMap = new Map(availableComponents.map(c => [c.type, c]))
-    for (const item of parsed) {
-      let componentName: string | undefined
-      let confidence: number | undefined
-      let content: Record<string, unknown> | undefined
+  const validComponents: DetectedComponent[] = []
+  const componentMap = new Map(availableComponents.map(c => [c.type, c]))
+  for (let index = 0; index < parsed.length; index++) {
+    const item = parsed[index]
 
-      if (Array.isArray(item) && item.length >= 3) {
-        componentName = item[0]
-        confidence = item[1]
-        content = item[2]
-      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
-        const obj = item
-        componentName = obj.component ?? obj.type ?? obj.name
-        confidence = typeof obj.confidence === 'number' ? obj.confidence : (typeof obj.score === 'number' ? obj.score : undefined)
-        if (obj.content || obj.data) {
-          content = (obj.content ?? obj.data) as Record<string, unknown>
-        } else {
-          const structural = new Set(['component','type','name','confidence','score','location'])
-          const c: Record<string, unknown> = {}
-          for (const [k, v] of Object.entries(obj)) {
-            if (!structural.has(k)) c[k] = v
-          }
-          content = c
-        }
-      } else {
-        continue
-      }
-
-      if (typeof componentName !== 'string') continue
-      if (typeof confidence !== 'number') confidence = 0.8
-      if (typeof confidence === 'number' && confidence < confidenceThreshold) continue
-      let pattern = componentMap.get(componentName) ||
-        availableComponents.find(c => c.type.toLowerCase() === String(componentName).toLowerCase())
-      if (!pattern) {
-        const fallbackPattern = resolveCanonicalPatternFallback(componentName)
-        if (fallbackPattern) {
-          componentMap.set(componentName, fallbackPattern)
-          componentMap.set(fallbackPattern.type, fallbackPattern)
-          pattern = fallbackPattern
-          console.warn('[DetectionParser] Missing component pattern; using canonical fallback', {
-            component: componentName,
-            resolvedType: fallbackPattern.type,
-            pageUrl
-          })
-        }
-      }
-      if (!pattern) continue
-      const enhancedContent = enhanceContentWithDefaults(content || {}, pattern)
-      validComponents.push({
-        component: componentName,
-        type: pattern.type as DetectedComponent['type'],
-        confidence,
-        content: enhancedContent,
-        location: inferLocationFromType(pattern.type),
-        metadata: pattern.metadata as DetectedComponent['metadata']
-      })
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error(`Detection response components[${index}] must be an object`)
     }
-    return validComponents
-  } catch (error) {
-    console.error('Error parsing components array:', error)
-    return []
-  }
-}
 
-function enhanceContentWithDefaults(
-  content: Record<string, unknown>,
-  pattern: ComponentPattern
-): Record<string, unknown> {
-  if (!pattern.properties || !Array.isArray(pattern.properties)) {
-    return content
-  }
+    const componentName = item.component
+    const confidence = item.confidence
+    const content = item.content
 
-  const enhanced = { ...content }
-
-  for (const prop of pattern.properties) {
-    if (prop.required && !Object.prototype.hasOwnProperty.call(enhanced, prop.name)) {
-      if (prop.type.includes('Array')) {
-        enhanced[prop.name] = []
-      } else if (prop.type === 'string') {
-        enhanced[prop.name] = ''
-      } else if (prop.type === 'number') {
-        enhanced[prop.name] = 0
-      } else if (prop.type === 'boolean') {
-        enhanced[prop.name] = false
-      } else {
-        enhanced[prop.name] = null
-      }
+    if (typeof componentName !== 'string' || componentName.trim().length === 0) {
+      throw new Error(`Detection response components[${index}].component must be a non-empty string`)
     }
-  }
-
-  try {
-    const props = Array.isArray(pattern.properties) ? pattern.properties : []
-    for (const p of props) {
-      const t = p.type ? String(p.type).toLowerCase() : ''
-      const allowed = p.allowedTypes
-      if (!allowed || !Array.isArray(allowed) || allowed.length === 0) continue
-      const single = allowed.length === 1 ? allowed[0] : undefined
-      if (!single) continue
-
-      const isContentArray = t.includes('content[]') || t.includes('array<content') || t.includes('array<contentreference>')
-      const isContentSingle = !isContentArray && (t === 'content' || t.includes('contentreference'))
-
-      if (isContentArray) {
-        const v = enhanced[p.name]
-        if (Array.isArray(v)) {
-          enhanced[p.name] = v.map((el: unknown) => {
-            if (el && typeof el === 'object' && !('type' in el)) {
-              return { type: single, ...(el as Record<string, unknown>) }
-            }
-            return el
-          })
-        }
-      } else if (isContentSingle) {
-        const v = enhanced[p.name]
-        if (v && typeof v === 'object' && !Array.isArray(v) && !('type' in (v as object))) {
-          enhanced[p.name] = { type: single, ...(v as Record<string, unknown>) }
-        }
-      }
+    if (typeof confidence !== 'number' || !Number.isFinite(confidence)) {
+      throw new Error(`Detection response components[${index}].confidence must be a finite number`)
     }
-  } catch {}
-
-  if (enhanced.buttons && Array.isArray(enhanced.buttons)) {
-    enhanced.buttons = enhanced.buttons.map((btn: unknown) => {
-      const btnObj = btn as Record<string, unknown>
-      return {
-        ...btnObj,
-        style: btnObj.style || 'primary'
-      }
+    if (confidence < confidenceThreshold) {
+      continue
+    }
+    if (!content || typeof content !== 'object' || Array.isArray(content)) {
+      throw new Error(`Detection response components[${index}].content must be an object`)
+    }
+    let pattern = componentMap.get(componentName) ||
+      availableComponents.find(c => c.type.toLowerCase() === String(componentName).toLowerCase())
+    if (!pattern) {
+      throw new Error(`Detection response components[${index}].component "${componentName}" is not registered`)
+    }
+    validComponents.push({
+      component: componentName,
+      type: pattern.type as DetectedComponent['type'],
+      confidence,
+      content,
+      location: inferLocationFromType(pattern.type),
+      metadata: pattern.metadata as DetectedComponent['metadata']
     })
   }
-
-  if (enhanced.ctaButtons && Array.isArray(enhanced.ctaButtons)) {
-    enhanced.ctaButtons = enhanced.ctaButtons.map((btn: unknown) => {
-      const btnObj = btn as Record<string, unknown>
-      return {
-        ...btnObj,
-        style: btnObj.style || 'primary'
-      }
-    })
-  }
-
-  return enhanced
+  return validComponents
 }
 
 function inferLocationFromType(type: string): DetectedComponent['location'] {
@@ -435,97 +203,6 @@ function inferLocationFromType(type: string): DetectedComponent['location'] {
   if (typeLower.includes('hero')) return 'hero'
   if (typeLower.includes('footer')) return 'footer'
   return 'main'
-}
-
-function extractAndSanitizeJsonArray(input: string): string | null {
-  try {
-    let s = input.trim()
-    s = s.replace(/```json\s*/gi, '').replace(/```/g, '')
-    s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
-    const start = s.indexOf('[')
-    const end = s.lastIndexOf(']')
-    if (start === -1 || end === -1 || end <= start) return null
-    let arrayStr = s.substring(start, end + 1)
-    arrayStr = arrayStr.replace(/,\s*(\]|\})/g, '$1')
-    arrayStr = arrayStr.replace(/`+/g, '')
-    return arrayStr
-  } catch { return null }
-}
-
-function extractAndSanitizeJsonObject(input: string): string | null {
-  try {
-    let s = input.trim()
-    s = s.replace(/```json\s*/gi, '').replace(/```/g, '')
-    s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
-    const start = s.indexOf('{')
-    const end = s.lastIndexOf('}')
-    if (start === -1 || end === -1 || end <= start) return null
-    let objStr = s.substring(start, end + 1)
-    objStr = objStr.replace(/,\s*(\]|\})/g, '$1')
-    objStr = objStr.replace(/`+/g, '')
-    return objStr
-  } catch { return null }
-}
-
-function extractArrayItems(input: string): RawParsedItem[] {
-  const items: RawParsedItem[] = []
-  try {
-    const s = input.replace(/```json\s*/gi, '').replace(/```/g, '')
-    const re = /\[\s*"([^"]+)"\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*,\s*(\{[\s\S]*?\})\s*\]/g
-    let m: RegExpExecArray | null
-    while ((m = re.exec(s)) !== null) {
-      const name = m[1]
-      const conf = parseFloat(m[2])
-      let objStr = m[3]
-      objStr = objStr.replace(/,\s*(\]|\})/g, '$1')
-      try { items.push([name, conf, JSON.parse(objStr) as Record<string, unknown>]) } catch {
-        items.push([name, conf, {}])
-      }
-    }
-  } catch { /* ignore */ }
-  return items
-}
-
-function extractTopLevelArrayAfterKey(input: string, key: string): string | null {
-  const re = new RegExp(`"${key}"\\s*:\\s*\\[`, 'i')
-  const m = re.exec(input)
-  if (!m) return null
-  let start = (m.index + m[0].length) - 1
-  let depth = 0
-  let inStr = false
-  let esc = false
-  for (let i = start; i < input.length; i++) {
-    const ch = input[i]
-    if (inStr) {
-      if (esc) { esc = false } else if (ch === '\\') { esc = true } else if (ch === '"') { inStr = false }
-      continue
-    }
-    if (ch === '"') { inStr = true; continue }
-    if (ch === '[') { if (depth === 0) start = i; depth++ }
-    else if (ch === ']') { depth--; if (depth === 0) return input.slice(start, i + 1) }
-  }
-  return null
-}
-
-function extractTopLevelObjectAfterKey(input: string, key: string): string | null {
-  const re = new RegExp(`"${key}"\\s*:\\s*\\{`, 'i')
-  const m = re.exec(input)
-  if (!m) return null
-  let start = (m.index + m[0].length) - 1
-  let depth = 0
-  let inStr = false
-  let esc = false
-  for (let i = start; i < input.length; i++) {
-    const ch = input[i]
-    if (inStr) {
-      if (esc) { esc = false } else if (ch === '\\') { esc = true } else if (ch === '"') { inStr = false }
-      continue
-    }
-    if (ch === '"') { inStr = true; continue }
-    if (ch === '{') { if (depth === 0) start = i; depth++ }
-    else if (ch === '}') { depth--; if (depth === 0) return input.slice(start, i + 1) }
-  }
-  return null
 }
 
 function calculateAccuracy(
@@ -547,44 +224,31 @@ function resolvePageTemplate(
 
   let key: string | undefined
   let reason: string | undefined
-  let source: 'model' | 'fallback' = 'model'
+  let source: 'model' = 'model'
   let rawConfidence: number | undefined
 
-  if (typeof candidate === 'string') {
-    key = candidate.trim()
-  } else if (candidate && typeof candidate === 'object') {
-    if (typeof candidate.templateKey === 'string') {
-      key = candidate.templateKey.trim()
-    }
-    if (typeof candidate.reason === 'string') {
-      reason = candidate.reason.trim()
-    }
-    if (typeof candidate.confidence === 'number') {
-      rawConfidence = candidate.confidence
-    }
+  if (typeof candidate.templateKey === 'string') {
+    key = candidate.templateKey.trim()
+  }
+  if (typeof candidate.reason === 'string') {
+    reason = candidate.reason.trim()
+  }
+  if (typeof candidate.confidence === 'number') {
+    rawConfidence = candidate.confidence
   }
 
   if (key && registry.has(key)) {
     const adjustedKey = ensureHomeEligible(key, path, pageSummary)
     if (adjustedKey !== key) {
-      source = 'fallback'
-      reason = sanitizeReason(
-        `${reason ?? ''} Selected template is not home-eligible; using ${adjustedKey}.`
-      )
+      throw new Error(`Detection response pageTemplate.templateKey "${key}" is not eligible for home path ${path}`)
     }
     key = adjustedKey
   } else {
-    source = 'fallback'
-    const fallbackKey = inferTemplateKeyFromUrl(path, pageSummary)
-    reason = sanitizeReason(
+    throw new Error(
       key
-        ? `Template ${key} is not registered; fell back to ${fallbackKey}.`
-        : `Model omitted template; heuristically selected ${fallbackKey}.`
+        ? `Detection response pageTemplate.templateKey "${key}" is not registered`
+        : 'Detection response pageTemplate.templateKey is required'
     )
-    key = fallbackKey
-    if (rawConfidence === undefined) {
-      rawConfidence = 0
-    }
   }
 
   const confidence = clampConfidence(rawConfidence)

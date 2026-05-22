@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { CMSComponentProps, ComponentType } from '../_core/types';
+import { CMSComponentProps } from '../_core/types';
 import { readRuntimeContent } from '../_core/utils';
 import { NavBar as NavBarImpl } from './nav-bar';
 import { Footer as FooterImpl } from './footer';
@@ -14,11 +14,11 @@ import { MobileMenu as MobileMenuImpl } from './mobile-menu';
 import { Breadcrumbs as BreadcrumbsImpl } from './breadcrumbs';
 import { SidebarNavServer as SidebarNavImpl } from './sidebar-nav';
 import { NavBarContent, NavBarProps } from './nav-bar/nav-bar.types';
-import { FooterContent, FooterProps, FooterSocialLink } from './footer/footer.types';
+import { FooterContent, FooterProps } from './footer/footer.types';
 import { MobileMenuContent, MobileMenuProps } from './mobile-menu/mobile-menu.types';
 import { BreadcrumbsContent, BreadcrumbsProps } from './breadcrumbs/breadcrumbs.types';
 import { SidebarNavContent, SidebarNavProps, SidebarNavItem, SidebarNavStyleProps } from './sidebar-nav/sidebar-nav.types';
-import { normalizeMenuItems } from './utils/menu-items';
+import { MenuItem } from '../_core/value-objects';
 
 /**
  * Type guard to check if content is BreadcrumbsContent
@@ -27,42 +27,114 @@ function isBreadcrumbsContent(content: any): content is BreadcrumbsContent {
   return content && Array.isArray(content.items);
 }
 
-function isCMSComponentValue(value: unknown): value is CMSComponentProps {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    typeof (value as any).type === 'string' &&
-    (typeof (value as any).content === 'object' || (value as any).content === undefined)
-  );
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' ? (value as Record<string, any>) : {};
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isLinkValue(value: unknown): boolean {
+  if (!isPlainObject(value) || typeof value.type !== 'string') {
+    return false;
+  }
+
+  return ['internal', 'external', 'email', 'phone', 'anchor'].includes(value.type);
+}
+
+function canonicalMenuItems(value: unknown): MenuItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isPlainObject)
+    .map((item) => {
+      if (typeof item.label !== 'string') {
+        return null;
+      }
+
+      const groups = Array.isArray(item.groups)
+        ? item.groups
+            .filter(isPlainObject)
+            .map((group) => ({
+              ...(typeof group.title === 'string' ? { title: group.title } : {}),
+              ...(typeof group.description === 'string' ? { description: group.description } : {}),
+              ...(Array.isArray(group.items) ? { items: canonicalMenuItems(group.items) } : {})
+            }))
+        : undefined;
+
+      const next: MenuItem = {
+        label: item.label,
+        ...(isLinkValue(item.href) ? { href: item.href } : {}),
+        ...(typeof item.description === 'string' ? { description: item.description } : {}),
+        ...(typeof item.icon === 'string' ? { icon: item.icon } : {}),
+        ...(Array.isArray(item.children) ? { children: canonicalMenuItems(item.children) } : {}),
+        ...(groups ? { groups } : {}),
+        ...(typeof item.external === 'boolean' ? { external: item.external } : {}),
+        ...(typeof item.panelOffset === 'number' ? { panelOffset: item.panelOffset } : {}),
+        ...(typeof item.panelWidth === 'number' || typeof item.panelWidth === 'string' ? { panelWidth: item.panelWidth } : {}),
+        ...(item.panelAlign === 'start' || item.panelAlign === 'center' || item.panelAlign === 'end' ? { panelAlign: item.panelAlign } : {})
+      };
+
+      return next;
+    })
+    .filter((item): item is MenuItem => item !== null);
+}
+
+function canonicalFooterColumns(value: unknown): FooterContent['columns'] {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value
+    .filter(isPlainObject)
+    .map((column) => ({
+      ...(typeof column.title === 'string' ? { title: column.title } : {}),
+      links: canonicalMenuItems(column.links)
+    }))
+    .filter((column) => column.title || column.links.length > 0);
+}
+
+function canonicalSocialLinks(value: unknown): FooterContent['socialLinks'] {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value
+    .filter(isPlainObject)
+    .filter((link) =>
+      ['facebook', 'twitter', 'linkedin', 'instagram', 'youtube', 'github', 'website'].includes(link.platform) &&
+      typeof link.url === 'string'
+    )
+    .map((link) => ({
+      platform: link.platform,
+      url: link.url,
+      ...(typeof link.icon === 'string' ? { icon: link.icon } : {}),
+      ...(typeof link.label === 'string' ? { label: link.label } : {})
+    }));
 }
 
 /**
  * NavBar Adapter Component
  */
 export const NavBarAdapter: React.FC<CMSComponentProps> = (props) => {
-  // Convert generic content to NavBarContent with defaults
   const raw = readRuntimeContent(props.content);
-  const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
-  const normalizedMenu = normalizeMenuItems(base.menuItems ?? base.links ?? []);
-  const normalizedUtilityNav = normalizeMenuItems(base.utilityNav ?? []);
+  const base = asRecord(raw);
 
   const navBarContent: NavBarContent = {
-    menuItems: normalizedMenu,
-    ...(normalizedUtilityNav.length > 0 ? { utilityNav: normalizedUtilityNav } : {}),
+    menuItems: canonicalMenuItems(base.menuItems),
+    ...(Array.isArray(base.utilityNav) ? { utilityNav: canonicalMenuItems(base.utilityNav) } : {}),
     ...(base.logo && typeof base.logo === 'object' ? { logo: base.logo } : {}),
     ...(base.cta && typeof base.cta === 'object' ? { cta: base.cta } : {}),
+    ...(base.search && typeof base.search === 'object' ? { search: base.search } : {}),
     ...(typeof base.mobileBreakpoint === 'number' ? { mobileBreakpoint: base.mobileBreakpoint } : {}),
     ...(typeof base.sticky === 'boolean' ? { sticky: base.sticky } : {}),
     ...(typeof base.transparent === 'boolean' ? { transparent: base.transparent } : {}),
+    ...(typeof base.ariaLabel === 'string' ? { ariaLabel: base.ariaLabel } : {}),
     ...(base.layout === 'single-row' || base.layout === 'multi-row' ? { layout: base.layout } : {})
   };
-
-  if (navBarContent.menuItems.length === 0) {
-    navBarContent.menuItems = [];
-  }
-  if (!navBarContent.logo) {
-    navBarContent.logo = { text: 'Logo', href: '/' };
-  }
 
   const navBarProps: NavBarProps = {
     ...props,
@@ -76,131 +148,21 @@ export const NavBarAdapter: React.FC<CMSComponentProps> = (props) => {
  * Footer Adapter Component
  */
 export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
-  // Convert generic content to FooterContent with defaults
   const raw = readRuntimeContent(props.content);
-  const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
-
-  const columnsSource: unknown[] = Array.isArray(base.columns) ? base.columns : []
-
-  const columns: FooterContent['columns'] = [];
-  if (columnsSource.length > 0) {
-    for (const rawColumn of columnsSource) {
-      if (isCMSComponentValue(rawColumn) && rawColumn.type === ComponentType.ColumnItem) {
-        const columnContent = readRuntimeContent(rawColumn.content) as Record<string, unknown> | undefined;
-        const title =
-          typeof columnContent?.title === 'string'
-            ? columnContent.title
-            : typeof columnContent?.heading === 'string'
-              ? columnContent.heading
-              : undefined;
-        const links = normalizeMenuItems(columnContent?.links ?? columnContent?.items ?? []);
-
-        if (!title && links.length === 0) {
-          continue;
-        }
-
-        columns.push({
-          title,
-          links
-        });
-        continue;
-      }
-
-      const column = rawColumn as Record<string, unknown>;
-      const title =
-        typeof column?.title === 'string'
-          ? column.title
-          : typeof column?.heading === 'string'
-            ? column.heading
-            : undefined;
-      const links = normalizeMenuItems(column?.links ?? column?.items ?? []);
-
-      if (!title && links.length === 0) {
-        continue;
-      }
-
-      columns.push({
-        title,
-        links
-      });
-    }
-  }
-
-  const legalLinks = normalizeMenuItems(base.legalLinks ?? base.legal ?? []);
-  const socialLinksSource: unknown[] = Array.isArray(base.socialLinks) ? base.socialLinks : [];
-  const allowedSocialPlatforms: FooterSocialLink['platform'][] = [
-    'facebook',
-    'twitter',
-    'linkedin',
-    'instagram',
-    'youtube',
-    'github'
-  ];
-  const socialLinks: FooterContent['socialLinks'] = [];
-  if (socialLinksSource.length > 0) {
-    for (const rawSocial of socialLinksSource) {
-      if (isCMSComponentValue(rawSocial) && rawSocial.type === ComponentType.SocialLinkItem) {
-        // Try to get data from content first, fall back to root level properties
-        const socialContent = readRuntimeContent(rawSocial.content) as Record<string, unknown> | undefined;
-        const rawObj = rawSocial as unknown as Record<string, unknown>;
-        const platformRaw = (
-          typeof socialContent?.platform === 'string' ? socialContent.platform :
-          typeof rawObj.platform === 'string' ? rawObj.platform : undefined
-        )?.toLowerCase();
-        const url = (
-          typeof socialContent?.url === 'string' ? socialContent.url :
-          typeof rawObj.url === 'string' ? rawObj.url : undefined
-        );
-        if (!platformRaw || !url) {
-          continue;
-        }
-        if (!allowedSocialPlatforms.includes(platformRaw as FooterSocialLink['platform'])) {
-          continue;
-        }
-        const label =
-          typeof socialContent?.label === 'string'
-            ? socialContent.label
-            : typeof rawObj.label === 'string'
-              ? rawObj.label
-              : undefined;
-        socialLinks.push({
-          platform: platformRaw as FooterSocialLink['platform'],
-          url,
-          label
-        });
-        continue;
-      }
-
-      if (rawSocial && typeof rawSocial === 'object') {
-        const obj = rawSocial as Record<string, unknown>;
-        const platformRaw = typeof obj.platform === 'string' ? obj.platform.toLowerCase() : undefined;
-        const url = typeof obj.url === 'string' ? obj.url : undefined;
-        if (!platformRaw || !url) {
-          continue;
-        }
-        if (!allowedSocialPlatforms.includes(platformRaw as FooterSocialLink['platform'])) {
-          continue;
-        }
-        socialLinks.push({
-          platform: platformRaw as FooterSocialLink['platform'],
-          url,
-          label: typeof obj.label === 'string' ? obj.label : undefined
-        });
-      }
-    }
-  }
+  const base = asRecord(raw);
+  const columns = canonicalFooterColumns(base.columns);
+  const socialLinks = canonicalSocialLinks(base.socialLinks);
 
   const footerContent: FooterContent = {
-    columns,
+    ...(columns ? { columns } : {}),
     ...(typeof base.logo === 'string' ? { logo: base.logo } : {}),
     ...(typeof base.logoAlt === 'string' ? { logoAlt: base.logoAlt } : {}),
+    ...(typeof base.siteName === 'string' ? { siteName: base.siteName } : {}),
     ...(typeof base.description === 'string' ? { description: base.description } : {}),
-    ...(socialLinks.length > 0 ? { socialLinks } : {}),
-    legalLinks,
+    ...(socialLinks ? { socialLinks } : {}),
+    ...(Array.isArray(base.legalLinks) ? { legalLinks: canonicalMenuItems(base.legalLinks) } : {}),
     ...(typeof base.newsletter === 'object' ? { newsletter: base.newsletter } : {}),
-    copyright: typeof base.copyright === 'string'
-      ? base.copyright
-      : `© ${new Date().getFullYear()} Company. All rights reserved.`,
+    ...(typeof base.copyright === 'string' ? { copyright: base.copyright } : {}),
     ...(typeof base.backgroundColor === 'string' ? { backgroundColor: base.backgroundColor } : {}),
     ...(typeof base.textColor === 'string' ? { textColor: base.textColor } : {})
   };
@@ -217,15 +179,13 @@ export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
  * MobileMenu Adapter Component
  */
 export const MobileMenuAdapter: React.FC<CMSComponentProps> = (props) => {
-  // Convert generic content to MobileMenuContent with defaults
   const raw = readRuntimeContent(props.content);
-  const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
-  const normalizedMenu = normalizeMenuItems(base.menuItems ?? base.links ?? base.items ?? []);
+  const base = asRecord(raw);
 
   const mobileMenuContent: MobileMenuContent = {
-    menuItems: normalizedMenu,
-    position: base.position === 'right' ? 'right' : 'left',
-    animation: base.animation === 'fade' ? 'fade' : 'slide'
+    menuItems: canonicalMenuItems(base.menuItems),
+    ...(base.position === 'left' || base.position === 'right' ? { position: base.position } : {}),
+    ...(base.animation === 'slide' || base.animation === 'fade' ? { animation: base.animation } : {})
   };
 
   const mobileMenuProps: MobileMenuProps = {
@@ -259,13 +219,6 @@ export const BreadcrumbsAdapter: React.FC<CMSComponentProps> = (props) => {
 };
 
 /**
- * Type guard to check if content is SidebarNavContent
- */
-function isSidebarNavContent(content: any): content is SidebarNavContent {
-  return content && Array.isArray(content.items);
-}
-
-/**
  * Normalizes raw navigation items into SidebarNavItem format
  */
 function normalizeSidebarNavItems(rawItems: unknown[]): SidebarNavItem[] {
@@ -276,8 +229,8 @@ function normalizeSidebarNavItems(rawItems: unknown[]): SidebarNavItem[] {
   return rawItems
     .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
     .map((item) => {
-      const label = typeof item.label === 'string' ? item.label : typeof item.text === 'string' ? item.text : '';
-      const href = typeof item.href === 'string' ? item.href : typeof item.url === 'string' ? item.url : '#';
+      const label = typeof item.label === 'string' ? item.label : '';
+      const href = typeof item.href === 'string' ? item.href : '';
 
       const result: SidebarNavItem = {
         label,
@@ -305,38 +258,29 @@ function normalizeSidebarNavItems(rawItems: unknown[]): SidebarNavItem[] {
 
       return result;
     })
-    .filter((item) => item.label); // Filter out items without labels
+    .filter((item) => item.label && typeof item.href === 'string' && item.href.length > 0);
 }
 
 /**
  * SidebarNav Adapter Component
  */
 export const SidebarNavAdapter: React.FC<CMSComponentProps> = (props) => {
-  // Convert generic content to SidebarNavContent with defaults
   const raw = readRuntimeContent(props.content);
+  const base = asRecord(raw);
+  const items = normalizeSidebarNavItems(base.items);
+  const backLink = asRecord(base.backLink);
+  const hasBackLink = typeof backLink.label === 'string' && typeof backLink.href === 'string';
 
-  let sidebarNavContent: SidebarNavContent;
-
-  if (isSidebarNavContent(raw)) {
-    sidebarNavContent = raw as SidebarNavContent;
-  } else {
-    const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
-    const items = normalizeSidebarNavItems(base.items ?? base.links ?? base.menuItems ?? []);
-
-    sidebarNavContent = {
-      items,
-      title: typeof base.title === 'string' ? base.title : undefined,
-      currentPath: typeof base.currentPath === 'string' ? base.currentPath : undefined,
-      showExpandIcons: typeof base.showExpandIcons === 'boolean' ? base.showExpandIcons : true,
-      defaultCollapsed: typeof base.defaultCollapsed === 'boolean' ? base.defaultCollapsed : false,
-      showBackLink: typeof base.showBackLink === 'boolean' ? base.showBackLink : false,
-      backLink: base.backLink && typeof base.backLink === 'object' ? {
-        label: typeof base.backLink.label === 'string' ? base.backLink.label : 'Back',
-        href: typeof base.backLink.href === 'string' ? base.backLink.href : '/'
-      } : undefined,
-      maxDepth: typeof base.maxDepth === 'number' ? base.maxDepth : undefined,
-    };
-  }
+  const sidebarNavContent: SidebarNavContent = {
+    items,
+    title: typeof base.title === 'string' ? base.title : undefined,
+    currentPath: typeof base.currentPath === 'string' ? base.currentPath : undefined,
+    showExpandIcons: typeof base.showExpandIcons === 'boolean' ? base.showExpandIcons : undefined,
+    defaultCollapsed: typeof base.defaultCollapsed === 'boolean' ? base.defaultCollapsed : undefined,
+    showBackLink: typeof base.showBackLink === 'boolean' ? base.showBackLink : undefined,
+    backLink: hasBackLink ? { label: backLink.label, href: backLink.href } : undefined,
+    maxDepth: typeof base.maxDepth === 'number' ? base.maxDepth : undefined,
+  };
 
   const { variant: rawVariant, ...restProps } = props;
   const typedVariant = rawVariant as SidebarNavStyleProps['variant'];

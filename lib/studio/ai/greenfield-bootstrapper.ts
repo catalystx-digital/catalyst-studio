@@ -123,7 +123,7 @@ export class GreenfieldBootstrapper {
     jobId?: string
   ): Promise<void> {
     const resolvedSessionId = sessionId ?? getBuilderAssistantSessionId(websiteId)
-    // Use provided jobId or fallback to legacy format
+    // Use the request job id when supplied; otherwise use the stable bootstrap id.
     const resolvedJobId = jobId ?? `bootstrap-${websiteId}`
 
     try {
@@ -378,8 +378,7 @@ export class GreenfieldBootstrapper {
                   targetAudience: metadata.targetAudience || '',
                   primaryQuestion: metadata.primaryQuestion || '',
                   journeyStage: metadata.journeyStage || 'awareness',
-                  // Support both new sectionIntents and legacy requiredSections
-                  sectionIntents: metadata.sectionIntents || metadata.requiredSections || []
+                  sectionIntents: metadata.sectionIntents || []
                 }
               })
             }

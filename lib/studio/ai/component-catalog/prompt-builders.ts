@@ -50,8 +50,7 @@ function resolveCanonicalDefinition(canonicalType: string): CanonicalComponentDe
       summary: contract.summary,
       fragments: [...contract.fragments],
       cues: [...contract.cues],
-      sampleContent: contract.sampleContent ? { ...contract.sampleContent } : {},
-      synthesizer: contract.synthesizer
+      sampleContent: contract.sampleContent ? { ...contract.sampleContent } : {}
     }
   }
   return getCanonicalComponent(canonicalType)

@@ -1,10 +1,10 @@
 import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { mobileMenuDescription, mobileMenuPropsMeta } from '@/lib/studio/components/cms/navigation/mobile-menu/mobile-menu.propsmeta'
-import { textBlockDescription, textBlockPropsMeta } from '@/lib/studio/components/cms/content/text-block/text-block.propsmeta'
-import { ctaBannerDescription, ctaBannerPropsMeta } from '@/lib/studio/components/cms/cta/cta-banner/cta-banner.propsmeta'
-import { ctaSimpleDescription, ctaSimplePropsMeta } from '@/lib/studio/components/cms/cta/cta-simple/cta-simple.propsmeta'
-import { heroWithImageDescription, heroWithImagePropsMeta } from '@/lib/studio/components/cms/heroes/hero-with-image/hero-with-image.propsmeta'
+import { MobileMenuDef } from '@/lib/studio/components/cms/navigation/mobile-menu/mobile-menu.def'
+import { TextBlockDef } from '@/lib/studio/components/cms/content/text-block/text-block.def'
+import { CTABannerDef } from '@/lib/studio/components/cms/cta/cta-banner/cta-banner.def'
+import { CTASimpleDef } from '@/lib/studio/components/cms/cta/cta-simple/cta-simple.def'
+import { HeroWithImageDef } from '@/lib/studio/components/cms/heroes/hero-with-image/hero-with-image.def'
 import {
   getComponentContractByCanonicalType,
   listComponentContracts,
@@ -35,35 +35,35 @@ describe('component-contracts universal adapter', () => {
       ComponentType.MobileMenu,
       STUB_COMPONENT,
       makeMetadata('header'),
-      { description: mobileMenuDescription, propsMeta: mobileMenuPropsMeta }
+      { description: MobileMenuDef.description, schema: MobileMenuDef.schema }
     )
 
     cmsComponentFactory.registerComponent(
       ComponentType.TextBlock,
       STUB_COMPONENT,
       makeMetadata('main'),
-      { description: textBlockDescription, propsMeta: textBlockPropsMeta }
+      { description: TextBlockDef.description, schema: TextBlockDef.schema }
     )
 
     cmsComponentFactory.registerComponent(
       ComponentType.CTABanner,
       STUB_COMPONENT,
       makeMetadata('main'),
-      { description: ctaBannerDescription, propsMeta: ctaBannerPropsMeta }
+      { description: CTABannerDef.description, schema: CTABannerDef.schema }
     )
 
     cmsComponentFactory.registerComponent(
       ComponentType.CTASimple,
       STUB_COMPONENT,
       makeMetadata('main'),
-      { description: ctaSimpleDescription, propsMeta: ctaSimplePropsMeta }
+      { description: CTASimpleDef.description, schema: CTASimpleDef.schema }
     )
 
     cmsComponentFactory.registerComponent(
       ComponentType.HeroWithImage,
       STUB_COMPONENT,
       makeMetadata('hero'),
-      { description: heroWithImageDescription, propsMeta: heroWithImagePropsMeta }
+      { description: HeroWithImageDef.description, schema: HeroWithImageDef.schema }
     )
 
     refreshComponentContracts()
@@ -77,7 +77,7 @@ describe('component-contracts universal adapter', () => {
         'text-block',
         'cta-simple',
         'cta-with-form',
-        'contact-form',
+        'simple-form',
         'team-grid',
         'pricing-comparison',
         'chart'
@@ -115,10 +115,10 @@ describe('component-contracts universal adapter', () => {
     expect(contract?.propsMeta?.heading?.required).toBe(true)
   })
 
-  it('exposes synthesizer and region for blog-post', () => {
+  it('exposes region for blog-post without synthesis hooks', () => {
     const contract = getComponentContractByCanonicalType('blog-post')
     expect(contract).toBeDefined()
-    expect(contract?.synthesizer).toBeDefined()
+    expect(contract).not.toHaveProperty('synthesizer')
     expect(contract?.defaultRegion).toBe('main')
   })
 

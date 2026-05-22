@@ -272,8 +272,6 @@ export function extractComponentsWithDiagnostics(
       content: component.content as Record<string, unknown>,
       styles: component.styles as Record<string, unknown>,
       metadata: component.metadata as Record<string, unknown>,
-      ...(component.sharedComponentId ? { sharedComponentId: component.sharedComponentId } : {}),
-      ...(component.globalComponentId ? { globalComponentId: component.globalComponentId } : {}),
     }
   })
 

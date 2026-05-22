@@ -280,7 +280,7 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
   const sharedIds = new Set<string>();
   for (const page of pages) {
     for (const c of pageComponentsMap.get(page.id) || []) {
-      const sid = c?.props?.sharedComponentId || c?.sharedComponentId;
+      const sid = c?.props?.sharedComponentId;
       if (sid) sharedIds.add(sid);
     }
   }
@@ -331,7 +331,7 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
 
     // Enrich components with shared content
     const components = (page ? pageComponentsMap.get(page.id) || [] : []).map((c: any) => {
-      const sid = c?.props?.sharedComponentId || c?.sharedComponentId;
+      const sid = c?.props?.sharedComponentId;
       if (sid) {
         const sharedContentRaw = sharedMap.get(sid)?.content;
         const sharedContent =

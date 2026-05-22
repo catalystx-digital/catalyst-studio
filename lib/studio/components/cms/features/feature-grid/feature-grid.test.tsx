@@ -78,6 +78,35 @@ describe('Component: FeatureGrid', () => {
     expect(screen.getByText('Top pick')).toBeInTheDocument();
   });
 
+  it('does not parse legacy text JSON or feature aliases', () => {
+    render(
+      <FeatureGrid
+        {...({
+          ...mockProps,
+          text: JSON.stringify({
+            features: [{ title: 'Parsed legacy feature' }],
+          }),
+          content: {
+            features: [
+              {
+                name: 'Legacy name',
+                heading: 'Legacy heading',
+                body: 'Legacy body',
+                url: '/legacy',
+                featured: true,
+              },
+            ],
+          },
+        } as unknown as FeatureGridProps)}
+      />,
+    );
+
+    expect(screen.queryByText('Parsed legacy feature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy name')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy heading')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy body')).not.toBeInTheDocument();
+  });
+
   it('handles keyboard navigation', () => {
     render(<FeatureGrid {...mockProps} />);
     const firstLink = screen.getAllByRole('link', { name: 'Learn more' })[0];
@@ -93,18 +122,16 @@ describe('Component: FeatureGrid', () => {
   });
 
   it('handles interaction tracking', () => {
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-    render(<FeatureGrid {...mockProps} />);
+    const onInteraction = jest.fn();
+    render(<FeatureGrid {...mockProps} onInteraction={onInteraction} />);
     
     const firstLink = screen.getAllByRole('link', { name: 'Learn more' })[0];
     fireEvent.click(firstLink);
     
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Interaction:',
+    expect(onInteraction).toHaveBeenCalledWith(
       'feature-link-click',
       '/features/performance'
     );
-    consoleSpy.mockRestore();
   });
 
   it('applies custom className and style', () => {

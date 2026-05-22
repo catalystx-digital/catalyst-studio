@@ -69,7 +69,7 @@ export interface ComponentInstance {
   /** Canonical WebsiteComponentType ID (persisted from importer) */
   componentTypeId?: string
 
-  /** Legacy WebsiteComponentType identifier retained for compatibility */
+  /** WebsiteComponentType identifier stored by older import services */
   typeId?: string
   
   /** Parent component ID for hierarchy, null for root components */
@@ -90,11 +90,6 @@ export interface ComponentInstance {
   /** Component metadata and flags */
   metadata: ComponentMetadata
 
-  /** Reference to global component ID if this is a global component instance */
-  globalComponentId?: string
-
-  /** Preferred shared component reference assigned by the importer */
-  sharedComponentId?: string
 }
 
 /**
@@ -119,9 +114,7 @@ export function isComponentInstance(value: any): value is ComponentInstance {
     typeof value.props === 'object' &&
     typeof value.content === 'object' &&
     typeof value.styles === 'object' &&
-    typeof value.metadata === 'object' &&
-    (value.globalComponentId === undefined || typeof value.globalComponentId === 'string') &&
-    (value.sharedComponentId === undefined || typeof value.sharedComponentId === 'string')
+    typeof value.metadata === 'object'
   )
 }
 
@@ -142,23 +135,12 @@ function normalizeSharedId(value: unknown): string | undefined {
 
 export function resolveSharedComponentReference(
   instance:
-    | (Pick<ComponentInstance, 'globalComponentId' | 'props'> & { sharedComponentId?: string | null })
+    | Pick<ComponentInstance, 'props'>
     | null
     | undefined
 ): string | undefined {
   if (!instance) {
     return undefined
   }
-
-  const propsRef = normalizeSharedId((instance.props as Record<string, unknown> | undefined)?.sharedComponentId)
-  if (propsRef) {
-    return propsRef
-  }
-
-  const legacyRef = normalizeSharedId((instance as { sharedComponentId?: string }).sharedComponentId)
-  if (legacyRef) {
-    return legacyRef
-  }
-
-  return normalizeSharedId(instance.globalComponentId)
+  return normalizeSharedId((instance.props as Record<string, unknown> | undefined)?.sharedComponentId)
 }

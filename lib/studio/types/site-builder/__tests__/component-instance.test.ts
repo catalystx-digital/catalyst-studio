@@ -18,31 +18,21 @@ const createInstance = (overrides: Partial<ComponentInstance> = {}): ComponentIn
 })
 
 describe('resolveSharedComponentReference', () => {
-  it('prefers props.sharedComponentId over other references', () => {
+  it('returns props.sharedComponentId', () => {
     const instance = createInstance({
-      globalComponentId: 'legacy-global',
-      sharedComponentId: 'legacy-shared',
       props: { sharedComponentId: 'props-shared' }
     })
 
     expect(resolveSharedComponentReference(instance)).toBe('props-shared')
   })
 
-  it('falls back to legacy sharedComponentId when props value is missing', () => {
+  it('ignores root legacy references', () => {
     const instance = createInstance({
       sharedComponentId: 'legacy-shared',
-      globalComponentId: 'legacy-global'
-    })
+      globalComponentId: 'legacy-global',
+    } as Partial<ComponentInstance>)
 
-    expect(resolveSharedComponentReference(instance)).toBe('legacy-shared')
-  })
-
-  it('uses globalComponentId as a last resort', () => {
-    const instance = createInstance({
-      globalComponentId: 'legacy-global'
-    })
-
-    expect(resolveSharedComponentReference(instance)).toBe('legacy-global')
+    expect(resolveSharedComponentReference(instance)).toBeUndefined()
   })
 
   it('returns undefined when no references are present', () => {

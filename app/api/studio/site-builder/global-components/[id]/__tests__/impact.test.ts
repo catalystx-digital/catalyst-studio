@@ -2,6 +2,14 @@ import { GET } from '../impact/route';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+jest.mock('@/lib/auth/context', () => ({
+  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1' })
+}));
+
+jest.mock('@/lib/auth/ownership', () => ({
+  assertWebsiteOwnership: jest.fn().mockResolvedValue(undefined)
+}));
+
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     websiteSharedComponent: {
@@ -45,7 +53,7 @@ describe('Impact Analysis API', () => {
         websiteId: 'website-1',
         content: {
           components: [
-            { id: '1', type: 'shared', sharedComponentId: 'comp-123' }
+            { id: '1', type: 'shared', props: { sharedComponentId: 'comp-123' } }
           ]
         },
         status: 'published',
@@ -59,7 +67,11 @@ describe('Impact Analysis API', () => {
         websiteId: 'website-1',
         content: {
           components: [
-            { id: '2', type: 'shared', sharedComponentId: 'comp-123', overrides: { color: 'red' } }
+            {
+              id: '2',
+              type: 'shared',
+              props: { sharedComponentId: 'comp-123', overrides: { color: 'red' } }
+            }
           ]
         },
         status: 'draft',
@@ -144,7 +156,7 @@ describe('Impact Analysis API', () => {
         websiteId: 'website-1',
         content: {
           components: [
-            { id: `comp-${i}`, type: 'shared', sharedComponentId: 'comp-123' }
+            { id: `comp-${i}`, type: 'shared', props: { sharedComponentId: 'comp-123' } }
           ]
         },
         status: 'published',

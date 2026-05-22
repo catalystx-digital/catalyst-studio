@@ -1,4 +1,5 @@
 import { MenuItem } from './nav-bar.types';
+import { resolveHref } from './nav-bar.transform';
 
 const NORMALIZATION_BASE_URL = 'https://cms.nav';
 
@@ -71,20 +72,22 @@ export function buildMenuItemActiveChecker(
   isHrefActive: (href?: string) => boolean,
 ) {
   const visit = (menuItem: MenuItem): boolean => {
-    if (isHrefActive(menuItem.href)) {
+    if (isHrefActive(resolveHref(menuItem.href))) {
       return true;
     }
 
     if (
       Array.isArray(menuItem.children) &&
-      menuItem.children.some((child) => visit(child))
+      (menuItem.children as MenuItem[]).some((child: MenuItem) => visit(child))
     ) {
       return true;
     }
 
     if (
       Array.isArray(menuItem.groups) &&
-      menuItem.groups.some((group) => group.items.some((child) => visit(child)))
+      (menuItem.groups as Array<{ items: MenuItem[] }>).some((group) =>
+        group.items.some((child: MenuItem) => visit(child))
+      )
     ) {
       return true;
     }

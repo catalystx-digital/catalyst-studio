@@ -5,7 +5,7 @@ import { PageTemplateCategory } from "@/lib/studio/pages/_core/types"
 import { ComponentType } from "@/lib/studio/components/cms/_core/types"
 
 describe("commerce product detail canonicalization", () => {
-  it("adds hero and feature list when detection only returns map data", () => {
+  it("does not add hero and feature list when detection only returns map data", () => {
     const productTemplate: PageCatalogTemplateSummary = {
       templateKey: "commerce/product-detail",
       name: "Product Detail",
@@ -123,18 +123,9 @@ describe("commerce product detail canonicalization", () => {
     const featureList = result.components.find(component => component.component === "feature-list")
     const nav = result.components.find(component => component.component === "navbar")
 
-    expect(nav).toBeTruthy()
-    expect(nav?.content?.region).toBe("header")
-
-    expect(hero).toBeTruthy()
-    expect(hero?.content?.heading).toBe("Connor")
-    expect(hero?.content?.region).toBe("hero")
-    expect(hero?.metadata?.region).toBe("hero")
-
-    expect(featureList).toBeTruthy()
-    expect(featureList?.content?.region).toBe("main")
-    expect(Array.isArray(featureList?.content?.items)).toBe(true)
-    expect(featureList?.content?.items?.[0]?.type).toBe("feature-item")
-    expect(featureList?.metadata?.region).toBe("main")
+    expect(nav).toBeFalsy()
+    expect(hero).toBeFalsy()
+    expect(featureList).toBeFalsy()
+    expect(result.components.map(component => component.component)).toEqual(["location-map"])
   })
 })

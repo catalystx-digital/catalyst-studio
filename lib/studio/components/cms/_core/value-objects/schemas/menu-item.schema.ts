@@ -18,11 +18,8 @@ const MenuItemGroupSchema: z.ZodType<any> = z.lazy(() => z.object({
 export const MenuItemSchema: z.ZodType<any> = z.lazy(() => z.object({
   /** Display label for the menu item */
   label: z.string().describe('Menu item text'),
-  /**
-   * Target URL for the menu item
-   * Supports both SmartLink objects (PageReference | ExternalLink) and raw strings for backwards compatibility
-   */
-  href: z.union([SmartLinkSchema, z.string()]).optional().describe('externalUrl:Destination URL'),
+  /** Structured target for the menu item */
+  href: SmartLinkSchema.optional().describe('externalUrl:Destination URL'),
   /** Short description or supporting copy */
   description: z.string().optional().describe('Optional description'),
   /** Optional icon or emoji shown with the label */
@@ -39,7 +36,7 @@ export const MenuItemSchema: z.ZodType<any> = z.lazy(() => z.object({
   panelWidth: z.union([z.number(), z.string()]).optional().describe('Submenu width'),
   /** Alignment preference for the submenu viewport relative to the trigger */
   panelAlign: z.enum(['start', 'center', 'end']).optional().describe('Submenu alignment'),
-}))
+}).strict())
 
 // Derived TypeScript type
 export type MenuItem = z.infer<typeof MenuItemSchema>

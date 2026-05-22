@@ -32,7 +32,7 @@ const PropagateSchema = z.object({
   options: z.object({
     skipOverrides: z.boolean().optional(),
     dryRun: z.boolean().optional(),
-    convertLegacyToOverrides: z.boolean().optional(),
+    convertToOverrides: z.boolean().optional(),
   }).optional()
 });
 
@@ -55,6 +55,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
+    const prismaClient = prisma as any;
 
     // Validate input
     const validation = PropagateSchema.safeParse(body);
@@ -69,7 +70,7 @@ export async function POST(
     const { skipOverrides = false, dryRun = false } = options;
 
     // Get shared component
-    const sharedComponent = await prisma.websiteSharedComponent.findUnique({
+    const sharedComponent = await prismaClient.websiteSharedComponent.findUnique({
       where: { id: id }
     });
 
@@ -81,17 +82,17 @@ export async function POST(
     }
 
     // Verify ownership
-    await assertWebsiteOwnership(prisma as any, auth.accountId, sharedComponent.websiteId);
+    await assertWebsiteOwnership(prismaClient, auth.accountId, sharedComponent.websiteId);
     
     // Update canonical shared content via unified repository and mirror defaultProps
     await ContentRepository.saveSharedComponentContent(id, properties, { mirrorDefaultProps: true });
 
-    if (!options.convertLegacyToOverrides) {
+    if (!options.convertToOverrides) {
       return NextResponse.json({ success: true, updated: 0, skipped: 0, errors: [], totalUsages: 0, partialSuccess: false, recoverableErrors: 0 });
     }
 
-    // Repair: convert legacy instances to overrides
-    const pages = await prisma.websitePage.findMany({
+    // Convert canonical shared instances to explicit overrides.
+    const pages = await prismaClient.websitePage.findMany({
       where: {
         websiteId: sharedComponent.websiteId,
         content: { string_contains: `"sharedComponentId":"${id}"` },
@@ -105,17 +106,16 @@ export async function POST(
       for (const c of comps) {
         const instId = (c?.id as string) || '';
         const props = (c?.props ?? {}) as Record<string, unknown>;
-        const unifiedRef = props?.sharedComponentId === id;
-        const legacyRef = c?.sharedComponentId === id;
-        if (unifiedRef || legacyRef) {
+        const isSharedInstance = props?.sharedComponentId === id;
+        if (isSharedInstance) {
           const overrides = (props?.overrides as Record<string, unknown>) || {};
           const hasOverrides = !!(props?.hasOverrides || (overrides && Object.keys(overrides).length > 0));
-          candidates.push({ pageId: p.id, instanceId: instId, hasOverrides, isUnified: !!unifiedRef });
+          candidates.push({ pageId: p.id, instanceId: instId, hasOverrides, isUnified: true });
         }
       }
     }
 
-    const toConvert = candidates.filter((c) => !c.isUnified || (c.isUnified && !c.hasOverrides));
+    const toConvert = candidates.filter((c) => !c.hasOverrides);
     const finalList = skipOverrides ? toConvert.filter((c) => !c.hasOverrides) : toConvert;
 
     if (dryRun) {
@@ -153,4 +153,3 @@ export async function POST(
     );
   }
 }
-

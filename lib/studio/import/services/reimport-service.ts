@@ -875,7 +875,7 @@ export class ReImportService implements IReImportService {
     startTime: number
   ): Promise<PageReImportResult> {
     // Get default content type for this website
-    // Priority: 1) ContentType named "Page", 2) First ContentType, 3) Create default
+    // Priority: 1) ContentType named "Page", 2) First ContentType
     let contentType = await this.prisma.contentType.findFirst({
       where: { websiteId, name: 'Page' }
     })
@@ -887,9 +887,7 @@ export class ReImportService implements IReImportService {
     }
 
     if (!contentType) {
-      // This shouldn't happen for imported websites, but handle gracefully
-      console.warn(`[ReImportService] No ContentType found for website ${websiteId}, using fallback`)
-      // Create a default content type in the transaction below
+      throw new Error(`Re-import cannot create page for website ${websiteId}: no ContentType is configured`)
     }
 
     const newComponents = this.buildComponentsFromDetection(detection)
@@ -931,20 +929,6 @@ export class ReImportService implements IReImportService {
     // Create page and structure atomically using transaction
     // This ensures both records are created together or neither is created
     const result = await this.prisma.$transaction(async (tx) => {
-      // Create default ContentType if none exists
-      let contentTypeId = contentType?.id
-      if (!contentTypeId) {
-        const newContentType = await tx.contentType.create({
-          data: {
-            websiteId,
-            name: 'Page',
-            slug: 'page',
-            fields: []
-          }
-        })
-        contentTypeId = newContentType.id
-      }
-
       // Create page
       const page = await tx.websitePage.create({
         data: {
@@ -953,7 +937,7 @@ export class ReImportService implements IReImportService {
           title: pageTitle,
           content: { components: newComponents },
           metadata: metadata as Prisma.InputJsonValue,
-          contentTypeId,
+          contentTypeId: contentType.id,
           status: 'draft'
         }
       })
@@ -1054,7 +1038,6 @@ export class ReImportService implements IReImportService {
         comp,
         `comp-${Date.now()}-${index}`,
         null,
-        index,
         `components[${index}]`
       )
     )
@@ -1064,7 +1047,6 @@ export class ReImportService implements IReImportService {
     component: any,
     id: string,
     parentId: string | null,
-    fallbackPosition: number,
     path: string
   ): ComponentInstance {
     const children = Array.isArray(component.children)
@@ -1073,17 +1055,23 @@ export class ReImportService implements IReImportService {
             child,
             `${id}-${childIndex}`,
             id,
-            childIndex,
             `${path}.children[${childIndex}]`
           )
         )
       : undefined
 
+    if (typeof component.type !== 'string' || component.type.trim().length === 0) {
+      throw new Error(`Re-import detection ${path}.type must be a non-empty string`)
+    }
+    if (typeof component.position !== 'number' || !Number.isInteger(component.position) || component.position < 0) {
+      throw new Error(`Re-import detection ${path}.position must be a non-negative integer`)
+    }
+
     return {
       id,
-      type: component.type || 'unknown',
+      type: component.type,
       parentId,
-      position: component.position ?? fallbackPosition,
+      position: component.position,
       props: {},
       content: this.readDetectionComponentContent(component, path),
       children

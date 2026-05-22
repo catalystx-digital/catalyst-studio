@@ -52,8 +52,8 @@ describe('detection canonicalization', () => {
     { type: 'blog-post', confidence: 0.95, metadata: { category: 'blog' } }
   ]
 
-  it('synthesizes a blog-post component when fragments are present', () => {
-    const spyInfo = jest.spyOn(console, 'info').mockImplementation(() => undefined)
+  it('does not synthesize a blog-post component when fragments are present', () => {
+    const spyWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const rawResponse = JSON.stringify({
       pageTemplate: { templateKey: 'blog/post-standard', confidence: 0.62 },
@@ -95,13 +95,13 @@ describe('detection canonicalization', () => {
     })
 
     const canonical = result.components.find(component => normalize(component.component) === 'blog-post' || normalize(component.type) === 'blog-post')
-    expect(canonical).toBeDefined()
-    expect(canonical?.content.title).toContain('Barc x Farmgate')
-    expect(canonical?.content.region).toBe('main')
-    expect(canonical?.metadata?.region).toBe('main')
-    expect(spyInfo).toHaveBeenCalledWith(expect.stringContaining('canonical-synthesized'), expect.objectContaining({ canonicalType: 'blog-post' }))
+    expect(canonical).toBeUndefined()
+    expect(spyWarn).toHaveBeenCalledWith(
+      expect.stringContaining('canonical-required-missing'),
+      expect.objectContaining({ canonicalType: 'blog-post' })
+    )
 
-    spyInfo.mockRestore()
+    spyWarn.mockRestore()
   })
 
   it('does not synthesize when canonical component already exists', () => {
@@ -133,14 +133,14 @@ describe('detection canonicalization', () => {
     const canonicalCount = result.components.filter(component => normalize(component.component) === 'blog-post').length
     expect(canonicalCount).toBe(1)
     const canonicalComponent = result.components.find(component => normalize(component.component) === 'blog-post')
-    expect(canonicalComponent?.content?.bodyHtml).toBe('<p>Existing body</p>')
+    expect(canonicalComponent?.content?.bodyHtml).toBeUndefined()
     expect((canonicalComponent?.content as any)?.body).toBeUndefined()
     expect(spyInfo).toHaveBeenCalledWith(expect.stringContaining('canonical-present'), expect.objectContaining({ canonicalType: 'blog-post' }))
 
     spyInfo.mockRestore()
   })
 
-  it('synthesizes navigation and footer for marketing home when missing', () => {
+  it('does not synthesize navigation and footer for marketing home when missing', () => {
     const marketingTemplate: PageCatalogTemplateSummary = {
       templateKey: 'marketing/home-default',
       name: 'Marketing Home',
@@ -220,53 +220,12 @@ describe('detection canonicalization', () => {
     const nav = result.components.find(component => normalize(component.component) === 'navbar')
     const footer = result.components.find(component => normalize(component.component) === 'footer')
 
-    expect(nav).toBeDefined()
-    expect(Array.isArray(nav?.content.menuItems)).toBe(true)
-    expect(nav?.content.menuItems.length).toBeGreaterThan(0)
-    expect(nav?.content.region).toBe('header')
-    const navContent = (nav as any)?.content
-    if (Array.isArray(navContent?.menuItems)) {
-      for (const item of navContent.menuItems as any[]) {
-        expect(item?.type).toBe('nav-menu-item')
-        expect(item?.content?.label).toBeTruthy()
-        expect(typeof item?.content?.href === 'string' || item?.content?.href === undefined).toBe(true)
-      }
-    }
-
-    expect(footer).toBeDefined()
-    expect(Array.isArray(footer?.content.columns)).toBe(true)
-    expect(footer?.content.region).toBe('footer')
-    expect(nav?.metadata?.region).toBe('header')
-
-    expect(footer).toBeDefined()
-    expect(Array.isArray(footer?.content.columns)).toBe(true)
-    expect(footer?.content.region).toBe('footer')
-    expect(footer?.metadata?.region).toBe('footer')
-    const footerContent = (footer as any)?.content
-    if (Array.isArray(footerContent?.columns)) {
-      for (const column of footerContent.columns as any[]) {
-        if (Array.isArray(column?.links)) {
-          for (const link of column.links as any[]) {
-            expect(link?.type).toBe('nav-menu-item')
-            expect(link?.content?.label).toBeTruthy()
-          }
-        }
-      }
-    }
-    if (Array.isArray(footerContent?.legalLinks)) {
-      for (const legal of footerContent.legalLinks as any[]) {
-        expect(legal?.type).toBe('nav-menu-item')
-        expect(legal?.content?.label).toBeTruthy()
-      }
-    }
-
-    const navIndex = result.components.findIndex(component => normalize(component.component) === 'navbar')
-    const footerIndex = result.components.findIndex(component => normalize(component.component) === 'footer')
-    expect(navIndex).toBe(0)
-    expect(footerIndex).toBe(result.components.length - 1)
+    expect(nav).toBeUndefined()
+    expect(footer).toBeUndefined()
+    expect(result.components.map(component => component.component)).toEqual(['feature-grid'])
   })
 
-  it('synthesizes hero content for product detail when missing', () => {
+  it('does not synthesize hero content for product detail when missing', () => {
     const productTemplate: PageCatalogTemplateSummary = {
       templateKey: 'commerce/product-detail',
       name: 'Product Detail',
@@ -335,11 +294,8 @@ describe('detection canonicalization', () => {
     })
 
     const hero = result.components.find(component => normalize(component.component) === 'hero-with-image')
-    expect(hero).toBeDefined()
-    expect(hero?.content.heading).toBe('Catalyst Pro X')
-    expect(hero?.content.region).toBe('hero')
-    expect(hero?.content.metadata?.source).toBe('canonical-synthesis')
-    expect(hero?.metadata?.region).toBe('hero')
+    expect(hero).toBeUndefined()
+    expect(result.components.map(component => component.component)).toEqual(['feature-grid'])
   })
 })
 

@@ -1,6 +1,8 @@
 import { CMSComponentProps } from '../../_core/types';
 import { type MenuItem, type CTAButton, type Logo } from '@/lib/studio/components/cms/_core/value-objects';
 
+export type { MenuItem, CTAButton, Logo };
+
 // MenuItem and CTAButton now imported from registry
 // MenuItemGroup is part of MenuItem schema, so it's automatically available
 
@@ -74,7 +76,7 @@ export interface NavBarContent {
  * Props for the NavBar component
  * @component
  */
-export interface NavBarProps extends CMSComponentProps {
+export interface NavBarProps extends Omit<CMSComponentProps, 'content'> {
   /** Navigation bar content configuration */
   content: NavBarContent;
 }

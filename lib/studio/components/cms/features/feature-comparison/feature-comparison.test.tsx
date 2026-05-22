@@ -6,9 +6,11 @@ import { ComponentType, ComponentCategory } from '../../_core/types';
 import type { FeatureComparisonProps } from './feature-comparison.types';
 
 describe('Component: FeatureComparison', () => {
+  const link = (path: string) => ({ type: 'internal' as const, pageId: path.replace(/[^a-z0-9]+/gi, '-') || 'home', path });
+
   const mockProps: FeatureComparisonProps = {
     id: 'feature-comparison-1',
-    type: ComponentType.PricingTable,
+    type: ComponentType.FeatureComparison,
     category: ComponentCategory.Features,
     content: {
       heading: 'Compare Plans',
@@ -17,18 +19,18 @@ describe('Component: FeatureComparison', () => {
         {
           name: 'Basic',
           price: '$9/mo',
-          cta: { text: 'Get Started', url: '/signup/basic' }
+          cta: { text: 'Get Started', href: link('/signup/basic') }
         },
         {
           name: 'Pro',
           price: '$29/mo',
           recommended: true,
-          cta: { text: 'Get Started', url: '/signup/pro' }
+          cta: { text: 'Get Started', href: link('/signup/pro') }
         },
         {
           name: 'Enterprise',
           price: 'Custom',
-          cta: { text: 'Contact Us', url: '/contact' }
+          cta: { text: 'Contact Us', href: link('/contact') }
         }
       ],
       features: [
@@ -137,18 +139,16 @@ describe('Component: FeatureComparison', () => {
   });
 
   it('handles interaction tracking', () => {
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-    render(<FeatureComparison {...mockProps} />);
+    const onInteraction = jest.fn();
+    render(<FeatureComparison {...mockProps} onInteraction={onInteraction} />);
     
     const ctaButton = screen.getAllByText('Get Started')[0];
     fireEvent.click(ctaButton);
     
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Interaction:',
+    expect(onInteraction).toHaveBeenCalledWith(
       'comparison-cta-click',
       '/signup/basic'
     );
-    consoleSpy.mockRestore();
   });
 
   it('renders feature descriptions when provided', () => {

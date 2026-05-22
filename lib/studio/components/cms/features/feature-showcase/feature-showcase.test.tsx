@@ -26,7 +26,7 @@ describe('Component: FeatureShowcase', () => {
             { icon: '✓', text: 'Custom reports' }
           ],
           cta: { text: 'Learn More', url: '/features/analytics' },
-          badge: 'Best value',
+          badge: { text: 'Best value' },
           imagePosition: 'left'
         },
         {
@@ -102,6 +102,33 @@ describe('Component: FeatureShowcase', () => {
     expect(screen.getByRole('link', { name: 'Get Started' })).toBeInTheDocument();
   });
 
+  it('does not render legacy section and feature aliases', () => {
+    render(
+      <FeatureShowcase
+        {...({
+          ...mockProps,
+          content: {
+            sections: [
+              {
+                title: 'Canonical section',
+                image: '/legacy.jpg',
+                features: ['Legacy feature', { description: 'Legacy description' }],
+                cta: { label: 'Legacy CTA', href: '/legacy' },
+                badge: 'Legacy badge',
+              },
+            ],
+          },
+        } as unknown as FeatureShowcaseProps)}
+      />,
+    );
+
+    expect(screen.getByText('Canonical section')).toBeInTheDocument();
+    expect(screen.queryByText('Legacy feature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy description')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Legacy CTA' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Legacy badge')).not.toBeInTheDocument();
+  });
+
   it('handles keyboard navigation', () => {
     render(<FeatureShowcase {...mockProps} />);
     const firstCTA = screen.getByRole('link', { name: 'Learn More' });
@@ -117,18 +144,16 @@ describe('Component: FeatureShowcase', () => {
   });
 
   it('handles interaction tracking', () => {
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-    render(<FeatureShowcase {...mockProps} />);
+    const onInteraction = jest.fn();
+    render(<FeatureShowcase {...mockProps} onInteraction={onInteraction} />);
     
     const ctaButton = screen.getByRole('link', { name: 'Learn More' });
     fireEvent.click(ctaButton);
     
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Interaction:',
+    expect(onInteraction).toHaveBeenCalledWith(
       'showcase-cta-click',
       '/features/analytics'
     );
-    consoleSpy.mockRestore();
   });
 
   it('uses default checkmark icon when not specified', () => {

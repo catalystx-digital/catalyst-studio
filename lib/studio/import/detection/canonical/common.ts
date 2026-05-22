@@ -1,5 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { synthesizeFooter, synthesizeNavBar } from './common-synthesis'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -30,8 +29,7 @@ export const commonCanonicalDefinitions: CanonicalComponentDefinition[] = [
         variant: 'default'
       },
       sticky: true
-    },
-    synthesizer: synthesizeNavBar
+    }
   },
   {
     canonicalType: ComponentType.Footer,
@@ -67,8 +65,7 @@ export const commonCanonicalDefinitions: CanonicalComponentDefinition[] = [
         { label: 'Privacy Policy', href: '/legal/privacy' },
         { label: 'Terms of Service', href: '/legal/terms' }
       ]
-    },
-    synthesizer: synthesizeFooter
+    }
   }
 ]
 

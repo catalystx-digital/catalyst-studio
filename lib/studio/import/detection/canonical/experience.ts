@@ -1,5 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { synthesizeStoreFeatureList } from './commerce-synthesis'
 import { registerCanonicalComponent } from './registry'
 
 let registered = false
@@ -60,8 +59,7 @@ export function registerExperienceCanonicalComponents(): void {
         }
       ],
       layout: 'vertical'
-    },
-    synthesizer: synthesizeStoreFeatureList
+    }
   })
 
   registerCanonicalComponent({
@@ -408,7 +406,6 @@ export function registerExperienceCanonicalComponents(): void {
 
   registered = true
 }
-
 
 
 

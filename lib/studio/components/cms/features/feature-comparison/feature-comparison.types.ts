@@ -1,4 +1,5 @@
 import type { CMSComponentProps, ComponentContent } from '../../_core/types';
+import type { SmartLink } from '../../_core/value-objects';
 
 export type ComparisonValue = boolean | string | number;
 
@@ -8,7 +9,7 @@ export interface ComparisonProduct {
   recommended?: boolean;
   cta?: {
     text: string;
-    url: string;
+    href: SmartLink;
   };
 }
 

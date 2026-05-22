@@ -198,8 +198,8 @@ describe('ReImportService', () => {
           detectedComponents: [{
             url: 'https://example.com/about',
             components: [
-              { type: 'hero', content: { title: 'About Us' } },
-              { type: 'content', content: { text: 'Content here' } },
+              { type: 'hero', position: 0, content: { title: 'About Us' } },
+              { type: 'content', position: 1, content: { text: 'Content here' } },
             ],
             metadata: { httpStatus: 200 },
           }],
@@ -378,7 +378,7 @@ describe('ReImportService', () => {
         data: {
           detectedComponents: [{
             url: 'https://example.com/about',
-            components: [{ type: 'hero', props: { title: 'Legacy title' } }],
+            components: [{ type: 'hero', position: 0, props: { title: 'Legacy title' } }],
             metadata: { httpStatus: 200 },
           }],
         },
@@ -392,6 +392,80 @@ describe('ReImportService', () => {
 
       expect(result.results[0].status).toBe('failed')
       expect(result.results[0].error).toContain('components[0] uses legacy props content; use content')
+    })
+
+    it('rejects detection components without a type', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{ position: 0, content: { title: 'Missing type' } }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        dryRun: true,
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('components[0].type must be a non-empty string')
+    })
+
+    it('rejects detection components without an explicit position', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{ type: 'hero', content: { title: 'Missing position' } }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        dryRun: true,
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('components[0].position must be a non-negative integer')
+    })
+
+    it('fails page creation when no content type is configured', async () => {
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
+      mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(null)
+      mockPrisma.contentType.findFirst.mockResolvedValue(null)
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        createIfNotExists: true,
+      })
+
+      expect(result.results[0].status).toBe('failed')
+      expect(result.results[0].error).toContain('no ContentType is configured')
+      expect(mockPrisma.websitePage.create).not.toHaveBeenCalled()
     })
 
     it('rejects detection children that only provide legacy props content', async () => {
@@ -409,8 +483,9 @@ describe('ReImportService', () => {
             url: 'https://example.com/about',
             components: [{
               type: 'section',
+              position: 0,
               content: {},
-              children: [{ type: 'text', props: { text: 'Legacy child text' } }],
+              children: [{ type: 'text', position: 0, props: { text: 'Legacy child text' } }],
             }],
             metadata: { httpStatus: 200 },
           }],
@@ -442,11 +517,13 @@ describe('ReImportService', () => {
             url: 'https://example.com/about',
             components: [{
               type: 'section',
+              position: 0,
               content: {},
               children: [{
                 type: 'column',
+                position: 0,
                 content: {},
-                children: [{ type: 'text', props: { text: 'Legacy grandchild text' } }],
+                children: [{ type: 'text', position: 0, props: { text: 'Legacy grandchild text' } }],
               }],
             }],
             metadata: { httpStatus: 200 },
@@ -491,7 +568,7 @@ describe('ReImportService', () => {
         data: {
           detectedComponents: [{
             url: 'test',
-            components: [{ type: 'hero', content: {} }],
+            components: [{ type: 'hero', position: 0, content: {} }],
             metadata: { httpStatus: 200 },
           }],
         },
@@ -531,7 +608,7 @@ describe('ReImportService', () => {
         data: {
           detectedComponents: [{
             url: 'test',
-            components: [{ type: 'hero', content: {} }],
+            components: [{ type: 'hero', position: 0, content: {} }],
             metadata: { httpStatus: 200 },
           }],
         },

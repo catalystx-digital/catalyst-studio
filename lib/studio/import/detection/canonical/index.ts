@@ -16,11 +16,6 @@ import {
   registerCanonicalComponent
 } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
-import type {
-  CanonicalSynthesizeParams,
-  CanonicalSynthesisResult,
-  CanonicalSynthesizer
-} from './types'
 
 let initialized = false
 
@@ -68,8 +63,5 @@ export function clearCanonicalComponentGuidance(): void {
 
 export { canonicalizeComponentType }
 export type {
-  CanonicalComponentDefinition,
-  CanonicalSynthesizeParams,
-  CanonicalSynthesisResult,
-  CanonicalSynthesizer
+  CanonicalComponentDefinition
 }

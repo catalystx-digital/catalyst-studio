@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { NavBarProps, MenuItem } from './nav-bar.types';
-import { normalizeCTA, normalizeMenuItems } from './nav-bar.transform';
+import { normalizeCTA, normalizeMenuItems, resolveHref } from './nav-bar.transform';
 import { buildHrefActiveChecker, buildMenuItemActiveChecker, normalizePathname } from './nav-bar.utils';
 import { SearchToggle } from './search-toggle';
 import { NAVBAR_HEIGHT } from './nav-bar.constants';
@@ -41,17 +41,20 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
 
   const renderLink = (item: MenuItem, index: number, depth = 0, parentLabel?: string) => {
     const active = isMenuItemActive(item);
+    const href = resolveHref(item.href);
+    if (!href) return null;
+
     return (
       <SheetClose asChild key={`${item.label}-${index}`}>
         <Link
-          href={item.href}
+          href={href}
           className={cn(
             'block px-4 py-2 text-sm transition-colors hover:bg-muted/60 rounded-sm',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             depth > 0 && 'pl-8',
             active ? 'font-medium text-foreground' : 'text-muted-foreground',
           )}
-          onClick={() => emit('nav_click', { label: item.label, href: item.href, index, depth, parentLabel, surface: 'mobile' })}
+          onClick={() => emit('nav_click', { label: item.label, href, index, depth, parentLabel, surface: 'mobile' })}
         >
           {item.label}
         </Link>
@@ -60,7 +63,8 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
   };
 
   const renderMenuItem = (item: MenuItem, index: number) => {
-    const children = [...(item.groups?.flatMap(g => g?.items ?? []) ?? []), ...(item.children ?? [])];
+    const groups = item.groups as Array<{ items?: MenuItem[] }> | undefined;
+    const children = [...(groups?.flatMap((g) => g.items ?? []) ?? []), ...(item.children ?? [])];
     return (
       <div key={`${item.label}-${index}`} className="border-b border-border/30">
         {renderLink(item, index)}
@@ -83,7 +87,7 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
             <Link href={logo.href ?? '/'} className="flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               {/* width/height prevent CLS. CSS h-8 w-auto handles actual sizing. */}
               {logo.src ? (
-                <img src={logo.src} alt={logo.alt || 'Logo'} width={150} height={32} className="h-8 w-auto object-contain" loading="eager" />
+                <img src={logo.src.url} alt={logo.alt || 'Logo'} width={150} height={32} className="h-8 w-auto object-contain" loading="eager" />
               ) : (
                 (() => {
                   const label = (logo.alt || logo.text || 'Logo').trim();
@@ -130,11 +134,11 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
             {menuItems.map((item, i) => renderMenuItem(item, i))}
           </nav>
 
-          {cta && (
+          {cta && resolveHref(cta.href) && (
             <div className="p-4 border-t">
               <SheetClose asChild>
                 <Button asChild className="w-full">
-                  <Link href={cta.href}>{cta.label}</Link>
+                  <Link href={resolveHref(cta.href)!}>{cta.label}</Link>
                 </Button>
               </SheetClose>
             </div>

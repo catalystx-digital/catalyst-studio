@@ -52,82 +52,21 @@ const DEFAULT_HIGHLIGHT_LABEL = 'Featured';
 const DEFAULT_LINK_TEXT = 'Learn more';
 const CARD_TONE: CmsCardTone = 'minimal';
 
-function parseStructuredText(text: unknown): Partial<FeatureGridContent> {
-  if (typeof text !== 'string') {
-    return {};
-  }
-
-  const trimmed = text.trim();
-  if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (!isRecord(parsed)) {
-      return {};
-    }
-
-    const result: Partial<FeatureGridContent> = {};
-
-    if (typeof parsed.heading === 'string') {
-      result.heading = parsed.heading;
-    }
-
-    if (typeof parsed.subheading === 'string') {
-      result.subheading = parsed.subheading;
-    }
-
-    if (parsed.columns) {
-      const numeric = Number(parsed.columns);
-      if (numeric === 2 || numeric === 3 || numeric === 4) {
-        result.columns = numeric as FeatureGridContent['columns'];
-      }
-    }
-
-    if (Array.isArray(parsed.features)) {
-      result.features = parsed.features as FeatureGridContent['features'];
-    }
-
-    return result;
-  } catch {
-    return {};
-  }
-}
-
 function extractLink(raw: unknown): NormalizedFeature['link'] {
-  if (typeof raw === 'string') {
-    const trimmed = raw.trim();
-    return trimmed ? { url: trimmed, text: DEFAULT_LINK_TEXT } : undefined;
-  }
-
   if (!isRecord(raw)) {
     return undefined;
   }
 
-  const urlCandidate =
-    typeof raw.url === 'string'
-      ? raw.url
-      : typeof raw.href === 'string'
-        ? raw.href
-        : typeof raw.link === 'string'
-          ? raw.link
-          : undefined;
-
-  if (!urlCandidate) {
+  if (typeof raw.url !== 'string' || raw.url.trim().length === 0) {
     return undefined;
   }
 
-  const textCandidate =
-    typeof raw.text === 'string'
-      ? raw.text
-      : typeof raw.label === 'string'
-        ? raw.label
-        : undefined;
-
   return {
-    url: urlCandidate.trim(),
-    text: (textCandidate ?? DEFAULT_LINK_TEXT).trim(),
+    url: raw.url.trim(),
+    text:
+      typeof raw.text === 'string' && raw.text.trim().length > 0
+        ? raw.text.trim()
+        : DEFAULT_LINK_TEXT,
   };
 }
 
@@ -144,68 +83,32 @@ function extractIcon(raw: unknown): React.ReactNode | undefined {
 }
 
 function extractMedia(raw: unknown, title: string): NormalizedFeature['media'] {
-  if (typeof raw === 'string' && raw.trim().length > 0) {
-    return { src: raw.trim(), alt: title };
-  }
-
   if (!isRecord(raw)) {
     return undefined;
   }
 
-  const src =
-    typeof raw.src === 'string'
-      ? raw.src
-      : typeof raw.url === 'string'
-        ? raw.url
-        : typeof raw.image === 'string'
-          ? raw.image
-          : typeof raw.media === 'string'
-            ? raw.media
-            : undefined;
-
-  if (!src) {
+  if (typeof raw.src !== 'string' || raw.src.trim().length === 0) {
     return undefined;
   }
 
-  const alt =
-    typeof raw.alt === 'string'
-      ? raw.alt
-      : typeof raw.imageAlt === 'string'
-        ? raw.imageAlt
-        : title;
-
-  return { src: src.trim(), alt: alt.trim() };
+  return {
+    src: raw.src.trim(),
+    alt:
+      typeof raw.alt === 'string' && raw.alt.trim().length > 0
+        ? raw.alt.trim()
+        : title,
+  };
 }
 
 function normalizeFeatures(features: unknown[]): NormalizedFeature[] {
   return features
     .map<NormalizedFeature | null>((feature) => {
-      if (typeof feature === 'string') {
-        const title = feature.trim();
-        return title ? { title, highlighted: false } : null;
-      }
-
       if (!isRecord(feature)) {
         return null;
       }
 
-      const titleCandidate =
-        typeof feature.title === 'string'
-          ? feature.title
-          : typeof feature.heading === 'string'
-            ? feature.heading
-            : typeof feature.name === 'string'
-              ? feature.name
-              : undefined;
-
-      const descriptionCandidate =
-        typeof feature.description === 'string'
-          ? feature.description
-          : typeof feature.body === 'string'
-            ? feature.body
-            : typeof feature.text === 'string'
-              ? feature.text
-              : undefined;
+      const titleCandidate = typeof feature.title === 'string' ? feature.title : undefined;
+      const descriptionCandidate = typeof feature.description === 'string' ? feature.description : undefined;
 
       const title = titleCandidate?.trim() ?? '';
 
@@ -214,25 +117,12 @@ function normalizeFeatures(features: unknown[]): NormalizedFeature[] {
         return null;
       }
 
-      const highlighted =
-        feature.highlighted === true ||
-        feature.highlight === true ||
-        feature.featured === true;
-
+      const highlighted = feature.highlighted === true;
       const highlightLabelCandidate =
-        typeof feature.badge === 'string'
-          ? feature.badge
-          : typeof feature.highlightLabel === 'string'
-            ? feature.highlightLabel
-            : typeof feature.tag === 'string'
-              ? feature.tag
-              : undefined;
+        typeof feature.highlightLabel === 'string' ? feature.highlightLabel : undefined;
 
       let icon: string | React.ReactNode | undefined;
-      const iconRaw =
-        feature.icon ??
-        feature.emoji ??
-        feature.symbol;
+      const iconRaw = feature.icon;
 
       if (React.isValidElement(iconRaw)) {
         icon = iconRaw;
@@ -240,15 +130,8 @@ function normalizeFeatures(features: unknown[]): NormalizedFeature[] {
         icon = iconRaw.trim();
       }
 
-      const mediaCandidate =
-        extractMedia(feature.image, title) ??
-        extractMedia(feature.media, title) ??
-        extractMedia(feature.mediaSrc, title);
-
-      const linkCandidate =
-        extractLink(feature.link) ??
-        extractLink(feature.linkUrl) ??
-        extractLink(feature.url);
+      const mediaCandidate = extractMedia(feature.media, title);
+      const linkCandidate = extractLink(feature.link);
 
       return {
         title,
@@ -273,20 +156,7 @@ const GRID_TEMPLATE: Record<number, string> = {
 
 class FeatureGridBase extends BaseComponent<FeatureGridProps> {
   protected renderComponent(): React.ReactNode {
-    const textContent = parseStructuredText(
-      (this.props as unknown as { text?: unknown }).text,
-    );
-
-    const mergedContent: FeatureGridContent = {
-      ...textContent,
-      ...this.props.content,
-      features:
-        this.props.content?.features?.length
-          ? this.props.content.features
-          : textContent.features ?? [],
-    } as FeatureGridContent;
-
-    const { heading, subheading, features, columns = 3, background } = mergedContent;
+    const { heading, subheading, features, columns = 3, background } = this.props.content;
     const normalizedFeatures = normalizeFeatures(
       Array.isArray(features) ? features : [],
     );

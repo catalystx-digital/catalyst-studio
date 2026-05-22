@@ -61,32 +61,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeFeature(item: unknown): NormalizedShowcaseFeature | null {
   if (!isRecord(item)) {
-    if (typeof item === 'string' && item.trim().length > 0) {
-      return {
-        text: item.trim(),
-        icon: DEFAULT_ICON,
-        highlighted: false,
-      };
-    }
     return null;
   }
 
-  const textCandidate =
-    typeof item.text === 'string'
-      ? item.text
-      : typeof item.description === 'string'
-        ? item.description
-        : undefined;
+  const textCandidate = typeof item.text === 'string' ? item.text : undefined;
 
   if (!textCandidate) {
     return null;
   }
 
   let icon: string | React.ReactNode | undefined;
-  const iconRaw =
-    item.icon ??
-    item.emoji ??
-    item.symbol;
+  const iconRaw = item.icon;
 
   if (React.isValidElement(iconRaw)) {
     icon = iconRaw;
@@ -96,17 +81,10 @@ function normalizeFeature(item: unknown): NormalizedShowcaseFeature | null {
     icon = DEFAULT_ICON;
   }
 
-  const highlighted =
-    item.highlighted === true ||
-    item.highlight === true ||
-    item.featured === true;
+  const highlighted = item.highlighted === true;
 
   const highlightLabel =
-    typeof item.badge === 'string'
-      ? item.badge
-      : typeof item.highlightLabel === 'string'
-        ? item.highlightLabel
-        : undefined;
+    typeof item.highlightLabel === 'string' ? item.highlightLabel : undefined;
 
   return {
     text: textCandidate.trim(),
@@ -133,24 +111,15 @@ function normalizeSection(section: unknown, index: number): NormalizedShowcaseSe
 
   let image: NormalizedShowcaseSection['image'];
   if (isRecord(section.image)) {
-    const src =
-      typeof section.image.src === 'string'
-        ? section.image.src
-        : typeof section.image.url === 'string'
-          ? section.image.url
-          : undefined;
-
-    if (src) {
+    if (typeof section.image.src === 'string' && section.image.src.trim().length > 0) {
       image = {
-        src,
+        src: section.image.src.trim(),
         alt:
-          typeof section.image.alt === 'string'
-            ? section.image.alt
+          typeof section.image.alt === 'string' && section.image.alt.trim().length > 0
+            ? section.image.alt.trim()
             : title,
       };
     }
-  } else if (typeof section.image === 'string' && section.image.trim().length > 0) {
-    image = { src: section.image.trim(), alt: title };
   }
 
   const featuresRaw = Array.isArray(section.features) ? section.features : [];
@@ -164,22 +133,20 @@ function normalizeSection(section: unknown, index: number): NormalizedShowcaseSe
   const cta =
     section.cta &&
     isRecord(section.cta) &&
-    (typeof section.cta.href === 'string' && section.cta.href.trim().length > 0)
+    (typeof section.cta.url === 'string' && section.cta.url.trim().length > 0)
       ? {
-          href: section.cta.href.trim(),
-          label:
-            typeof section.cta.label === 'string' && section.cta.label.trim().length > 0
-              ? section.cta.label.trim()
+          url: section.cta.url.trim(),
+          text:
+            typeof section.cta.text === 'string' && section.cta.text.trim().length > 0
+              ? section.cta.text.trim()
               : 'Learn more',
         }
       : undefined;
 
   const badge =
-    typeof section.badge === 'string'
-      ? section.badge
-      : typeof section.highlightLabel === 'string'
-        ? section.highlightLabel
-        : undefined;
+    isRecord(section.badge) && typeof section.badge.text === 'string'
+      ? section.badge.text
+      : undefined;
 
   const imagePosition: 'left' | 'right' =
     section.imagePosition === 'right'
@@ -212,10 +179,9 @@ function normalizeSections(sections: unknown[]): NormalizedShowcaseSection[] {
 
 const FeatureShowcaseBase = class extends BaseComponent<FeatureShowcaseProps> {
   protected renderComponent(): React.ReactNode {
-    const content = (this.props.content ?? {}) as Partial<FeatureShowcaseContent>;
-    const { heading, subheading } = content;
+    const { heading, subheading, sections: contentSections } = this.props.content;
 
-    const sectionsRaw = Array.isArray(content.sections) ? content.sections : [];
+    const sectionsRaw = Array.isArray(contentSections) ? contentSections : [];
     const sections = normalizeSections(sectionsRaw);
 
     // In production, return null when empty to avoid rendering empty sections
@@ -414,12 +380,12 @@ const FeatureShowcaseBase = class extends BaseComponent<FeatureShowcaseProps> {
                             onClick={() =>
                               this.handleInteraction(
                                 'showcase-cta-click',
-                                cta?.href,
+                                section.cta?.url,
                               )
                             }
                           >
-                            <Link href={cta.href}>
-                              <span>{cta.label}</span>
+                            <Link href={section.cta.url}>
+                              <span>{section.cta.text}</span>
                               <span
                                 aria-hidden="true"
                                 className={dsSpacing.ml('xs')}

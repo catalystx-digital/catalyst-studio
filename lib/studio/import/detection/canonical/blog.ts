@@ -1,5 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { synthesizeBlogList, synthesizeBlogPost } from './blog-synthesis'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -23,9 +22,9 @@ export const blogCanonicalDefinitions: CanonicalComponentDefinition[] = [
       categories: ['Retail'],
       tags: ['Local news', 'Partnership'],
       heroImage: { src: 'https://example.com/images/hero.jpg', alt: 'Farmgate Meats storefront' },
-      author: { name: 'Jane Smith', title: 'Food Editor' }
-    },
-    synthesizer: synthesizeBlogPost
+      author: { name: 'Jane Smith', title: 'Food Editor' },
+      region: 'main'
+    }
   },
   {
     canonicalType: 'blog-list',
@@ -62,8 +61,7 @@ export const blogCanonicalDefinitions: CanonicalComponentDefinition[] = [
         }
       ],
       showPagination: false
-    },
-    synthesizer: synthesizeBlogList
+    }
   },
   {
     canonicalType: ComponentType.ArticleHeader,

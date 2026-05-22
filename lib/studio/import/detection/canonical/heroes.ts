@@ -1,5 +1,4 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
-import { synthesizeHeroWithImage } from './hero-synthesis'
 import { registerCanonicalComponent } from './registry'
 import type { CanonicalComponentDefinition } from './registry'
 
@@ -24,8 +23,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
         { label: 'Book a Demo', href: '/contact', variant: 'default' },
         { label: 'View Pricing', href: '/pricing', variant: 'outline' }
       ]
-    },
-    synthesizer: synthesizeHeroWithImage
+    }
   },
   {
     canonicalType: ComponentType.HeroSplit,
@@ -158,5 +156,4 @@ export function registerHeroCanonicalComponents(): void {
 
   registered = true
 }
-
 

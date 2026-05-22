@@ -5,14 +5,12 @@ import {
   canonicalizeComponentType,
   ensureCanonicalComponentsRegistered,
   listCanonicalComponents,
-  type CanonicalComponentDefinition,
-  type CanonicalSynthesizer
+  type CanonicalComponentDefinition
 } from '@/lib/studio/import/detection/canonical'
 
 export interface ComponentContractSources {
   canonical: string
   hasComponentRegistry: boolean
-  hasSynthesizer: boolean
 }
 
 export interface ComponentContract {
@@ -23,7 +21,6 @@ export interface ComponentContract {
   fragments: string[]
   cues: string[]
   sampleContent?: Record<string, any>
-  synthesizer?: CanonicalSynthesizer
   propsMeta?: Record<string, PropertyMeta>
   aiMetadata?: AIComponentMetadata
   defaultRegion?: string
@@ -57,15 +54,20 @@ function cloneIfDefined<T>(value: T | undefined): T | undefined {
   }
 }
 
-function deriveDefaultRegion(sample: Record<string, any> | undefined): string | undefined {
+function deriveDefaultRegion(
+  sample: Record<string, any> | undefined,
+  registryEntry: ComponentRegistryEntry | undefined
+): string | undefined {
   if (!sample || typeof sample !== 'object') {
-    return undefined
+    const location = registryEntry?.metadata?.pageLocation?.[0]
+    return typeof location === 'string' && location.trim().length > 0 ? location : undefined
   }
   const region = sample.region
   if (typeof region === 'string' && region.trim().length > 0) {
     return region
   }
-  return undefined
+  const location = registryEntry?.metadata?.pageLocation?.[0]
+  return typeof location === 'string' && location.trim().length > 0 ? location : undefined
 }
 
 function findComponentTypeForCanonical(canonicalType: string): ComponentType | undefined {
@@ -137,7 +139,7 @@ function buildContractMaps(): ContractBuildResult {
       : undefined
 
     const sampleContent = cloneIfDefined(definition.sampleContent)
-    const defaultRegion = deriveDefaultRegion(sampleContent)
+    const defaultRegion = deriveDefaultRegion(sampleContent, registryEntry)
 
     const contract: ComponentContract = {
       canonicalType,
@@ -147,14 +149,12 @@ function buildContractMaps(): ContractBuildResult {
       fragments: [...definition.fragments],
       cues: [...definition.cues],
       sampleContent,
-      synthesizer: definition.synthesizer,
       propsMeta,
       aiMetadata,
       defaultRegion,
       sources: {
         canonical: 'registry',
-        hasComponentRegistry: Boolean(registryEntry),
-        hasSynthesizer: Boolean(definition.synthesizer)
+        hasComponentRegistry: Boolean(registryEntry)
       }
     }
 

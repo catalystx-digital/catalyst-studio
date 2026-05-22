@@ -13,8 +13,6 @@ export interface IAMetadata {
   journeyStage: 'awareness' | 'interest' | 'consideration' | 'decision'
   /** High-level descriptions of what each section should accomplish (NOT component types) */
   sectionIntents: string[]
-  /** @deprecated Use sectionIntents instead. Kept for backward compatibility. */
-  requiredSections?: string[]
 }
 
 export interface IAPage {
@@ -65,7 +63,7 @@ export function buildIAGenerationPrompt(businessInfo: BusinessInfo): string {
   segments.push('')
   segments.push('**3. EXTRACT ALL SECTION REQUIREMENTS FROM PAGE SPECS (CRITICAL)**')
   segments.push('Look for "### Section X:" or "### Page Specification" headers.')
-  segments.push('**EVERY numbered section MUST be included in requiredSections.**')
+  segments.push('**EVERY numbered section MUST be included in sectionIntents.**')
   segments.push('')
   segments.push('Example PRD section headers:')
   segments.push('```')
@@ -191,7 +189,7 @@ export function buildIAGenerationPrompt(businessInfo: BusinessInfo): string {
   segments.push('  - Only one entry in the sitemap')
   segments.push('')
   segments.push('Then CREATE ONLY THE HOME PAGE. Do NOT add About, Services, or Contact pages.')
-  segments.push('Put ALL sections from the PRD on the home page\'s requiredSections array.')
+  segments.push('Put ALL sections from the PRD on the home page\'s sectionIntents array.')
   segments.push('')
   segments.push('3. For MULTI-PAGE websites (sitemap shows multiple pages):')
   segments.push('   Standard structure:')
@@ -372,7 +370,7 @@ export function buildIAGenerationPrompt(businessInfo: BusinessInfo): string {
   segments.push('')
   segments.push('**For SINGLE-PAGE websites (sitemap shows only Home):**')
   segments.push('- ✅ Create ONLY the home page')
-  segments.push('- ✅ Put ALL sections in home page\'s requiredSections')
+  segments.push('- ✅ Put ALL sections in home page\'s sectionIntents')
   segments.push('- ❌ Do NOT add extra pages (about, contact, etc.)')
   segments.push('')
   segments.push('**For MULTI-PAGE websites (sitemap shows multiple pages):**')

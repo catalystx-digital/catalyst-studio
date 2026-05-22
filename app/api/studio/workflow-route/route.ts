@@ -141,28 +141,27 @@ ${userPrompt}`
         ? String((error as { responseBody?: unknown }).responseBody ?? '')
         : ''
 
-    if (providerStatusCode === 401 || providerStatusCode === 403) {
-      console.warn('[workflow-route] AI router unavailable; using greenfield fallback', {
-        statusCode: providerStatusCode,
-        reason: providerBody.includes('credits') || providerBody.includes('spending limit')
-          ? 'provider credits or spending limit'
-          : 'provider authorization',
-      })
-    } else {
-      console.error('[workflow-route] Error:', error)
-    }
+    const isProviderAuthFailure = providerStatusCode === 401 || providerStatusCode === 403
+    const reason = isProviderAuthFailure
+      ? providerBody.includes('credits') || providerBody.includes('spending limit')
+        ? 'AI provider rejected the workflow routing request because credits or spending limits are unavailable.'
+        : 'AI provider rejected the workflow routing request because authorization failed.'
+      : error instanceof Error
+        ? error.message
+        : 'Unknown workflow routing error'
 
-    // Return a fallback decision on error - default to greenfield
-    return NextResponse.json({
-      workflow: 'greenfield',
-      reasoning: providerStatusCode === 401 || providerStatusCode === 403
-        ? 'AI workflow routing is unavailable because the configured provider rejected the request; defaulting to greenfield workflow.'
-        : 'LLM routing failed, defaulting to greenfield workflow',
-      confidence: 0.5,
-      error: providerStatusCode === 401 || providerStatusCode === 403
-        ? 'AI provider unavailable'
-        : error instanceof Error ? error.message : 'Unknown error'
+    console.error('[workflow-route] Error:', {
+      statusCode: providerStatusCode,
+      reason,
     })
+
+    return NextResponse.json(
+      {
+        error: 'Workflow routing failed',
+        reason,
+      },
+      { status: isProviderAuthFailure ? 503 : 502 }
+    )
   }
 }
 

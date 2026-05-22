@@ -3,10 +3,7 @@ import type { PageCatalogSummary, PageCatalogTemplateSummary } from '@/lib/studi
 import {
   canonicalizeComponentType,
   ensureCanonicalComponentsRegistered,
-  getCanonicalComponent,
-  type CanonicalSynthesizeParams,
-  type CanonicalSynthesisResult,
-  type CanonicalSynthesizer
+  getCanonicalComponent
 } from '@/lib/studio/import/detection/canonical'
 import { getComponentContractByCanonicalType } from '@/lib/studio/components/catalog/component-contracts'
 
@@ -29,16 +26,11 @@ interface CanonicalRequirement {
   source: 'manifest' | 'catalog'
 }
 
-type SynthesizeParams = CanonicalSynthesizeParams
-type SynthesisResult = CanonicalSynthesisResult
-
 export function applyTemplateCanonicalization({
   components,
   template,
   pageSummary,
-  availableComponents,
-  pageUrl,
-  pageMetadata
+  pageUrl
 }: CanonicalizationParams): DetectedComponent[] {
   ensureCanonicalComponentsRegistered()
 
@@ -71,56 +63,13 @@ export function applyTemplateCanonicalization({
       continue
     }
 
-    const pattern = findPatternForCanonicalType(requirement.canonicalType, availableComponents)
-    if (!pattern) {
-      console.warn('[DetectionCanonicalizer] canonical-pattern-missing', {
-        templateKey: template.templateKey,
-        canonicalType: requirement.canonicalType,
-        source: requirement.source,
-        message: 'Call ensureCoreComponentTypes before detection so canonical components are registered.',
-        pageUrl
-      })
-      continue
-    }
-
-    const result = synthesizeCanonicalComponent({
-      canonicalType: requirement.canonicalType,
-      region: requirement.region,
-      components: mutable,
-      pattern,
-      pageUrl,
-      templateKey: template.templateKey,
-      pageMetadata,
-      hints: requirement.hints,
-      requirementMetadata: requirement.metadata
-    })
-
-    if (!result) {
-      console.warn('[DetectionCanonicalizer] canonical-synthesis-failed', {
-        templateKey: template.templateKey,
-        canonicalType: requirement.canonicalType,
-        source: requirement.source,
-        pageUrl
-      })
-      continue
-    }
-
-    const synthesizedComponent = {
-      ...result.component,
-      content: ensureRegionOnContent(result.component.content, requirement.region),
-      metadata: {
-        ...(result.component.metadata || {}),
-        region: requirement.region
-      }
-    }
-
-    mutable.splice(result.insertIndex, 0, synthesizedComponent)
-    console.info('[DetectionCanonicalizer] canonical-synthesized', {
+    console.warn('[DetectionCanonicalizer] canonical-required-missing', {
       templateKey: template.templateKey,
       canonicalType: requirement.canonicalType,
       region: requirement.region,
       pageUrl,
-      source: requirement.source
+      source: requirement.source,
+      message: 'Detection output omitted a required canonical component; strict import will not synthesize it.'
     })
   }
 
@@ -162,19 +111,8 @@ function normalizeBlogPostContent(content: Record<string, any>): Record<string, 
   const pickString = (value: unknown): string | undefined =>
     typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
   const existingHtml = pickString(next.bodyHtml) ?? ''
-  const fallback =
-    pickString(next.body) ??
-    pickString(next.bodyText) ??
-    pickString(next.text)
-  const excerpt = pickString(next.excerpt)
 
-  if (!existingHtml && (fallback || excerpt)) {
-    const generated = convertPlainTextToHtml(fallback || excerpt!)
-    if (generated) {
-      next.bodyHtml = generated
-      changed = true
-    }
-  } else if (existingHtml && next.bodyHtml !== existingHtml) {
+  if (existingHtml && next.bodyHtml !== existingHtml) {
     next.bodyHtml = existingHtml
     changed = true
   }
@@ -184,72 +122,17 @@ function normalizeBlogPostContent(content: Record<string, any>): Record<string, 
     changed = true
   }
 
-  if (!pickString(next.bodyText) && fallback) {
-    next.bodyText = fallback
-    changed = true
-  }
-
-  const deriveTitleFromText = (value: string | undefined): string | undefined => {
-    if (!value) {
-      return undefined
-    }
-    const normalized = value.replace(/\s+/g, ' ').trim()
-    if (!normalized) {
-      return undefined
-    }
-    const match = /(.+?[.!?])(\s|$)/.exec(normalized)
-    return (match && match[1]) || normalized
-  }
-
   const resolvedTitle =
     pickString(next.title) ??
     pickString(next.heading) ??
     pickString(next.name) ??
-    pickString((next.metadata as Record<string, any> | undefined)?.title) ??
-    pickString(next.subtitle) ??
-    deriveTitleFromText(excerpt || fallback)
+    pickString((next.metadata as Record<string, any> | undefined)?.title)
   if (!pickString(next.title) && resolvedTitle) {
     next.title = resolvedTitle
     changed = true
   }
-  if (!pickString(next.title) && !resolvedTitle) {
-    console.warn('[canonicalization] No title found for blog post, using fallback "Article"')
-    next.title = 'Article'
-    changed = true
-  }
 
   return changed ? next : content
-}
-
-function convertPlainTextToHtml(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return trimmed
-  }
-
-  const paragraphs = trimmed
-    .split(/\n\s*\n+/)
-    .map(part => part.trim())
-    .filter(Boolean)
-    .map(part => `<p>${escapeHtml(part)}</p>`)
-
-  if (paragraphs.length > 0) {
-    return paragraphs.join('\n\n')
-  }
-
-  return `<p>${escapeHtml(trimmed)}</p>`
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 function findTemplateSummary(templateKey: string, summary: PageCatalogSummary): PageCatalogTemplateSummary | undefined {
@@ -305,7 +188,7 @@ function deriveCanonicalRequirements(template: PageCatalogTemplateSummary): Cano
       continue
     }
 
-    const definitions: Array<{ canonicalType: string; synthesizer?: CanonicalSynthesizer | undefined }> = []
+    const definitions: Array<{ canonicalType: string }> = []
     const missing: string[] = []
     for (const value of allowedValues) {
       const rawType = typeof value === 'string' ? value : String(value)
@@ -315,12 +198,12 @@ function deriveCanonicalRequirements(template: PageCatalogTemplateSummary): Cano
       }
       const contract = getComponentContractByCanonicalType(canonicalType)
       if (contract && !definitions.some(def => def.canonicalType === contract.canonicalType)) {
-        definitions.push({ canonicalType: contract.canonicalType, synthesizer: contract.synthesizer })
+        definitions.push({ canonicalType: contract.canonicalType })
         continue
       }
       const definition = getCanonicalComponent(canonicalType)
       if (definition && !definitions.some(def => def.canonicalType === definition.canonicalType)) {
-        definitions.push({ canonicalType: definition.canonicalType, synthesizer: definition.synthesizer })
+        definitions.push({ canonicalType: definition.canonicalType })
       } else {
         missing.push(canonicalType)
       }
@@ -339,13 +222,12 @@ function deriveCanonicalRequirements(template: PageCatalogTemplateSummary): Cano
       })
     }
 
-    const hasSynthesizer = definitions.some(def => Boolean(def.synthesizer))
-    const shouldEnforce = allowedValues.length === 1 || definitions.length === 1 || hasSynthesizer
+    const shouldEnforce = allowedValues.length === 1 || definitions.length === 1
     if (!shouldEnforce) {
       continue
     }
 
-    const preferred = definitions.find(def => Boolean(def.synthesizer)) ?? definitions[0]
+    const preferred = definitions[0]
     if (!preferred) {
       continue
     }
@@ -369,36 +251,6 @@ function deriveCanonicalRequirements(template: PageCatalogTemplateSummary): Cano
   return requirements
 }
 
-function ensureRegionOnContent(content: any, region: string): any {
-  if (!content || typeof content !== 'object') {
-    return content
-  }
-
-  let next = content
-  if (typeof content.region !== 'string' || content.region.trim().length === 0 || content.region !== region) {
-    next = { ...next, region }
-  }
-
-  const metadata = next.metadata && typeof next.metadata === 'object' ? next.metadata : {}
-  if ((metadata as Record<string, unknown>).region !== region) {
-    next = { ...next, metadata: { ...metadata, region } }
-  }
-
-  return next
-}
-
-function countCanonicalInstances(components: DetectedComponent[], canonicalType: string): number {
-  const normalized = canonicalizeComponentType(canonicalType)
-  if (!normalized) {
-    return 0
-  }
-  return components.filter(component => {
-    const componentType =
-      canonicalizeComponentType(component.component) || canonicalizeComponentType(component.type)
-    return componentType === normalized
-  }).length
-}
-
 function countCanonicalInstancesForTypes(components: DetectedComponent[], canonicalTypes: string[]): number {
   if (canonicalTypes.length === 0) {
     return 0
@@ -416,51 +268,4 @@ function countCanonicalInstancesForTypes(components: DetectedComponent[], canoni
       canonicalizeComponentType(component.component) || canonicalizeComponentType(component.type)
     return componentType !== undefined && allowed.has(componentType)
   }).length
-}
-
-function findPatternForCanonicalType(canonicalType: string, patterns: ComponentPattern[]): ComponentPattern | undefined {
-  const normalized = canonicalizeComponentType(canonicalType)
-  if (!normalized) {
-    return undefined
-  }
-  for (const pattern of patterns) {
-    const patternType = canonicalizeComponentType(pattern.type)
-    if (patternType === normalized) {
-      return pattern
-    }
-  }
-  return undefined
-}
-
-function synthesizeCanonicalComponent(params: SynthesizeParams): SynthesisResult | null {
-  const synthesizer = resolveSynthesizer(params.canonicalType)
-  if (!synthesizer) {
-    console.warn('[DetectionCanonicalizer] canonical-synthesizer-missing', {
-      canonicalType: params.canonicalType,
-      templateKey: params.templateKey,
-      pageUrl: params.pageUrl
-    })
-    return null
-  }
-
-  try {
-    return synthesizer(params)
-  } catch (error) {
-    console.error('[DetectionCanonicalizer] canonical-synthesizer-error', {
-      canonicalType: params.canonicalType,
-      templateKey: params.templateKey,
-      pageUrl: params.pageUrl,
-      error
-    })
-    return null
-  }
-}
-
-function resolveSynthesizer(canonicalType: string): CanonicalSynthesizer | undefined {
-  const contract = getComponentContractByCanonicalType(canonicalType)
-  if (contract?.synthesizer) {
-    return contract.synthesizer
-  }
-  const definition = getCanonicalComponent(canonicalType)
-  return definition?.synthesizer
 }

@@ -37,7 +37,6 @@ import {
   WebToolsConfig
 } from './config'
 import { safeStringify } from './utils/json-parsing'
-import { jsonrepair } from 'jsonrepair'
 
 // Use centralized config values
 const LOG_WEB_TOOL_INPUT = LoggingConfig.logWebToolInput
@@ -96,46 +95,6 @@ function selectForceFetchSections(sectionKeys: string[], fetchedKeys: Set<string
   return selected.slice(0, limit)
 }
 
-function truncateStringsForPrompt(value: unknown, maxStringLength: number): unknown {
-  if (typeof value === 'string') {
-    return value.length > maxStringLength
-      ? `${value.slice(0, maxStringLength)}...[truncated ${value.length - maxStringLength} chars]`
-      : value
-  }
-  if (Array.isArray(value)) {
-    return value.map(item => truncateStringsForPrompt(item, maxStringLength))
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, truncateStringsForPrompt(item, maxStringLength)])
-    )
-  }
-  return value
-}
-
-function compactToolContentForPrompt(toolContent: Record<string, unknown>, maxChars: number): Record<string, unknown> {
-  let stringLimit = 12000
-  let compacted: Record<string, unknown> = toolContent
-  while (stringLimit >= 1000) {
-    compacted = truncateStringsForPrompt(toolContent, stringLimit) as Record<string, unknown>
-    if (JSON.stringify(compacted).length <= maxChars) return compacted
-    stringLimit = Math.floor(stringLimit / 2)
-  }
-
-  const result: Record<string, unknown> = {}
-  let used = 2
-  for (const [key, value] of Object.entries(compacted)) {
-    const entry = JSON.stringify({ [key]: value })
-    if (used + entry.length > maxChars) {
-      result[key] = { omitted: true, reason: 'IMPORT_DIRECT_PROMPT_MAX_CHARS exceeded' }
-      break
-    }
-    result[key] = value
-    used += entry.length + 1
-  }
-  return result
-}
-
 // Use centralized configuration
 const CONFIDENCE_THRESHOLD = ConfidenceConfig.detection
 const TEMPERATURE = ModelConfig.temperature.detection
@@ -146,7 +105,6 @@ const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max 
 const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
 const TOOL_LOOP_GUARD = DetectionConfig.toolLoopGuard
 const MAX_FORCE_FETCH_SECTIONS = WebToolsConfig.maxForceFetchSections
-const DIRECT_PROMPT_MAX_CHARS = WebToolsConfig.directPromptMaxChars
 
 let registryInitialization: Promise<void> | null = null
 
@@ -226,36 +184,12 @@ interface TokenUsage {
   total_cost?: number
 }
 
-/**
- * Metadata about JSON continuation recovery when LLM output was incomplete.
- */
-interface ContinuationMetadata {
-  /** Whether the result was recovered via continuation requests */
-  wasRecovered: boolean
-  /** Number of continuation attempts made */
-  attempts: number
-  /** Whether the JSON is complete after continuation */
-  isComplete: boolean
-  /** Log of each continuation attempt */
-  recoveryLog: Array<{
-    attempt: number
-    reason: string
-    truncationPoint?: string
-    finishReason: string
-    charsBefore: number
-    charsAdded: number
-    charsAfter: number
-  }>
-}
-
 interface ConversationOutcome {
   rawResult: string
   response: ChatCompletion
   usage: TokenUsage
   requestCount: number
   toolCallCount: number
-  /** Continuation metadata if JSON was recovered via continuation */
-  continuationMetadata?: ContinuationMetadata
 }
 
 interface ConversationParams {
@@ -290,259 +224,6 @@ function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
     }
   }
   return Math.max(1, Math.ceil(totalChars / CHAR_PER_TOKEN))
-}
-
-/**
- * Maximum number of continuation attempts when JSON output is incomplete.
- * Each continuation adds the truncated response as assistant prefill and asks model to continue.
- * Can be configured via IMPORT_MAX_CONTINUATION_ATTEMPTS env variable.
- * Default: 5 attempts (increased from 3 to handle larger pages)
- */
-const MAX_CONTINUATION_ATTEMPTS = LoggingConfig.maxContinuationAttempts
-
-/**
- * Strips markdown code fences from LLM output.
- * Models often wrap JSON in ```json ... ``` when asked to continue.
- * This removes those markers to get clean JSON for concatenation.
- */
-function stripMarkdownFences(text: string): string {
-  if (!text) return text
-
-  // Remove leading ```json or ```
-  let result = text.replace(/^```(?:json)?\s*/i, '')
-
-  // Remove trailing ```
-  result = result.replace(/\s*```\s*$/i, '')
-
-  // Also handle cases where ``` appears mid-string (from concatenation)
-  // Replace ```json``` or `````` patterns that appear between JSON parts
-  result = result.replace(/\}\s*```(?:json)?```\s*\[/g, '},\n[')
-  result = result.replace(/\]\s*```(?:json)?```\s*\{/g, '],\n{')
-  result = result.replace(/\}\s*```(?:json)?```\s*\{/g, '},\n{')
-  result = result.replace(/\]\s*```(?:json)?```\s*\[/g, '],\n[')
-
-  // Clean up any remaining embedded ``` markers
-  result = result.replace(/```(?:json)?/gi, '')
-
-  return result.trim()
-}
-
-/**
- * Finds overlapping content between the end of first string and start of second.
- * Returns the overlap length to prevent duplicate concatenation.
- *
- * Example: first = "hello wor", second = "orld!" => overlap = 2 ("or")
- */
-function findOverlapLength(first: string, second: string, maxLookback: number = 200): number {
-  if (!first || !second) return 0
-
-  // Look for overlapping content at the boundary
-  const endOfFirst = first.slice(-maxLookback)
-
-  for (let overlapLen = Math.min(endOfFirst.length, second.length); overlapLen > 0; overlapLen--) {
-    const endPart = endOfFirst.slice(-overlapLen)
-    const startPart = second.slice(0, overlapLen)
-    if (endPart === startPart) {
-      return overlapLen
-    }
-  }
-
-  return 0
-}
-
-/**
- * Merges prefill content with continuation, handling overlapping content.
- * LLMs sometimes repeat content from where they were asked to continue.
- * Also handles misaligned continuations where the LLM drops characters.
- */
-function mergeContinuation(prefill: string, continuation: string): { merged: string; overlapRemoved: number; fixApplied?: string } {
-  // Check for misaligned continuation patterns FIRST
-  // These patterns indicate the LLM dropped characters, not overlapped
-  const prefillEndsWithStringValue = /"\s*$/.test(prefill)
-  const trimmedCont = continuation.trim()
-
-  // Pattern 1: prefill ends with `"value"` and continuation starts with `key":` (missing `, "`)
-  // Example: prefill = `"nav-menu-item"`, continuation = `id": "value"`
-  // Should be: `"nav-menu-item", "id": "value"`
-  const continuationStartsWithKey = /^[a-zA-Z_][a-zA-Z0-9_]*":\s*/.test(trimmedCont)
-  if (prefillEndsWithStringValue && continuationStartsWithKey) {
-    return {
-      merged: prefill + ', "' + trimmedCont,
-      overlapRemoved: 0,
-      fixApplied: 'inserted_comma_quote'
-    }
-  }
-
-  // Pattern 2: prefill ends with `"value"` and continuation starts with `"key":` (missing `, `)
-  const continuationStartsWithQuotedKey = /^"[a-zA-Z_][a-zA-Z0-9_]*":\s*/.test(trimmedCont)
-  if (prefillEndsWithStringValue && continuationStartsWithQuotedKey) {
-    return {
-      merged: prefill + ', ' + trimmedCont,
-      overlapRemoved: 0,
-      fixApplied: 'inserted_comma'
-    }
-  }
-
-  // Pattern 3: Object restart - LLM restarts entire object mid-stream
-  // Example: prefill ends with `"id": "nav-menu-item-credit-management",\n"`
-  //          continuation starts with `{"type":"nav-menu-item"...`
-  // The LLM decided to restart the object from scratch instead of continuing
-  // Solution: Find the last complete array item boundary in prefill and truncate there
-  const continuationStartsWithObject = /^\s*\{/.test(trimmedCont)
-  if (continuationStartsWithObject) {
-    // Check if prefill is mid-object (has unclosed braces after last }, or after array [)
-    // Find the last position where we have a complete item (after }, or {[ for empty array)
-    const lastCompleteItemMatch = prefill.match(/^([\s\S]*\})\s*,?\s*$/m)
-    if (lastCompleteItemMatch) {
-      // Check if there's incomplete content after the last complete object
-      const lastCompletePos = lastCompleteItemMatch[1].length
-      const remainder = prefill.slice(lastCompletePos).trim()
-
-      // If remainder contains partial object start (like `,\n"` or just has partial content)
-      // then we're mid-object and should truncate
-      if (remainder && (remainder.includes('"') || remainder.includes(','))) {
-        const truncatedPrefill = lastCompleteItemMatch[1] + ', '
-        return {
-          merged: truncatedPrefill + trimmedCont,
-          overlapRemoved: prefill.length - truncatedPrefill.length,
-          fixApplied: 'object_restart_truncate'
-        }
-      }
-    }
-
-    // Alternative: find the last `},` or `}\n` pattern which indicates end of array item
-    const lastArrayItemEnd = prefill.lastIndexOf('},')
-    const lastArrayItemEndNewline = prefill.lastIndexOf('}\n')
-    const bestEnd = Math.max(lastArrayItemEnd, lastArrayItemEndNewline)
-
-    if (bestEnd > 0) {
-      // Check if there's meaningful content after this point that looks incomplete
-      const afterEnd = prefill.slice(bestEnd + 1).trim()
-      // If what remains looks like a partial object (has quotes, commas but no closing brace)
-      if (afterEnd && !afterEnd.endsWith('}') && (afterEnd.includes('"') || afterEnd.startsWith(','))) {
-        const truncatedPrefill = prefill.slice(0, bestEnd + 1) + ' '
-        return {
-          merged: truncatedPrefill + trimmedCont,
-          overlapRemoved: prefill.length - truncatedPrefill.length,
-          fixApplied: 'object_restart_after_item'
-        }
-      }
-    }
-  }
-
-  // Now check for actual overlapping content (for larger overlaps, not single chars)
-  const overlap = findOverlapLength(prefill, continuation)
-  if (overlap > 3) {  // Only consider meaningful overlaps (> 3 chars)
-    return {
-      merged: prefill + continuation.slice(overlap),
-      overlapRemoved: overlap
-    }
-  }
-
-  return { merged: prefill + continuation, overlapRemoved: 0 }
-}
-
-/**
- * Extracts the first complete JSON object from a string.
- * Handles cases where LLM duplicates content during continuation,
- * resulting in multiple JSON objects concatenated together.
- */
-function extractFirstCompleteJsonObject(text: string): string | null {
-  if (!text) return null
-
-  const trimmed = text.trim()
-  if (!trimmed.startsWith('{')) return null
-
-  let depth = 0
-  let inString = false
-  let escape = false
-
-  for (let i = 0; i < trimmed.length; i++) {
-    const char = trimmed[i]
-
-    if (escape) {
-      escape = false
-      continue
-    }
-
-    if (char === '\\' && inString) {
-      escape = true
-      continue
-    }
-
-    if (char === '"' && !escape) {
-      inString = !inString
-      continue
-    }
-
-    if (inString) continue
-
-    if (char === '{') {
-      depth++
-    } else if (char === '}') {
-      depth--
-      if (depth === 0) {
-        // Found complete object
-        const extracted = trimmed.slice(0, i + 1)
-        // Verify it's valid JSON
-        try {
-          JSON.parse(extracted)
-          return extracted
-        } catch {
-          // Keep searching - this wasn't valid
-          continue
-        }
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Repairs JSON using jsonrepair library.
- * Handles common LLM output issues like missing brackets, markdown fences, etc.
- * Also handles duplicate JSON from continuation responses.
- */
-function repairJsonOutput(jsonStr: string): { repaired: string; wasRepaired: boolean; error?: string } {
-  if (!jsonStr) return { repaired: jsonStr, wasRepaired: false }
-
-  try {
-    // First strip markdown fences
-    const stripped = stripMarkdownFences(jsonStr)
-
-    // Try to parse as-is first
-    try {
-      JSON.parse(stripped)
-      return { repaired: stripped, wasRepaired: stripped !== jsonStr }
-    } catch {
-      // Needs repair
-    }
-
-    // Try extracting just the first complete JSON object
-    // This handles cases where LLM duplicates content during continuation
-    const firstObject = extractFirstCompleteJsonObject(stripped)
-    if (firstObject) {
-      const discardedLength = stripped.length - firstObject.length
-      if (LoggingConfig.logOutput && discardedLength > 0) {
-        console.log(`[Detection] Extracted first complete JSON object, discarded ${discardedLength} chars of duplicate content`)
-      }
-      return { repaired: firstObject, wasRepaired: true }
-    }
-
-    // Use jsonrepair to fix issues
-    const repaired = jsonrepair(stripped)
-    if (LoggingConfig.logOutput) {
-      console.log(`[Detection] JSON repaired successfully via jsonrepair`)
-    }
-    return { repaired, wasRepaired: true }
-  } catch (err) {
-    return {
-      repaired: jsonStr,
-      wasRepaired: false,
-      error: err instanceof Error ? err.message : 'Unknown repair error'
-    }
-  }
 }
 
 /**
@@ -751,12 +432,19 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
         continue
       }
       const name = tc.function?.name
-      const argsStr = tc.function?.arguments || '{}'
-      let args: WebToolArgs = {}
+      const argsStr = tc.function?.arguments
+      if (typeof argsStr !== 'string' || argsStr.trim().length === 0) {
+        throw new Error(`Detection tool call ${name || 'unknown'} omitted JSON arguments`)
+      }
+      let args: WebToolArgs
       try {
         args = JSON.parse(argsStr) as WebToolArgs
-      } catch {
-        // ignore and fall back to empty args object
+      } catch (error) {
+        throw new Error(
+          `Detection tool call ${name || 'unknown'} returned malformed JSON arguments: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
       }
 
       try {
@@ -765,8 +453,10 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
           const normalizedArgs: WebToolArgs = { ...args }
           if (typeof normalizedArgs.stripScriptsStyles === 'undefined') normalizedArgs.stripScriptsStyles = true
           if (typeof normalizedArgs.collapseWhitespace === 'undefined') normalizedArgs.collapseWhitespace = true
-          if (!normalizedArgs.url) normalizedArgs.url = params.url
-          const fetchArgs = { ...normalizedArgs, url: normalizedArgs.url || params.url }
+          if (typeof normalizedArgs.url !== 'string' || normalizedArgs.url.trim().length === 0) {
+            throw new Error('fetch_outline requires a non-empty url argument')
+          }
+          const fetchArgs = { ...normalizedArgs, url: normalizedArgs.url }
 
           const result = await params.telemetry.timePhase('fetch', () => params.webTools.fetchOutline(fetchArgs), fetchResult => ({
             status: fetchResult?.status,
@@ -905,229 +595,11 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
   let result = response.choices[0]?.message?.content || ''
   let finishReason = response.choices[0]?.finish_reason || ''
 
-  // Continuation logic: If JSON is incomplete, ask model to continue from where it left off
-  let continuationAttempts = 0
-  let completionStatus = detectIncompleteJson(result)
-  const continuationLog: Array<{
-    attempt: number
-    reason: string
-    truncationPoint?: string
-    finishReason: string
-    charsBefore: number
-    charsAdded: number
-    charsAfter: number
-  }> = []
-
-  // TKT-065 FIX: Grok fails with tool response flow but works with direct content.
-  // When JSON is incomplete and we have tool responses, try fresh conversation FIRST
-  // before falling back to continuation logic.
-  const hasToolResponses = params.messages.some(msg => msg.role === 'tool')
-  if (!completionStatus.isComplete && hasToolResponses) {
-    if (LoggingConfig.logOutput) {
-      console.log(`[TKT-065] Incomplete JSON from tool flow, trying fresh conversation with direct content`)
-    }
-
-    // Extract tool response content from messages (store parsed objects, not strings)
-    const toolContent: Record<string, unknown> = {}
-    for (const msg of params.messages) {
-      if (msg.role === 'tool' && 'content' in msg && typeof msg.content === 'string') {
-        try {
-          const parsed = JSON.parse(msg.content)
-          if (parsed.key) toolContent[parsed.key] = parsed
-          else if (parsed.handle && parsed.sections) toolContent['outline'] = parsed
-        } catch {
-          // Not JSON, skip
-        }
-      }
-    }
-
-    // Save original messages
-    const originalMessages = [...params.messages]
-    const systemPrompt = params.messages[0]
-
-    // Modify messages array IN PLACE (createRequest closes over this array)
-    params.messages.length = 0
-    params.messages.push(systemPrompt)
-    const compactedToolContent = compactToolContentForPrompt(toolContent, DIRECT_PROMPT_MAX_CHARS)
-    const freshUserContent = `Extract components from: ${params.url}\n\nPage data:\n${JSON.stringify(compactedToolContent)}`
-    params.messages.push({
-      role: 'user',
-      content: freshUserContent
-    })
-
-    if (LoggingConfig.logOutput) {
-      console.log(`[TKT-065] Fresh request: ${params.messages.length} messages, user content: ${freshUserContent.length} chars`)
-      console.log(`[TKT-065] Tool content keys: ${Object.keys(toolContent).join(', ')}`)
-    }
-
-    try {
-      // Use JSON mode (true) and disallow tools (true) for fresh request
-      response = await params.withTimeout(params.createRequest(true, true))
-      requestCount++
-      const freshResult = response.choices[0]?.message?.content || ''
-      const freshCompletionStatus = detectIncompleteJson(freshResult)
-
-      if (freshCompletionStatus.isComplete) {
-        // Fresh approach worked! Use this result
-        result = freshResult
-        finishReason = response.choices[0]?.finish_reason || ''
-        completionStatus = freshCompletionStatus
-        if (LoggingConfig.logOutput) {
-          console.log(`[TKT-065] Fresh conversation succeeded: ${freshResult.length} chars, complete JSON`)
-        }
-      } else {
-        if (LoggingConfig.logOutput) {
-          console.log(`[TKT-065] Fresh conversation also incomplete (${freshResult.length} chars), falling back to continuation`)
-        }
-      }
-    } catch (freshError) {
-      if (LoggingConfig.logOutput) {
-        console.log(`[TKT-065] Fresh conversation failed:`, freshError)
-      }
-    }
-
-    // Restore original messages for continuation logic
-    params.messages.length = 0
-    for (const msg of originalMessages) {
-      params.messages.push(msg)
-    }
-  }
-
-  while (!completionStatus.isComplete && continuationAttempts < MAX_CONTINUATION_ATTEMPTS) {
-    continuationAttempts++
-    const charsBefore = result.length
-
-    if (LoggingConfig.logOutput) {
-      console.log(`\n=== LLM CONTINUATION ATTEMPT ${continuationAttempts}/${MAX_CONTINUATION_ATTEMPTS} ===`)
-      console.log(`    reason: ${completionStatus.reason}`)
-      console.log(`    truncation_point: "${completionStatus.truncationPoint || ''}"`)
-      console.log(`    finish_reason: ${finishReason}`)
-      console.log(`    current_length: ${result.length} chars`)
-      console.log(`    ⚠️ LLM stopped prematurely with incomplete JSON. Requesting continuation...`)
-    } else {
-      console.log(`[Detection] Incomplete JSON detected (attempt ${continuationAttempts}/${MAX_CONTINUATION_ATTEMPTS}):`, {
-        reason: completionStatus.reason,
-        truncationPoint: completionStatus.truncationPoint,
-        finishReason,
-        resultLength: result.length
-      })
-    }
-
-    // Remove the last assistant message if it exists (we'll replace it with prefill)
-    const lastMsg = params.messages[params.messages.length - 1]
-    if (lastMsg?.role === 'assistant') {
-      params.messages.pop()
-    }
-
-    // Add the incomplete response as assistant prefill (model continues from here)
-    // Note: The content cannot end with whitespace per Anthropic/OpenRouter rules
-    const prefillContent = result.trimEnd()
-    params.messages.push({
-      role: 'assistant',
-      content: prefillContent
-    } as ChatCompletionMessageParam)
-
-    // Add a user message asking to continue
-    params.messages.push({
-      role: 'user',
-      content: 'Continue the JSON output from exactly where you left off. Do not restart, do not repeat any content, just continue the JSON structure to completion.'
-    })
-
-    try {
-      response = await params.withTimeout(params.createRequest(true, true))
-      requestCount++
-      const continuationContent = response.choices[0]?.message?.content || ''
-      finishReason = response.choices[0]?.finish_reason || ''
-
-      if (continuationContent.trim()) {
-        // Strip markdown fences from continuation (models often wrap in ```json)
-        const cleanedContinuation = stripMarkdownFences(continuationContent)
-
-        // Merge with overlap detection (LLMs sometimes repeat content at boundaries)
-        const mergeResult = mergeContinuation(prefillContent, cleanedContinuation)
-        result = mergeResult.merged
-        const effectiveCharsAdded = cleanedContinuation.length - mergeResult.overlapRemoved
-
-        // Log continuation details
-        continuationLog.push({
-          attempt: continuationAttempts,
-          reason: completionStatus.reason || 'unknown',
-          truncationPoint: completionStatus.truncationPoint,
-          finishReason,
-          charsBefore,
-          charsAdded: effectiveCharsAdded,
-          charsAfter: result.length
-        })
-
-        if (LoggingConfig.logOutput) {
-          const wasStripped = cleanedContinuation !== continuationContent
-          const overlapNote = mergeResult.overlapRemoved > 0 ? ` (${mergeResult.overlapRemoved} overlap removed)` : ''
-          const fixNote = mergeResult.fixApplied ? ` (fix: ${mergeResult.fixApplied})` : ''
-          console.log(`    ✓ Continuation received: +${effectiveCharsAdded} chars${wasStripped ? ' (markdown stripped)' : ''}${overlapNote}${fixNote}`)
-          console.log(`    total_length: ${result.length} chars`)
-        } else {
-          console.log(`[Detection] Continuation received: +${effectiveCharsAdded} chars, total: ${result.length} chars`)
-        }
-      }
-
-      // Record the combined message for conversation history
-      // First remove our prefill and user prompt
-      params.messages.pop() // Remove user "continue" message
-      params.messages.pop() // Remove assistant prefill
-      // Add combined result as assistant message
-      params.messages.push({
-        role: 'assistant',
-        content: result
-      } as ChatCompletionMessageParam)
-
-      completionStatus = detectIncompleteJson(result)
-    } catch (err) {
-      console.warn(`[Detection] Continuation attempt ${continuationAttempts} failed:`, err)
-      break
-    }
-  }
-
-  // Final continuation summary
-  const wasRecoveredViaContinuation = continuationAttempts > 0
-  const isCompleteAfterContinuation = completionStatus.isComplete
-
-  if (!completionStatus.isComplete && continuationAttempts >= MAX_CONTINUATION_ATTEMPTS) {
-    if (LoggingConfig.logOutput) {
-      console.log(`\n=== LLM CONTINUATION SUMMARY ===`)
-      console.log(`    status: ⚠️ INCOMPLETE (max attempts reached)`)
-      console.log(`    attempts: ${continuationAttempts}/${MAX_CONTINUATION_ATTEMPTS}`)
-      console.log(`    final_length: ${result.length} chars`)
-      console.log(`    recovery_log:`, JSON.stringify(continuationLog, null, 2))
-      console.log(`=== END CONTINUATION SUMMARY ===\n`)
-    } else {
-      console.warn(`[Detection] JSON still incomplete after ${MAX_CONTINUATION_ATTEMPTS} continuation attempts. Proceeding with partial result.`)
-    }
-  } else if (completionStatus.isComplete && continuationAttempts > 0) {
-    if (LoggingConfig.logOutput) {
-      console.log(`\n=== LLM CONTINUATION SUMMARY ===`)
-      console.log(`    status: ✓ COMPLETE (recovered via continuation)`)
-      console.log(`    attempts: ${continuationAttempts}`)
-      console.log(`    final_length: ${result.length} chars`)
-      console.log(`    recovery_log:`, JSON.stringify(continuationLog, null, 2))
-      console.log(`=== END CONTINUATION SUMMARY ===\n`)
-    } else {
-      console.log(`[Detection] JSON completed successfully after ${continuationAttempts} continuation attempt(s)`)
-    }
-  }
-
-  // Final JSON repair pass - handles any remaining markdown fences and syntax issues
-  const repairResult = repairJsonOutput(result)
-  if (repairResult.wasRepaired) {
-    if (LoggingConfig.logOutput) {
-      console.log(`[Detection] JSON repaired successfully`)
-      if (repairResult.error) {
-        console.log(`[Detection] Repair had warnings: ${repairResult.error}`)
-      }
-    }
-    result = repairResult.repaired
-
-    // Re-check completion status after repair
-    completionStatus = detectIncompleteJson(result)
+  const completionStatus = detectIncompleteJson(result)
+  if (!completionStatus.isComplete) {
+    throw new Error(
+      `Detection model returned invalid JSON (${completionStatus.reason || 'parse_error'}; finish_reason=${finishReason || 'unknown'})`
+    )
   }
 
   return {
@@ -1135,14 +607,7 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
     response,
     usage: response.usage ? { ...response.usage } : {},
     requestCount,
-    toolCallCount,
-    // Include continuation metadata for downstream consumers
-    continuationMetadata: wasRecoveredViaContinuation ? {
-      wasRecovered: true,
-      attempts: continuationAttempts,
-      isComplete: completionStatus.isComplete, // Use updated status after repair
-      recoveryLog: continuationLog
-    } : undefined
+    toolCallCount
   }
 }
 
@@ -1548,18 +1013,6 @@ export class DetectionService {
           const totalLen = conversationOutcome.rawResult?.length || 0
           const finishReason = conversationOutcome.response?.choices?.[0]?.finish_reason || 'unknown'
           const usage = conversationOutcome.usage || {}
-          const contMeta = conversationOutcome.continuationMetadata
-
-          // Determine the output status flag
-          let outputStatusFlag = ''
-          if (contMeta?.wasRecovered) {
-            if (contMeta.isComplete) {
-              outputStatusFlag = `    🔄 RECOVERED VIA CONTINUATION (${contMeta.attempts} attempt(s)) - JSON is now complete`
-            } else {
-              outputStatusFlag = `    ⚠️ PARTIALLY RECOVERED VIA CONTINUATION (${contMeta.attempts} attempt(s)) - JSON still incomplete`
-            }
-          }
-
           console.log(`=== LLM RAW OUTPUT (FULL, length=${totalLen}) ===`)
           console.log(`    finish_reason: ${finishReason}`)
           console.log(`    prompt_tokens: ${usage.prompt_tokens || 0}`)
@@ -1568,14 +1021,9 @@ export class DetectionService {
           console.log(`    model_max_completion_tokens: ${modelMaxTokens}`)
           console.log(`    effective_max_tokens: ${effectiveMaxTokens}`)
 
-          // Show continuation status prominently
-          if (outputStatusFlag) {
-            console.log(outputStatusFlag)
-            console.log(`    Note: The JSON below is the COMBINED result after continuation requests.`)
-          } else if (finishReason === 'length') {
+          if (finishReason === 'length') {
             console.log(`    ⚠️ WARNING: Output truncated due to max_tokens limit!`)
-            console.log(`    The model stopped because it hit the completion token limit.`)
-            console.log(`    Consider increasing IMPORT_DETECT_MAX_TOKENS in .env.local.`)
+            console.log(`    The model stopped because it hit the completion token limit. Strict detection will reject invalid JSON.`)
           } else if (finishReason === 'stop') {
             console.log(`    ✓ Output completed normally (model sent stop token)`)
           }

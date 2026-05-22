@@ -1,19 +1,11 @@
-import { type MenuItem, type MenuItemGroup, type CTAButton } from '@/lib/studio/components/cms/_core/value-objects';
+import { type MenuItem, type CTAButton, type SmartLink } from '@/lib/studio/components/cms/_core/value-objects';
+
+type MenuItemGroup = NonNullable<MenuItem['groups']>[number];
 
 const VALID_ALIGNMENTS = new Set(['start', 'center', 'end']);
 
 // Input types for unsafe data transformation
 type UnknownRecord = Record<string, unknown>;
-
-interface PotentialWrapper {
-  content?: unknown;
-}
-
-interface PotentialLink {
-  href?: unknown;
-  url?: unknown;
-  originalUrl?: unknown;
-}
 
 function parseOffset(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -46,18 +38,19 @@ function parseAlign(value: unknown): 'start' | 'center' | 'end' | undefined {
 }
 
 export function resolveHref(raw: unknown): string | undefined {
-  if (typeof raw === 'string') {
-    const trimmed = raw.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
   }
 
-  if (raw && typeof raw === 'object') {
-    const potentialLink = raw as PotentialLink;
-    const candidate = potentialLink.href ?? potentialLink.url ?? potentialLink.originalUrl;
-    if (typeof candidate === 'string') {
-      const trimmed = candidate.trim();
-      return trimmed.length > 0 ? trimmed : undefined;
-    }
+  const link = raw as SmartLink;
+  if (link.type === 'internal') {
+    return typeof link.path === 'string' && link.path.trim() ? link.path.trim() : undefined;
+  }
+  if (link.type === 'external') {
+    return typeof link.url === 'string' && link.url.trim() ? link.url.trim() : undefined;
+  }
+  if (link.type === 'email' || link.type === 'phone' || link.type === 'anchor') {
+    return typeof link.href === 'string' && link.href.trim() ? link.href.trim() : undefined;
   }
 
   return undefined;
@@ -70,21 +63,14 @@ function normalizeMenuGroups(input: unknown): MenuItemGroup[] {
 
   return input
     .map((entry) => {
-      // Unwrap potential content wrapper
-      const wrapper = entry && typeof entry === 'object' && 'content' in entry
-        ? (entry as PotentialWrapper)
-        : null;
-      const source = wrapper?.content ?? entry;
-
-      if (!source || typeof source !== 'object') {
+      if (!entry || typeof entry !== 'object') {
         return null;
       }
 
-      const sourceRecord = source as UnknownRecord;
-      const entryRecord = entry as UnknownRecord;
+      const sourceRecord = entry as UnknownRecord;
 
-      const titleRaw = sourceRecord.title ?? sourceRecord.heading;
-      const descriptionRaw = sourceRecord.description ?? sourceRecord.subheading;
+      const titleRaw = sourceRecord.title;
+      const descriptionRaw = sourceRecord.description;
       const title =
         typeof titleRaw === 'string' && titleRaw.trim().length > 0
           ? titleRaw.trim()
@@ -94,12 +80,7 @@ function normalizeMenuGroups(input: unknown): MenuItemGroup[] {
           ? descriptionRaw.trim()
           : undefined;
 
-      const itemsSource =
-        sourceRecord.items ??
-        sourceRecord.links ??
-        sourceRecord.children ??
-        entryRecord.items;
-      const items = normalizeMenuItems(itemsSource);
+      const items = normalizeMenuItems(sourceRecord.items);
 
       if (items.length === 0) {
         return null;
@@ -119,9 +100,7 @@ function normalizeMenuGroups(input: unknown): MenuItemGroup[] {
 /**
  * Normalizes raw menu item data into standardized MenuItem[] format.
  *
- * IMPORTANT: Items require BOTH label AND href to be valid.
- * When LLM extraction fails to provide valid hrefs, items are filtered out.
- * The caller should handle empty arrays by providing fallback navigation.
+ * Items require canonical label and SmartLink href values.
  */
 export function normalizeMenuItems(input: unknown): MenuItem[] {
   if (!Array.isArray(input)) {
@@ -130,36 +109,18 @@ export function normalizeMenuItems(input: unknown): MenuItem[] {
 
   return input
     .map(entry => {
-      // Unwrap potential content wrapper
-      const wrapper = entry && typeof entry === 'object' && 'content' in entry
-        ? (entry as PotentialWrapper)
-        : null;
-      const source = wrapper?.content ?? entry;
-
-      if (!source || typeof source !== 'object') {
+      if (!entry || typeof entry !== 'object') {
         return null;
       }
 
-      const sourceRecord = source as UnknownRecord;
-      const entryRecord = entry as UnknownRecord;
+      const sourceRecord = entry as UnknownRecord;
 
-      const labelRaw = sourceRecord.label ?? sourceRecord.text ?? '';
+      const labelRaw = sourceRecord.label;
       const label = typeof labelRaw === 'string' ? labelRaw.trim() : '';
+      const href = sourceRecord.href as SmartLink | undefined;
+      const resolvedHref = resolveHref(href);
 
-      // Try multiple href sources - LLM sometimes puts href in different fields
-      let href = resolveHref(sourceRecord.href);
-      if (!href) {
-        href = resolveHref(sourceRecord.url);
-      }
-      if (!href) {
-        href = resolveHref(sourceRecord.link);
-      }
-      // Generate href from label if we have label but no href
-      if (!href && label) {
-        href = buildHrefFromLabel(label);
-      }
-
-      if (!label || !href) {
+      if (!label || !resolvedHref) {
         return null;
       }
 
@@ -171,15 +132,10 @@ export function normalizeMenuItems(input: unknown): MenuItem[] {
       const icon = typeof sourceRecord.icon === 'string' ? sourceRecord.icon : undefined;
       const external = typeof sourceRecord.external === 'boolean'
         ? sourceRecord.external
-        : typeof sourceRecord.target === 'string' && sourceRecord.target.toLowerCase() === '_blank';
+        : href?.type === 'external' && href.openInNewTab === true;
 
-      const childrenSource = sourceRecord.children ?? entryRecord.children;
-      const children = normalizeMenuItems(childrenSource);
-      const groupsSource =
-        sourceRecord.groups ??
-        sourceRecord.sections ??
-        sourceRecord.collections;
-      const groups = normalizeMenuGroups(groupsSource);
+      const children = normalizeMenuItems(sourceRecord.children);
+      const groups = normalizeMenuGroups(sourceRecord.groups);
       const panelOffset = parseOffset(sourceRecord.panelOffset);
       const panelWidth = parseWidth(sourceRecord.panelWidth);
       const panelAlign = parseAlign(sourceRecord.panelAlign);
@@ -202,53 +158,30 @@ export function normalizeMenuItems(input: unknown): MenuItem[] {
     .filter((item): item is MenuItem => item !== null);
 }
 
-/**
- * Builds a URL-friendly href from a menu label.
- * Used as fallback when LLM extraction misses the href.
- */
-function buildHrefFromLabel(label: string): string {
-  const slug = label
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
-  if (!slug || slug === 'home') {
-    return '/';
-  }
-  return '/' + slug;
-}
-
 export function normalizeCTA(raw: unknown): CTAButton | undefined {
   if (!raw || typeof raw !== 'object') {
     return undefined;
   }
 
-  // Unwrap potential content wrapper
-  const wrapper = 'content' in raw ? (raw as PotentialWrapper) : null;
-  const source = wrapper?.content ?? raw;
+  const sourceRecord = raw as UnknownRecord;
 
-  if (!source || typeof source !== 'object') {
-    return undefined;
-  }
+  const label = typeof sourceRecord.label === 'string' ? sourceRecord.label.trim() : '';
+  const href = sourceRecord.href as SmartLink | undefined;
+  const resolvedHref = resolveHref(href);
 
-  const sourceRecord = source as UnknownRecord;
-
-  const text = typeof sourceRecord.text === 'string' ? sourceRecord.text.trim() : '';
-  const href = resolveHref(sourceRecord.href);
-
-  if (!text || !href) {
+  if (!label || !resolvedHref) {
     return undefined;
   }
 
   const variant = sourceRecord.variant;
   const external = typeof sourceRecord.external === 'boolean'
     ? sourceRecord.external
-    : typeof sourceRecord.target === 'string' && sourceRecord.target.toLowerCase() === '_blank';
+    : href?.type === 'external' && href.openInNewTab === true;
 
   return {
-    text,
+    label,
     href,
-    variant,
+    variant: variant as CTAButton['variant'],
     external
   };
 }

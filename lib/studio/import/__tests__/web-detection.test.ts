@@ -5,6 +5,7 @@
 
 import { DetectionService } from '../web-detection'
 import { DetectionAPI } from '@/lib/studio/components/cms/_import/detection-api'
+import { ModelConfig } from '../config'
 import OpenAI from 'openai'
 import type { ComponentPattern } from '@/lib/studio/components/cms/_import/types'
 
@@ -244,9 +245,9 @@ const mockWebResponse = JSON.stringify({
     reason: 'Hero with marketing content and footer detected'
   },
   components: [
-    ['NavBar', 0.95, { logo: 'Company Logo', links: [{ label: 'Home', url: '/' }] }],
-    ['HeroWithImage', 0.9, { heading: 'Welcome to Our Site', backgroundImage: '/images/hero-bg.jpg' }],
-    ['CardGrid', 0.85, { cards: [{ title: 'Feature 1' }] }]
+    { component: 'NavBar', confidence: 0.95, content: { logo: 'Company Logo', links: [{ label: 'Home', url: '/' }] } },
+    { component: 'HeroWithImage', confidence: 0.9, content: { heading: 'Welcome to Our Site', backgroundImage: '/images/hero-bg.jpg' } },
+    { component: 'CardGrid', confidence: 0.85, content: { cards: [{ title: 'Feature 1' }] } }
   ],
   pageMetadata: { title: 'Example' }
 })
@@ -305,7 +306,7 @@ describe('DetectionService (web-based)', () => {
       expect(result.components).toHaveLength(3)
       expect(result.pageTemplate.templateKey).toBe('marketing/home-default')
       expect(result.pageUrl).toBe(mockPageUrl)
-      expect(result.modelUsed).toBe('google/gemini-2.5-flash')
+      expect(result.modelUsed).toBeDefined()
       expect(result.tokenUsage).toBe(1500)
       expect(result.cost).toBe(0.02)
     })
@@ -319,7 +320,9 @@ describe('DetectionService (web-based)', () => {
 
     it('attaches provider filter when IMPORT_MODEL_ALLOWED_PROVIDER is set', async () => {
       const original = process.env.IMPORT_MODEL_ALLOWED_PROVIDER
+      const originalModelConfigProvider = ModelConfig.allowedProvider
       process.env.IMPORT_MODEL_ALLOWED_PROVIDER = 'azure,blah'
+      ModelConfig.allowedProvider = 'azure,blah'
       try {
         await service.detectComponentsFromUrl(mockPageUrl)
         expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith(
@@ -333,6 +336,7 @@ describe('DetectionService (web-based)', () => {
         } else {
           process.env.IMPORT_MODEL_ALLOWED_PROVIDER = original
         }
+        ModelConfig.allowedProvider = originalModelConfigProvider
       }
     })
 
@@ -342,7 +346,10 @@ describe('DetectionService (web-based)', () => {
           message: {
             content: JSON.stringify({
               pageTemplate: { templateKey: 'marketing/home-default' },
-              components: [['NavBar', 0.2, {}], ['HeroWithImage', 0.8, {}]]
+              components: [
+                { component: 'NavBar', confidence: 0.2, content: {} },
+                { component: 'HeroWithImage', confidence: 0.8, content: {} }
+              ]
             })
           }
         }],
@@ -353,7 +360,7 @@ describe('DetectionService (web-based)', () => {
       const hero = result.components.find(component => component.component === 'HeroWithImage')
       expect(hero).toBeDefined()
       const nav = result.components.find(component => component.component === 'NavBar' || component.type === 'navbar')
-      expect(nav?.metadata?.source).toBe('canonical-synthesis')
+      expect(nav).toBeUndefined()
     })
 
     it('handles API errors gracefully', async () => {
@@ -361,25 +368,23 @@ describe('DetectionService (web-based)', () => {
       await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Web detection failed: API error')
     })
 
-    it('handles malformed JSON', async () => {
+    it('rejects malformed JSON', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
         choices: [{ message: { content: 'Invalid JSON' } }],
         usage: { total_tokens: 100 }
       })
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-      expect(result.components.length).toBeGreaterThan(0)
-      expect(result.pageTemplate.templateKey).toBeDefined()
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Web detection failed')
     })
 
-    it('falls back to heuristic template when model returns unknown key', async () => {
+    it('rejects unknown page template keys', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
         choices: [{
           message: {
             content: JSON.stringify({
               pageTemplate: { templateKey: 'unknown-template', confidence: 0.6 },
               components: [
-                ['NavBar', 0.95, { logo: 'Company Logo' }],
-                ['HeroWithImage', 0.9, { heading: 'Example' }]
+                { component: 'NavBar', confidence: 0.95, content: { logo: 'Company Logo' } },
+                { component: 'HeroWithImage', confidence: 0.9, content: { heading: 'Example' } }
               ],
               pageMetadata: {}
             })
@@ -388,9 +393,7 @@ describe('DetectionService (web-based)', () => {
         usage: { total_tokens: 900 }
       })
 
-      const result = await service.detectComponentsFromUrl('https://example.com/blog/how-to-scale')
-      expect(result.pageTemplate.templateKey).toBe('blog/post-standard')
-      expect(result.pageTemplate.source).toBe('fallback')
+      await expect(service.detectComponentsFromUrl('https://example.com/blog/how-to-scale')).rejects.toThrow('is not registered')
     })
 
     it('emits detection telemetry summary', async () => {

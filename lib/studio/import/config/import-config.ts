@@ -38,6 +38,15 @@ function parseEnvString(key: string, defaultValue: string): string {
   return trimmed || defaultValue
 }
 
+function parseRequiredEnvString(key: string): string {
+  const raw = process.env[key]
+  const trimmed = raw?.trim()
+  if (!trimmed) {
+    throw new Error(`${key} environment variable is required`)
+  }
+  return trimmed
+}
+
 // =============================================================================
 // Model Configuration
 // =============================================================================
@@ -45,20 +54,25 @@ function parseEnvString(key: string, defaultValue: string): string {
 /**
  * LLM model configuration for import detection.
  *
- * Model selection uses IMPORT_MODEL_CHAIN (pipe-separated list).
- * First model in chain is the primary, others are fallbacks.
+ * Model selection uses required IMPORT_MODEL_CHAIN (pipe-separated list).
+ * First model in chain is the primary; later entries are explicit retry candidates.
  */
-const modelChain = parseEnvString(
-  'IMPORT_MODEL_CHAIN',
-  'google/gemini-3-pro-preview|google/gemini-2.5-flash|anthropic/claude-sonnet-4.5|x-ai/grok-4.1-fast|anthropic/claude-haiku-4.5|openai/gpt-4o-mini'
-)
+const modelChain = parseRequiredEnvString('IMPORT_MODEL_CHAIN')
+const modelChainEntries = modelChain.split('|').map(model => model.trim())
+if (modelChainEntries.some(model => model.length === 0)) {
+  throw new Error('IMPORT_MODEL_CHAIN must be a pipe-separated list of non-empty model ids')
+}
+const primaryModel = modelChainEntries[0]
+if (!primaryModel) {
+  throw new Error('IMPORT_MODEL_CHAIN must include at least one model id')
+}
 
 export const ModelConfig = {
   /** Model chain for detection (pipe-separated, first is primary) */
   chain: modelChain,
 
   /** Primary model (first in chain) */
-  primary: modelChain.split('|')[0].trim(),
+  primary: primaryModel,
 
   /** Model for component type extraction */
   typeExtraction: 'openai/gpt-4o-mini',
@@ -271,10 +285,7 @@ export const LoggingConfig = {
   logOutput: parseEnvBool('IMPORT_LOG_OUTPUT', false),
 
   /** Log LLM prompts for debugging */
-  logPrompt: parseEnvBool('IMPORT_LOG_PROMPT', false),
-
-  /** Max continuation attempts when LLM returns incomplete JSON (default: 5) */
-  maxContinuationAttempts: parseEnvInt('IMPORT_MAX_CONTINUATION_ATTEMPTS', 5)
+  logPrompt: parseEnvBool('IMPORT_LOG_PROMPT', false)
 } as const
 
 // =============================================================================
@@ -503,7 +514,7 @@ export const PlannerConfig = {
   /** Model to use for planning (defaults to primary model) */
   model: parseEnvString('IMPORT_PLANNER_MODEL', ModelConfig.primary),
 
-  /** Maximum tool iterations before fallback */
+  /** Maximum tool iterations before failing the planning request */
   maxIterations: parseEnvInt('IMPORT_PLANNER_MAX_ITERATIONS', 5),
 
   /** Enable deterministic planning for structured input (skip LLM) */

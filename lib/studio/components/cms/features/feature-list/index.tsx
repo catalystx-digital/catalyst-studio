@@ -58,35 +58,20 @@ function extractIcon(raw: unknown): string | React.ReactNode | undefined {
 }
 
 function extractLink(raw: unknown): NormalizedFeatureListItem['link'] {
-  if (typeof raw === 'string' && raw.trim().length > 0) {
-    return { url: raw.trim(), text: DEFAULT_LINK_TEXT };
-  }
-
   if (!isRecord(raw)) {
     return undefined;
   }
 
-  const urlCandidate =
-    typeof raw.url === 'string'
-      ? raw.url
-      : typeof raw.href === 'string'
-        ? raw.href
-        : undefined;
-
-  if (!urlCandidate) {
+  if (typeof raw.url !== 'string' || raw.url.trim().length === 0) {
     return undefined;
   }
 
-  const textCandidate =
-    typeof raw.text === 'string'
-      ? raw.text
-      : typeof raw.label === 'string'
-        ? raw.label
-        : undefined;
-
   return {
-    url: urlCandidate.trim(),
-    text: (textCandidate ?? DEFAULT_LINK_TEXT).trim(),
+    url: raw.url.trim(),
+    text:
+      typeof raw.text === 'string' && raw.text.trim().length > 0
+        ? raw.text.trim()
+        : DEFAULT_LINK_TEXT,
   };
 }
 
@@ -107,38 +92,16 @@ function normalizeItems(items: unknown): NormalizedFeatureListItem[] {
       }
 
       const descriptionCandidate =
-        typeof item.description === 'string'
-          ? item.description
-          : typeof item.body === 'string'
-            ? item.body
-            : typeof item.text === 'string'
-              ? item.text
-              : undefined;
+        typeof item.description === 'string' ? item.description : undefined;
 
-      const iconCandidate =
-        extractIcon(item.icon) ??
-        extractIcon(item.emoji) ??
-        extractIcon(item.symbol) ??
-        DEFAULT_ICON;
+      const iconCandidate = extractIcon(item.icon) ?? DEFAULT_ICON;
 
-      const linkCandidate =
-        extractLink(item.link) ??
-        extractLink(item.linkUrl) ??
-        extractLink(item.url);
+      const linkCandidate = extractLink(item.link);
 
-      const highlighted =
-        item.highlighted === true ||
-        item.highlight === true ||
-        item.featured === true;
+      const highlighted = item.highlighted === true;
 
       const highlightLabelCandidate =
-        typeof item.badge === 'string'
-          ? item.badge
-          : typeof item.highlightLabel === 'string'
-            ? item.highlightLabel
-            : typeof item.tag === 'string'
-              ? item.tag
-              : undefined;
+        typeof item.highlightLabel === 'string' ? item.highlightLabel : undefined;
 
       return {
         title: titleCandidate.trim(),
@@ -164,14 +127,14 @@ const LAYOUT_CLASS_MAP: Record<NonNullable<FeatureListContent['layout']>, string
 
 class FeatureListBase extends BaseComponent<FeatureListProps> {
   protected renderComponent(): React.ReactNode {
-    const content = (this.props.content ?? {}) as FeatureListContent;
     const {
       heading,
       subheading,
       layout = 'vertical',
-    } = content;
+      items,
+    } = this.props.content;
 
-    const normalizedItems = normalizeItems(content.items);
+    const normalizedItems = normalizeItems(items);
 
     // In production, return null when empty to avoid rendering empty sections
     // In development, the CmsAlert with devOnly will show a placeholder

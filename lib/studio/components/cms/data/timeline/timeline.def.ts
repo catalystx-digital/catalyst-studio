@@ -102,7 +102,7 @@ export const TimelineDef = defineComponent({
     animated: true,
     footerCta: {
       label: 'Join Our Team',
-      href: '/careers',
+      href: { type: 'internal', pageId: 'careers', path: '/careers' },
       variant: 'primary',
     },
   },

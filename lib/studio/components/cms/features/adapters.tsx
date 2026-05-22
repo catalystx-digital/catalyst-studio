@@ -1,7 +1,6 @@
 import React from 'react';
 import { ComponentType } from '../_core/types';
 import type { CMSComponentProps } from '../_core/types';
-import { readRuntimeContent } from '../_core/utils';
 import { FeatureGrid } from './feature-grid';
 import { FeatureShowcase } from './feature-showcase';
 import { FeatureComparison } from './feature-comparison';
@@ -11,8 +10,19 @@ import type { FeatureShowcaseContent } from './feature-showcase/feature-showcase
 import type { FeatureComparisonContent } from './feature-comparison/feature-comparison.types';
 import type { FeatureListContent } from './feature-list/feature-list.types';
 
+function requireObjectContent<T>(content: unknown, componentType: ComponentType): T {
+  if (typeof content !== 'object' || content === null || Array.isArray(content)) {
+    throw new Error(`${componentType} content must be canonical object content.`);
+  }
+
+  return content as T;
+}
+
 export const FeatureGridAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = readRuntimeContent<FeatureGridContent>(props.content) as FeatureGridContent;
+  const content = requireObjectContent<FeatureGridContent>(
+    props.content,
+    ComponentType.FeatureGrid,
+  );
   
   const adaptedProps = {
     id: props.id,
@@ -34,7 +44,10 @@ export const FeatureGridAdapter: React.FC<CMSComponentProps> = (props) => {
 };
 
 export const FeatureShowcaseAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = readRuntimeContent<FeatureShowcaseContent>(props.content) as FeatureShowcaseContent;
+  const content = requireObjectContent<FeatureShowcaseContent>(
+    props.content,
+    ComponentType.FeatureShowcase,
+  );
   
   const adaptedProps = {
     id: props.id,
@@ -56,11 +69,14 @@ export const FeatureShowcaseAdapter: React.FC<CMSComponentProps> = (props) => {
 };
 
 export const FeatureComparisonAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = readRuntimeContent<FeatureComparisonContent>(props.content) as FeatureComparisonContent;
+  const content = requireObjectContent<FeatureComparisonContent>(
+    props.content,
+    ComponentType.FeatureComparison,
+  );
   
   const adaptedProps = {
     id: props.id,
-    type: ComponentType.PricingTable, // Maps to PricingTable for comparison tables
+    type: ComponentType.FeatureComparison,
     category: props.category,
     content: content,
     className: props.className,
@@ -78,7 +94,10 @@ export const FeatureComparisonAdapter: React.FC<CMSComponentProps> = (props) => 
 };
 
 export const FeatureListAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = readRuntimeContent<FeatureListContent>(props.content) as FeatureListContent;
+  const content = requireObjectContent<FeatureListContent>(
+    props.content,
+    ComponentType.FeatureList,
+  );
   
   const adaptedProps = {
     id: props.id,

@@ -10,18 +10,15 @@ import { SmartLinkSchema } from './smart-link.schema'
 export const CTAButtonSchema = z.object({
   /** Button display label */
   label: z.string().describe('Button label (required)'),
-  /**
-   * Target URL for the button action
-   * Supports both SmartLink objects (PageReference | ExternalLink) and raw strings for backwards compatibility
-   */
-  href: z.union([SmartLinkSchema, z.string()]).optional().describe('externalUrl:Destination URL'),
+  /** Structured target for the button action */
+  href: SmartLinkSchema.optional().describe('externalUrl:Destination URL'),
   /** Visual style variant for the button */
   variant: z.enum(['primary', 'secondary', 'outline']).optional().describe('Button style variant'),
   /** Optional icon or emoji shown with the label */
   icon: z.string().optional().describe('Icon identifier or emoji'),
   /** Whether the link opens in a new tab */
   external: z.boolean().optional().describe('Opens in new tab when true'),
-})
+}).strict()
 
 // Derived TypeScript type
 export type CTAButton = z.infer<typeof CTAButtonSchema>

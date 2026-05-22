@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { resolveHref } from '@/lib/studio/components/cms/navigation/nav-bar/nav-bar.transform';
 import { BaseComponent } from '../../_core/base-component';
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
@@ -226,8 +227,10 @@ class FeatureComparisonBase extends BaseComponent<FeatureComparisonProps> {
             <CmsTableRow>
               <CmsTableCell />
               {products.map((product, index) => (
-                <CmsTableCell key={`cta-${index}`} align="center">
-                  {product.cta?.href && product.cta.label ? (
+              <CmsTableCell key={`cta-${index}`} align="center">
+                  {(() => {
+                    const ctaHref = resolveHref(product.cta?.href);
+                    return product.cta?.text && ctaHref ? (
                     <Button
                       asChild
                       variant="default"
@@ -235,13 +238,14 @@ class FeatureComparisonBase extends BaseComponent<FeatureComparisonProps> {
                       onClick={() =>
                         this.handleInteraction(
                           'comparison-cta-click',
-                          product.cta?.href,
+                          ctaHref,
                         )
                       }
                     >
-                      <Link href={product.cta.href}>{product.cta.label}</Link>
+                      <Link href={ctaHref}>{product.cta.text}</Link>
                     </Button>
-                  ) : null}
+                    ) : null;
+                  })()}
                 </CmsTableCell>
               ))}
             </CmsTableRow>
@@ -347,7 +351,9 @@ class FeatureComparisonBase extends BaseComponent<FeatureComparisonProps> {
               ))}
             </CardContent>
 
-            {product.cta?.href && product.cta.label ? (
+            {(() => {
+              const ctaHref = resolveHref(product.cta?.href);
+              return product.cta?.text && ctaHref ? (
               <CardFooter
                 className={cn(
                   'flex items-center gap-3 p-[var(--component-padding)] pt-0',
@@ -362,14 +368,15 @@ class FeatureComparisonBase extends BaseComponent<FeatureComparisonProps> {
                   onClick={() =>
                     this.handleInteraction(
                       'comparison-cta-click',
-                      product.cta?.href,
+                      ctaHref,
                     )
                   }
                 >
-                  <Link href={product.cta.href}>{product.cta.label}</Link>
+                  <Link href={ctaHref}>{product.cta.text}</Link>
                 </Button>
               </CardFooter>
-            ) : null}
+              ) : null;
+            })()}
           </Card>
         ))}
       </div>
@@ -425,6 +432,6 @@ class FeatureComparisonBase extends BaseComponent<FeatureComparisonProps> {
 const FeatureComparisonMemo = React.memo(FeatureComparisonBase);
 export const FeatureComparison = withPerformanceTracking(
   FeatureComparisonMemo,
-  ComponentType.PricingTable,
+  ComponentType.FeatureComparison,
 );
 export default FeatureComparison;
