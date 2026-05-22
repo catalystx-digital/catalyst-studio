@@ -8,16 +8,31 @@
 import React from 'react';
 import { ComponentType, ComponentCategory } from '../_core/types';
 import type { CMSComponentProps } from '../_core/types';
+import { readRuntimeContent } from '../_core/utils';
 import PricingTable from './pricing-table';
 import PricingCard from './pricing-card';
 import type { PricingTableProps, PricingTableContent } from './pricing-table/pricing-table.types';
 import type { PricingCardProps, PricingCardContent } from './pricing-card/pricing-card.types';
 
+function mapPricingTableVariant(variant: CMSComponentProps['variant']): PricingTableProps['variant'] {
+  return variant === 'expanded' ? 'detailed' : ((variant as PricingTableProps['variant']) ?? 'default');
+}
+
+function mapPricingCardVariant(variant: CMSComponentProps['variant']): PricingCardProps['variant'] {
+  if (variant === 'minimal') {
+    return 'outlined';
+  }
+  if (variant === 'detailed' || variant === 'expanded') {
+    return 'filled';
+  }
+  return (variant as PricingCardProps['variant']) ?? 'default';
+}
+
 /**
  * PricingTable Adapter Component
  */
 export const PricingTableAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as PricingTableContent;
+  const content = readRuntimeContent<PricingTableContent>(props.content) as PricingTableContent;
   
   const adaptedProps: PricingTableProps = {
     id: props.id,
@@ -26,7 +41,7 @@ export const PricingTableAdapter: React.FC<CMSComponentProps> = (props) => {
     content: content,
     className: props.className,
     theme: props.theme ?? 'auto',
-    variant: 'default',
+    variant: mapPricingTableVariant(props.variant),
     loading: props.loading ?? 'eager',
     aiMetadata: props.aiMetadata
   };
@@ -38,7 +53,7 @@ export const PricingTableAdapter: React.FC<CMSComponentProps> = (props) => {
  * PricingCard Adapter Component
  */
 export const PricingCardAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as PricingCardContent;
+  const content = readRuntimeContent<PricingCardContent>(props.content) as PricingCardContent;
   
   const adaptedProps: PricingCardProps = {
     id: props.id,
@@ -47,7 +62,7 @@ export const PricingCardAdapter: React.FC<CMSComponentProps> = (props) => {
     content: content,
     className: props.className,
     theme: props.theme ?? 'auto',
-    variant: 'default',
+    variant: mapPricingCardVariant(props.variant),
     loading: props.loading ?? 'eager',
     aiMetadata: props.aiMetadata
   };

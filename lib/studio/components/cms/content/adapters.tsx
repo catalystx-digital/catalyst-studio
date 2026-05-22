@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { ComponentType, ComponentCategory } from '../_core/types';
-import { normalizeContentInput, generateComponentId } from '../_core/utils';
+import { readRuntimeContent, generateComponentId } from '../_core/utils';
 import { validateImageUrl } from '../_utils/url-validation';
 import type { CMSComponentProps } from '../_core/types';
 import { TextBlock } from './text-block';
@@ -41,7 +41,7 @@ import type { CardItemProps, CardItemContent } from './card-item/card-item.types
  * Transforms generic CMSComponentProps to TextBlockProps
  */
 export const TextBlockAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const adaptedProps: TextBlockProps = {
     ...props,
     content: raw as TextBlockContent
@@ -54,7 +54,7 @@ export const TextBlockAdapter: React.FC<CMSComponentProps> = (props) => {
  * Transforms generic CMSComponentProps to TwoColumnProps
  */
 export const TwoColumnAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput<TwoColumnContent>(props.content) as any;
+  const raw = readRuntimeContent<TwoColumnContent>(props.content) as any;
 
   // Build slots if not present from legacy left/right columns
   let areas = raw?.areas as TwoColumnContent['areas'] | undefined;
@@ -123,7 +123,7 @@ export const TwoColumnAdapter: React.FC<CMSComponentProps> = (props) => {
  * Transforms generic CMSComponentProps to ImageGalleryProps
  */
 export const ImageGalleryAdapter: React.FC<CMSComponentProps> = (props) => {
-  const rawContent = normalizeContentInput<ImageGalleryContent>(props.content) as
+  const rawContent = readRuntimeContent<ImageGalleryContent>(props.content) as
     | Partial<ImageGalleryContent>
     | undefined;
   const source = rawContent ?? {};
@@ -197,7 +197,7 @@ export const ImageGalleryAdapter: React.FC<CMSComponentProps> = (props) => {
  * Transforms generic CMSComponentProps to VideoPlayerProps
  */
 export const VideoPlayerAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const adaptedProps: VideoPlayerProps = {
     ...props,
     content: raw as VideoPlayerContent
@@ -210,7 +210,7 @@ export const VideoPlayerAdapter: React.FC<CMSComponentProps> = (props) => {
  * Transforms generic CMSComponentProps to VideoEmbedProps
  */
 export const VideoEmbedAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const adaptedProps: VideoEmbedProps = {
     ...props,
     content: raw as VideoEmbedContent
@@ -226,7 +226,7 @@ export const AccordionAdapter: React.FC<CMSComponentProps> = (props) => {
   if (props.type !== ComponentType.Accordion) {
     throw new Error(`Invalid component type: expected ${ComponentType.Accordion}, got ${props.type}`);
   }
-  const raw = normalizeContentInput<AccordionContent>(props.content) as any;
+  const raw = readRuntimeContent<AccordionContent>(props.content) as any;
 
   // Build areas.items if not present from legacy items
   let areas = raw?.areas as AccordionContent['areas'] | undefined;
@@ -281,7 +281,7 @@ export const TabsAdapter: React.FC<CMSComponentProps> = (props) => {
   if (props.type !== ComponentType.Tabs) {
     throw new Error(`Invalid component type: expected ${ComponentType.Tabs}, got ${props.type}`);
   }
-  const raw = normalizeContentInput<TabsContent>(props.content) as any;
+  const raw = readRuntimeContent<TabsContent>(props.content) as any;
 
   let areas = raw?.areas as TabsContent['areas'] | undefined;
   if (!areas) {
@@ -333,7 +333,7 @@ export const CardGridAdapter: React.FC<CMSComponentProps> = (props) => {
     throw new Error(`Invalid component type: expected ${ComponentType.CardGrid}, got ${props.type}`);
   }
   // Normalize and coerce legacy shapes to the current CardGridContent/CardItem model
-  const raw = normalizeContentInput<CardGridContent>(props.content) as any;
+  const raw = readRuntimeContent<CardGridContent>(props.content) as any;
 
   type CardAction = NonNullable<CardGridContent['cards'][number]['actions']>[number];
 
@@ -460,7 +460,7 @@ export const CardGridAdapter: React.FC<CMSComponentProps> = (props) => {
 };
 
 export const ContentFeedAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput<ContentFeedContent>(props.content);
+  const raw = readRuntimeContent<ContentFeedContent>(props.content);
   const { variant, onInteraction, ...restProps } = props;
 
   // Adapt onInteraction to match ContentFeedProps signature
@@ -491,7 +491,7 @@ export const QuoteBlockAdapter: React.FC<CMSComponentProps> = (props) => {
   if (props.type !== ComponentType.QuoteBlock) {
     throw new Error(`Invalid component type: expected ${ComponentType.QuoteBlock}, got ${props.type}`);
   }
-  const quoteBlockContent = normalizeContentInput<QuoteBlockContent>(props.content) as QuoteBlockContent;
+  const quoteBlockContent = readRuntimeContent<QuoteBlockContent>(props.content) as QuoteBlockContent;
   const onShare =
     typeof props.onInteraction === 'function'
       ? (platform: string) => {
@@ -516,7 +516,7 @@ export const QuoteBlockAdapter: React.FC<CMSComponentProps> = (props) => {
  * Transforms generic CMSComponentProps to HtmlBlockProps
  */
 export const HtmlBlockAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const adaptedProps: HtmlBlockProps = {
     ...props,
     content: raw as HtmlBlockContent
@@ -532,7 +532,7 @@ export const HtmlBlockAdapter: React.FC<CMSComponentProps> = (props) => {
  * and other containers where individual cards are needed.
  */
 export const CardItemAdapter: React.FC<CMSComponentProps> = (props) => {
-  const raw = normalizeContentInput<CardItemContent>(props.content) as any;
+  const raw = readRuntimeContent<CardItemContent>(props.content) as any;
 
   // Normalize the content structure
   let content: CardItemContent = raw || { title: '' };

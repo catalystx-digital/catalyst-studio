@@ -16,14 +16,14 @@ import type { TestimonialSliderContent } from './testimonial-slider/testimonial-
 import type { TestimonialGridContent } from './testimonial-grid/testimonial-grid.types';
 import type { LogoStripContent } from './logo-strip/logo-strip.types';
 import type { ReviewCardContent } from './review-card/review-card.types';
-import { normalizeContentInput } from '../_core/utils';
+import { readRuntimeContent } from '../_core/utils';
 
 /**
  * TestimonialSlider Adapter Component
  */
 export const TestimonialSliderAdapter: React.FC<CMSComponentProps> = (props) => {
   // Type assertion with validation
-  const content = normalizeContentInput<TestimonialSliderContent>(props.content) as TestimonialSliderContent;
+  const content = readRuntimeContent<TestimonialSliderContent>(props.content) as TestimonialSliderContent;
   
   // Validate required content
   if (!content.testimonials || !Array.isArray(content.testimonials)) {
@@ -41,7 +41,7 @@ export const TestimonialSliderAdapter: React.FC<CMSComponentProps> = (props) => 
  */
 export const TestimonialGridAdapter: React.FC<CMSComponentProps> = (props) => {
   // Type assertion with validation
-  const content = normalizeContentInput<TestimonialGridContent>(props.content) as TestimonialGridContent;
+  const content = readRuntimeContent<TestimonialGridContent>(props.content) as TestimonialGridContent;
   
   // Validate required content
   if (!content.testimonials || !Array.isArray(content.testimonials)) {
@@ -59,7 +59,7 @@ export const TestimonialGridAdapter: React.FC<CMSComponentProps> = (props) => {
  */
 export const LogoStripAdapter: React.FC<CMSComponentProps> = (props) => {
   // Type assertion with validation
-  const content = normalizeContentInput<LogoStripContent>(props.content) as LogoStripContent;
+  const content = readRuntimeContent<LogoStripContent>(props.content) as LogoStripContent;
   
   // Validate required content
   if (!content.logos || !Array.isArray(content.logos)) {
@@ -77,7 +77,7 @@ export const LogoStripAdapter: React.FC<CMSComponentProps> = (props) => {
  */
 export const ReviewCardAdapter: React.FC<CMSComponentProps> = (props) => {
   // Type assertion with validation
-  const content = normalizeContentInput<ReviewCardContent>(props.content) as ReviewCardContent;
+  const content = readRuntimeContent<ReviewCardContent>(props.content) as ReviewCardContent;
   
   // Validate required content
   if (typeof content.rating !== 'number' || !content.reviewText || !content.author) {

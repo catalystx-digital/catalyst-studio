@@ -1,6 +1,7 @@
 import React from 'react';
 import { ComponentType } from '../_core/types';
 import type { CMSComponentProps } from '../_core/types';
+import { readRuntimeContent } from '../_core/utils';
 import { FeatureGrid } from './feature-grid';
 import { FeatureShowcase } from './feature-showcase';
 import { FeatureComparison } from './feature-comparison';
@@ -11,7 +12,7 @@ import type { FeatureComparisonContent } from './feature-comparison/feature-comp
 import type { FeatureListContent } from './feature-list/feature-list.types';
 
 export const FeatureGridAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as FeatureGridContent;
+  const content = readRuntimeContent<FeatureGridContent>(props.content) as FeatureGridContent;
   
   const adaptedProps = {
     id: props.id,
@@ -33,7 +34,7 @@ export const FeatureGridAdapter: React.FC<CMSComponentProps> = (props) => {
 };
 
 export const FeatureShowcaseAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as FeatureShowcaseContent;
+  const content = readRuntimeContent<FeatureShowcaseContent>(props.content) as FeatureShowcaseContent;
   
   const adaptedProps = {
     id: props.id,
@@ -55,7 +56,7 @@ export const FeatureShowcaseAdapter: React.FC<CMSComponentProps> = (props) => {
 };
 
 export const FeatureComparisonAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as FeatureComparisonContent;
+  const content = readRuntimeContent<FeatureComparisonContent>(props.content) as FeatureComparisonContent;
   
   const adaptedProps = {
     id: props.id,
@@ -77,7 +78,7 @@ export const FeatureComparisonAdapter: React.FC<CMSComponentProps> = (props) => 
 };
 
 export const FeatureListAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as FeatureListContent;
+  const content = readRuntimeContent<FeatureListContent>(props.content) as FeatureListContent;
   
   const adaptedProps = {
     id: props.id,

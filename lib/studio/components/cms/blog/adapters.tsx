@@ -21,14 +21,14 @@ import type { BlogCardProps, BlogCardContent } from './blog-card/blog-card.types
 import type { ArticleHeaderProps, ArticleHeaderContent } from './article-header/article-header.types'
 import type { AuthorBioProps, AuthorBioContent } from './author-bio/author-bio.types'
 import type { RelatedPostsProps, RelatedPostsContent } from './related-posts/related-posts.types'
-import { normalizeContentInput } from '../_core/utils'
+import { readRuntimeContent } from '../_core/utils'
 import { resolveBlogListContent, resolveRelatedPostsContent } from './utils/content-resolver'
 
 /**
  * BlogPost Adapter Component
  */
 export const BlogPostAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = normalizeContentInput<BlogPostContent>(props.content) as BlogPostContent
+  const content = readRuntimeContent<BlogPostContent>(props.content) as BlogPostContent
 
   const adaptedProps: BlogPostProps = {
     id: props.id,
@@ -54,7 +54,7 @@ export const BlogPostAdapter: React.FC<CMSComponentProps> = (props) => {
  * BlogList Adapter Component
  */
 export const BlogListAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = normalizeContentInput<BlogListContent>(props.content) as BlogListContent
+  const content = readRuntimeContent<BlogListContent>(props.content) as BlogListContent
   const resolvedContent = resolveBlogListContent(content)
 
   const adaptedProps: BlogListProps = {
@@ -82,7 +82,7 @@ export const BlogListAdapter: React.FC<CMSComponentProps> = (props) => {
  * BlogCard Adapter Component
  */
 export const BlogCardAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = normalizeContentInput<BlogCardContent>(props.content) as BlogCardContent
+  const content = readRuntimeContent<BlogCardContent>(props.content) as BlogCardContent
 
   const adaptedProps: BlogCardProps = {
     id: props.id,
@@ -109,7 +109,7 @@ export const BlogCardAdapter: React.FC<CMSComponentProps> = (props) => {
  * ArticleHeader Adapter Component
  */
 export const ArticleHeaderAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = normalizeContentInput<ArticleHeaderContent>(props.content) as ArticleHeaderContent
+  const content = readRuntimeContent<ArticleHeaderContent>(props.content) as ArticleHeaderContent
 
   const adaptedProps: ArticleHeaderProps = {
     id: props.id,
@@ -136,7 +136,7 @@ export const ArticleHeaderAdapter: React.FC<CMSComponentProps> = (props) => {
  * AuthorBio Adapter Component
  */
 export const AuthorBioAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = normalizeContentInput<AuthorBioContent>(props.content) as AuthorBioContent
+  const content = readRuntimeContent<AuthorBioContent>(props.content) as AuthorBioContent
 
   const adaptedProps: AuthorBioProps = {
     id: props.id,
@@ -163,7 +163,7 @@ export const AuthorBioAdapter: React.FC<CMSComponentProps> = (props) => {
  * RelatedPosts Adapter Component
  */
 export const RelatedPostsAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = normalizeContentInput<RelatedPostsContent>(props.content) as RelatedPostsContent
+  const content = readRuntimeContent<RelatedPostsContent>(props.content) as RelatedPostsContent
   const resolvedContent = resolveRelatedPostsContent(content)
 
   const adaptedProps: RelatedPostsProps = {

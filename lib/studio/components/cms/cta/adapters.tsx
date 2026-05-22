@@ -7,6 +7,7 @@
 
 import React from 'react'
 import type { CMSComponentProps } from '../_core/types'
+import { readRuntimeContent } from '../_core/utils'
 import CTABanner from './cta-banner'
 import CTASimple from './cta-simple'
 import CTANewsletter from './cta-newsletter'
@@ -22,7 +23,7 @@ import type { CTAButtonGroupProps, CTAButtonGroupContent } from './cta-button-gr
 export const CTABannerAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: CTABannerProps = {
     ...props,
-    content: props.content as CTABannerContent
+    content: readRuntimeContent<CTABannerContent>(props.content) as CTABannerContent
   }
   return <CTABanner {...adaptedProps} />
 }
@@ -33,7 +34,7 @@ export const CTABannerAdapter: React.FC<CMSComponentProps> = (props) => {
 export const CTASimpleAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: CTASimpleProps = {
     ...props,
-    content: props.content as CTASimpleContent
+    content: readRuntimeContent<CTASimpleContent>(props.content) as CTASimpleContent
   }
   return <CTASimple {...adaptedProps} />
 }
@@ -44,7 +45,7 @@ export const CTASimpleAdapter: React.FC<CMSComponentProps> = (props) => {
 export const CTANewsletterAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: CTANewsletterProps = {
     ...props,
-    content: props.content as CTANewsletterContent
+    content: readRuntimeContent<CTANewsletterContent>(props.content) as CTANewsletterContent
   }
   return <CTANewsletter {...adaptedProps} />
 }
@@ -55,7 +56,7 @@ export const CTANewsletterAdapter: React.FC<CMSComponentProps> = (props) => {
 export const CTAButtonGroupAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: CTAButtonGroupProps = {
     ...props,
-    content: props.content as CTAButtonGroupContent
+    content: readRuntimeContent<CTAButtonGroupContent>(props.content) as CTAButtonGroupContent
   }
   return <CTAButtonGroup {...adaptedProps} />
 }

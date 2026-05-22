@@ -75,4 +75,13 @@ describe('CardGridAdapter', () => {
     expect(card.metadata?.date).toBe('18 Sep - 9 Nov');
     expect(card.metadata?.tags).toEqual(['Optus']);
   });
+
+  it('rejects stringified content instead of parsing legacy JSON', () => {
+    expect(() => render(
+      <CardGridAdapter
+        {...baseProps}
+        content={'{"heading":"Legacy heading","cards":[]}' as unknown as CardGridContent}
+      />
+    )).toThrow('CMS runtime content must be canonical object content; string content is not accepted.');
+  });
 });

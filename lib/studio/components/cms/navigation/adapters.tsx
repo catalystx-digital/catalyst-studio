@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { CMSComponentProps, ComponentType } from '../_core/types';
-import { normalizeContentInput } from '../_core/utils';
+import { readRuntimeContent } from '../_core/utils';
 import { NavBar as NavBarImpl } from './nav-bar';
 import { Footer as FooterImpl } from './footer';
 import { MobileMenu as MobileMenuImpl } from './mobile-menu';
@@ -41,7 +41,7 @@ function isCMSComponentValue(value: unknown): value is CMSComponentProps {
  */
 export const NavBarAdapter: React.FC<CMSComponentProps> = (props) => {
   // Convert generic content to NavBarContent with defaults
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
   const normalizedMenu = normalizeMenuItems(base.menuItems ?? base.links ?? []);
   const normalizedUtilityNav = normalizeMenuItems(base.utilityNav ?? []);
@@ -77,7 +77,7 @@ export const NavBarAdapter: React.FC<CMSComponentProps> = (props) => {
  */
 export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
   // Convert generic content to FooterContent with defaults
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
 
   const columnsSource: unknown[] = Array.isArray(base.columns) ? base.columns : []
@@ -86,7 +86,7 @@ export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
   if (columnsSource.length > 0) {
     for (const rawColumn of columnsSource) {
       if (isCMSComponentValue(rawColumn) && rawColumn.type === ComponentType.ColumnItem) {
-        const columnContent = normalizeContentInput(rawColumn.content) as Record<string, unknown> | undefined;
+        const columnContent = readRuntimeContent(rawColumn.content) as Record<string, unknown> | undefined;
         const title =
           typeof columnContent?.title === 'string'
             ? columnContent.title
@@ -141,7 +141,7 @@ export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
     for (const rawSocial of socialLinksSource) {
       if (isCMSComponentValue(rawSocial) && rawSocial.type === ComponentType.SocialLinkItem) {
         // Try to get data from content first, fall back to root level properties
-        const socialContent = normalizeContentInput(rawSocial.content) as Record<string, unknown> | undefined;
+        const socialContent = readRuntimeContent(rawSocial.content) as Record<string, unknown> | undefined;
         const rawObj = rawSocial as unknown as Record<string, unknown>;
         const platformRaw = (
           typeof socialContent?.platform === 'string' ? socialContent.platform :
@@ -218,7 +218,7 @@ export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
  */
 export const MobileMenuAdapter: React.FC<CMSComponentProps> = (props) => {
   // Convert generic content to MobileMenuContent with defaults
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const base = (raw && typeof raw === 'object') ? (raw as Record<string, any>) : {};
   const normalizedMenu = normalizeMenuItems(base.menuItems ?? base.links ?? base.items ?? []);
 
@@ -241,7 +241,7 @@ export const MobileMenuAdapter: React.FC<CMSComponentProps> = (props) => {
  */
 export const BreadcrumbsAdapter: React.FC<CMSComponentProps> = (props) => {
   // Convert generic content to BreadcrumbsContent with defaults
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
   const breadcrumbsContent: BreadcrumbsContent = isBreadcrumbsContent(raw)
     ? (raw as BreadcrumbsContent)
     : {
@@ -313,7 +313,7 @@ function normalizeSidebarNavItems(rawItems: unknown[]): SidebarNavItem[] {
  */
 export const SidebarNavAdapter: React.FC<CMSComponentProps> = (props) => {
   // Convert generic content to SidebarNavContent with defaults
-  const raw = normalizeContentInput(props.content);
+  const raw = readRuntimeContent(props.content);
 
   let sidebarNavContent: SidebarNavContent;
 

@@ -8,6 +8,7 @@
 import React from 'react';
 import { ComponentType } from '../_core/types';
 import type { CMSComponentProps } from '../_core/types';
+import { readRuntimeContent } from '../_core/utils';
 import TeamGrid from './team-grid';
 import TeamMember from './team-member';
 import AboutSection from './about-section';
@@ -20,7 +21,7 @@ import { resolveTeamGridContent } from './utils/team-resolver';
  * TeamGrid Adapter Component
  */
 export const TeamGridAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = resolveTeamGridContent(props.content as TeamGridContent);
+  const content = resolveTeamGridContent(readRuntimeContent<TeamGridContent>(props.content) as TeamGridContent);
   
   const adaptedProps: TeamGridProps = {
     id: props.id,
@@ -47,7 +48,7 @@ export const TeamGridAdapter: React.FC<CMSComponentProps> = (props) => {
  * TeamMember Adapter Component
  */
 export const TeamMemberAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as TeamMemberContent;
+  const content = readRuntimeContent<TeamMemberContent>(props.content) as TeamMemberContent;
   
   const adaptedProps: TeamMemberProps = {
     id: props.id,
@@ -74,7 +75,7 @@ export const TeamMemberAdapter: React.FC<CMSComponentProps> = (props) => {
  * AboutSection Adapter Component
  */
 export const AboutSectionAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as AboutSectionContent;
+  const content = readRuntimeContent<AboutSectionContent>(props.content) as AboutSectionContent;
   
   const adaptedProps: AboutSectionProps = {
     id: props.id,

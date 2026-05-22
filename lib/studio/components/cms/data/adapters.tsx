@@ -8,6 +8,7 @@
 import React from 'react';
 import { ComponentType, ComponentCategory } from '../_core/types';
 import type { CMSComponentProps } from '../_core/types';
+import { readRuntimeContent } from '../_core/utils';
 import Statistics from './statistics';
 import DataTable from './data-table';
 import Timeline from './timeline';
@@ -17,11 +18,23 @@ import type { DataTableProps, DataTableContent } from './data-table/data-table.t
 import type { TimelineProps, TimelineContent, TimelineAction } from './timeline/timeline.types';
 import type { ChartProps, ChartContent } from './chart/chart.types';
 
+function mapStatisticsVariant(variant: CMSComponentProps['variant']): StatisticsProps['variant'] {
+  return variant === 'detailed' ? 'card' : ((variant as StatisticsProps['variant']) ?? 'default');
+}
+
+function mapDataTableVariant(variant: CMSComponentProps['variant']): DataTableProps['variant'] {
+  return variant === 'expanded' ? 'spacious' : ((variant as DataTableProps['variant']) ?? 'default');
+}
+
+function mapTimelineVariant(variant: CMSComponentProps['variant']): TimelineProps['variant'] {
+  return (variant as TimelineProps['variant']) ?? 'default';
+}
+
 /**
  * Statistics Adapter Component
  */
 export const StatisticsAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = (props.content || {}) as StatisticsContent;
+  const content = (readRuntimeContent<StatisticsContent>(props.content) || {}) as StatisticsContent;
 
   const validatedContent: StatisticsContent = {
     ...content,
@@ -51,7 +64,7 @@ export const StatisticsAdapter: React.FC<CMSComponentProps> = (props) => {
     content: validatedContent,
     className: props.className,
     theme: props.theme ?? 'auto',
-    variant: 'default',
+    variant: mapStatisticsVariant(props.variant),
     loading: props.loading ?? 'eager',
     aiMetadata: props.aiMetadata,
   };
@@ -63,7 +76,7 @@ export const StatisticsAdapter: React.FC<CMSComponentProps> = (props) => {
  * DataTable Adapter Component
  */
 export const DataTableAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = (props.content || {}) as DataTableContent;
+  const content = (readRuntimeContent<DataTableContent>(props.content) || {}) as DataTableContent;
 
   const validatedContent: DataTableContent = {
     ...content,
@@ -86,7 +99,7 @@ export const DataTableAdapter: React.FC<CMSComponentProps> = (props) => {
     content: validatedContent,
     className: props.className,
     theme: props.theme ?? 'auto',
-    variant: 'default',
+    variant: mapDataTableVariant(props.variant),
     loading: props.loading ?? 'eager',
     aiMetadata: props.aiMetadata,
   };
@@ -98,7 +111,7 @@ export const DataTableAdapter: React.FC<CMSComponentProps> = (props) => {
  * Timeline Adapter Component
  */
 export const TimelineAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = (props.content || {}) as TimelineContent;
+  const content = (readRuntimeContent<TimelineContent>(props.content) || {}) as TimelineContent;
 
   const normalizeAction = (action: unknown): TimelineAction | null => {
     if (!action || typeof action !== 'object') {
@@ -169,7 +182,7 @@ export const TimelineAdapter: React.FC<CMSComponentProps> = (props) => {
     content: validatedContent,
     className: props.className,
     theme: props.theme ?? 'auto',
-    variant: 'default',
+    variant: mapTimelineVariant(props.variant),
     loading: props.loading ?? 'eager',
     aiMetadata: props.aiMetadata,
   };
@@ -181,7 +194,7 @@ export const TimelineAdapter: React.FC<CMSComponentProps> = (props) => {
  * Chart Adapter Component
  */
 export const ChartAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = (props.content || {}) as ChartContent;
+  const content = (readRuntimeContent<ChartContent>(props.content) || {}) as ChartContent;
 
   const adaptedProps: ChartProps = {
     id: props.id,

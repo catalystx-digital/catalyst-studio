@@ -1,6 +1,7 @@
 import React from 'react';
 import { CMSComponentProps, ComponentType } from '@/lib/studio/components/cms/_core/types';
 import { withPerformanceTracking } from '@/lib/studio/components/cms/_core/monitoring';
+import { readRuntimeContent } from '@/lib/studio/components/cms/_core/utils';
 import ContactForm from './contact-form';
 import ContactInfo from './contact-info';
 import LocationMap from './location-map';
@@ -21,7 +22,7 @@ const SimpleFormWithPerformance = withPerformanceTracking(SimpleForm, ComponentT
  * Converts generic CMSComponentProps to ContactFormProps
  */
 export const ContactFormAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as ContactFormContent;
+  const content = readRuntimeContent<ContactFormContent>(props.content) as ContactFormContent;
   
   const adaptedProps: ContactFormProps = {
     id: props.id,
@@ -49,7 +50,7 @@ export const ContactFormAdapter: React.FC<CMSComponentProps> = (props) => {
  * Converts generic CMSComponentProps to ContactInfoProps
  */
 export const ContactInfoAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as ContactInfoContent;
+  const content = readRuntimeContent<ContactInfoContent>(props.content) as ContactInfoContent;
   
   const adaptedProps: ContactInfoProps = {
     id: props.id,
@@ -77,7 +78,7 @@ export const ContactInfoAdapter: React.FC<CMSComponentProps> = (props) => {
  * Converts generic CMSComponentProps to LocationMapProps
  */
 export const LocationMapAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as LocationMapContent;
+  const content = readRuntimeContent<LocationMapContent>(props.content) as LocationMapContent;
   
   const adaptedProps: LocationMapProps = {
     id: props.id,
@@ -105,7 +106,7 @@ export const LocationMapAdapter: React.FC<CMSComponentProps> = (props) => {
  * Converts generic CMSComponentProps to SimpleFormProps
  */
 export const SimpleFormAdapter: React.FC<CMSComponentProps> = (props) => {
-  const content = props.content as SimpleFormContent;
+  const content = readRuntimeContent<SimpleFormContent>(props.content) as SimpleFormContent;
   
   const adaptedProps: SimpleFormProps = {
     id: props.id,

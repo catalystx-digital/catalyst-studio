@@ -7,6 +7,7 @@
 
 import React from 'react';
 import type { CMSComponentProps } from '../_core/types';
+import { readRuntimeContent } from '../_core/utils';
 import { HeroSimple } from './hero-simple';
 import { HeroBanner } from './hero-banner';
 import { HeroWithImage } from './hero-with-image';
@@ -28,7 +29,7 @@ import type { HeroCarouselProps, HeroCarouselContent } from './hero-carousel/her
 export const HeroSimpleAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroSimpleProps = {
     ...props,
-    content: props.content as HeroSimpleContent
+    content: readRuntimeContent<HeroSimpleContent>(props.content) as HeroSimpleContent
   };
   return <HeroSimple {...adaptedProps} />;
 };
@@ -39,7 +40,7 @@ export const HeroSimpleAdapter: React.FC<CMSComponentProps> = (props) => {
 export const HeroBannerAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroBannerProps = {
     ...props,
-    content: props.content as HeroBannerContent
+    content: readRuntimeContent<HeroBannerContent>(props.content) as HeroBannerContent
   };
   return <HeroBanner {...adaptedProps} />;
 };
@@ -50,7 +51,7 @@ export const HeroBannerAdapter: React.FC<CMSComponentProps> = (props) => {
 export const HeroSplitAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroSplitProps = {
     ...props,
-    content: props.content as HeroSplitContent
+    content: readRuntimeContent<HeroSplitContent>(props.content) as HeroSplitContent
   };
   return <HeroSplit {...adaptedProps} />;
 };
@@ -61,7 +62,7 @@ export const HeroSplitAdapter: React.FC<CMSComponentProps> = (props) => {
 export const HeroMinimalAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroMinimalProps = {
     ...props,
-    content: props.content as HeroMinimalContent
+    content: readRuntimeContent<HeroMinimalContent>(props.content) as HeroMinimalContent
   };
   return <HeroMinimal {...adaptedProps} />;
 };
@@ -72,7 +73,7 @@ export const HeroMinimalAdapter: React.FC<CMSComponentProps> = (props) => {
 export const HeroVideoAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroVideoProps = {
     ...props,
-    content: props.content as HeroVideoContent
+    content: readRuntimeContent<HeroVideoContent>(props.content) as HeroVideoContent
   };
   return <HeroVideo {...adaptedProps} />;
 };
@@ -82,7 +83,7 @@ export const HeroVideoAdapter: React.FC<CMSComponentProps> = (props) => {
 export const HeroWithImageAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroWithImageProps = {
     ...props,
-    content: props.content as HeroWithImageContent
+    content: readRuntimeContent<HeroWithImageContent>(props.content) as HeroWithImageContent
   };
   return <HeroWithImage {...adaptedProps} />;
 };
@@ -93,7 +94,7 @@ export const HeroWithImageAdapter: React.FC<CMSComponentProps> = (props) => {
 export const HeroCarouselAdapter: React.FC<CMSComponentProps> = (props) => {
   const adaptedProps: HeroCarouselProps = {
     ...props,
-    content: props.content as HeroCarouselContent
+    content: readRuntimeContent<HeroCarouselContent>(props.content) as HeroCarouselContent
   };
   return <HeroCarousel {...adaptedProps} />;
 };

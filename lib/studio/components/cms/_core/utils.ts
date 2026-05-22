@@ -256,18 +256,12 @@ export function getComponentDisplayName(type: ComponentType): string {
 }
 
 /**
- * Normalize potentially stringified JSON content into an object.
- * - If input is a JSON string, attempt to parse and return the object.
- * - Otherwise, return the original value.
- * This is used by adapters to coerce incoming props.content to the expected shape.
+ * Read runtime CMSComponentProps.content without accepting legacy string mirrors.
+ * Runtime content must already be canonical and projected from component.content.
  */
-export function normalizeContentInput<T = unknown>(value: unknown): T | unknown {
+export function readRuntimeContent<T = unknown>(value: unknown): T | unknown {
   if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T;
-    } catch {
-      return value;
-    }
+    throw new Error('CMS runtime content must be canonical object content; string content is not accepted.');
   }
   return value;
 }
