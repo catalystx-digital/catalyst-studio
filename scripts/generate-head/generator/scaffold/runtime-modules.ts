@@ -94,18 +94,11 @@ function mergeContent(primary: unknown, fallback: unknown): Record<string, unkno
   return isRecord(fallback) ? clone(fallback) : {}
 }
 
-/**
- * Normalize content from legacy 'text' field format.
- * Some imported components store content as stringified JSON in props.text
- * instead of structured content. This normalizes that data.
- */
-function normalizeContentFromTextField(
+function normalizeRuntimeContent(
   content: Record<string, unknown>,
-  textField: unknown,
   componentType: string
 ): Record<string, unknown> {
   // Handle blog-list 'blogs' -> 'posts' mapping
-  // This needs to run even if content already has data (from normalizeProps in snapshot-builder)
   if (componentType === 'blog-list' && Array.isArray(content.blogs) && !content.posts) {
     const blogs = content.blogs as Array<Record<string, unknown>>
     return {
@@ -123,39 +116,7 @@ function normalizeContentFromTextField(
     }
   }
 
-  // Only process text field if content is empty
-  if (Object.keys(content).length > 0) {
-    return content
-  }
-  if (typeof textField !== 'string' || !textField.startsWith('{')) {
-    return content
-  }
-
-  try {
-    const parsed = JSON.parse(textField) as Record<string, unknown>
-
-    // Normalize blog-list: map 'blogs' to 'posts'
-    if (componentType === 'blog-list' && Array.isArray(parsed.blogs)) {
-      return {
-        ...parsed,
-        title: (parsed.heading ?? parsed.title) as string | undefined,
-        posts: (parsed.blogs as Array<Record<string, unknown>>).map((blog) => ({
-          id: blog.id ?? \`post-\${Math.random().toString(36).substr(2, 9)}\`,
-          title: blog.title,
-          excerpt: blog.excerpt,
-          publishDate: blog.date ?? new Date().toISOString(),
-          categories: blog.topic ? [blog.topic] : [],
-          link: blog.link,
-          attachments: blog.attachments,
-        })),
-      }
-    }
-
-    // For other components with text field, merge parsed into content
-    return { ...parsed, ...content }
-  } catch {
-    return content
-  }
+  return content
 }
 
 function deriveInlineStyle(explicitStyle: unknown, styles: unknown): Record<string, unknown> | undefined {
@@ -234,13 +195,9 @@ function assignCoreAdapterProps(
     props.category = resolveComponentCategory((resolvedType ?? undefined) as string | undefined)
   }
 
-  // Prioritize props.content over node.instance.content because props.content
-  // contains the enriched data from snapshot-builder (with correct bodyHtml, columnRatio, etc.)
-  // while node.instance.content may contain incomplete/stale data
-  const mergedContent = mergeContent(props.content, node.instance.content)
-  // Normalize content from legacy 'text' field if needed
-  props.content = normalizeContentFromTextField(mergedContent, props.text, node.instance.type)
-  delete props.text // Remove text field after normalization
+  const canonicalContent = mergeContent(node.instance.content, props.content)
+  props.content = normalizeRuntimeContent(canonicalContent, node.instance.type)
+  delete props.text
 
   const inlineStyle = deriveInlineStyle(props.style, node.instance.styles)
   if (inlineStyle) {

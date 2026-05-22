@@ -1,6 +1,6 @@
 import vm from 'node:vm'
 import ts from 'typescript'
-import { ComponentType } from '@/lib/studio/components/cms/_core/types'
+import { ComponentCategory, ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
 import {
   buildComponentTreeModule,
@@ -10,6 +10,7 @@ import {
   buildRootRouteModule,
   buildRuntimeDiagnosticsModule
 } from '../generator/scaffold'
+import { buildPageRendererModule } from '../generator/scaffold/runtime-modules'
 
 type ModuleExports = Record<string, any>
 
@@ -33,10 +34,14 @@ function loadModuleFromSource(source: string, deps: Record<string, ModuleExports
       if (id === 'tslib') {
         return {}
       }
+      if (id === '@/generated/runtime/design-system-injector') {
+        return { DesignSystemStyle: () => null }
+      }
       throw new Error(`Unexpected require: ${id}`)
     },
     console,
     process,
+    React: jest.requireActual('react'),
     setTimeout,
     clearTimeout
   }
@@ -56,6 +61,64 @@ function createRuntimeHarness() {
     componentTree: componentTreeExports,
     loaders: loaderExports,
     renderContext: renderContextExports
+  }
+}
+
+function createPageRendererHarness(rendererOverride: Partial<Record<string, any>> = {}) {
+  const React = jest.requireActual('react')
+  const componentTreeExports = loadModuleFromSource(buildComponentTreeModule())
+  const renderer = {
+    componentType: 'hero-banner',
+    regions: ['main'],
+    render: jest.fn((instance: ComponentInstance, props: Record<string, unknown>) => {
+      return React.createElement('div', {
+        'data-testid': instance.id,
+        'data-heading': (props.content as Record<string, unknown> | undefined)?.heading
+      })
+    }),
+    ...rendererOverride
+  }
+  const getGeneratedComponentRenderer = jest.fn(() => renderer)
+  const diagnosticsAdd = jest.fn()
+  const createRenderContext = jest.fn(() => ({
+    diagnostics: {
+      add: diagnosticsAdd,
+      drain: jest.fn(() => [])
+    },
+    loadLoaderData: jest.fn(),
+    resolveSharedComponent: jest.fn()
+  }))
+
+  const pageRenderer = loadModuleFromSource(buildPageRendererModule(), {
+    react: React,
+    '@/generated/providers': {
+      activeProvider: {
+        name: 'test',
+        supportsLiveData: false
+      }
+    },
+    '@/generated/components': {
+      getGeneratedComponentRenderer
+    },
+    '@/generated/runtime/component-tree': componentTreeExports,
+    '@/generated/runtime/render-context': {
+      createRenderContext
+    },
+    '@/lib/studio/components/cms/_core/types': {
+      ComponentCategory,
+      ComponentType
+    },
+    '@/lib/studio/types/site-builder/component-instance': {
+      resolveSharedComponentReference: jest.fn(() => null)
+    }
+  })
+
+  return {
+    pageRenderer,
+    renderer,
+    getGeneratedComponentRenderer,
+    createRenderContext,
+    diagnosticsAdd
   }
 }
 
@@ -327,7 +390,7 @@ describe('generated runtime scaffolding', () => {
       'next/headers': { headers: headersMock },
       'next/navigation': { notFound },
       '@/generated/page-renderer': { renderPage, resolvePageMetadata },
-      '@/generated/runtime/routing': { resolveRoute, needsCanonicalRedirect },
+      '@/generated/runtime/routing': { resolveRoute, resolveRedirect: jest.fn(async () => ({ hasRedirect: false })), needsCanonicalRedirect },
       '@/generated/runtime/request-helpers': requestHelpersModule
     })
 
@@ -343,8 +406,8 @@ describe('generated runtime scaffolding', () => {
     expect(slug).toEqual(['missing'])
     expect(options.requestContext).toMatchObject({
       requestId: 'route:missing',
-      headers: { accept: 'text/html' },
-      searchParams: { preview: 'true' }
+      headers: {},
+      searchParams: {}
     })
     expect(renderPage).not.toHaveBeenCalled()
   })
@@ -394,7 +457,7 @@ describe('generated runtime scaffolding', () => {
       'next/headers': { headers: headersMock },
       'next/navigation': { notFound, permanentRedirect },
       '@/generated/page-renderer': { renderPage, resolvePageMetadata },
-      '@/generated/runtime/routing': { resolveRoute, needsCanonicalRedirect },
+      '@/generated/runtime/routing': { resolveRoute, resolveRedirect: jest.fn(async () => ({ hasRedirect: false })), needsCanonicalRedirect },
       '@/generated/runtime/request-helpers': requestHelpersModule
     })
 
@@ -403,25 +466,155 @@ describe('generated runtime scaffolding', () => {
       searchParams: { locale: 'en' }
     })
 
-    expect(result).toBe(renderResult)
+    expect((result as any).props.children[1]).toBe(renderResult)
     expect(notFound).not.toHaveBeenCalled()
     expect(permanentRedirect).not.toHaveBeenCalled()
     expect(resolveRoute).toHaveBeenCalledWith(['news'], expect.objectContaining({
       requestContext: expect.objectContaining({
         requestId: 'route:news',
-        headers: { 'accept-language': 'en-US' },
-        searchParams: { locale: 'en' }
+        headers: {},
+        searchParams: {}
       })
     }))
     expect(renderPage).toHaveBeenCalledWith(
       expect.objectContaining({ matchedSlug: ['news'], payload }),
       expect.objectContaining({
-        headers: { 'accept-language': 'en-US' },
-        searchParams: { locale: 'en' },
+        headers: {},
+        searchParams: {},
         url: '/news',
         requestId: 'render:news'
       })
     )
+  })
+
+  it('passes canonical instance content over stale props.content to generated component renderers', async () => {
+    const { pageRenderer, renderer } = createPageRendererHarness()
+    const payload = {
+      page: {
+        id: 'page',
+        title: 'Canonical',
+        fullPath: '/canonical',
+        templateKey: null,
+        templateProps: {},
+        regions: [],
+        components: [
+          baseInstance({
+            id: 'hero',
+            props: {
+              content: { heading: 'Stale props.content heading' },
+              text: JSON.stringify({ heading: 'Stale props.text heading' })
+            },
+            content: { heading: 'Canonical heading' }
+          })
+        ],
+        metadata: {},
+        sharedComponentIds: []
+      },
+      structure: undefined,
+      sharedComponents: [],
+      diagnostics: []
+    }
+
+    await pageRenderer.renderPage({
+      slug: ['canonical'],
+      matchedSlug: ['canonical'],
+      entry: null,
+      payload,
+      source: 'static',
+      aliasResolved: false
+    })
+
+    expect(renderer.render).toHaveBeenCalledTimes(1)
+    const [, props] = renderer.render.mock.calls[0] as [ComponentInstance, Record<string, unknown>]
+    expect(props.content).toEqual({ heading: 'Canonical heading' })
+    expect(props).not.toHaveProperty('text')
+  })
+
+  it('falls back to props.content when generated instance content is empty', async () => {
+    const { pageRenderer, renderer } = createPageRendererHarness()
+    const payload = {
+      page: {
+        id: 'page',
+        title: 'Fallback',
+        fullPath: '/fallback',
+        templateKey: null,
+        templateProps: {},
+        regions: [],
+        components: [
+          baseInstance({
+            id: 'hero',
+            props: {
+              content: { heading: 'Fallback props.content heading' }
+            },
+            content: {}
+          })
+        ],
+        metadata: {},
+        sharedComponentIds: []
+      },
+      structure: undefined,
+      sharedComponents: [],
+      diagnostics: []
+    }
+
+    await pageRenderer.renderPage({
+      slug: ['fallback'],
+      matchedSlug: ['fallback'],
+      entry: null,
+      payload,
+      source: 'static',
+      aliasResolved: false
+    })
+
+    const [, props] = renderer.render.mock.calls[0] as [ComponentInstance, Record<string, unknown>]
+    expect(props.content).toEqual({ heading: 'Fallback props.content heading' })
+  })
+
+  it('does not synthesize or send generated renderer content from legacy props.text', async () => {
+    const { pageRenderer, renderer } = createPageRendererHarness({ componentType: 'blog-list' })
+    const payload = {
+      page: {
+        id: 'page',
+        title: 'Legacy Text',
+        fullPath: '/legacy-text',
+        templateKey: null,
+        templateProps: {},
+        regions: [],
+        components: [
+          baseInstance({
+            id: 'blog-list',
+            type: 'blog-list',
+            props: {
+              text: JSON.stringify({
+                heading: 'Legacy News',
+                blogs: [{ title: 'Legacy Post', topic: 'Updates' }]
+              })
+            },
+            content: {}
+          })
+        ],
+        metadata: {},
+        sharedComponentIds: []
+      },
+      structure: undefined,
+      sharedComponents: [],
+      diagnostics: []
+    }
+
+    await pageRenderer.renderPage({
+      slug: ['legacy-text'],
+      matchedSlug: ['legacy-text'],
+      entry: null,
+      payload,
+      source: 'static',
+      aliasResolved: false
+    })
+
+    const [, props] = renderer.render.mock.calls[0] as [ComponentInstance, Record<string, unknown>]
+    expect(props.content).toEqual({})
+    expect(props).not.toHaveProperty('text')
+    expect(JSON.stringify(props)).not.toContain('Legacy News')
+    expect(JSON.stringify(props)).not.toContain('Legacy Post')
   })
 
   it('permanently redirects when request slug casing differs from canonical path', async () => {
@@ -465,7 +658,7 @@ describe('generated runtime scaffolding', () => {
       'next/headers': { headers: headersMock },
       'next/navigation': { notFound, permanentRedirect },
       '@/generated/page-renderer': { renderPage: jest.fn(), resolvePageMetadata: jest.fn() },
-      '@/generated/runtime/routing': { resolveRoute, needsCanonicalRedirect },
+      '@/generated/runtime/routing': { resolveRoute, resolveRedirect: jest.fn(async () => ({ hasRedirect: false })), needsCanonicalRedirect },
       '@/generated/runtime/request-helpers': requestHelpersModule
     })
 
@@ -520,7 +713,7 @@ describe('generated runtime scaffolding', () => {
       'next/headers': { headers: headersMock },
       'next/navigation': { notFound, permanentRedirect },
       '@/generated/page-renderer': { renderPage: jest.fn(), resolvePageMetadata },
-      '@/generated/runtime/routing': { resolveRoute, needsCanonicalRedirect },
+      '@/generated/runtime/routing': { resolveRoute, resolveRedirect: jest.fn(async () => ({ hasRedirect: false })), needsCanonicalRedirect },
       '@/generated/runtime/request-helpers': requestHelpersModule
     })
 
@@ -584,7 +777,7 @@ describe('generated runtime scaffolding', () => {
       'next/headers': { headers: headersMock },
       'next/navigation': { notFound, redirect, permanentRedirect },
       '@/generated/page-renderer': { renderPage: jest.fn(), resolvePageMetadata },
-      '@/generated/runtime/routing': { resolveRoute, needsCanonicalRedirect, getSlugRegistrySnapshot: jest.fn(() => []) },
+      '@/generated/runtime/routing': { resolveRoute, resolveRedirect: jest.fn(async () => ({ hasRedirect: false })), needsCanonicalRedirect, getSlugRegistrySnapshot: jest.fn(() => []) },
       '@/generated/runtime/request-helpers': requestHelpersModule
     })
 
@@ -641,7 +834,7 @@ describe('generated runtime scaffolding', () => {
       'next/headers': { headers: headersMock },
       'next/navigation': { notFound, redirect, permanentRedirect },
       '@/generated/page-renderer': { renderPage: jest.fn(), resolvePageMetadata: jest.fn() },
-      '@/generated/runtime/routing': { resolveRoute, needsCanonicalRedirect, getSlugRegistrySnapshot: jest.fn(() => []) },
+      '@/generated/runtime/routing': { resolveRoute, resolveRedirect: jest.fn(async () => ({ hasRedirect: false })), needsCanonicalRedirect, getSlugRegistrySnapshot: jest.fn(() => []) },
       '@/generated/runtime/request-helpers': requestHelpersModule
     })
 
