@@ -573,6 +573,28 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
       expect(detector['hasTextContent'](component)).toBe(false)
     })
 
+    it('uses canonical content for signature metadata fields', () => {
+      const component = {
+        id: 'canonical-signature-metadata',
+        type: 'nav-bar',
+        typeId: 'nav-type',
+        parentId: null,
+        position: 0,
+        props: {},
+        content: {
+          region: 'header',
+          semanticTokens: ['primary', 'navigation'],
+          linkCount: 4
+        }
+      } as any
+
+      const signature = detector['buildCanonicalSignature'](component)
+
+      expect(signature.placement).toBe('header')
+      expect(signature.contentTokens).toEqual(['navigation', 'primary'])
+      expect(signature.counts.linkCount).toBe('4-8')
+    })
+
     it('should validate valid shared component', () => {
       const candidate: SharedComponentCandidate = {
         pattern: {
@@ -696,7 +718,14 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
             typeId: 'header-type',
             parentId: null,
             position: 0,
-            props: { className: 'main-header' }
+            props: {
+              className: 'main-header',
+              region: 'header',
+              placementBucket: 'top',
+              linkCount: 3,
+              metadata: { source: 'detector' }
+            },
+            content: { heading: 'Main Header' }
           }
         ],
         pages: ['page1', 'page2'],
@@ -710,7 +739,14 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
         websiteId: 'website-1',
         websiteComponentTypeId: 'component-type-1',
         name: 'Main Header',
-        config: {},
+          content: {
+            heading: 'Main Header',
+            region: 'header',
+            placementBucket: 'top',
+            linkCount: 3,
+            metadata: { source: 'detector' }
+          },
+          config: {},
         usageCount: 2
       }
 
@@ -727,10 +763,16 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
           websiteId: 'website-1',
           websiteComponentTypeId: 'component-type-1',
           name: 'Main Header',
+          content: {
+            heading: 'Main Header',
+            region: 'header',
+            placementBucket: 'top',
+            linkCount: 3,
+            metadata: { source: 'detector' }
+          },
           config: {
             type: 'header',
             category: 'header',
-            defaultProps: { className: 'main-header' },
             pattern: {
               structure: candidate.pattern.structure,
               frequency: 2,
@@ -775,9 +817,9 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
         {
           id: 'shared-1',
           websiteComponentTypeId: 'header-type',
+          content: {},
           config: {
-            type: 'header',
-            defaultProps: { className: 'main-header' }
+            type: 'header'
           }
         }
       ] as any
@@ -856,15 +898,9 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
         {
           id: 'shared-hero',
           websiteComponentTypeId: 'hero-type',
+          content: {},
           config: {
-            type: 'hero',
-            defaultProps: {
-              region: 'hero',
-              placementBucket: 'top',
-              semanticTokens: ['enroll', 'apply'],
-              buttonCount: '1-3',
-              hasForm: false
-            }
+            type: 'hero'
           }
         }
       ] as any
@@ -884,6 +920,64 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
       expect(updatedComponents[0].type).toBe('hero')
       // The region might be preserved or modified during the update process
       expect(updatedComponents[0].props.region || 'hero').toBeTruthy()
+    })
+
+    it('uses shared content metadata when rewriting shared references', async () => {
+      const mockPage = {
+        id: 'page1',
+        content: {
+          components: [
+            {
+              id: 'footer1',
+              type: 'footer',
+              typeId: 'footer-type',
+              parentId: null,
+              position: 0,
+              props: {},
+              content: {
+                region: 'footer',
+                placementBucket: 'bottom',
+                metadata: { source: 'canonical-shared' }
+              }
+            }
+          ]
+        }
+      } as any
+
+      const sharedComponents = [
+        {
+          id: 'shared-footer',
+          websiteComponentTypeId: 'footer-type',
+          content: {
+            region: 'footer',
+            placementBucket: 'bottom',
+            metadata: { source: 'canonical-shared' }
+          },
+          config: {
+            type: 'footer'
+          }
+        }
+      ] as any
+
+      ;(mockPrisma.websitePage.update as jest.Mock).mockImplementation(({ data }) => ({
+        ...mockPage,
+        content: data.content
+      }))
+
+      await detector.updatePageReferences(mockPage, sharedComponents)
+
+      const updateCall = (mockPrisma.websitePage.update as jest.Mock).mock.calls[0][0]
+      const updatedComponent = updateCall.data.content.components[0]
+
+      expect(updatedComponent.props).toEqual({
+        sharedComponentId: 'shared-footer',
+        region: 'footer',
+        placementBucket: 'bottom',
+        metadata: {
+          source: 'canonical-shared',
+          region: 'footer'
+        }
+      })
     })
   })
 

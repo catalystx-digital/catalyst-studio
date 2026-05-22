@@ -129,11 +129,10 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     websiteId: string,
     componentTypeId: string
   ): Promise<WebsiteSharedComponent> {
-    const canonical = this.getCanonicalPropsFromInstance(candidate.instances[0])
+    const canonicalContent = this.getCanonicalContentFromInstance(candidate.instances[0])
     const config = {
       type: candidate.pattern.type,
       category: candidate.category,
-      defaultProps: canonical,
       pattern: {
         structure: candidate.pattern.structure,
         frequency: candidate.pattern.frequency,
@@ -146,6 +145,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
         websiteId,
         websiteComponentTypeId: componentTypeId,
         name: candidate.name,
+        content: canonicalContent as Prisma.InputJsonValue,
         config: config as Prisma.InputJsonValue,
         usageCount: candidate.pages.length
       }
@@ -161,11 +161,10 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     componentTypeId: string,
     prismaClient: any
   ): Promise<WebsiteSharedComponent> {
-    const canonical = this.getCanonicalPropsFromInstance(candidate.instances[0])
+    const canonicalContent = this.getCanonicalContentFromInstance(candidate.instances[0])
     const config = {
       type: candidate.pattern.type,
       category: candidate.category,
-      defaultProps: canonical,
       pattern: {
         structure: candidate.pattern.structure,
         frequency: candidate.pattern.frequency,
@@ -178,6 +177,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
         websiteId,
         websiteComponentTypeId: componentTypeId,
         name: candidate.name,
+        content: canonicalContent as Prisma.InputJsonValue,
         config: config as Prisma.InputJsonValue,
         usageCount: candidate.pages.length
       }
@@ -452,6 +452,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
 
     const props = (component.props || {}) as Record<string, any>
     const content = this.isRecord(component.content) ? component.content : {}
+    const signatureSource = { ...props, ...content }
 
     // Normalize type
     const typeNorm = this.normalizeType(component.type)
@@ -460,7 +461,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     const counts: Record<string, string> = {}
     const countKeys = ['menuItemCount', 'linkCount', 'buttonCount']
     countKeys.forEach(key => {
-      const value = props[key]
+      const value = signatureSource[key]
       if (value !== undefined) {
         counts[key] = this.normalizeCount(value)
       }
@@ -481,13 +482,13 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     const structureHash = this.hashObject(structureData)
 
     // Content hash - semantic tokens and text content
-    const contentTokens = this.extractContentTokens(props, content)
+    const contentTokens = this.extractContentTokens(signatureSource, content)
     const textContentHash = this.hashContent(contentTokens)
 
     // Placement
-    const placement = (props.region && typeof props.region === 'string')
-      ? props.region
-      : (props.placementBucket || 'middle')
+    const placement = (signatureSource.region && typeof signatureSource.region === 'string')
+      ? signatureSource.region
+      : (signatureSource.placementBucket || 'middle')
 
     const signature: CanonicalSignature = {
       typeNorm,
@@ -545,19 +546,33 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
       tokens.push(...words)
     }
 
-    const collectContentText = (value: unknown) => {
+    const nonTextContentKeys = new Set([
+      'region',
+      'placementBucket',
+      'menuItemCount',
+      'linkCount',
+      'buttonCount',
+      'metadata',
+      'semanticTokens'
+    ])
+
+    const collectContentText = (value: unknown, key?: string) => {
+      if (key && nonTextContentKeys.has(key)) {
+        return
+      }
+
       if (typeof value === 'string') {
         tokenize(value)
         return
       }
 
       if (Array.isArray(value)) {
-        value.forEach(collectContentText)
+        value.forEach(item => collectContentText(item))
         return
       }
 
       if (this.isRecord(value)) {
-        Object.values(value).forEach(collectContentText)
+        Object.entries(value).forEach(([childKey, childValue]) => collectContentText(childValue, childKey))
       }
     }
 
@@ -800,14 +815,29 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     return depth
   }
 
-  private getCanonicalPropsFromInstance(component: ComponentInstance): Record<string, unknown> {
-    const source = (component?.props && typeof component.props === 'object') ? component.props as Record<string, unknown> : {}
-    const canonical: Record<string, unknown> = { ...source }
+  private getCanonicalContentFromInstance(component: ComponentInstance): Record<string, unknown> {
+    const contentSource = this.isRecord(component?.content) ? component.content : {}
+    const propsSource = this.isRecord(component?.props) ? component.props : {}
+    const canonical: Record<string, unknown> = { ...contentSource }
+    const canonicalPropKeys = [
+      'region',
+      'placementBucket',
+      'semanticTokens',
+      'menuItemCount',
+      'linkCount',
+      'buttonCount',
+      'metadata'
+    ]
+
+    for (const key of canonicalPropKeys) {
+      if (canonical[key] === undefined && propsSource[key] !== undefined) {
+        canonical[key] = propsSource[key]
+      }
+    }
 
     // Remove detection-time/transient fields
     delete (canonical as any).bounds
     delete (canonical as any).confidence
-    delete (canonical as any).metadata
 
     return canonical
   }
@@ -869,7 +899,8 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     const sharedList = sharedComponents.map(sc => ({
       id: sc.id,
       typeId: sc.websiteComponentTypeId,
-      config: sc.config as { type: string; defaultProps?: Record<string, unknown> }
+      content: sc.content,
+      config: sc.config as { type: string }
     }))
 
     const result: ComponentInstance[] = []
@@ -878,7 +909,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
       let rewritten: ComponentInstance | null = comp
 
       for (const s of sharedList) {
-        if (this.componentMatchesShared(comp, s.config)) {
+        if (this.componentMatchesShared(comp, s)) {
           const sid = s.id
           if (seenShared.has(sid)) {
             rewritten = null
@@ -887,19 +918,17 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
           seenShared.add(sid)
 
           const existingProps = isPlainRecord(comp.props) ? (comp.props as Record<string, unknown>) : undefined
-          const sharedDefaults = isPlainRecord(s.config?.defaultProps)
-            ? (s.config!.defaultProps as Record<string, unknown>)
-            : undefined
+          const sharedContent = isPlainRecord(s.content) ? (s.content as Record<string, unknown>) : undefined
 
           const resolvedRegion =
-            resolveRegionFromProps(existingProps) ?? resolveRegionFromProps(sharedDefaults)
+            resolveRegionFromProps(existingProps) ?? resolveRegionFromProps(sharedContent)
           const resolvedPlacementBucket =
             resolvePlacementBucket(existingProps) ??
-            resolvePlacementBucket(sharedDefaults) ??
+            resolvePlacementBucket(sharedContent) ??
             derivePlacementBucketFromRegion(resolvedRegion)
           const metadata =
             cloneMetadata(existingProps?.metadata) ??
-            cloneMetadata(sharedDefaults?.metadata)
+            cloneMetadata(sharedContent?.metadata)
 
           const nextProps: Record<string, unknown> = { sharedComponentId: sid }
 
@@ -945,18 +974,18 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     return result
   }
 
-  private componentMatchesShared(component: ComponentInstance, sharedConfig: { type: string; defaultProps?: Record<string, unknown> }): boolean {
+  private componentMatchesShared(
+    component: ComponentInstance,
+    shared: { content?: unknown; config: { type: string } }
+  ): boolean {
+    const sharedConfig = shared.config
     if (this.normalizeType(component.type) !== this.normalizeType(sharedConfig.type)) return false
-
-    const componentProps = (component.props || {}) as Record<string, unknown>
-    const referenceProps = (sharedConfig.defaultProps && typeof sharedConfig.defaultProps === 'object')
-      ? (sharedConfig.defaultProps as Record<string, unknown>)
-      : {}
 
     const componentSig = this.buildCanonicalSignature(component)
     const referenceSig = this.buildCanonicalSignature({
       ...component,
-      props: referenceProps
+      props: {},
+      content: this.isRecord(shared.content) ? shared.content : {}
     } as ComponentInstance)
 
     const similarity = this.calculateSignatureSimilarity(componentSig, referenceSig)
