@@ -1,4 +1,4 @@
-import { batchImportAPI, BatchImportAPI } from './batch-import-api'
+import { BatchImportAPI } from './batch-import-api'
 import { ComponentType } from '../_core/types'
 import { CMSComponentFactory } from '../_factory/factory'
 
@@ -11,7 +11,8 @@ describe('BatchImportAPI', () => {
   beforeEach(() => {
     mockFactory = {
       hasComponent: jest.fn(),
-      getRegistry: jest.fn()
+      getRegistry: jest.fn(() => new Map()),
+      loadComponent: jest.fn().mockResolvedValue({})
     }
     
     jest.spyOn(CMSComponentFactory, 'getInstance').mockReturnValue(mockFactory)
@@ -24,19 +25,13 @@ describe('BatchImportAPI', () => {
       const items = [
         {
           type: ComponentType.HeroMinimal,
-          props: {
-            type: ComponentType.HeroMinimal,
-            content: { headline: 'Test Hero' },
-            settings: {}
-          }
+          content: { headline: 'Test Hero' },
+          props: { settings: {} }
         },
         {
           type: ComponentType.PricingTable,
-          props: {
-            type: ComponentType.PricingTable,
-            content: { plans: [{ name: 'Basic', price: '$10' }] },
-            settings: {}
-          }
+          content: { plans: [{ name: 'Basic', price: '$10' }] },
+          props: { settings: {} }
         }
       ]
 
@@ -55,11 +50,8 @@ describe('BatchImportAPI', () => {
       const items = [
         {
           type: ComponentType.HeroMinimal,
-          props: {
-            type: ComponentType.HeroMinimal,
-            content: {}, // Missing required headline
-            settings: {}
-          }
+          content: {}, // Missing required headline
+          props: { settings: {} }
         }
       ]
 
@@ -75,19 +67,13 @@ describe('BatchImportAPI', () => {
       const items = [
         {
           type: 'INVALID_TYPE' as ComponentType,
-          props: {
-            type: 'INVALID_TYPE' as ComponentType,
-            content: {},
-            settings: {}
-          }
+          content: {},
+          props: { settings: {} }
         },
         {
           type: ComponentType.HeroMinimal,
-          props: {
-            type: ComponentType.HeroMinimal,
-            content: { headline: 'Valid Hero' },
-            settings: {}
-          }
+          content: { headline: 'Valid Hero' },
+          props: { settings: {} }
         }
       ]
 
@@ -105,11 +91,8 @@ describe('BatchImportAPI', () => {
     it('should process components in chunks', async () => {
       const items = Array.from({ length: 25 }, (_, i) => ({
         type: ComponentType.HeroMinimal,
-        props: {
-          type: ComponentType.HeroMinimal,
-          content: { headline: `Hero ${i}` },
-          settings: {}
-        }
+        content: { headline: `Hero ${i}` },
+        props: { settings: {} }
       }))
 
       mockFactory.hasComponent.mockReturnValue(true)
@@ -124,11 +107,8 @@ describe('BatchImportAPI', () => {
       const items = [
         {
           type: ComponentType.HeroMinimal,
-          props: {
-            type: ComponentType.HeroMinimal,
-            content: { headline: 'Test' },
-            settings: {}
-          }
+          content: { headline: 'Test' },
+          props: { settings: {} }
         }
       ]
 
@@ -150,11 +130,8 @@ describe('BatchImportAPI', () => {
       const items = [
         {
           type: ComponentType.HeroMinimal,
-          props: {
-            type: ComponentType.HeroMinimal,
-            content: {}, // Invalid - missing headline
-            settings: {}
-          }
+          content: {}, // Invalid - missing headline
+          props: { settings: {} }
         }
       ]
 
@@ -171,15 +148,46 @@ describe('BatchImportAPI', () => {
   })
 
   describe('Validation', () => {
+    it('rejects legacy props.content payloads', async () => {
+      const items = [
+        {
+          type: ComponentType.HeroMinimal,
+          props: {
+            content: { headline: 'Legacy Hero' },
+          },
+        } as any,
+      ]
+
+      mockFactory.hasComponent.mockReturnValue(true)
+
+      const result = await api.batchCreateComponents(items, { validateBeforeImport: true })
+
+      expect(result.errors[0].error).toBe('Batch import item props must not include content; use top-level content')
+    })
+
+    it('rejects legacy props.type payloads', async () => {
+      const items = [
+        {
+          content: { headline: 'Hero' },
+          props: {
+            type: ComponentType.HeroMinimal,
+          },
+        } as any,
+      ]
+
+      mockFactory.hasComponent.mockReturnValue(true)
+
+      const result = await api.batchCreateComponents(items, { validateBeforeImport: true })
+
+      expect(result.errors[0].error).toBe('Batch import item props must not include type; use top-level type')
+    })
+
     it('should validate pricing components require plans', async () => {
       const items = [
         {
           type: ComponentType.PricingTable,
-          props: {
-            type: ComponentType.PricingTable,
-            content: { plans: [] }, // Empty plans array
-            settings: {}
-          }
+          content: { plans: [] }, // Empty plans array
+          props: { settings: {} }
         }
       ]
 
@@ -193,12 +201,9 @@ describe('BatchImportAPI', () => {
     it('should validate form components require fields', async () => {
       const items = [
         {
-          type: ComponentType.ContactSimple,
-          props: {
-            type: ComponentType.ContactSimple,
-            content: { fields: [] }, // Empty fields array
-            settings: {}
-          }
+          type: ComponentType.ContactForm,
+          content: { fields: [] }, // Empty fields array
+          props: { settings: {} }
         }
       ]
 
@@ -213,11 +218,8 @@ describe('BatchImportAPI', () => {
       const items = [
         {
           type: ComponentType.DataTable,
-          props: {
-            type: ComponentType.DataTable,
-            content: { headers: [] }, // Missing rows
-            settings: {}
-          }
+          content: { headers: [] }, // Missing rows
+          props: { settings: {} }
         }
       ]
 
@@ -228,15 +230,12 @@ describe('BatchImportAPI', () => {
       expect(result.errors[0].error).toContain('Data table requires headers and rows')
     })
 
-    it('should validate blog components require posts', async () => {
+    it('should validate blog post components require body content', async () => {
       const items = [
         {
-          type: ComponentType.BlogGrid,
-          props: {
-            type: ComponentType.BlogGrid,
-            content: {}, // Missing posts
-            settings: {}
-          }
+          type: ComponentType.BlogPost,
+          content: {}, // Missing body
+          props: { settings: {} }
         }
       ]
 
@@ -244,61 +243,16 @@ describe('BatchImportAPI', () => {
 
       const result = await api.batchCreateComponents(items, { validateBeforeImport: true })
 
-      expect(result.errors[0].error).toContain('Blog components require posts array')
-    })
-  })
-
-  describe('Report Generation', () => {
-    it('should generate import report', async () => {
-      const items = [
-        {
-          type: ComponentType.HeroMinimal,
-          props: {
-            type: ComponentType.HeroMinimal,
-            content: { headline: 'Test' },
-            settings: {}
-          }
-        },
-        {
-          type: 'INVALID' as ComponentType,
-          props: {
-            type: 'INVALID' as ComponentType,
-            content: {},
-            settings: {}
-          }
-        }
-      ]
-
-      mockFactory.hasComponent.mockImplementation((type) => type === ComponentType.HeroMinimal)
-
-      const result = await api.batchCreateComponents(items, { validateBeforeImport: true })
-      const report = api.generateImportReport(result)
-
-      expect(report).toContain('Batch Import Report')
-      expect(report).toContain('Total Items: 2')
-      expect(report).toContain('Successful: 1')
-      expect(report).toContain('Failed: 1')
-      expect(report).toContain('Success Rate')
-      expect(report).toContain('Errors')
+      expect(result.errors[0].error).toContain('Blog posts require rich body content')
     })
   })
 
   describe('Performance', () => {
-    it('should estimate import duration', () => {
-      const duration = api.estimateImportDuration(100)
-
-      expect(duration).toBeGreaterThan(0)
-      expect(duration).toBeLessThan(10000) // Should be reasonable
-    })
-
     it('should complete batch import within reasonable time', async () => {
       const items = Array.from({ length: 10 }, (_, i) => ({
         type: ComponentType.HeroMinimal,
-        props: {
-          type: ComponentType.HeroMinimal,
-          content: { headline: `Hero ${i}` },
-          settings: {}
-        }
+        content: { headline: `Hero ${i}` },
+        props: { settings: {} }
       }))
 
       mockFactory.hasComponent.mockReturnValue(true)

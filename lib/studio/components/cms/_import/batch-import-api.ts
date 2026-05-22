@@ -1,11 +1,11 @@
 import { ComponentType } from '../_core/types'
-import { CMSComponentProps } from '../_core/types'
 import { CMSComponentFactory } from '../_factory/factory'
 import { performanceMonitor } from './performance'
 
 export interface BatchImportItem {
   type: ComponentType
-  props: CMSComponentProps
+  content: Record<string, any>
+  props?: Record<string, unknown>
   metadata?: Record<string, any>
 }
 
@@ -248,6 +248,27 @@ export class BatchImportAPI {
     item: BatchImportItem,
     index: number
   ): { valid: boolean; error?: string; details?: any } {
+    if (item.props && Object.prototype.hasOwnProperty.call(item.props, 'content')) {
+      return {
+        valid: false,
+        error: 'Batch import item props must not include content; use top-level content'
+      }
+    }
+
+    if (item.props && Object.prototype.hasOwnProperty.call(item.props, 'type')) {
+      return {
+        valid: false,
+        error: 'Batch import item props must not include type; use top-level type'
+      }
+    }
+
+    if (!item.content || typeof item.content !== 'object' || Array.isArray(item.content)) {
+      return {
+        valid: false,
+        error: 'Batch import item content must be a top-level object'
+      }
+    }
+
     // Check component type is registered
     if (!this.factory.hasComponent(item.type)) {
       return {
@@ -257,25 +278,8 @@ export class BatchImportAPI {
       }
     }
 
-    // Validate required props
-    if (!item.props) {
-      return {
-        valid: false,
-        error: 'Component props are required'
-      }
-    }
-
-    // Validate props structure
-    if (!item.props.type || !item.props.content) {
-      return {
-        valid: false,
-        error: 'Component props must include type and content',
-        details: { providedProps: Object.keys(item.props) }
-      }
-    }
-
     // Type-specific validation
-    const typeValidation = this.validateTypeSpecificProps(item.type, item.props)
+    const typeValidation = this.validateTypeSpecificContent(item.type, item.content)
     if (!typeValidation.valid) {
       return typeValidation
     }
@@ -286,12 +290,10 @@ export class BatchImportAPI {
   /**
    * Validate type-specific props
    */
-  private validateTypeSpecificProps(
+  private validateTypeSpecificContent(
     type: ComponentType,
-    props: CMSComponentProps
+    content: Record<string, any>
   ): { valid: boolean; error?: string; details?: any } {
-    const content = props.content as Record<string, any>
-
     // Type-specific validation rules
     switch (type) {
       case ComponentType.HeroMinimal:
