@@ -33,6 +33,139 @@ describe('normalizeAssetUrl', () => {
 })
 
 describe('buildUcsSiteSnapshot', () => {
+  it('skips pages when structures are empty', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'site',
+          name: 'Site',
+          description: null,
+          metadata: {},
+          settings: {}
+        })
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websitePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'page-1',
+            title: 'Home',
+            content: {
+              regions: [],
+              components: []
+            },
+            templateKey: null,
+            templateProps: {},
+            metadata: {},
+            structures: []
+          }
+        ])
+      },
+      websiteStructure: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      redirect: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.pages).toEqual([])
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'MISSING_STRUCTURE_ENTRY',
+        level: 'error',
+        message: 'Page page-1 skipped because WebsiteStructure.fullPath is missing',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-1'
+        })
+      })
+    ]))
+  })
+
+  it('does not use metadata.fullPath when structure fullPath is missing', async () => {
+    const prisma = {
+      website: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'site',
+          name: 'Site',
+          description: null,
+          metadata: {},
+          settings: {}
+        })
+      },
+      websiteSharedComponent: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websitePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'page-1',
+            title: 'Home',
+            content: {
+              regions: [],
+              components: []
+            },
+            templateKey: null,
+            templateProps: {},
+            metadata: {
+              fullPath: '/metadata-path'
+            },
+            structures: [
+              {
+                id: 'structure-1',
+                fullPath: null,
+                slug: 'home',
+                parentId: null,
+                position: 0
+              }
+            ]
+          }
+        ])
+      },
+      websiteStructure: {
+        findMany: jest.fn().mockResolvedValue([])
+      },
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      redirect: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.pages).toEqual([])
+    expect(snapshot.pages.find(page => page.fullPath === '/metadata-path')).toBeUndefined()
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'MISSING_STRUCTURE_ENTRY',
+        level: 'error',
+        message: 'Page page-1 skipped because WebsiteStructure.fullPath is missing',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-1'
+        })
+      })
+    ]))
+  })
+
   it('rejects legacy sections without promoting data.content into snapshot page components', async () => {
     const prisma = {
       website: {

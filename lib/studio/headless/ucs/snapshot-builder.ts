@@ -402,10 +402,28 @@ class PrismaSiteSnapshotBuilder {
       }
     })
 
-    return pages.map(page => this.toSnapshotPage(page))
+    return pages
+      .map(page => this.toSnapshotPage(page))
+      .filter((page): page is SnapshotPage => page !== null)
   }
 
-  private toSnapshotPage(page: PrismaPageWithStructure): SnapshotPage {
+  private toSnapshotPage(page: PrismaPageWithStructure): SnapshotPage | null {
+    const primaryStructure = Array.isArray(page.structures)
+      ? page.structures.find(entry => typeof entry.fullPath === 'string' && entry.fullPath.length > 0) ?? null
+      : null
+
+    const fullPath = primaryStructure?.fullPath
+
+    if (!primaryStructure || typeof fullPath !== 'string' || fullPath.length === 0) {
+      this.diagnostics.push({
+        code: 'MISSING_STRUCTURE_ENTRY',
+        level: 'error',
+        message: `Page ${page.id} skipped because WebsiteStructure.fullPath is missing`,
+        context: { websiteId: this.websiteId, pageId: page.id }
+      })
+      return null
+    }
+
     const { pageContent, diagnostics } = normalizePageContent(page.content)
     diagnostics.forEach(diagnostic => {
       this.diagnostics.push(mapNormalizerDiagnosticToGenerator(diagnostic, {
@@ -429,20 +447,6 @@ class PrismaSiteSnapshotBuilder {
     const templateProps = normalizeTemplateProps(page.templateProps)
     const metadata = normalizeMetadata(page.metadata)
     this.ensureSiteOrigin(metadata)
-    const metadataFullPath = typeof metadata.fullPath === 'string' ? metadata.fullPath : undefined
-    const primaryStructure = Array.isArray(page.structures)
-      ? page.structures.find(entry => entry.fullPath) ?? page.structures[0] ?? null
-      : null
-    const fullPath = primaryStructure?.fullPath ?? metadataFullPath ?? `/${page.id}`
-
-    if (!primaryStructure?.fullPath) {
-      this.diagnostics.push({
-        code: 'MISSING_STRUCTURE_ENTRY',
-        level: 'warn',
-        message: `Page ${page.id} is missing a WebsiteStructure entry; using fallback fullPath ${fullPath}`,
-        context: { pageId: page.id }
-      })
-    }
 
     const sharedRefs = components
       .map(component => resolveSharedComponentReference(component))
