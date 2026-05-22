@@ -41,6 +41,17 @@ export interface UpdateMemberInput {
   websiteIds?: string[];
 }
 
+function requireAccountRole(role: string, context: string): AccountRoleType {
+  switch (role) {
+    case AccountRole.owner:
+    case AccountRole.admin:
+    case AccountRole.member:
+      return role;
+    default:
+      throw new ApiError(500, `Invalid account role for ${context}: ${role}`, 'INVALID_ACCOUNT_ROLE');
+  }
+}
+
 // =============================================================================
 // Membership Service
 // =============================================================================
@@ -99,19 +110,23 @@ export class MembershipService {
       : [];
     const websiteMap = new Map(websites.map((w) => [w.id, w.name]));
 
-    const members: MemberWithDetails[] = memberships.map((m) => ({
-      id: m.id,
-      userId: m.userId,
-      email: m.user.email,
-      name: m.user.name,
-      role: m.role,
-      websiteAccess: m.websiteAccess,
-      websiteIds: m.websiteIds,
-      websiteNames: m.websiteIds.map((id) => websiteMap.get(id) ?? 'Unknown'),
-      invitedBy: m.invitedBy ? inviterMap.get(m.invitedBy) ?? null : null,
-      joinedAt: m.joinedAt,
-      createdAt: m.createdAt,
-    }));
+    const members: MemberWithDetails[] = memberships.map((m) => {
+      const role = requireAccountRole(m.role, `membership ${m.id}`);
+
+      return {
+        id: m.id,
+        userId: m.userId,
+        email: m.user.email,
+        name: m.user.name,
+        role,
+        websiteAccess: m.websiteAccess,
+        websiteIds: m.websiteIds,
+        websiteNames: m.websiteIds.map((id) => websiteMap.get(id) ?? 'Unknown'),
+        invitedBy: m.invitedBy ? inviterMap.get(m.invitedBy) ?? null : null,
+        joinedAt: m.joinedAt,
+        createdAt: m.createdAt,
+      };
+    });
 
     return { members, total };
   }
@@ -154,7 +169,7 @@ export class MembershipService {
       userId: membership.userId,
       email: membership.user.email,
       name: membership.user.name,
-      role: membership.role,
+      role: requireAccountRole(membership.role, `membership ${membership.id}`),
       websiteAccess: membership.websiteAccess,
       websiteIds: membership.websiteIds,
       websiteNames,
@@ -184,8 +199,13 @@ export class MembershipService {
       throw new ApiError(404, 'Member not found', 'NOT_FOUND');
     }
 
+    const membershipRole = requireAccountRole(membership.role, `membership ${membership.id}`);
+    const inputRole = input.role !== undefined
+      ? requireAccountRole(input.role, 'member update input')
+      : undefined;
+
     // Prevent removing the last admin
-    if (input.role === AccountRole.member && membership.role === AccountRole.admin) {
+    if (inputRole === AccountRole.member && membershipRole === AccountRole.admin) {
       const adminCount = await this.prisma.accountMembership.count({
         where: { accountId, role: AccountRole.admin },
       });
@@ -218,11 +238,11 @@ export class MembershipService {
     }
 
     const updateData: Prisma.AccountMembershipUpdateInput = {};
-    const oldRole = membership.role;
+    const oldRole = membershipRole;
     const oldAccess = membership.websiteAccess;
 
-    if (input.role !== undefined && input.role !== membership.role) {
-      updateData.role = input.role;
+    if (inputRole !== undefined && inputRole !== membershipRole) {
+      updateData.role = inputRole;
     }
 
     if (input.websiteAccess !== undefined && input.websiteAccess !== membership.websiteAccess) {
@@ -244,12 +264,12 @@ export class MembershipService {
     });
 
     // Log audit events
-    if (input.role !== undefined && input.role !== oldRole) {
+    if (inputRole !== undefined && inputRole !== oldRole) {
       await this.auditService.log(
         auditMemberRoleChanged(accountId, actorId, membershipId, {
           userId: membership.userId,
           oldRole,
-          newRole: input.role,
+          newRole: inputRole,
         })
       );
     }
@@ -293,13 +313,15 @@ export class MembershipService {
       throw new ApiError(404, 'Member not found', 'NOT_FOUND');
     }
 
+    const membershipRole = requireAccountRole(membership.role, `membership ${membership.id}`);
+
     // Prevent self-removal
     if (membership.userId === actorId) {
       throw new ApiError(400, 'Cannot remove yourself. Transfer ownership first.', 'SELF_REMOVAL');
     }
 
     // Prevent removing the last admin
-    if (membership.role === AccountRole.admin) {
+    if (membershipRole === AccountRole.admin) {
       const adminCount = await this.prisma.accountMembership.count({
         where: { accountId, role: AccountRole.admin },
       });
@@ -374,7 +396,7 @@ export class MembershipService {
     return memberships.map((m) => ({
       accountId: m.account.id,
       accountName: m.account.name,
-      role: m.role,
+      role: requireAccountRole(m.role, `membership ${m.id}`),
       websiteAccess: m.websiteAccess,
     }));
   }

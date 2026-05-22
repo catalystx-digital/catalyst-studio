@@ -49,6 +49,7 @@ import {
 import { useWebsiteContext } from '@/lib/context/website-context';
 import { useWebsites } from '@/lib/api/hooks/use-websites';
 import { cn } from '@/lib/utils';
+import type { WebsiteIconValue } from '@/types/api';
 
 interface SiteBuilderTopBarProps {
   websiteId: string | null;
@@ -56,6 +57,21 @@ interface SiteBuilderTopBarProps {
   onShortcutsClick?: () => void;
   onGenerateProposal?: () => void;
   onAISuggestions?: () => void;
+}
+
+function getWebsiteIconUrl(icon: WebsiteIconValue | null | undefined): string | null {
+  if (typeof icon === 'string') {
+    const trimmed = icon.trim();
+    return trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')
+      ? trimmed
+      : null;
+  }
+
+  if (!icon || typeof icon !== 'object') {
+    return null;
+  }
+
+  return icon.signedUrl ?? icon.publicUrl ?? icon.originalUrl ?? null;
 }
 
 export function SiteBuilderTopBar({
@@ -77,6 +93,7 @@ export function SiteBuilderTopBar({
   }
 
   const website = websiteContext?.website;
+  const websiteIconUrl = getWebsiteIconUrl(website?.icon);
 
   // Fetch all websites for the switcher dropdown
   const { data: allWebsites = [], isLoading: isLoadingWebsites } = useWebsites({
@@ -202,9 +219,9 @@ export function SiteBuilderTopBar({
               className="h-9 max-w-[200px] px-2 hover:bg-accent"
             >
               <div className="flex items-center gap-2 min-w-0">
-                {website?.favicon ? (
+                {websiteIconUrl ? (
                   <img
-                    src={website.favicon}
+                    src={websiteIconUrl}
                     alt=""
                     className="h-4 w-4 rounded flex-shrink-0"
                   />

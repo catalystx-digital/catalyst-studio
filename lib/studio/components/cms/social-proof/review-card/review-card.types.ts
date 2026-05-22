@@ -17,6 +17,6 @@ export interface ReviewCardContent {
   };
 }
 
-export interface ReviewCardProps extends CMSComponentProps {
+export interface ReviewCardProps extends Omit<CMSComponentProps, 'content'> {
   content: ReviewCardContent;
 }

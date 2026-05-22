@@ -186,7 +186,7 @@ function renderPreviewUnavailablePanel({
 
 async function resolveDesignSystemCss(websiteId: string, designConcept?: string): Promise<string | null> {
   let designConceptId: string | undefined
-  const db = prisma as {
+  const db = prisma as unknown as {
     websiteDesignConcept: {
       findFirst: (args: Record<string, unknown>) => Promise<{ id: string } | null>
     }

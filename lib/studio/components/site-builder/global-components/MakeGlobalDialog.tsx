@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Globe, AlertTriangle } from 'lucide-react';
-import { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance';
+import { ComponentInstance, resolveSharedComponentReference } from '@/lib/studio/types/site-builder/component-instance';
 import { useSiteBuilderStore } from '@/lib/studio/stores/site-builder-store';
 
 interface MakeGlobalDialogProps {
@@ -29,7 +29,7 @@ interface MakeGlobalDialogProps {
   onClose: () => void;
   component: ComponentInstance | null;
   websiteId: string;
-  onSuccess?: (globalComponentId: string) => void;
+  onSuccess?: (sharedComponentId: string) => void;
 }
 
 const COMPONENT_CATEGORIES = [
@@ -83,6 +83,15 @@ export function MakeGlobalDialog({
   const hasCircularDependency = (component: ComponentInstance): boolean => {
     // Check if this component contains or references any global components
     // that might create a circular dependency
+    const isComponentLike = (value: unknown): value is ComponentInstance => {
+      return (
+        !!value &&
+        typeof value === 'object' &&
+        typeof (value as { id?: unknown }).id === 'string' &&
+        typeof (value as { type?: unknown }).type === 'string'
+      );
+    };
+
     const checkForGlobalReferences = (comp: ComponentInstance, visited = new Set<string>()): boolean => {
       // Prevent infinite loops in already circular structures
       if (visited.has(comp.id)) {
@@ -91,7 +100,7 @@ export function MakeGlobalDialog({
       visited.add(comp.id);
       
       // Check if this component itself is already global
-      if (comp.metadata?.isGlobal || comp.globalComponentId) {
+      if (comp.metadata?.isGlobal || resolveSharedComponentReference(comp)) {
         return true; // Would create nested global components
       }
       
@@ -103,13 +112,13 @@ export function MakeGlobalDialog({
           if (comp.props[prop]) {
             if (Array.isArray(comp.props[prop])) {
               for (const child of comp.props[prop]) {
-                if (child && typeof child === 'object' && child.id) {
+                if (isComponentLike(child)) {
                   if (checkForGlobalReferences(child, new Set(visited))) {
                     return true;
                   }
                 }
               }
-            } else if (typeof comp.props[prop] === 'object' && comp.props[prop].id) {
+            } else if (isComponentLike(comp.props[prop])) {
               if (checkForGlobalReferences(comp.props[prop], new Set(visited))) {
                 return true;
               }

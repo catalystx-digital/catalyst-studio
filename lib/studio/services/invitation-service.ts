@@ -13,7 +13,7 @@ import {
   Prisma,
 } from '@/lib/generated/prisma';
 import { ApiError } from '@/lib/api/errors';
-import { AccountRoleType } from '@/lib/auth/account';
+import { AccountRole, type AccountRoleType } from '@/lib/auth/account';
 import { AuditService, auditInvitationCreated, auditInvitationAccepted } from './audit-service';
 
 // =============================================================================
@@ -68,6 +68,16 @@ export interface AcceptInvitationResult {
 const INVITATION_EXPIRY_DAYS = parseInt(process.env.INVITATION_EXPIRY_DAYS ?? '30', 10);
 const INVITATION_RESEND_LIMIT = parseInt(process.env.INVITATION_RESEND_LIMIT ?? '3', 10);
 const TOKEN_LENGTH = 32; // 32 bytes = 64 hex characters
+function requireAccountRole(role: string, context: string): AccountRoleType {
+  switch (role) {
+    case AccountRole.owner:
+    case AccountRole.admin:
+    case AccountRole.member:
+      return role;
+    default:
+      throw new ApiError(500, `Invalid account role for ${context}: ${role}`, 'INVALID_ACCOUNT_ROLE');
+  }
+}
 
 // =============================================================================
 // Invitation Service
@@ -89,6 +99,7 @@ export class InvitationService {
     input: CreateInvitationInput
   ): Promise<{ invitation: InvitationWithDetails; actionLink: string }> {
     const normalizedEmail = input.email.toLowerCase().trim();
+    const role = requireAccountRole(input.role, 'invitation create input');
 
     // Validate email format
     if (!this.isValidEmail(normalizedEmail)) {
@@ -155,7 +166,7 @@ export class InvitationService {
       data: {
         accountId,
         email: normalizedEmail,
-        role: input.role,
+        role,
         websiteAccess: input.websiteAccess,
         websiteIds: input.websiteIds ?? [],
         token,
@@ -170,7 +181,7 @@ export class InvitationService {
     await this.auditService.log(
       auditInvitationCreated(accountId, invitedBy, invitation.id, {
         email: normalizedEmail,
-        role: input.role,
+        role,
         websiteAccess: input.websiteAccess,
       })
     );
@@ -239,21 +250,25 @@ export class InvitationService {
       : [];
     const websiteMap = new Map(websites.map((w) => [w.id, w.name]));
 
-    const invitationsWithDetails: InvitationWithDetails[] = invitations.map((inv) => ({
-      id: inv.id,
-      email: inv.email,
-      role: inv.role,
-      websiteAccess: inv.websiteAccess,
-      websiteIds: inv.websiteIds,
-      websiteNames: inv.websiteIds.map((id) => websiteMap.get(id) ?? 'Unknown'),
-      status: inv.status,
-      invitedBy: inviterMap.get(inv.invitedBy) ?? { id: inv.invitedBy, name: null, email: null },
-      emailStatus: inv.emailStatus,
-      emailSentAt: inv.emailSentAt,
-      expiresAt: inv.expiresAt,
-      respondedAt: inv.respondedAt,
-      createdAt: inv.createdAt,
-    }));
+    const invitationsWithDetails: InvitationWithDetails[] = invitations.map((inv) => {
+      const role = requireAccountRole(inv.role, `invitation ${inv.id}`);
+
+      return {
+        id: inv.id,
+        email: inv.email,
+        role,
+        websiteAccess: inv.websiteAccess,
+        websiteIds: inv.websiteIds,
+        websiteNames: inv.websiteIds.map((id) => websiteMap.get(id) ?? 'Unknown'),
+        status: inv.status,
+        invitedBy: inviterMap.get(inv.invitedBy) ?? { id: inv.invitedBy, name: null, email: null },
+        emailStatus: inv.emailStatus,
+        emailSentAt: inv.emailSentAt,
+        expiresAt: inv.expiresAt,
+        respondedAt: inv.respondedAt,
+        createdAt: inv.createdAt,
+      };
+    });
 
     return { invitations: invitationsWithDetails, total };
   }
@@ -287,7 +302,7 @@ export class InvitationService {
     return {
       id: invitation.id,
       email: invitation.email,
-      role: invitation.role,
+      role: requireAccountRole(invitation.role, `invitation ${invitation.id}`),
       websiteAccess: invitation.websiteAccess,
       websiteIds: invitation.websiteIds,
       websiteNames,
@@ -337,7 +352,7 @@ export class InvitationService {
       invitation: {
         id: invitation.id,
         email: invitation.email,
-        role: invitation.role,
+        role: requireAccountRole(invitation.role, `invitation ${invitation.id}`),
         websiteAccess: invitation.websiteAccess,
         websiteIds: invitation.websiteIds,
         websiteNames,
@@ -464,6 +479,7 @@ export class InvitationService {
 
     // Validate invitation state
     this.validateForAccept(invitation, userEmail);
+    const role = requireAccountRole(invitation.role, `invitation ${invitation.id}`);
 
     // Filter out any deleted websites from websiteIds
     const validWebsiteIds = invitation.websiteIds.length
@@ -480,7 +496,7 @@ export class InvitationService {
       data: {
         accountId: invitation.accountId,
         userId,
-        role: invitation.role,
+        role,
         websiteAccess: invitation.websiteAccess,
         websiteIds: validWebsiteIds,
         invitedBy: invitation.invitedBy,
@@ -501,7 +517,7 @@ export class InvitationService {
     await this.auditService.log(
       auditInvitationAccepted(invitation.accountId, userId, invitationId, {
         membershipId: membership.id,
-        role: invitation.role,
+        role,
       })
     );
 
@@ -509,7 +525,7 @@ export class InvitationService {
       membership: {
         id: membership.id,
         accountId: membership.accountId,
-        role: membership.role,
+        role: requireAccountRole(membership.role, `membership ${membership.id}`),
         websiteAccess: membership.websiteAccess,
         websiteIds: membership.websiteIds,
       },

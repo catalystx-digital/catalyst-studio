@@ -1,8 +1,8 @@
-import { CMSComponentProps } from '../../_core/types';
+import { CMSComponentProps, ComponentContent } from '../../_core/types';
 import { RichText } from '../../_core/rich-text';
 import { type Testimonial } from '@/lib/studio/components/cms/_core/value-objects';
 
-export interface TestimonialGridContent {
+export interface TestimonialGridContent extends ComponentContent {
   testimonials: GridTestimonial[];
   columns?: {
     desktop?: number; // >1024px
@@ -15,6 +15,6 @@ export interface TestimonialGridContent {
 // Using Testimonial from value-objects registry
 export type GridTestimonial = Testimonial;
 
-export interface TestimonialGridProps extends CMSComponentProps {
+export interface TestimonialGridProps extends Omit<CMSComponentProps, 'content'> {
   content: TestimonialGridContent;
 }

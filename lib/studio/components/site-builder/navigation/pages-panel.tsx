@@ -110,7 +110,8 @@ export function PagesPanel({ onSelectPage }: PagesPanelProps) {
       }
 
       // Check if home page
-      const slug = (data as Record<string, unknown>)?.slug as string | undefined;
+      const nodeDataRecord = data as unknown as Record<string, unknown>;
+      const slug = nodeDataRecord.slug as string | undefined;
       const isHome = slug === '' || slug === '/' ||
         data?.label?.toLowerCase() === 'home' ||
         node.id === 'home';
@@ -121,11 +122,11 @@ export function PagesPanel({ onSelectPage }: PagesPanelProps) {
         slug: slug || `/${node.id}`,
         status,
         isHome,
-        parentId: (data as Record<string, unknown>)?.parentId as string | null ?? null,
+        parentId: nodeDataRecord.parentId as string | null ?? null,
         children: [],
         depth: 0,
         componentsCount: Array.isArray(data?.components) ? data.components.length : 0,
-        weight: (data as Record<string, unknown>)?.weight as number ?? 0,
+        weight: nodeDataRecord.weight as number ?? 0,
       };
 
       nodeMap.set(node.id, pageNode);

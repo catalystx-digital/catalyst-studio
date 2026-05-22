@@ -14,7 +14,7 @@ import { LAYOUT } from '@/lib/studio/constants/layout-constants'
 import { GlobalBadge } from './global-components/GlobalBadge'
 import { MakeGlobalDialog } from './global-components/MakeGlobalDialog'
 import { useSiteBuilderStore } from '@/lib/studio/stores/site-builder-store'
-import { ComponentInstance, ComponentInstanceArray, isComponentInstanceArray } from '@/lib/studio/types/site-builder/component-instance'
+import { ComponentInstance, ComponentInstanceArray, isComponentInstanceArray, resolveSharedComponentReference } from '@/lib/studio/types/site-builder/component-instance'
 import type { ComponentData } from '@/lib/studio/components/site-builder/types'
 import { PageContextMenu, type PageContextMenuAction } from './page-context-menu'
 
@@ -239,10 +239,21 @@ export const migrateComponentsToInstances = (components: any): ComponentInstance
     if (process.env.NODE_ENV === 'development') {
     console.log('[Site Builder] Components already in new format')
     }
-    return components.map((component) => ({
-      ...component,
-      content: getCanonicalContent(component)
-    })) as ComponentInstanceArray
+    return components.map((component) => {
+      const {
+        globalComponentId: _globalComponentId,
+        sharedComponentId: _sharedComponentId,
+        ...canonicalComponent
+      } = component as ComponentInstance & {
+        globalComponentId?: unknown
+        sharedComponentId?: unknown
+      }
+
+      return {
+        ...canonicalComponent,
+        content: getCanonicalContent(component)
+      }
+    }) as ComponentInstanceArray
   }
   
   // If it's an array, check what type of data we have
@@ -310,16 +321,24 @@ export const migrateComponentsToInstances = (components: any): ComponentInstance
           }
         }
 
+        const sharedComponentId =
+          typeof component.props?.sharedComponentId === 'string'
+            ? component.props.sharedComponentId
+            : undefined
+
         return {
           id: componentId,
           type: component.type,
           parentId: component.parentId || null,
           position: component.position ?? index,
-          props: { ...extractedProps, ...(component.props || {}) },
+          props: {
+            ...extractedProps,
+            ...(component.props || {}),
+            ...(sharedComponentId ? { sharedComponentId } : {})
+          },
           content: getCanonicalContent(component),
           styles: component.props?.styles || component.styles || {},
           metadata: component.props?.metadata || component.metadata || {},
-          globalComponentId: component.globalComponentId
         }
       })
     }
@@ -377,7 +396,7 @@ export interface ProfessionalNodeData {
   onComponentAdd?: (nodeId: string, component: string, afterIndex?: number) => void
   onComponentRemove?: (nodeId: string, componentIndex: number) => void
   onAddPage?: (nodeId: string, position: 'top' | 'bottom' | 'left' | 'right') => void
-  onComponentMadeGlobal?: (nodeId: string, component: ComponentInstance, globalComponentId: string) => void
+  onComponentMadeGlobal?: (nodeId: string, component: ComponentInstance, sharedComponentId: string) => void
   onComponentClick?: (component: ComponentInstance) => void
   onNodeClick?: (nodeId: string) => void
   onContextMenuAction?: (nodeId: string, action: PageContextMenuAction) => void
@@ -416,7 +435,7 @@ interface ComponentItemProps {
   onComponentRemove?: (nodeId: string, index: number) => void
   onComponentAdd?: (nodeId: string, component: string, afterIndex?: number) => void
   onComponentClick?: (component: ComponentInstance) => void
-  onComponentMadeGlobal?: (component: ComponentInstance, globalComponentId: string) => void
+  onComponentMadeGlobal?: (component: ComponentInstance, sharedComponentId: string) => void
   onComponentsReorder?: (nodeId: string, components: ComponentInstanceArray) => void
   allComponents?: ComponentInstanceArray
   isGlobal?: boolean
@@ -435,7 +454,8 @@ const ComponentItem = memo(({ component, index, nodeId, totalComponents, onCompo
   const selectedGlobalKey = useMemo(() => {
     const sel = getSelectedComponent?.()
     if (!sel) return null
-    if ((sel as any).globalComponentId) return `id:${(sel as any).globalComponentId}`
+    const sharedId = resolveSharedComponentReference(sel)
+    if (sharedId) return `id:${sharedId}`
     const t = String(sel.type || '').toLowerCase()
     if (t === 'navbar' || t === 'footer' || t === 'header') return `type:${t}`
     return null
@@ -444,13 +464,15 @@ const ComponentItem = memo(({ component, index, nodeId, totalComponents, onCompo
   
   // Check if global (prefer prop, fallback to store detection, then heuristic by type)
   const globalComponents = useSiteBuilderStore(state => state.globalComponents)
-  const detectedGlobal = component.globalComponentId 
-    ? globalComponents.has(component.globalComponentId) 
+  const sharedComponentId = resolveSharedComponentReference(component)
+  const detectedGlobal = sharedComponentId
+    ? globalComponents.has(sharedComponentId)
     : component.metadata?.isGlobal || false
   const isGlobalComponent = typeof isGlobal === 'boolean' ? isGlobal : detectedGlobal
 
   const ownGlobalKey = useMemo(() => {
-    if ((component as any).globalComponentId) return `id:${(component as any).globalComponentId}`
+    const sharedId = resolveSharedComponentReference(component)
+    if (sharedId) return `id:${sharedId}`
     return null
   }, [component])
 
@@ -723,7 +745,7 @@ export const ProfessionalPageNode = memo(({ id, data, selected }: NodeProps<Prof
   // Provides clear feedback that a component was selected and editor is opening
   const handleComponentClick = useCallback((component: ComponentInstance) => {
     setSelectedComponentId(component.id)
-    const globalId = (component as any).globalComponentId as string | undefined
+    const globalId = resolveSharedComponentReference(component)
 
     // Only show toast for global components (important warning about multi-page impact)
     if (globalId && globalComponentsMap.has(globalId)) {
@@ -1336,10 +1358,6 @@ export const professionalNodeTypes = {
   folder: ProfessionalFolderNode,
   redirect: ProfessionalRedirectNode,
 }
-
-
-
-
 
 
 

@@ -28,7 +28,7 @@ describe('PricingCard Component', () => {
       ],
       ctaText: 'Get Started',
       ctaUrl: '/signup/pro',
-      badge: 'Best Value',
+      badge: { text: 'Best Value' },
       highlighted: true
     }
   };
@@ -59,6 +59,20 @@ describe('PricingCard Component', () => {
   it('shows badge when provided', () => {
     render(<PricingCard {...defaultProps} />);
     expect(screen.getByText('Best Value')).toBeInTheDocument();
+  });
+
+  it('renders a configured badge icon', () => {
+    const propsWithBadgeIcon = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        badge: { text: 'Best Value', icon: 'Star' }
+      }
+    };
+
+    render(<PricingCard {...propsWithBadgeIcon} />);
+    expect(screen.getByText('Best Value')).toBeInTheDocument();
+    expect(document.querySelector('.lucide-star')).toBeInTheDocument();
   });
 
   it('renders included features with checkmarks', () => {

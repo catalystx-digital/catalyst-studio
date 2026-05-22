@@ -198,6 +198,9 @@ const extractImportProgressMetadata = (message: Message): ImportProgressMetadata
 
 const TERMINAL_IMPORT_CARD_STATUSES = new Set(['failed', 'cancelled', 'recoverable_stuck', 'unknown'])
 
+const toSkippedPageDetails = (skippedPages: string[]): Array<{ url: string; reason: string }> =>
+  skippedPages.map((url) => ({ url, reason: 'Skipped' }))
+
 // AI SDK v5: serializeScope is no longer needed since we don't send scope via annotations
 // Keeping for potential future use with transport body customization
 
@@ -663,7 +666,7 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
                     status={progressState.status}
                     queuePosition={progressState.queuePosition}
                     estimatedStartSeconds={progressState.estimatedStartSeconds}
-                    skippedPages={progressState.skippedPages}
+                    skippedPages={toSkippedPageDetails(progressState.skippedPages)}
                     errorCount={progressState.errorCount}
                     sticky={false}
                     className="border-catalyst-orange/20"

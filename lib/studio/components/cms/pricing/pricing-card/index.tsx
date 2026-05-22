@@ -12,6 +12,7 @@ import {
   validateUrl,
 } from '@/lib/studio/components/cms/_core/security';
 import { withPerformanceTracking } from '@/lib/studio/components/cms/_core/monitoring';
+import { resolveCmsIcon } from '@/lib/studio/components/cms/_utils/icon-resolver';
 
 import {
   Tooltip,
@@ -149,9 +150,12 @@ const PricingCardComponent: React.FC<PricingCardProps> = ({
         <div className="absolute right-4 top-4">
           <CmsBadge
             variant={highlighted ? 'accent' : 'neutral'}
-            className="uppercase tracking-wide"
+            className="inline-flex items-center gap-1 uppercase tracking-wide"
           >
-            {sanitizeText(badge)}
+            {badge.icon
+              ? resolveCmsIcon(badge.icon, { className: 'h-3 w-3' })
+              : null}
+            {sanitizeText(badge.text)}
           </CmsBadge>
         </div>
       )}

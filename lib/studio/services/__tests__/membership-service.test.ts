@@ -2,7 +2,8 @@
  * MembershipService Unit Tests
  */
 
-import { AccountRole, AuditAction } from '@/lib/generated/prisma';
+import { AuditAction } from '@/lib/generated/prisma';
+import { AccountRole } from '@/lib/auth/account';
 import { MembershipService } from '../membership-service';
 import { ApiError } from '@/lib/api/errors';
 
@@ -223,6 +224,30 @@ describe('MembershipService', () => {
       const result = await service.getById(TEST_ACCOUNT_ID, 'non-existent');
 
       expect(result).toBeNull();
+    });
+
+    it('throws an explicit error for invalid stored roles', async () => {
+      prismaMock.accountMembership.findFirst.mockResolvedValue({
+        id: TEST_MEMBERSHIP_ID,
+        accountId: TEST_ACCOUNT_ID,
+        userId: TEST_USER_ID,
+        role: 'legacy-admin',
+        websiteAccess: 'all',
+        websiteIds: [],
+        invitedBy: null,
+        joinedAt: new Date(),
+        createdAt: new Date(),
+        user: {
+          id: TEST_USER_ID,
+          email: 'member@example.com',
+          name: 'Test Member',
+        },
+      });
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getById(TEST_ACCOUNT_ID, TEST_MEMBERSHIP_ID)).rejects.toMatchObject({
+        code: 'INVALID_ACCOUNT_ROLE',
+      });
     });
   });
 

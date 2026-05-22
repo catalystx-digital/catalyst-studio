@@ -660,6 +660,30 @@ describe('InvitationService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('throws an explicit error for invalid stored roles', async () => {
+      prismaMock.invitation.findUnique.mockResolvedValue({
+        id: TEST_INVITATION_ID,
+        accountId: TEST_ACCOUNT_ID,
+        email: TEST_EMAIL,
+        role: 'legacy-admin',
+        websiteAccess: 'all',
+        websiteIds: [],
+        status: InvitationStatus.pending,
+        invitedBy: TEST_USER_ID,
+        emailStatus: EmailDeliveryStatus.sent,
+        emailSentAt: new Date(),
+        expiresAt: new Date(),
+        respondedAt: null,
+        createdAt: new Date(),
+        account: { id: TEST_ACCOUNT_ID, name: 'Test Account' },
+      });
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getByToken('test-token')).rejects.toMatchObject({
+        code: 'INVALID_ACCOUNT_ROLE',
+      });
+    });
   });
 
   describe('markExpired', () => {

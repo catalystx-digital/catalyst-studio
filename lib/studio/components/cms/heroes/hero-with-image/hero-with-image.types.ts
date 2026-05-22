@@ -28,6 +28,6 @@ export interface HeroWithImageContent {
   ctaButtons?: HeroWithImageCTA[]
 }
 
-export interface HeroWithImageProps extends CMSComponentProps {
+export interface HeroWithImageProps extends Omit<CMSComponentProps, 'content'> {
   content: HeroWithImageContent
 }

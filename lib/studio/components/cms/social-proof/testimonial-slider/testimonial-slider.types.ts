@@ -13,6 +13,6 @@ export interface TestimonialSliderContent {
 // Using Testimonial from value-objects registry
 export type Testimonial = TestimonialVO;
 
-export interface TestimonialSliderProps extends CMSComponentProps {
+export interface TestimonialSliderProps extends Omit<CMSComponentProps, 'content'> {
   content: TestimonialSliderContent;
 }

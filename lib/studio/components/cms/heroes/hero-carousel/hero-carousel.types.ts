@@ -63,7 +63,7 @@ export interface HeroCarouselContent {
   theme?: ComponentTheme;
 }
 
-export interface HeroCarouselProps extends CMSComponentProps {
+export interface HeroCarouselProps extends Omit<CMSComponentProps, 'content'> {
   content: HeroCarouselContent;
   analyticsId?: string;
 }
