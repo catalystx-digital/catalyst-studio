@@ -226,4 +226,85 @@ describe('two-column legacy entry upgrades', () => {
     expect(cta.content.primaryButton.url).toBe('https://careers.example.com')
     expect(cta.content.primaryButton.text).toBe('Explore roles')
   })
+
+  it('converts html-block entries from canonical bodyHtml', () => {
+    const component = createTwoColumnComponent({
+      rightColumn: [
+        {
+          type: 'html-block',
+          title: 'Canonical HTML',
+          bodyHtml: '<p>Canonical content</p>'
+        }
+      ]
+    })
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const areas = (enriched.content as Record<string, any>).areas
+
+    expect(areas.right).toHaveLength(1)
+    expect(areas.right[0].type).toBe(ComponentType.HtmlBlock)
+    expect(areas.right[0].category).toBe(ComponentCategory.Content)
+    expect(areas.right[0].content).toEqual({
+      title: 'Canonical HTML',
+      bodyHtml: '<p>Canonical content</p>'
+    })
+  })
+
+  it.each([
+    ['html', { html: '<p>Legacy HTML field</p>' }],
+    ['body', { body: '<p>Legacy body field</p>' }]
+  ])('does not synthesize html-block bodyHtml from legacy %s', (_field, legacyContent) => {
+    const component = createTwoColumnComponent({
+      rightColumn: [
+        {
+          type: 'html-block',
+          title: 'Canonical title',
+          ...legacyContent
+        }
+      ]
+    })
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const areas = (enriched.content as Record<string, any>).areas
+
+    expect(areas.right).toHaveLength(1)
+    expect(areas.right[0].type).toBe(ComponentType.HtmlBlock)
+    expect(areas.right[0].content).toEqual({
+      title: 'Canonical title',
+      bodyHtml: ''
+    })
+    expect(JSON.stringify(areas.right[0].content)).not.toContain('Legacy')
+  })
+
+  it.each([
+    ['partial CMS shape', { content: { html: '<p>Legacy nested HTML</p>' } }],
+    ['full CMS shape', {
+      id: 'html-block-1',
+      category: ComponentCategory.Content,
+      theme: 'auto',
+      variant: 'default',
+      content: { body: '<p>Legacy nested body</p>' }
+    }]
+  ])('does not preserve html-block legacy fields from %s', (_label, entryShape) => {
+    const component = createTwoColumnComponent({
+      rightColumn: [
+        {
+          type: 'html-block',
+          ...entryShape
+        }
+      ]
+    })
+
+    const enriched = enrichComponentFromShared(component, undefined, { assetOrigin: undefined })
+    const areas = (enriched.content as Record<string, any>).areas
+
+    expect(areas.right).toHaveLength(1)
+    expect(areas.right[0].type).toBe(ComponentType.HtmlBlock)
+    expect(areas.right[0].content).toEqual({
+      bodyHtml: ''
+    })
+    expect(JSON.stringify(areas.right[0].content)).not.toContain('Legacy')
+    expect(areas.right[0].content).not.toHaveProperty('html')
+    expect(areas.right[0].content).not.toHaveProperty('body')
+  })
 })

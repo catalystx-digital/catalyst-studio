@@ -2,7 +2,8 @@ import { PrismaClient, type WebsiteDesignConcept } from '@/lib/generated/prisma'
 import {
   ComponentCategory,
   ComponentType,
-  type CMSComponentProps
+  type CMSComponentProps,
+  type ComponentTheme
 } from '@/lib/studio/components/cms/_core/types'
 import { resolveSharedComponentReference, type ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
 import {
@@ -1426,13 +1427,7 @@ const LEGACY_TWO_COLUMN_MAPPERS: Record<string, LegacyTwoColumnMapper> = {
     }
   },
   'html-block': ({ entry }) => {
-    // html-block PropsMeta expects 'bodyHtml', not 'html'
-    // Check bodyHtml first (correct field), then fallback to legacy html/body fields
-    const bodyHtml =
-      NON_EMPTY_STRING(entry.bodyHtml) ??
-      NON_EMPTY_STRING(entry.html) ??
-      NON_EMPTY_STRING(entry.body) ??
-      ''
+    const bodyHtml = NON_EMPTY_STRING(entry.bodyHtml) ?? ''
     const title = NON_EMPTY_STRING(entry.title)
 
     return {
@@ -2040,6 +2035,39 @@ function convertLegacyTwoColumnEntry(context: LegacyTwoColumnMapperContext): CMS
   }
 }
 
+function canonicalizeCmsShapedEntry(
+  entry: Record<string, unknown>,
+  fallbackId: string,
+  fallbackCategory: ComponentCategory
+): CMSComponentProps {
+  const entryType = String(entry.type)
+  const rawContent = isRecord(entry.content)
+    ? entry.content
+    : (() => {
+        const { id: _id, type: _type, category: _cat, theme: _th, variant: _var, ...rest } = entry
+        return rest
+      })()
+  const content = entryType === ComponentType.HtmlBlock || entryType === 'html-block'
+    ? {
+        ...(typeof rawContent.title === 'string' && rawContent.title.trim().length > 0
+          ? { title: rawContent.title.trim() }
+          : {}),
+        bodyHtml: NON_EMPTY_STRING(rawContent.bodyHtml) ?? ''
+      }
+    : rawContent
+
+  return {
+    id: typeof entry.id === 'string' ? entry.id : fallbackId,
+    type: entryType as ComponentType,
+    category: typeof entry.category === 'string'
+      ? entry.category as ComponentCategory
+      : fallbackCategory,
+    theme: typeof entry.theme === 'string' ? entry.theme as ComponentTheme : 'auto',
+    variant: typeof entry.variant === 'string' ? entry.variant : 'default',
+    content
+  }
+}
+
 function upgradeTwoColumnContent(
   content: Record<string, unknown>,
   component: ComponentInstance,
@@ -2088,8 +2116,11 @@ function upgradeTwoColumnContent(
         isRecord(entry.content)
 
       if (hasFullShape) {
-        // Already in CMS format, just clone and use
-        migrated.push(cloneJson(entry) as unknown as CMSComponentProps)
+        migrated.push(canonicalizeCmsShapedEntry(
+          entry,
+          createSlotComponentId(component.id, side, index),
+          entry.category as ComponentCategory
+        ))
         return
       }
 
@@ -2105,27 +2136,9 @@ function upgradeTwoColumnContent(
           ? entry.id
           : createSlotComponentId(component.id, side, index)
 
-        // Determine content: use existing content wrapper, or wrap top-level props
-        let entryContent: Record<string, unknown>
-        if (isRecord(entry.content)) {
-          entryContent = entry.content
-        } else {
-          // Extract content fields from entry (excluding meta fields)
-          const { id: _id, type: _type, category: _cat, theme: _th, variant: _var, ...rest } = entry
-          entryContent = rest
-        }
-
-        // Resolve category from type
         const resolvedCategory = resolveCategoryFromType(entryType)
 
-        migrated.push({
-          id: entryId,
-          type: entryType as ComponentType,
-          category: resolvedCategory,
-          theme: 'auto',
-          variant: 'default',
-          content: entryContent
-        })
+        migrated.push(canonicalizeCmsShapedEntry(entry, entryId, resolvedCategory))
         return
       }
 
