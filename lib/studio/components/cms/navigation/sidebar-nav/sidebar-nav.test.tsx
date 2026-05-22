@@ -38,4 +38,22 @@ describe('SidebarNav', () => {
     render(<SidebarNav {...mockProps} />);
     expect(screen.getByRole('navigation')).toBeInTheDocument();
   });
+
+  it('does not render unsafe structured hrefs', () => {
+    render(
+      <SidebarNav
+        {...mockProps}
+        content={{
+          items: [
+            {
+              label: 'Unsafe',
+              href: { type: 'external', url: 'javascript:alert(1)' },
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Unsafe' })).not.toBeInTheDocument();
+  });
 });

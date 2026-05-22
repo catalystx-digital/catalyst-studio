@@ -12,6 +12,8 @@ import {
   validateUrl,
 } from '@/lib/studio/components/cms/_core/security';
 import { withPerformanceTracking } from '@/lib/studio/components/cms/_core/monitoring';
+import { normalizeCmsImage } from '@/lib/studio/components/cms/_utils/media-reference';
+import { isSafeSmartLinkHref, resolveSmartLinkHref } from '@/lib/studio/components/cms/_utils/smart-link';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -28,6 +30,15 @@ import {
 } from '../../_ui';
 
 type EventType = NonNullable<TimelineEvent['type']>;
+type ResolvedTimelineAction = {
+  text: string;
+  href: string;
+  variant?: TimelineAction['variant'];
+};
+type ResolvedTimelineLink = {
+  text: string;
+  href: string;
+};
 
 const BASE_INDICATOR_CLASS =
   'cms-timeline-indicator flex items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm';
@@ -61,6 +72,10 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
   default: 'Update',
 };
 
+function isSafeTimelineHref(href: string): boolean {
+  return isSafeSmartLinkHref(href) || validateUrl(href.trim());
+}
+
 function getIndicatorClass(type?: TimelineEvent['type']): string {
   if (!type) {
     return BASE_INDICATOR_CLASS;
@@ -83,6 +98,62 @@ function getTypeLabel(type?: TimelineEvent['type']): string | null {
   }
 
   return EVENT_TYPE_LABELS[type] ?? EVENT_TYPE_LABELS.default;
+}
+
+function getTimelineActionHref(action: unknown): string | undefined {
+  if (!action || typeof action !== 'object') {
+    return undefined;
+  }
+
+  const record = action as Record<string, unknown>;
+  const href = resolveSmartLinkHref(record.href);
+  if (href && isSafeTimelineHref(href)) {
+    return href;
+  }
+
+  if (typeof record.url === 'string') {
+    const url = record.url.trim();
+    return isSafeTimelineHref(url) ? url : undefined;
+  }
+
+  const url = resolveSmartLinkHref(record.url);
+  return url && isSafeTimelineHref(url) ? url : undefined;
+}
+
+function getTimelineActionText(action: unknown): string | undefined {
+  if (!action || typeof action !== 'object') {
+    return undefined;
+  }
+
+  const record = action as Record<string, unknown>;
+  return typeof record.text === 'string'
+    ? record.text
+    : typeof record.label === 'string'
+      ? record.label
+      : undefined;
+}
+
+function resolveTimelineAction(action: unknown): ResolvedTimelineAction | null {
+  const href = getTimelineActionHref(action);
+  const text = getTimelineActionText(action);
+
+  if (!href || !text) {
+    return null;
+  }
+
+  const variant =
+    action && typeof action === 'object'
+      ? (action as { variant?: TimelineAction['variant'] }).variant
+      : undefined;
+
+  return { text, href, variant };
+}
+
+function resolveTimelineLink(link: unknown): ResolvedTimelineLink | null {
+  const href = getTimelineActionHref(link);
+  const text = getTimelineActionText(link);
+
+  return href && text ? { text, href } : null;
 }
 
 function renderIcon(
@@ -147,8 +218,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
   } = content;
 
   const timelineEvents = Array.isArray(events) ? events : [];
-  const sectionFooterCta =
-    content.footerCta && validateUrl(content.footerCta.href || content.footerCta.url) ? content.footerCta : undefined;
+  const sectionFooterCta = resolveTimelineAction(content.footerCta);
 
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set());
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -205,7 +275,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
   const resolvedTheme = resolveTheme(theme);
 
   // Memoize theme class to avoid recalculating on every render
-  const resolvedThemeClass = useMemo(() => resolvedThemeClass, [resolvedTheme]);
+  const resolvedThemeClass = useMemo(() => themeClass(resolvedTheme), [resolvedTheme]);
   const sectionClassName = cn('cms-timeline', className);
   const sectionContainerClassName = cn('items-stretch', dsSpacing.gap('lg'));
 
@@ -218,10 +288,10 @@ const TimelineComponent: React.FC<TimelineProps> = ({
   };
 
   const renderEventActions = (event: TimelineEvent, className?: string) => {
-    const actionButtons: TimelineAction[] = Array.isArray(event.actions)
-      ? event.actions.filter(
-          (action) => action && typeof action === 'object' && validateUrl(action.url),
-        )
+    const actionButtons = Array.isArray(event.actions)
+      ? event.actions
+          .map(resolveTimelineAction)
+          .filter((action): action is ResolvedTimelineAction => Boolean(action))
       : [];
 
     if (actionButtons.length > 0) {
@@ -233,7 +303,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
               type="button"
               variant={action.variant === 'accent' ? 'default' : action.variant === 'neutral' ? 'secondary' : 'outline'}
               size="sm"
-              onClick={() => openLink(action.url)}
+              onClick={() => openLink(action.href)}
             >
               {sanitizeText(action.text)}
             </Button>
@@ -242,16 +312,18 @@ const TimelineComponent: React.FC<TimelineProps> = ({
       );
     }
 
-    if (event.link && validateUrl(event.link.url)) {
+    const eventLink = resolveTimelineLink(event.link);
+
+    if (eventLink) {
       return (
         <Button
           type="button"
           variant="link"
           size="sm"
           className={cn('px-0', className)}
-          onClick={() => openLink(event.link!.url)}
+          onClick={() => openLink(eventLink.href)}
         >
-          {sanitizeText(event.link.text)}
+          {sanitizeText(eventLink.text)}
         </Button>
       );
     }
@@ -334,18 +406,21 @@ const TimelineComponent: React.FC<TimelineProps> = ({
                   </p>
                 )}
 
-                {event.image && event.image.src && (
+                {(() => {
+                  const image = normalizeCmsImage(event.image, event.title);
+                  return image ? (
                   // Explicit dimensions prevent layout shift (CLS). CSS handles actual sizing.
                   // object-cover maintains aspect ratio, cropping to fill container.
                   <img
-                    src={event.image.src}
-                    alt={sanitizeText(event.image.alt ?? event.title)}
+                    src={image.src}
+                    alt={sanitizeText(image.alt ?? event.title)}
                     width={640}
                     height={360}
                     className="w-full max-w-md rounded-lg border border-border/60 object-cover"
                     loading="lazy"
                   />
-                )}
+                  ) : null;
+                })()}
 
                 {renderEventActions(event)}
               </div>
@@ -778,9 +853,9 @@ const TimelineComponent: React.FC<TimelineProps> = ({
           <Button
             type="button"
             variant={sectionFooterCta.variant === 'accent' ? 'default' : sectionFooterCta.variant === 'neutral' ? 'secondary' : 'outline'}
-            onClick={() => openLink(sectionFooterCta.href || sectionFooterCta.url)}
+            onClick={() => openLink(sectionFooterCta.href)}
           >
-            {sanitizeText(sectionFooterCta.label || sectionFooterCta.text)}
+            {sanitizeText(sectionFooterCta.text)}
           </Button>
         </div>
       ) : null}

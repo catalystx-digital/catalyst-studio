@@ -1,6 +1,8 @@
 import { CMSComponentProps, ComponentContent } from '../../_core/types';
 import { type VideoSource, type Image } from '@/lib/studio/components/cms/_core/value-objects';
 
+export type { VideoSource, Image };
+
 // Video Player specific content interface
 export interface VideoPlayerContent extends ComponentContent {
   sources: VideoSource[];

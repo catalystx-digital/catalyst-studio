@@ -1,13 +1,28 @@
 import { ContentResource, getContentProvider, TeamMemberFilters, TeamMemberProvider, ContentQuery } from '../../_core/data-providers';
 import type { TeamGridContent, TeamMemberData } from '../team-grid/team-grid.types';
 
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function dedupeMembers(members: TeamMemberData[]): TeamMemberData[] {
   const seen = new Set<string>();
   const result: TeamMemberData[] = [];
 
   for (const member of members) {
-    if (!seen.has(member.id)) {
-      seen.add(member.id);
+    const id = normalizeOptionalString(member.id);
+    if (!id) {
+      result.push(member);
+      continue;
+    }
+
+    if (!seen.has(id)) {
+      seen.add(id);
       result.push(member);
     }
   }
@@ -48,10 +63,12 @@ export function resolveTeamGridContent(content: TeamGridContent): TeamGridConten
       const query: ContentQuery<TeamMemberFilters> = {
         limit: remaining,
         filters: {
-          department: content.autoFill?.department,
-          role: content.autoFill?.role,
-          location: content.autoFill?.location,
-          excludeIds: members.map(member => member.id)
+          department: normalizeOptionalString(content.autoFill?.department),
+          role: normalizeOptionalString(content.autoFill?.role),
+          location: normalizeOptionalString(content.autoFill?.location),
+          excludeIds: members
+            .map(member => normalizeOptionalString(member.id))
+            .filter((id): id is string => Boolean(id))
         }
       };
 

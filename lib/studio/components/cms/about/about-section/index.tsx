@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -17,10 +17,12 @@ import {
   type CmsCardTone,
 } from '../../_ui';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
+import { normalizeImage } from '../../_utils/image-normalization';
 import { sanitizeHtml, sanitizeText } from '../../_core/security';
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { SafeHtml } from '../../_core/safe-html';
+import type { Image as CmsImage } from '../../_core/value-objects';
 import type {
   AboutSectionProps,
   MilestoneItem,
@@ -55,6 +57,8 @@ interface NormalizedImage {
   alt: string;
   caption?: string;
 }
+
+type RenderableImageInput = Parameters<typeof normalizeImage>[0];
 
 const VALUE_ICON_CLASS = 'h-8 w-8 text-primary';
 const TIMELINE_LINE_DESKTOP =
@@ -101,6 +105,29 @@ function sanitizeRichText(value: unknown): string | undefined {
 
 function resolveSectionTone(): CmsCardTone {
   return 'default';
+}
+
+function resolveMediaReferenceUrl(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.url === 'string' ? record.url : undefined;
+}
+
+function toRenderableImageInput(image: CmsImage): RenderableImageInput {
+  const resolvedSrc =
+    typeof image.src === 'string'
+      ? image.src
+      : resolveMediaReferenceUrl(image.src) ?? image.originalUrl;
+
+  return {
+    src: resolvedSrc,
+    alt: image.alt,
+    originalUrl: image.originalUrl,
+    renditions: image.renditions,
+  };
 }
 
 const AboutSectionBase: React.FC<AboutSectionProps> = ({
@@ -259,17 +286,27 @@ const AboutSectionBase: React.FC<AboutSectionProps> = ({
 
     return content.imageList
       .map((image, index) => {
-        if (!image || typeof image.src !== 'string' || image.src.trim().length === 0) {
+        if (!image) {
           return null;
         }
 
         const alt = sanitizeNullableText(image.alt) ?? 'About section media';
+        const renderableImage = normalizeImage(
+          toRenderableImageInput(image),
+          alt,
+          '(max-width: 768px) 100vw, 50vw',
+        );
+
+        if (!renderableImage) {
+          return null;
+        }
+
         const caption = sanitizeNullableText(image.caption);
 
         const normalized: NormalizedImage = {
           id: `image-${index}`,
-          src: image.src,
-          alt,
+          src: renderableImage.src,
+          alt: renderableImage.alt ?? alt,
         };
 
         if (caption) {
@@ -402,7 +439,7 @@ const AboutSectionBase: React.FC<AboutSectionProps> = ({
             ratio={16 / 9}
             className="group overflow-hidden rounded-xl border border-border/40"
           >
-            <Image
+            <NextImage
               src={image.src}
               alt={image.alt}
               fill

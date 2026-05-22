@@ -136,6 +136,69 @@ describe('Timeline Component', () => {
     openSpy.mockRestore();
   });
 
+  it('allows safe relative event links', () => {
+    const openSpy = jest
+      .spyOn(window, 'open')
+      .mockImplementation(() => null as unknown as Window);
+    const relativeLinkProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        events: [{
+          ...defaultProps.content.events[0],
+          link: {
+            text: 'Read update',
+            url: '/updates/company-founded'
+          }
+        }]
+      }
+    };
+
+    render(<Timeline {...relativeLinkProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Read update' }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      '/updates/company-founded',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    openSpy.mockRestore();
+  });
+
+  it('allows structured SmartLink and LinkSchema timeline links', () => {
+    const openSpy = jest
+      .spyOn(window, 'open')
+      .mockImplementation(() => null as unknown as Window);
+    const structuredLinkProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        events: [{
+          ...defaultProps.content.events[0],
+          actions: [
+            {
+              text: 'View milestone',
+              href: {
+                href: { type: 'internal', pageId: 'milestone', path: '/milestones/founded' },
+                label: 'View milestone'
+              }
+            }
+          ]
+        }]
+      }
+    } as any;
+
+    render(<Timeline {...structuredLinkProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'View milestone' }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      '/milestones/founded',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    openSpy.mockRestore();
+  });
+
   it('renders vertical layout correctly', () => {
     render(<Timeline {...defaultProps} />);
     // Should have vertical connector line
@@ -177,14 +240,14 @@ describe('Timeline Component', () => {
     const milestoneBadges = screen.getAllByText('Milestone');
     expect(milestoneBadges.length).toBeGreaterThan(0);
     milestoneBadges.forEach((badge) =>
-      expect(badge.className).toContain('cms-badge'),
+      expect(badge.className).toContain('uppercase'),
     );
 
     const achievementBadge = screen.getByText('Achievement');
-    expect(achievementBadge.className).toContain('cms-badge');
+    expect(achievementBadge.className).toContain('uppercase');
 
     const eventBadge = screen.getByText('Event');
-    expect(eventBadge.className).toContain('cms-badge');
+    expect(eventBadge.className).toContain('uppercase');
   });
 
   it('hides connectors when disabled', () => {
@@ -312,6 +375,60 @@ describe('Timeline Component', () => {
     render(<Timeline {...invalidLinkProps} />);
     // Invalid URL should not render link
     expect(screen.queryByText('Bad Link')).not.toBeInTheDocument();
+  });
+
+  it('rejects unsafe javascript and data timeline URLs', () => {
+    const unsafeLinkProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        events: [{
+          ...defaultProps.content.events[0],
+          link: {
+            text: 'Bad Data Link',
+            url: 'data:text/html,<script>alert("XSS")</script>'
+          },
+          actions: [
+            {
+              text: 'Bad Script Link',
+              url: 'javascript:alert("XSS")'
+            }
+          ]
+        }]
+      }
+    };
+
+    render(<Timeline {...unsafeLinkProps} />);
+
+    expect(screen.queryByText('Bad Data Link')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bad Script Link')).not.toBeInTheDocument();
+  });
+
+  it('rejects malformed non-relative timeline URLs', () => {
+    const malformedLinkProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        events: [{
+          ...defaultProps.content.events[0],
+          link: {
+            text: 'Bad Plain Link',
+            url: 'not a url'
+          },
+          actions: [
+            {
+              text: 'Bad Path Link',
+              url: 'bad path with spaces'
+            }
+          ]
+        }]
+      }
+    };
+
+    render(<Timeline {...malformedLinkProps} />);
+
+    expect(screen.queryByText('Bad Plain Link')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bad Path Link')).not.toBeInTheDocument();
   });
 
   it('renders within performance threshold', () => {

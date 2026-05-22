@@ -29,6 +29,7 @@ import { withPerformanceTracking } from '../../_core/monitoring';
 import { sanitizeHtml, sanitizeText, validateUrl as coreValidateUrl } from '../../_core/security';
 import { SafeHtml } from '../../_core/safe-html';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import { validateImageUrl } from '../../_utils/url-validation';
 import type { AuthorBioProps } from './author-bio.types';
 
@@ -39,6 +40,19 @@ type LayoutVariant = NonNullable<AuthorBioProps['layout']>;
 type BioContent =
   | { type: 'html'; value: string; isTruncated: boolean }
   | { type: 'text'; value: string; isTruncated: boolean };
+
+function resolveBlogLinkHref(raw: unknown): string | undefined {
+  const href = resolveSmartLinkHref(raw);
+  if (href) {
+    return href;
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  return resolveSmartLinkHref((raw as { href?: unknown }).href);
+}
 
 const LAYOUT_CLASS_MAP: Record<LayoutVariant, string> = {
   horizontal: cn(
@@ -186,6 +200,21 @@ const AuthorBio: React.FC<AuthorBioProps> = ({
   const avatarSize = getAvatarSize(layout);
   const avatarClassName = getAvatarClassName(layout);
   const avatarImage = useMemo(() => validateImageUrl(photo), [photo]);
+  const websiteUrl = useMemo(() => resolveBlogLinkHref(website), [website]);
+  const socialLinkItems = useMemo(
+    () =>
+      Object.entries(socialLinks)
+        .map(([platform, rawUrl]) => {
+          const url = resolveBlogLinkHref(rawUrl);
+          if (!url || !coreValidateUrl(url)) {
+            return null;
+          }
+
+          return { platform, url };
+        })
+        .filter((item): item is { platform: string; url: string } => Boolean(item)),
+    [socialLinks],
+  );
 
   const handleSocialClick = useCallback(
     (platform: string, url: string) => {
@@ -361,28 +390,20 @@ const AuthorBio: React.FC<AuthorBioProps> = ({
                   </Button>
                 )}
 
-                {website && (
+                {websiteUrl && (
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
                     aria-label="Visit website"
-                    onClick={() => handleSocialClick('website', website)}
+                    onClick={() => handleSocialClick('website', websiteUrl)}
                     className="transition-shadow  hover:bg-primary/10"
                   >
                     {resolveCmsIcon(SOCIAL_ICON_MAP.website, { className: 'h-4 w-4', fallback: '∞' })}
                   </Button>
                 )}
 
-                {Object.entries(socialLinks).map(([platform, url]) => {
-                  if (!url) {
-                    return null;
-                  }
-
-                  if (!coreValidateUrl(url)) {
-                    return null;
-                  }
-
+                {socialLinkItems.map(({ platform, url }) => {
                   const iconName = SOCIAL_ICON_MAP[platform] ?? platform;
 
                   return (

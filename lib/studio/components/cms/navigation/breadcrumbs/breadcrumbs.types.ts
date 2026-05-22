@@ -1,9 +1,9 @@
 import { CMSComponentProps } from '../../_core/types';
-import { type Link } from '../../_core/value-objects';
+import { type Link, type SmartLink } from '../../_core/value-objects';
 
 export interface BreadcrumbItem {
   label: string;
-  href: Link | string;
+  href?: Link['href'] | SmartLink | string;
 }
 
 export interface BreadcrumbsContent {
@@ -13,6 +13,6 @@ export interface BreadcrumbsContent {
   homeLabel?: string;
 }
 
-export interface BreadcrumbsProps extends CMSComponentProps {
+export interface BreadcrumbsProps extends Omit<CMSComponentProps, 'content'> {
   content: BreadcrumbsContent;
 }

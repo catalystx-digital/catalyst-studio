@@ -1,6 +1,8 @@
 import { CMSComponentProps, ComponentType, ComponentCategory } from '@/lib/studio/components/cms/_core/types';
 import { type PhoneNumber, type Address, type SocialLink, type Image } from '@/lib/studio/components/cms/_core/value-objects';
 
+export type { SocialLink } from '@/lib/studio/components/cms/_core/value-objects';
+
 export interface EmailAddress {
   label?: string; // e.g., "General", "Support", "Sales"
   email: string;
@@ -29,7 +31,7 @@ export interface ContactInfoContent {
   cardStyle?: 'bordered' | 'shadow' | 'none';
 }
 
-export interface ContactInfoProps extends CMSComponentProps {
+export interface ContactInfoProps extends Omit<CMSComponentProps, 'content' | 'type' | 'category'> {
   type: ComponentType.ContactInfo;
   category: ComponentCategory;
   content: ContactInfoContent;

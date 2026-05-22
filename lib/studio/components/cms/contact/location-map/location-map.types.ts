@@ -25,7 +25,7 @@ export interface LocationMapContent {
   customStyles?: any; // eslint-disable-line @typescript-eslint/no-explicit-any -- JSON configuration for custom map styles
 }
 
-export interface LocationMapProps extends CMSComponentProps {
+export interface LocationMapProps extends Omit<CMSComponentProps, 'content' | 'type' | 'category'> {
   type: ComponentType.LocationMap;
   category: ComponentCategory;
   content: LocationMapContent;

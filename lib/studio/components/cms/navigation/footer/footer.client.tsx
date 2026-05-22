@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { Facebook, Twitter, Linkedin, Instagram, Youtube, Github } from 'lucide-react';
+import { Facebook, Twitter, Linkedin, Instagram, Youtube, Github, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ const SOCIAL_ICONS: Record<FooterSocialLink['platform'], React.ComponentType<{ c
   instagram: Instagram,
   youtube: Youtube,
   github: Github,
+  website: Globe,
 };
 
 type FooterClientProps = Pick<FooterProps, 'content' | 'onInteraction' | 'theme'>;

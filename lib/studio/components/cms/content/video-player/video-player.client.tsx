@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { sanitizeText } from '../../_core/security';
+import { resolveImageSource } from '../../_utils/media-reference';
 import { VideoPlayerProps } from './video-player.types';
 
 export const VideoPlayerClient: React.FC<VideoPlayerProps> = ({ 
@@ -125,13 +126,15 @@ export const VideoPlayerClient: React.FC<VideoPlayerProps> = ({
       content.fallbackMessage || 'Video playback failed',
     );
 
-    if (hasFallback && content.fallbackImage) {
+    const fallbackImageSrc = resolveImageSource(content.fallbackImage);
+
+    if (hasFallback && fallbackImageSrc) {
       const wrapper = document.createElement('div');
       wrapper.className =
         'relative flex h-full w-full items-center justify-center rounded-xl border border-border/40 bg-muted/80';
 
       const img = document.createElement('img');
-      img.src = content.fallbackImage;
+      img.src = fallbackImageSrc;
       img.alt = sanitizeText(content.title || 'Video unavailable');
       img.className = 'h-full w-full rounded-xl object-cover';
 

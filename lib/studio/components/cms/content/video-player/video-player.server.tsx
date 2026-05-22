@@ -13,6 +13,8 @@ import {
   themeClass,
 } from '../../_ui';
 import { sanitizeText } from '../../_core/security';
+import { normalizeCmsImage } from '../../_utils/media-reference';
+import { validateVideoUrl } from '../../_utils/url-validation';
 import type { VideoPlayerProps, VideoSource } from './video-player.types';
 
 const RATIO_MAP: Record<
@@ -30,6 +32,11 @@ const EMBED_BASE_CLASS =
   'cms-video-embed relative h-full w-full overflow-hidden rounded-xl';
 const OVERLAY_BASE_CLASS =
   'cms-video-overlay absolute inset-0 pointer-events-none flex items-center justify-center';
+
+type NativeVideoSource = Omit<VideoSource, 'type'> & {
+  type: string;
+  resolvedUrl: string;
+};
 
 export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
   id,
@@ -56,12 +63,28 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
   } = content;
 
   const ratio = RATIO_MAP[aspectRatio] ?? RATIO_MAP['16:9'];
+  const normalizedPosterImage = normalizeCmsImage(posterImage, title);
+  const normalizedFallbackImage = normalizeCmsImage(fallbackImage, title);
 
-  const youtubeSource = sources.find((source) => source.type === 'youtube');
-  const vimeoSource = sources.find((source) => source.type === 'vimeo');
-  const nativeSources = sources.filter((source) =>
-    ['mp4', 'webm', 'ogg'].includes(source.type),
+  const resolveVideoSourceUrl = (source: VideoSource): string | undefined => {
+    const resolved = validateVideoUrl(source.url);
+    return resolved || undefined;
+  };
+
+  const youtubeSource = sources.find(
+    (source) => source.type === 'youtube' && resolveVideoSourceUrl(source),
   );
+  const vimeoSource = sources.find(
+    (source) => source.type === 'vimeo' && resolveVideoSourceUrl(source),
+  );
+  const nativeSources: NativeVideoSource[] = sources.flatMap((source) => {
+    if (!source.type || !['mp4', 'webm', 'ogg'].includes(source.type)) {
+      return [];
+    }
+
+    const resolvedUrl = resolveVideoSourceUrl(source);
+    return resolvedUrl ? [{ ...source, type: source.type, resolvedUrl }] : [];
+  });
 
   const getYouTubeId = (url: string): string | null => {
     const match = url.match(
@@ -76,7 +99,12 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
   };
 
   const renderYouTubeEmbed = (source: VideoSource) => {
-    const videoId = getYouTubeId(source.url);
+    const sourceUrl = resolveVideoSourceUrl(source);
+    if (!sourceUrl) {
+      return null;
+    }
+
+    const videoId = getYouTubeId(sourceUrl);
     if (!videoId) {
       return null;
     }
@@ -103,7 +131,12 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
   };
 
   const renderVimeoEmbed = (source: VideoSource) => {
-    const videoId = getVimeoId(source.url);
+    const sourceUrl = resolveVideoSourceUrl(source);
+    if (!sourceUrl) {
+      return null;
+    }
+
+    const videoId = getVimeoId(sourceUrl);
     if (!videoId) {
       return null;
     }
@@ -143,11 +176,11 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
         muted={muted}
         loop={loop}
         controls={controls}
-        poster={posterImage}
+        poster={normalizedPosterImage?.src}
         preload="metadata"
       >
         {nativeSources.map((source, index) => (
-          <source key={index} src={source.url} type={`video/${source.type}`} />
+          <source key={index} src={source.resolvedUrl} type={`video/${source.type}`} />
         ))}
         {sanitizeText(fallbackMessage)}
       </video>
@@ -155,12 +188,12 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
   };
 
   const renderFallback = () => {
-    if (fallbackImage) {
+    if (normalizedFallbackImage) {
       return (
         <div className="relative h-full w-full rounded-xl border border-border/40">
           <Image
-            src={fallbackImage}
-            alt={sanitizeText(title || 'Video fallback')}
+            src={normalizedFallbackImage.src}
+            alt={sanitizeText(normalizedFallbackImage.alt ?? title ?? 'Video fallback')}
             fill
             className="rounded-xl object-cover"
           />
@@ -225,7 +258,7 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
           )}
           data-aspect-ratio={aspectRatio}
           data-video-container="true"
-          data-has-fallback={Boolean(fallbackImage)}
+          data-has-fallback={Boolean(normalizedFallbackImage)}
         >
           {youtubeSource
             ? renderYouTubeEmbed(youtubeSource)
@@ -237,7 +270,7 @@ export const VideoPlayerServer: React.FC<VideoPlayerProps> = ({
 
           {showPlayButton &&
             !autoPlay &&
-            posterImage &&
+            normalizedPosterImage &&
             nativeSources.length > 0 && (
               <div
                 className={cn(

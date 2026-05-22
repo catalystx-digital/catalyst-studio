@@ -64,6 +64,54 @@ describe('MobileMenu Component', () => {
     expect(screen.getByText('Services')).toBeInTheDocument();
   });
 
+  it('preserves valid plain string href menu items', () => {
+    render(<MobileMenu {...defaultProps} />);
+
+    fireEvent.click(screen.getByLabelText('Open mobile menu'));
+
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
+  });
+
+  it('resolves structured LinkSchema href menu items', () => {
+    const props = {
+      ...defaultProps,
+      content: {
+        menuItems: [
+          {
+            label: 'Careers',
+            href: {
+              href: { type: 'internal', pageId: 'careers', path: '/careers' },
+              label: 'Careers'
+            }
+          }
+        ]
+      }
+    } as MobileMenuProps;
+
+    render(<MobileMenu {...props} />);
+
+    fireEvent.click(screen.getByLabelText('Open mobile menu'));
+
+    expect(screen.getByRole('link', { name: 'Careers' })).toHaveAttribute('href', '/careers');
+  });
+
+  it('does not render hardcoded fallback items when menu items are empty', () => {
+    const props = {
+      ...defaultProps,
+      content: {
+        menuItems: []
+      }
+    };
+
+    render(<MobileMenu {...props} />);
+
+    fireEvent.click(screen.getByLabelText('Open mobile menu'));
+
+    expect(screen.queryByRole('link', { name: 'Home' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Contact' })).not.toBeInTheDocument();
+  });
+
   it('renders nested menu items', () => {
     render(<MobileMenu {...defaultProps} />);
     

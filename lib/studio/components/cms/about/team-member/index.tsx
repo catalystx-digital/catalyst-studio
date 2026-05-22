@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import {
   Facebook,
   Github,
@@ -36,6 +36,7 @@ import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { SafeHtml } from '../../_core/safe-html';
 import { ExperienceEntrySchema } from '../../_core/value-objects';
+import { normalizeImage } from '../../_utils/image-normalization';
 import type { TeamMemberProps } from './team-member.types';
 
 type SocialPlatform =
@@ -66,6 +67,8 @@ interface NormalizedExperience {
   duration?: string;
   description?: string;
 }
+
+type RenderableImageInput = Parameters<typeof normalizeImage>[0];
 
 const SOCIAL_CONFIG: SocialConfig[] = [
   {
@@ -253,6 +256,44 @@ function buildAvatarInitials(name: string): string {
     .toUpperCase();
 }
 
+function resolveMediaReferenceUrl(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.url === 'string' ? record.url : undefined;
+}
+
+function resolveMediaReferenceAlt(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.alt === 'string' ? record.alt : undefined;
+}
+
+function toRenderableImageInput(
+  image: TeamMemberProps['content']['photo'],
+): RenderableImageInput {
+  if (!image || typeof image === 'string') {
+    return image;
+  }
+
+  const resolvedSrc =
+    typeof image.src === 'string'
+      ? image.src
+      : resolveMediaReferenceUrl(image.src) ?? image.originalUrl;
+
+  return {
+    src: resolvedSrc,
+    alt: image.alt ?? resolveMediaReferenceAlt(image.src),
+    originalUrl: image.originalUrl,
+    renditions: image.renditions,
+  };
+}
+
 const TeamMemberBase: React.FC<TeamMemberProps> = ({
   id,
   className,
@@ -290,24 +331,25 @@ const TeamMemberBase: React.FC<TeamMemberProps> = ({
     content.phone,
   );
   const cardTone = resolveCardTone(displayMode);
-  const photo = (() => {
-    if (typeof content.photo === 'object' && content.photo?.src) {
-      return content.photo.src;
-    }
-    if (typeof content.photo === 'string') {
-      const trimmed = content.photo.trim();
-      return trimmed.length > 0 ? trimmed : undefined;
-    }
-    return undefined;
-  })();
-  const photoAlt =
-    typeof content.photo === 'object' && content.photo?.alt
-      ? sanitizeText(content.photo.alt)
-      : name.length > 0 && title.length > 0
+  const fallbackPhotoAlt =
+    name.length > 0 && title.length > 0
         ? `${name} – ${title}`
         : name.length > 0
           ? name
           : 'Team member portrait';
+  const photoAlt =
+    typeof content.photo === 'object' && content.photo
+      ? sanitizeText(
+          content.photo.alt ??
+            resolveMediaReferenceAlt(content.photo.src) ??
+            fallbackPhotoAlt,
+        )
+      : fallbackPhotoAlt;
+  const photo = normalizeImage(
+    toRenderableImageInput(content.photo),
+    photoAlt,
+    '(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 420px',
+  )?.src;
 
   const analyticsId = analytics?.trackingId;
 
@@ -557,7 +599,7 @@ const TeamMemberBase: React.FC<TeamMemberProps> = ({
               className="group overflow-hidden rounded-2xl bg-muted/80 shadow-md transition-shadow duration-300 hover:shadow-lg"
             >
               {photo ? (
-                <Image
+                <NextImage
                   src={photo}
                   alt={photoAlt}
                   fill

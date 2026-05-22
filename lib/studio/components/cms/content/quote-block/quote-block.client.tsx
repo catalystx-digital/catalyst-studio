@@ -14,6 +14,7 @@ import {
   dsSpacing,
 } from '../../_ui';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
+import { normalizeCmsImage } from '../../_utils/media-reference';
 import { SafeHtml } from '../../_core/safe-html';
 import type { QuoteBlockClientProps } from './quote-block.types';
 
@@ -223,6 +224,10 @@ export function QuoteBlockClient({
 
   const attribution = content.attribution;
   const initials = getInitials(attribution?.author);
+  const attributionImage = normalizeCmsImage(
+    attribution?.image,
+    attribution?.author ?? 'Quote attribution',
+  );
   const fallbackAvatar = resolveCmsIcon('User', {
     className: 'h-4 w-4 text-muted-foreground/60',
     fallback: '👤',
@@ -241,12 +246,12 @@ export function QuoteBlockClient({
     }
 
     const avatarNode =
-      (attribution.image || initials || fallbackAvatar) && (
+      (attributionImage || initials || fallbackAvatar) && (
         <Avatar className={isTestimonial ? 'h-16 w-16' : 'h-12 w-12'}>
-          {attribution.image ? (
+          {attributionImage ? (
             <AvatarImage
-              src={attribution.image}
-              alt={attribution.author ?? 'Quote attribution'}
+              src={attributionImage.src}
+              alt={attributionImage.alt ?? attribution.author ?? 'Quote attribution'}
             />
           ) : null}
           <AvatarFallback>

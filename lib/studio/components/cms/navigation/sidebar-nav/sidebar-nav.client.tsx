@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { ChevronRight, ChevronDown, ArrowLeft } from 'lucide-react'
 import type { SidebarNavProps, SidebarNavItem, SidebarNavStyleProps } from './sidebar-nav.types'
+import { resolveSmartLinkHref } from '../../_utils/smart-link'
 
 /**
  * Sidebar Navigation Component (Client)
@@ -21,6 +22,17 @@ interface NavItemProps {
   expandedItems: Set<string>
 }
 
+function resolveNavHref(raw: unknown): string | undefined {
+  const direct = resolveSmartLinkHref(raw)
+  if (direct) return direct
+
+  if (raw && typeof raw === 'object') {
+    return resolveSmartLinkHref((raw as Record<string, unknown>).href)
+  }
+
+  return undefined
+}
+
 function NavItem({
   item,
   currentPath,
@@ -30,35 +42,40 @@ function NavItem({
   onToggle,
   expandedItems
 }: NavItemProps) {
-  const isActive = currentPath === item.href
+  const href = resolveNavHref(item.href)
+  if (!href) {
+    return null
+  }
+
+  const isActive = currentPath === href
   const hasChildren = item.children && item.children.length > 0
   const shouldShowChildren = hasChildren && (maxDepth === undefined || depth < maxDepth)
-  const isExpanded = expandedItems.has(item.href)
+  const isExpanded = expandedItems.has(href)
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       if (hasChildren && onToggle) {
         e.preventDefault()
-        onToggle(item.href)
+        onToggle(href)
       }
     },
-    [hasChildren, onToggle, item.href]
+    [hasChildren, onToggle, href]
   )
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (hasChildren && onToggle && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault()
-        onToggle(item.href)
+        onToggle(href)
       }
     },
-    [hasChildren, onToggle, item.href]
+    [hasChildren, onToggle, href]
   )
 
   return (
     <li className="relative">
       <a
-        href={item.href}
+        href={href}
         onClick={hasChildren ? handleToggle : undefined}
         onKeyDown={hasChildren ? handleKeyDown : undefined}
         className={cn(
@@ -127,7 +144,7 @@ function NavItem({
           <ul className="mt-1 ml-4 border-l border-border pl-2 space-y-1">
             {item.children!.map((child, index) => (
               <NavItem
-                key={`${child.href}-${index}`}
+                key={`${resolveNavHref(child.href) ?? child.label}-${index}`}
                 item={child}
                 currentPath={currentPath}
                 depth={depth + 1}
@@ -150,8 +167,11 @@ function NavItem({
 function collectExpandableItems(items: SidebarNavItem[]): string[] {
   const result: string[] = []
   for (const item of items) {
+    const href = resolveNavHref(item.href)
     if (item.children && item.children.length > 0) {
-      result.push(item.href)
+      if (href) {
+        result.push(href)
+      }
       result.push(...collectExpandableItems(item.children))
     }
   }
@@ -195,11 +215,12 @@ export function SidebarNavClient({
         parents: string[] = []
       ): string[] | null => {
         for (const item of searchItems) {
-          if (item.href === target) {
+          const href = resolveNavHref(item.href)
+          if (href === target) {
             return parents
           }
           if (item.children) {
-            const found = findParents(item.children, target, [...parents, item.href])
+            const found = findParents(item.children, target, href ? [...parents, href] : parents)
             if (found) {
               return found
             }
@@ -235,6 +256,8 @@ export function SidebarNavClient({
     return null
   }
 
+  const backHref = showBackLink && backLink ? resolveNavHref(backLink.href) : undefined
+
   return (
     <nav
       className={cn(
@@ -248,9 +271,9 @@ export function SidebarNavClient({
       aria-label={title || 'Section navigation'}
     >
       {/* Back link */}
-      {showBackLink && backLink && (
+      {showBackLink && backLink && backHref && (
         <a
-          href={backLink.href}
+          href={backHref}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -265,7 +288,7 @@ export function SidebarNavClient({
       <ul className="space-y-1" role="list">
         {items.map((item, index) => (
           <NavItem
-            key={`${item.href}-${index}`}
+            key={`${resolveNavHref(item.href) ?? item.label}-${index}`}
             item={item}
             currentPath={currentPath}
             depth={0}

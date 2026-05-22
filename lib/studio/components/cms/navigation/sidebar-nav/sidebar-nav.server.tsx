@@ -2,6 +2,7 @@ import React from 'react'
 import { cn } from '@/lib/utils'
 import { ChevronRight, ChevronDown, ArrowLeft } from 'lucide-react'
 import type { SidebarNavProps, SidebarNavItem, SidebarNavStyleProps } from './sidebar-nav.types'
+import { resolveSmartLinkHref } from '../../_utils/smart-link'
 
 /**
  * Sidebar Navigation Component (Server)
@@ -18,8 +19,24 @@ interface NavItemProps {
   showExpandIcons?: boolean
 }
 
+function resolveNavHref(raw: unknown): string | undefined {
+  const direct = resolveSmartLinkHref(raw)
+  if (direct) return direct
+
+  if (raw && typeof raw === 'object') {
+    return resolveSmartLinkHref((raw as Record<string, unknown>).href)
+  }
+
+  return undefined
+}
+
 function NavItem({ item, currentPath, depth, maxDepth, showExpandIcons = true }: NavItemProps) {
-  const isActive = currentPath === item.href
+  const href = resolveNavHref(item.href)
+  if (!href) {
+    return null
+  }
+
+  const isActive = currentPath === href
   const hasChildren = item.children && item.children.length > 0
   const shouldShowChildren = hasChildren && (maxDepth === undefined || depth < maxDepth)
   const isExpanded = item.isExpanded ?? true // Default to expanded
@@ -27,7 +44,7 @@ function NavItem({ item, currentPath, depth, maxDepth, showExpandIcons = true }:
   return (
     <li className="relative">
       <a
-        href={item.href}
+        href={href}
         className={cn(
           'flex items-center gap-2 py-2 px-3 text-sm rounded-md transition-colors',
           'hover:bg-muted hover:text-foreground',
@@ -80,7 +97,7 @@ function NavItem({ item, currentPath, depth, maxDepth, showExpandIcons = true }:
         <ul className="mt-1 ml-4 border-l border-border pl-2 space-y-1">
           {item.children!.map((child, index) => (
             <NavItem
-              key={`${child.href}-${index}`}
+              key={`${resolveNavHref(child.href) ?? child.label}-${index}`}
               item={child}
               currentPath={currentPath}
               depth={depth + 1}
@@ -108,6 +125,8 @@ export function SidebarNavServer({
     return null
   }
 
+  const backHref = showBackLink && backLink ? resolveNavHref(backLink.href) : undefined
+
   return (
     <nav
       className={cn(
@@ -121,9 +140,9 @@ export function SidebarNavServer({
       aria-label={title || 'Section navigation'}
     >
       {/* Back link */}
-      {showBackLink && backLink && (
+      {showBackLink && backLink && backHref && (
         <a
-          href={backLink.href}
+          href={backHref}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -140,7 +159,7 @@ export function SidebarNavServer({
       <ul className="space-y-1" role="list">
         {items.map((item, index) => (
           <NavItem
-            key={`${item.href}-${index}`}
+            key={`${resolveNavHref(item.href) ?? item.label}-${index}`}
             item={item}
             currentPath={currentPath}
             depth={0}

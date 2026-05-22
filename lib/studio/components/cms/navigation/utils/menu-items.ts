@@ -3,6 +3,7 @@ import { ComponentCategory, ComponentType, CMSComponentProps } from '../../_core
 import { getCategoryFromType } from '../../_core/utils'
 import { MenuItem } from '../nav-bar/nav-bar.types'
 import type { NavMenuItemContent } from '../nav-menu-item/nav-menu-item.types'
+import { resolveSmartLinkHref } from '../../_utils/smart-link'
 
 const DEFAULT_HREF = '#'
 const VALID_ALIGNS = new Set(['start', 'center', 'end'])
@@ -64,7 +65,7 @@ function coerceContent(value: unknown): NavMenuItemContent {
 
   return {
     label: typeof content.label === 'string' ? content.label : '',
-    href: typeof content.href === 'string' ? content.href : typeof content.url === 'string' ? content.url : undefined,
+    href: resolveSmartLinkHref(content.href) ?? resolveSmartLinkHref(content.url),
     external: typeof content.external === 'boolean' ? content.external : undefined,
     icon: typeof content.icon === 'string' ? content.icon : undefined,
     children: Array.isArray(content.children) ? (content.children as unknown[]).filter(isCMSComponent) : undefined,
@@ -119,7 +120,8 @@ function normalizeSingleMenuItem(source: unknown): MenuItem | null {
   }
 
   // Handle plain object
-  const obj = validSource
+  const objParseResult = UnknownRecordSchema.safeParse(validSource)
+  const obj = objParseResult.success ? objParseResult.data : {}
   const nestedResult = UnknownRecordSchema.safeParse(obj.content)
   const nested = nestedResult.success ? nestedResult.data : {}
 
@@ -133,10 +135,10 @@ function normalizeSingleMenuItem(source: unknown): MenuItem | null {
   const label = labelCandidate?.trim() || ''
   if (!label) return null
 
-  const href = typeof obj.href === 'string' ? obj.href :
-    typeof obj.url === 'string' ? obj.url :
-    typeof nested.href === 'string' ? nested.href :
-    typeof nested.url === 'string' ? nested.url :
+  const href = resolveSmartLinkHref(obj.href) ??
+    resolveSmartLinkHref(obj.url) ??
+    resolveSmartLinkHref(nested.href) ??
+    resolveSmartLinkHref(nested.url) ??
     DEFAULT_HREF
 
   const external = typeof obj.external === 'boolean' ? obj.external : undefined
@@ -195,7 +197,7 @@ function buildComponentFromLegacy(value: unknown, index: number, type: string): 
       id: `legacy-${type}-${index}`,
       type: type as ComponentType,
       category: getCategoryFromType(type as ComponentType) ?? ComponentCategory.Navigation,
-      content: { label, href: DEFAULT_HREF }
+      content: { label, href: DEFAULT_HREF } as CMSComponentProps['content']
     }
   }
 
@@ -222,10 +224,10 @@ function buildComponentFromLegacy(value: unknown, index: number, type: string): 
 
   // Extract href
   const href =
-    typeof raw.href === 'string' ? raw.href :
-    typeof raw.url === 'string' ? raw.url :
-    typeof contentObj.href === 'string' ? contentObj.href :
-    typeof contentObj.url === 'string' ? contentObj.url :
+    resolveSmartLinkHref(raw.href) ??
+    resolveSmartLinkHref(raw.url) ??
+    resolveSmartLinkHref(contentObj.href) ??
+    resolveSmartLinkHref(contentObj.url) ??
     DEFAULT_HREF
 
   // Extract other properties

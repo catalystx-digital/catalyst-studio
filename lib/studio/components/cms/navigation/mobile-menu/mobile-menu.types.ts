@@ -7,6 +7,6 @@ export interface MobileMenuContent {
   animation?: 'slide' | 'fade';
 }
 
-export interface MobileMenuProps extends CMSComponentProps {
+export interface MobileMenuProps extends Omit<CMSComponentProps, 'content'> {
   content: MobileMenuContent;
 }

@@ -9,7 +9,6 @@
 
 import React, { useMemo } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 
 import { cn } from '@/lib/utils';
 
@@ -34,9 +33,23 @@ import { withPerformanceTracking } from '../../_core/monitoring';
 import { sanitizeHtml, sanitizeText } from '../../_core/security';
 import { SafeHtml } from '../../_core/safe-html';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import { validateImageUrl, validateUrl } from '../../_utils/url-validation';
 import { calculateReadingTime, formatReadingTime } from '../utils/reading-time';
 import type { BlogPostProps } from './blog-post.types';
+
+function resolveBlogLinkHref(raw: unknown): string | undefined {
+  const href = resolveSmartLinkHref(raw);
+  if (href) {
+    return href;
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  return resolveSmartLinkHref((raw as { href?: unknown }).href);
+}
 
 function formatDisplayDate(value?: string): string | undefined {
   if (!value) return undefined;
@@ -291,7 +304,7 @@ const BlogPost: React.FC<BlogPostProps> = ({
           : undefined;
 
       // Check if the URL is a platform identifier or icon name
-      const urlOrPlatform = action.url || icon || '';
+      const urlOrPlatform = resolveBlogLinkHref(action.url) || icon || '';
       const platform = SHARE_PLATFORM_MAP[urlOrPlatform] ?? null;
 
       // If it's a full URL (not a platform identifier), use it as static URL
@@ -339,8 +352,11 @@ const BlogPost: React.FC<BlogPostProps> = ({
     return relatedLinks
       .map((link, index) => {
         const label = sanitizeText(link?.label ?? '');
-        const url = validateUrl(link?.url, { fallback: '#' }) || '#';
+        const url = validateUrl(resolveBlogLinkHref(link?.url), { fallback: undefined });
         if (!label) {
+          return null;
+        }
+        if (!url) {
           return null;
         }
         return {
@@ -360,8 +376,11 @@ const BlogPost: React.FC<BlogPostProps> = ({
     return attachments
       .map((attachment, index) => {
         const label = sanitizeText(attachment?.label ?? '');
-        const url = validateUrl(attachment?.url, { fallback: '#' }) || '#';
+        const url = validateUrl(resolveBlogLinkHref(attachment?.url), { fallback: undefined });
         if (!label) {
+          return null;
+        }
+        if (!url) {
           return null;
         }
         return {
