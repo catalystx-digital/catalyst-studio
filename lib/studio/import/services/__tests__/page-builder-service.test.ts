@@ -1,5 +1,6 @@
 import { PageBuilderService } from '../page-builder-service'
 import { PrismaClient, WebsitePage, WebsiteSharedComponent } from '@/lib/generated/prisma'
+import { PageContentNormalizationError } from '@/lib/studio/page-content'
 import { getPageCatalogSummary } from '@/lib/studio/pages/catalog'
 import { TemplateValidationError } from '@/lib/studio/pages/validation/template-validation'
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended'
@@ -1318,6 +1319,105 @@ describe('PageBuilderService', () => {
         metadata: tree.metadata
       })
       expect(result).not.toHaveProperty('sections')
+    })
+
+    it('throws strict diagnostics for malformed JSON-like props.content strings', () => {
+      const tree: ComponentTree = {
+        components: [
+          {
+            id: 'text-1',
+            type: 'text-block',
+            typeId: 'type-1',
+            parentId: null,
+            position: 0,
+            props: { content: '{"text": "Hello", }' }
+          }
+        ],
+        metadata: { totalComponents: 1, maxDepth: 0, componentTypes: ['text-block'] }
+      }
+
+      expect(() => service.formatPageContent(tree, 'components')).toThrow(PageContentNormalizationError)
+
+      try {
+        service.formatPageContent(tree, 'components')
+      } catch (error) {
+        expect(error).toBeInstanceOf(PageContentNormalizationError)
+        const codes = (error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)
+        expect(codes).toEqual(expect.arrayContaining([
+          'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
+          'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_JSON_PARSE_FAILED'
+        ]))
+      }
+    })
+
+    it('throws strict diagnostics for malformed JSON-like component.content strings', () => {
+      const tree: ComponentTree = {
+        components: [
+          {
+            id: 'text-1',
+            type: 'text-block',
+            typeId: 'type-1',
+            parentId: null,
+            position: 0,
+            props: {},
+            content: '[{"text": "Hello",]'
+          }
+        ],
+        metadata: { totalComponents: 1, maxDepth: 0, componentTypes: ['text-block'] }
+      }
+
+      expect(() => service.formatPageContent(tree, 'components')).toThrow(PageContentNormalizationError)
+
+      try {
+        service.formatPageContent(tree, 'components')
+      } catch (error) {
+        expect(error).toBeInstanceOf(PageContentNormalizationError)
+        const codes = (error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)
+        expect(codes).toEqual(expect.arrayContaining([
+          'PAGE_CONTENT_COMPONENT_CONTENT_INVALID',
+          'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED'
+        ]))
+      }
+    })
+
+    it('wraps plain non-JSON props.content and component.content strings as text content', () => {
+      const tree: ComponentTree = {
+        components: [
+          {
+            id: 'props-text-1',
+            type: 'text-block',
+            typeId: 'type-1',
+            parentId: null,
+            position: 0,
+            props: { content: '[todo]' }
+          },
+          {
+            id: 'content-text-1',
+            type: 'text-block',
+            typeId: 'type-1',
+            parentId: null,
+            position: 1,
+            props: {},
+            content: '{{name}}'
+          }
+        ],
+        metadata: { totalComponents: 2, maxDepth: 0, componentTypes: ['text-block'] }
+      }
+
+      const result = service.formatPageContent(tree, 'components')
+
+      expect(result.components).toEqual([
+        expect.objectContaining({
+          id: 'props-text-1',
+          props: { content: { text: '[todo]' } },
+          content: { text: '[todo]' }
+        }),
+        expect.objectContaining({
+          id: 'content-text-1',
+          props: { content: { text: '{{name}}' } },
+          content: { text: '{{name}}' }
+        })
+      ])
     })
   })
 

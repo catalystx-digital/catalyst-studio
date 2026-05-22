@@ -63,6 +63,35 @@ interface PreparedPage {
   contentTypeId: string
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isJsonIntentString(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  const firstChar = trimmed[0]
+  const secondToken = trimmed.slice(1).trimStart()[0]
+
+  if (firstChar === '{') {
+    return secondToken === '"' || secondToken === '}'
+  }
+
+  if (firstChar === '[') {
+    return (
+      secondToken === '{'
+      || secondToken === '['
+      || secondToken === '"'
+      || secondToken === ']'
+    )
+  }
+
+  return false
+}
+
 export class PageBuilderService implements IPageBuilderService {
   private readonly componentBuilder = new ComponentBuilder()
   private readonly regionManager = new ComponentRegionManager()
@@ -145,20 +174,24 @@ export class PageBuilderService implements IPageBuilderService {
       const props = { ...propsSource }
       const parsedContent = parseJsonString(props.content)
       if (props.content !== undefined && typeof props.content === 'string') {
-        props.content = parsedContent && typeof parsedContent === 'object' && !Array.isArray(parsedContent)
+        props.content = isPlainObject(parsedContent)
           ? parsedContent
-          : { text: props.content }
+          : isJsonIntentString(props.content)
+            ? props.content
+            : { text: props.content }
       }
       const parsedText = parseJsonString(props.text)
-      if (typeof props.text === 'string' && parsedText !== null && typeof parsedText === 'object' && !Array.isArray(parsedText)) {
+      if (typeof props.text === 'string' && isPlainObject(parsedText)) {
         delete props.text
       }
       const parsedComponentContent = parseJsonString(component.content)
-      const content = parsedComponentContent && typeof parsedComponentContent === 'object' && !Array.isArray(parsedComponentContent)
+      const content = isPlainObject(parsedComponentContent)
         ? parsedComponentContent
         : typeof component.content === 'string'
-          ? { text: component.content }
-        : props.content && typeof props.content === 'object' && !Array.isArray(props.content)
+          ? isJsonIntentString(component.content)
+            ? component.content
+            : { text: component.content }
+        : isPlainObject(props.content)
           ? props.content
           : undefined
       const { props: _props, content: _content, ...componentBase } = component
