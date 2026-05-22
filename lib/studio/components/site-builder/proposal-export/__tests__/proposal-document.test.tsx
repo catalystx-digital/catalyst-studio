@@ -64,8 +64,8 @@ describe('ProposalDocument', () => {
     )
 
     expect(screen.getByText(/Executive Summary/i)).toBeInTheDocument()
-    expect(screen.getByText(/Design Concept Showcase/i)).toBeInTheDocument()
-    expect(screen.getByText(/Call To Action/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Aurora' })).toBeInTheDocument()
+    expect(screen.getByText(/Implementation roadmap/i)).toBeInTheDocument()
     expect(screen.getByText('Schedule a working session.')).toBeInTheDocument()
   })
 })

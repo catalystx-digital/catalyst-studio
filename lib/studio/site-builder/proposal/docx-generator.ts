@@ -15,11 +15,11 @@ import {
   Header,
   Footer
 } from 'docx'
+import type { FileChild } from 'docx'
 import {
   ProposalContextSummary,
   ProposalNarrative,
   ProposalDesignConceptPreview,
-  ProposalNarrativeSEORecommendation,
   ProposalTemplate
 } from './types'
 import { generateFromTemplate, parseProposalTemplate } from './template-processor'
@@ -216,7 +216,7 @@ export async function generateProposalDocx(options: DocxGeneratorOptions): Promi
   const branding = context.agencyBranding
   const brandName = branding?.agencyName || 'Catalyst Studio'
 
-  const sections: Paragraph[] = []
+  const sections: FileChild[] = []
 
   // --- COVER PAGE ---
   sections.push(
@@ -400,12 +400,9 @@ export async function generateProposalDocx(options: DocxGeneratorOptions): Promi
       }
     }
 
-    if (narrative.seo_recommendations && narrative.seo_recommendations.length > 0) {
+    if (narrative.seo_recommendations) {
       sections.push(createSubheading('Recommendations'))
-      const highPriority = narrative.seo_recommendations.filter((r) => r.priority === 'high')
-      if (highPriority.length > 0) {
-        sections.push(...createNumberedList(highPriority.map((r) => r.recommendation)))
-      }
+      sections.push(createBodyText(narrative.seo_recommendations))
     }
   }
 

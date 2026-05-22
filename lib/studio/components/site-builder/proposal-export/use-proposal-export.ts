@@ -456,18 +456,21 @@ export const useProposalExport = ({
         const docxBlob = await generateProposalDocx({
           websiteName: payload.context.website.name,
           proposalTitle: formProposalTitle || `${payload.context.website.name} Proposal`,
-          tagline: formTagline,
           narrative: payload.narrative,
           context: payload.context as ProposalContextSummary,
           conceptAssets: conceptCaptures.map((capture) => {
             const concept = payload.assets.designConcepts.find((c) => c.id === capture.id)
+            if (!concept) {
+              throw new Error(`Proposal export received a preview capture for unknown concept ${capture.id}`)
+            }
             return {
-              concept: concept!,
+              concept,
               previewUrl: capture.previewUrl ?? undefined,
               previewAvailable: capture.available
             }
           }),
-          sitemapPreview: sitemapImage ?? undefined
+          sitemapPreview: sitemapImage ?? undefined,
+          capturedAt: new Date().toISOString()
         })
         const filename = slugifyFilename(formProposalTitle || websiteName || 'proposal') + '.docx'
         downloadBlob(docxBlob, filename)
