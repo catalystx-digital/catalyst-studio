@@ -7,7 +7,6 @@
  * Specifically handles:
  * 1. Nav-menu-item arrays that should be sidebar-nav components
  * 2. BodyHtml content wrapped in JSON objects
- * 3. Props.text fields containing JSON strings (breadcrumbs, two-column, etc.)
  *
  * @module json-unwrap-processor
  */
@@ -171,56 +170,11 @@ function unwrapComponentJsonContent(component: DetectedComponent): void {
 }
 
 /**
- * Detects and unwraps JSON strings in props fields
- */
-function unwrapPropsJsonContent(component: DetectedComponent): void {
-  // Check if props exists and has a 'text' field with JSON
-  if (!isRecord(component.props)) {
-    return
-  }
-
-  const textField = component.props.text
-
-  if (typeof textField === 'string') {
-    const trimmed = textField.trim()
-
-    // Try to parse as JSON
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(trimmed)
-
-        // If it's an object, merge it into props
-        if (isRecord(parsed)) {
-          // Merge parsed JSON into props
-          for (const [key, value] of Object.entries(parsed)) {
-            // Don't overwrite existing props unless they're the 'text' field
-            if (!(key in component.props) || key === 'text') {
-              component.props[key] = value
-            }
-          }
-
-          // Remove the redundant 'text' field
-          delete component.props.text
-
-          console.log(`[JSONUnwrap] Unwrapped props.text JSON in ${component.componentType}`)
-        }
-      } catch (e) {
-        // Not valid JSON, leave as-is
-        return
-      }
-    }
-  }
-}
-
-/**
  * Main processor: scans all components and unwraps JSON content where appropriate
  */
 export function unwrapJsonContent(components: DetectedComponent[]): void {
   for (const component of components) {
     const componentType = component.componentType
-
-    // Check for JSON in props.text field (breadcrumbs, two-column, etc.)
-    unwrapPropsJsonContent(component)
 
     // Only process text-block and html-block components (where JSON might appear)
     if (componentType === 'text-block' || componentType === 'html-block') {
