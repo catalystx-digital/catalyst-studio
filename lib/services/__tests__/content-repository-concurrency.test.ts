@@ -79,7 +79,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
     jest.clearAllMocks()
   })
 
-  it('saves canonical content and transitional mirrors without props.text', async () => {
+  it('saves canonical content and override props without content mirrors', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -115,10 +115,6 @@ describe('ContentRepository.savePageOverrides contract', () => {
     })
     expect(component.props).toEqual({
       sharedComponentId: 'sc-1',
-      content: {
-        title: 'Edited title',
-        body: 'Canonical body',
-      },
       overrides: { title: 'Edited title' },
       hasOverrides: true,
     })
@@ -159,7 +155,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
       href: '/new',
     })
     expect(component.props.text).toBe('Click me')
-    expect(component.props.content).toEqual(component.content)
+    expect(component.props).not.toHaveProperty('content')
   })
 
   it('clears mirror-shaped props.text when overrides are removed', async () => {

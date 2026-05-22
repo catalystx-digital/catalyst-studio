@@ -63,7 +63,6 @@ describe('PATCH page overrides - concurrency and limits', () => {
               parentId: null,
               position: 0,
               props: expect.objectContaining({
-                content: { title: 'New' },
                 sharedComponentId: 'sc-1',
                 overrides: { title: 'New' },
                 hasOverrides: true,
@@ -79,7 +78,7 @@ describe('PATCH page overrides - concurrency and limits', () => {
     const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
     const updatedComponent = updateCall.data.content.components[0]
     expect(updatedComponent.props).not.toHaveProperty('text')
-    expect(updatedComponent.props.content).toEqual(updatedComponent.content)
+    expect(updatedComponent.props).not.toHaveProperty('content')
   })
 
   it('merges overrides into canonical component content before stale props text', async () => {
@@ -119,10 +118,10 @@ describe('PATCH page overrides - concurrency and limits', () => {
       body: 'Canonical body',
     })
     expect(updatedComponent.props).not.toHaveProperty('text')
-    expect(updatedComponent.props.content).toEqual(updatedComponent.content)
+    expect(updatedComponent.props).not.toHaveProperty('content')
   })
 
-  it('clears canonical content and mirrors when overrides are null', async () => {
+  it('clears canonical content and override props when overrides are null', async () => {
     const page = {
       ...basePage(new Date('2025-09-12T00:00:00Z')),
       content: {

@@ -252,15 +252,11 @@ export const ContentRepository = {
       delete props.content;
       comp.content = {};
     } else {
-      // Merge overrides into canonical component.content, then keep the temporary
-      // props.content mirror for editor compatibility during migration.
-
       const existingContent = isPlainObject(comp.content) ? comp.content : {};
       const mergedContent = { ...existingContent, ...overrides };
       if (isTextMirror(props.text)) {
         delete props.text;
       }
-      props.content = mergedContent;
 
       // Also store overrides separately for tracking/rollback purposes
       props.overrides = overrides;

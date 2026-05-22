@@ -516,6 +516,29 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('uses object props.content as a strict-write source without persisting the mirror', () => {
+    const content = toCanonicalPageContent(
+      {},
+      [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          parentId: null,
+          position: 0,
+          props: { content: { heading: 'Hello' } },
+          content: {},
+          styles: {},
+          metadata: {},
+        },
+      ],
+      { mode: 'strict-write' }
+    )
+
+    const component = (content.components as Array<Record<string, unknown>>)[0]
+    expect(component.content).toEqual({ heading: 'Hello' })
+    expect(component.props).toEqual({})
+  })
+
   it('rejects invalid strict-write content with diagnostics', () => {
     expect(() => normalizePageContent('not page content', { mode: 'strict-write' }))
       .toThrow(PageContentNormalizationError)
@@ -771,5 +794,7 @@ describe('page content normalizer', () => {
     const components = content.components as Array<Record<string, unknown>>
     expect(components[0]).not.toHaveProperty('data')
     expect(components[0]).not.toHaveProperty('componentType')
+    expect(components[0].content).toEqual({ heading: 'Legacy data source' })
+    expect(components[0].props).toEqual({})
   })
 })

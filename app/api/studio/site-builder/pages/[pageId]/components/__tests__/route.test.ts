@@ -75,19 +75,12 @@ describe('PATCH page structural components', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ success: true, updatedAt: '2026-05-22T00:05:00.000Z' })
     expect(assertWebsiteOwnership).toHaveBeenCalledWith(prisma, 'account-1', 'website-1')
-    const expectedComponents = [
-      {
-        ...components[0],
-        props: { content: { title: 'Hero' } },
-      },
-      components[1],
-    ]
     expect(prisma.websitePage.update).toHaveBeenCalledWith({
       where: { id: 'page-1' },
       data: {
         content: {
           version: 1,
-          components: expectedComponents,
+          components,
           metadata: { theme: 'dark' },
         },
       },

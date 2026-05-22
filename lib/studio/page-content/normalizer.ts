@@ -559,6 +559,9 @@ export function normalizeComponent(
   } else if (hasContent(content)) {
     props.content = content
   }
+  if (isStrictWrite(options)) {
+    delete props.content
+  }
   const styles = isRecord(instance.styles) ? instance.styles : {}
   const rawMetadata = parseJsonStringWithDiagnostics(instance.metadata, {
     diagnostics,
