@@ -61,6 +61,7 @@ pr_diff.txt
 .mcp-alternative.json
 test-results/**
 playwright-report/**
+.playwright/**
 
 /proof-of-concept
 .jest-cache/**

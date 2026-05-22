@@ -41,19 +41,27 @@ describe('ProposalContextBuilder', () => {
           name: 'Catalyst Demo',
           description: 'Modern commerce site'
         })
+      },
+      websitePage: {
+        groupBy: jest.fn().mockResolvedValue([
+          { contentTypeId: 'ct-1', _count: { contentTypeId: 2 } }
+        ]),
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    }
+
+    const importJob = {
+      url: 'https://example.com',
+      status: 'completed',
+      detectionResults: {
+        summary: 'Contact us at hello@example.com for more info',
+        pages: [{ title: 'Contact', url: 'mailto:hello@example.com' }]
       }
     }
 
     const importJobRepositoryMock = {
-      findById: jest.fn().mockResolvedValue({
-        url: 'https://example.com',
-        status: 'completed',
-        detectionResults: {
-          summary: 'Contact us at hello@example.com for more info',
-          pages: [{ title: 'Contact', url: 'mailto:hello@example.com' }]
-        }
-      }),
-      findByWebsiteId: jest.fn().mockResolvedValue([])
+      findById: jest.fn().mockResolvedValue(importJob),
+      findByWebsiteId: jest.fn().mockResolvedValue([importJob])
     }
 
     const designConceptServiceMock = {
@@ -110,6 +118,7 @@ describe('ProposalContextBuilder', () => {
     const result = await builder.build({
       websiteId: 'website-1',
       conceptId: 'concept-primary',
+      importJobId: 'import-1',
       includeAlternates: false
     })
 

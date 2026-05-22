@@ -71,7 +71,7 @@ describe('Global Components Propagation API', () => {
     expect(ContentRepository.saveSharedComponentContent).toHaveBeenCalledWith(
       'test-component-id',
       { title: 'New Title' },
-      { mirrorDefaultProps: true }
+      { websiteId: 'test-website-id', mirrorDefaultProps: true }
     );
     expect(prisma.websitePage.findMany).not.toHaveBeenCalled();
   });

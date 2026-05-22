@@ -7,6 +7,10 @@ jest.mock('@/components/chat/chat-persistence', () => ({
   ChatPersistence: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
+jest.mock('ai', () => ({
+  DefaultChatTransport: jest.fn().mockImplementation((options) => ({ options }))
+}))
+
 const useChatMock = jest.fn()
 
 jest.mock('@ai-sdk/react', () => ({
@@ -22,7 +26,8 @@ describe('AssistantSurface', () => {
       setInput: jest.fn(),
       handleInputChange: jest.fn(),
       handleSubmit: jest.fn(),
-      isLoading: false,
+      sendMessage: jest.fn(),
+      status: 'ready',
       setMessages: jest.fn()
     })
   })
@@ -39,7 +44,7 @@ describe('AssistantSurface', () => {
     expect(screen.getByRole('button', { name: /assistant for entire site/i })).toBeInTheDocument()
   })
 
-  it('focuses annotated scope when view change is clicked', async () => {
+  it('focuses current node scope when view change is clicked', async () => {
     const onFocusScope = jest.fn()
 
     useChatMock.mockReturnValue({
@@ -47,34 +52,32 @@ describe('AssistantSurface', () => {
         {
           id: 'assistant-1',
           role: 'assistant',
-          content: 'Updated the hero section.',
-          annotations: {
-            scope: { type: 'node', nodeId: 'node-42', label: 'Homepage' }
-          }
+          content: 'Updated the hero section.'
         }
       ],
       input: '',
       setInput: jest.fn(),
       handleInputChange: jest.fn(),
       handleSubmit: jest.fn(),
-      isLoading: false,
+      sendMessage: jest.fn(),
+      status: 'ready',
       setMessages: jest.fn()
     })
 
     render(
       <AssistantSurface
         websiteId="site-123"
-        selectedNodes={[]}
+        selectedNodes={[{ id: 'node-42', label: 'Homepage' }]}
         onFocusScope={onFocusScope}
       />
     )
 
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: /assistant for entire site/i }))
+    await user.click(screen.getByRole('button', { name: /assistant for homepage/i }))
 
     expect(screen.getByText(/updated the hero section/i)).toBeInTheDocument()
-    expect(screen.getByText('Homepage')).toBeInTheDocument()
+    expect(await screen.findAllByText('Homepage')).toHaveLength(2)
 
     await user.click(screen.getByRole('button', { name: /view change/i }))
 
@@ -83,5 +86,3 @@ describe('AssistantSurface', () => {
     )
   })
 })
-
-

@@ -1,24 +1,34 @@
-import { POST, GET } from '../route';
+import { GET, POST } from '../route';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ContentRepository } from '@/lib/services/unified-content-repository';
+import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 
-// Mock Prisma
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     website: {
-      findUnique: jest.fn()
+      findUnique: jest.fn(),
     },
-    globalComponent: {
-      upsert: jest.fn(),
+    websiteSharedComponent: {
+      findFirst: jest.fn(),
       findMany: jest.fn(),
-      delete: jest.fn()
+      findUniqueOrThrow: jest.fn(),
     },
-    globalComponentUsage: {
-      count: jest.fn(),
-      findMany: jest.fn(),
-      deleteMany: jest.fn()
-    }
-  }
+  },
+}));
+
+jest.mock('@/lib/auth/context', () => ({
+  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1', userId: 'user-789' }),
+}));
+
+jest.mock('@/lib/auth/ownership', () => ({
+  assertWebsiteOwnership: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('@/lib/services/unified-content-repository', () => ({
+  ContentRepository: {
+    createSharedComponent: jest.fn(),
+  },
 }));
 
 describe('Global Components API', () => {
@@ -27,35 +37,35 @@ describe('Global Components API', () => {
   });
 
   describe('POST /api/studio/site-builder/global-components', () => {
-    it('should create a new global component', async () => {
+    it('creates a shared component through the unified repository', async () => {
       const mockWebsite = { id: 'website-123', name: 'Test Site' };
-      const mockGlobalComponent = {
-        id: 'comp-456',
-        componentId: 'comp-456',
+      const lastModified = new Date('2024-01-01T00:00:00Z');
+      const mockSharedComponent = {
+        id: 'shared-456',
         websiteId: 'website-123',
+        websiteComponentTypeId: 'header',
         name: 'Header',
-        type: 'header',
-        properties: { color: 'blue' },
+        category: 'header',
+        content: { color: 'blue' },
         usageCount: 0,
+        lastModified,
         createdBy: 'user-789',
-        usages: []
       };
 
       (prisma.website.findUnique as jest.Mock).mockResolvedValue(mockWebsite);
-      (prisma.globalComponent.upsert as jest.Mock).mockResolvedValue(mockGlobalComponent);
-      (prisma.globalComponentUsage.count as jest.Mock).mockResolvedValue(0);
+      (prisma.websiteSharedComponent.findFirst as jest.Mock).mockResolvedValue(null);
+      (ContentRepository.createSharedComponent as jest.Mock).mockResolvedValue({ id: 'shared-456' });
+      (prisma.websiteSharedComponent.findUniqueOrThrow as jest.Mock).mockResolvedValue(mockSharedComponent);
 
-      const request = new NextRequest('http://localhost:3000/api/global-components', {
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components', {
         method: 'POST',
         body: JSON.stringify({
-          componentId: 'comp-456',
           websiteId: 'website-123',
           name: 'Header',
           type: 'header',
-          properties: { color: 'blue' },
-          makeGlobal: true,
-          createdBy: 'user-789'
-        })
+          category: 'header',
+          content: { color: 'blue' },
+        }),
       });
 
       const response = await POST(request);
@@ -63,64 +73,81 @@ describe('Global Components API', () => {
 
       expect(response.status).toBe(200);
       expect(data).toEqual({
-        id: 'comp-456',
-        componentId: 'comp-456',
-        name: 'Header',
-        usageCount: 0,
-        affectedPages: 0
-      });
-
-      expect(prisma.globalComponent.upsert).toHaveBeenCalledWith({
-        where: { id: 'comp-456' },
-        create: expect.objectContaining({
-          id: 'comp-456',
-          componentId: 'comp-456',
-          websiteId: 'website-123',
+        success: true,
+        id: 'shared-456',
+        data: {
+          id: 'shared-456',
+          componentId: 'header',
           name: 'Header',
           type: 'header',
           properties: { color: 'blue' },
+          usageCount: 0,
+          lastModified: lastModified.toISOString(),
           createdBy: 'user-789',
-          usageCount: 0
-        }),
-        update: expect.objectContaining({
-          name: 'Header',
-          properties: { color: 'blue' },
-          type: 'header'
-        }),
-        include: { usages: true }
+        },
+      });
+      expect(assertWebsiteOwnership).toHaveBeenCalledWith(prisma, 'account-1', 'website-123');
+      expect(ContentRepository.createSharedComponent).toHaveBeenCalledWith({
+        websiteId: 'website-123',
+        websiteComponentTypeId: 'header',
+        name: 'Header',
+        category: 'header',
+        content: { color: 'blue' },
+        createdBy: 'user-789',
       });
     });
 
-    it('should return 404 when website not found', async () => {
+    it('returns 404 when website not found', async () => {
       (prisma.website.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest('http://localhost:3000/api/global-components', {
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components', {
         method: 'POST',
         body: JSON.stringify({
-          componentId: 'comp-456',
           websiteId: 'non-existent',
           name: 'Header',
           type: 'header',
-          properties: {},
-          makeGlobal: true,
-          createdBy: 'user-789'
-        })
+          category: 'header',
+          content: {},
+        }),
       });
 
       const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(404);
-      expect(data).toEqual({ error: 'Website not found' });
+      expect(data.error).toBe('Website not found');
+      expect(ContentRepository.createSharedComponent).not.toHaveBeenCalled();
     });
 
-    it('should validate request body', async () => {
-      const request = new NextRequest('http://localhost:3000/api/global-components', {
+    it('returns duplicate-name errors before creating', async () => {
+      (prisma.website.findUnique as jest.Mock).mockResolvedValue({ id: 'website-123' });
+      (prisma.websiteSharedComponent.findFirst as jest.Mock).mockResolvedValue({ id: 'existing-shared' });
+
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components', {
         method: 'POST',
         body: JSON.stringify({
-          // Missing required fields
-          websiteId: 'website-123'
-        })
+          websiteId: 'website-123',
+          name: 'Header',
+          type: 'header',
+          category: 'header',
+          content: {},
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(data.error).toBe('A global component with this name already exists');
+      expect(ContentRepository.createSharedComponent).not.toHaveBeenCalled();
+    });
+
+    it('validates request body', async () => {
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components', {
+        method: 'POST',
+        body: JSON.stringify({
+          websiteId: 'website-123',
+        }),
       });
 
       const response = await POST(request);
@@ -130,92 +157,79 @@ describe('Global Components API', () => {
       expect(data.error).toBe('Invalid request data');
       expect(data.details).toBeDefined();
     });
-
-    it('should remove component from global when makeGlobal is false', async () => {
-      (prisma.website.findUnique as jest.Mock).mockResolvedValue({ id: 'website-123' });
-      (prisma.globalComponent.delete as jest.Mock).mockResolvedValue({});
-
-      const request = new NextRequest('http://localhost:3000/api/global-components', {
-        method: 'POST',
-        body: JSON.stringify({
-          componentId: 'comp-456',
-          websiteId: 'website-123',
-          name: 'Header',
-          type: 'header',
-          properties: {},
-          makeGlobal: false,
-          createdBy: 'user-789'
-        })
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.isGlobal).toBe(false);
-    });
   });
 
   describe('GET /api/studio/site-builder/global-components', () => {
-    it('should list all global components for a website', async () => {
-      const mockComponents = [
+    it('lists all shared components for a website', async () => {
+      const firstModified = new Date('2024-01-01T00:00:00Z');
+      const secondModified = new Date('2024-01-02T00:00:00Z');
+      (prisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue([
         {
-          id: 'comp-1',
-          componentId: 'comp-1',
+          id: 'shared-1',
+          websiteComponentTypeId: 'header',
           name: 'Header',
-          type: 'header',
-          properties: {},
-          lastModified: new Date('2024-01-01'),
+          content: {},
+          usageCount: 5,
+          lastModified: firstModified,
           createdBy: 'user-1',
-          _count: { usages: 5 }
         },
         {
-          id: 'comp-2',
-          componentId: 'comp-2',
+          id: 'shared-2',
+          websiteComponentTypeId: 'footer',
           name: 'Footer',
-          type: 'footer',
-          properties: {},
-          lastModified: new Date('2024-01-02'),
+          content: { theme: 'dark' },
+          usageCount: 3,
+          lastModified: secondModified,
           createdBy: 'user-2',
-          _count: { usages: 3 }
-        }
-      ];
+        },
+      ]);
 
-      (prisma.globalComponent.findMany as jest.Mock).mockResolvedValue(mockComponents);
-
-      const request = new NextRequest('http://localhost:3000/api/global-components?websiteId=website-123');
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components?websiteId=website-123');
 
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.components).toHaveLength(2);
-      expect(data.components[0]).toEqual({
-        id: 'comp-1',
-        componentId: 'comp-1',
-        name: 'Header',
-        type: 'header',
-        properties: {},
-        usageCount: 5,
-        lastModified: mockComponents[0].lastModified.toISOString(),
-        createdBy: 'user-1'
-      });
-
-      expect(prisma.globalComponent.findMany).toHaveBeenCalledWith({
+      expect(data.success).toBe(true);
+      expect(data.count).toBe(2);
+      expect(data.components).toEqual([
+        {
+          id: 'shared-1',
+          componentId: 'header',
+          name: 'Header',
+          type: 'shared',
+          properties: {},
+          usageCount: 5,
+          lastModified: firstModified.toISOString(),
+          createdBy: 'user-1',
+        },
+        {
+          id: 'shared-2',
+          componentId: 'footer',
+          name: 'Footer',
+          type: 'shared',
+          properties: { theme: 'dark' },
+          usageCount: 3,
+          lastModified: secondModified.toISOString(),
+          createdBy: 'user-2',
+        },
+      ]);
+      expect(assertWebsiteOwnership).toHaveBeenCalledWith(prisma, 'account-1', 'website-123');
+      expect(prisma.websiteSharedComponent.findMany).toHaveBeenCalledWith({
         where: { websiteId: 'website-123' },
-        include: { _count: { select: { usages: true } } },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
       });
     });
 
-    it('should return error when websiteId is missing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/global-components');
+    it('returns 400 when websiteId is missing', async () => {
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components');
 
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'websiteId is required' });
+      expect(data.error).toBe('websiteId is required');
+      expect(prisma.websiteSharedComponent.findMany).not.toHaveBeenCalled();
     });
   });
 });

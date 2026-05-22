@@ -48,8 +48,8 @@ export function determineErrorCode(error: unknown): ErrorCode {
     // Check error message for hints
     const message = error.message.toLowerCase();
     if (message.includes('not found')) return 'NOT_FOUND';
-    if (message.includes('duplicate')) return 'DUPLICATE_NAME';
-    if (message.includes('invalid')) return 'INVALID_DATA';
+    if (message.includes('duplicate') || message.includes('already exists')) return 'DUPLICATE_NAME';
+    if (message.includes('invalid') || message.includes('required')) return 'INVALID_DATA';
     if (message.includes('conflict')) return 'CONFLICT';
     if (message.includes('unauthorized')) return 'UNAUTHORIZED';
     if (message.includes('forbidden')) return 'FORBIDDEN';

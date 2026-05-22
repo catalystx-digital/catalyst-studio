@@ -26,6 +26,7 @@ dotenv.config({ path: '.env.test' })
 
 // Ensure test environment is set
 process.env.NODE_ENV = 'test'
+process.env.IMPORT_MODEL_CHAIN = process.env.IMPORT_MODEL_CHAIN || 'test-model'
 
 if (typeof global.TextEncoder === 'undefined') {
   global.TextEncoder = TextEncoder

@@ -5,6 +5,7 @@ jest.mock('@/lib/prisma', () => {
   const prismaMock = {
     websiteSharedComponent: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
     },
     websitePage: {
@@ -35,6 +36,7 @@ describe('ContentRepository.saveSharedComponentContent concurrency + mirroring',
     const sharedId = 'sc-1'
     const existing = {
       id: sharedId,
+      websiteId: 'w1',
       content: { a: 1 },
       config: { defaultProps: { a: 1 }, other: 1 },
       lastModified: new Date('2025-01-01T00:00:00Z'),
@@ -62,6 +64,7 @@ describe('ContentRepository.saveSharedComponentContent concurrency + mirroring',
     const sharedId = 'sc-2'
     const existing = {
       id: sharedId,
+      websiteId: 'w1',
       content: { a: 1 },
       config: { defaultProps: { a: 1 } },
       lastModified: new Date('2025-09-12T01:00:00Z'),
@@ -71,6 +74,57 @@ describe('ContentRepository.saveSharedComponentContent concurrency + mirroring',
     await expect(
       ContentRepository.saveSharedComponentContent(sharedId, { a: 2 }, { ifUnchangedSince: new Date('2025-09-12T00:00:00Z') })
     ).rejects.toThrow('Conflict: component modified since')
+  })
+
+  it('rejects shared content updates outside the requested website scope', async () => {
+    ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue({
+      id: 'sc-1',
+      websiteId: 'w2',
+      content: { a: 1 },
+      config: { defaultProps: { a: 1 } },
+      lastModified: new Date('2025-01-01T00:00:00Z'),
+    })
+
+    await expect(
+      ContentRepository.saveSharedComponentContent('sc-1', { a: 2 }, { websiteId: 'w1' })
+    ).rejects.toThrow('Shared component not found')
+
+    expect(prisma.websiteSharedComponent.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('ContentRepository.getPageWithResolvedComponents scope', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('only resolves shared component rows from the page website', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'Page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: { sharedComponentId: 'sc-foreign' },
+          },
+        ],
+      },
+    })
+    ;(prisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue([])
+
+    const result = await ContentRepository.getPageWithResolvedComponents('w1', 'page-1')
+
+    expect(prisma.websiteSharedComponent.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['sc-foreign'] }, websiteId: 'w1' },
+    })
+    expect(result.components[0]).toEqual(expect.objectContaining({
+      sharedId: 'sc-foreign',
+      effectiveProps: {},
+    }))
   })
 })
 
@@ -102,6 +156,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
       updatedAt: new Date('2025-09-12T00:00:00Z'),
     }
     ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue({ id: 'sc-1', websiteId: 'w1' })
     ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
 
     await ContentRepository.savePageOverrides('page-1', 'inst-1', { title: 'Edited title' })
@@ -304,5 +359,52 @@ describe('ContentRepository page mutations canonical reads', () => {
     expect(existing).not.toHaveProperty('data')
     expect(existing.props).not.toHaveProperty('content')
     expect(existing.props).not.toHaveProperty('text')
+  })
+
+  it('rejects adding a shared instance from another website', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: { version: 1, components: [] },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    })
+    ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue({ id: 'sc-1', websiteId: 'w2' })
+
+    await expect(
+      ContentRepository.addSharedInstanceToPage('page-1', 'sc-1', 0)
+    ).rejects.toThrow('Shared component not found')
+
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects converting props to overrides against a shared component from another website', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        version: 1,
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: { sharedComponentId: 'sc-1', heading: 'Local' },
+            content: {},
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    })
+    ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue({ id: 'sc-1', websiteId: 'w2' })
+
+    await expect(
+      ContentRepository.convertFullPropsToOverrides('page-1', 'inst-1', 'sc-1')
+    ).rejects.toThrow('Shared component not found')
+
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 })

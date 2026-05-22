@@ -2,10 +2,13 @@
  * Tests for Web-Based Import Pipeline
 */
 
+process.env.IMPORT_MODEL_CHAIN = process.env.IMPORT_MODEL_CHAIN || 'test-model'
+
 import { ImportPipeline, importPipeline } from '../import-pipeline'
 import { getDetectionService } from '../web-detection'
 import type { ImportDetectionResult } from '../web-detection'
 import * as pageCatalog from '@/lib/studio/pages/catalog'
+import { importDesignSystemFromUrl } from '@/lib/studio/design-system/import-design-system'
 import type { DesignSystem, CapturedDesignSystem } from '../types/design-system.types'
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service'
 
@@ -175,6 +178,7 @@ function createMockCapturedDesignSystem(overrides?: Partial<CapturedDesignSystem
 
 // Mock dependencies
 jest.mock('../web-detection')
+jest.mock('@/lib/studio/design-system/import-design-system')
 jest.mock('@/lib/studio/components/cms/_import/performance', () => ({
   performanceMonitor: {
     measure: jest.fn(async (name, fn) => fn()),
@@ -285,6 +289,13 @@ describe('ImportPipeline', () => {
     }
 
     ;(pipeline as any).domProbeService = domProbeServiceMock
+    ;(importDesignSystemFromUrl as jest.Mock).mockResolvedValue({
+      designSystem: domProbeCaptured,
+      conceptId: 'concept-1',
+      conceptName: 'Default Concept',
+      diagnostics: [],
+      success: true
+    })
   })
 
   afterEach(() => {
@@ -410,6 +421,13 @@ describe('ImportPipeline', () => {
       }
 
       domProbeServiceMock.toCapturedDesignSystem.mockReturnValueOnce(captured)
+      ;(importDesignSystemFromUrl as jest.Mock).mockResolvedValueOnce({
+        designSystem: captured,
+        conceptId: 'concept-1',
+        conceptName: 'Default Concept',
+        diagnostics: [],
+        success: true
+      })
 
       const result = await pipeline.execute({ urls: mockUrls })
 
@@ -492,6 +510,7 @@ describe('ImportPipeline', () => {
 
       expect(result.success).toBe(false)
       expect(result.data?.detectedComponents).toHaveLength(1)
+      expect(result.data?.detectedComponents?.[0].components).toHaveLength(0)
       expect(result.data?.detectedComponents?.[0].pageTemplate.templateKey).toBe('core/generic-default')
       expect(result.data?.detectedComponents?.[0].pageTemplate.source).toBe('fallback')
 

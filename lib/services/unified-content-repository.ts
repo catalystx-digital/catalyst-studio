@@ -153,7 +153,7 @@ export const ContentRepository = {
 
     const uniqueSharedIds = Array.from(new Set(sharedIds));
     const sharedRows = uniqueSharedIds.length
-      ? await db.websiteSharedComponent.findMany({ where: { id: { in: uniqueSharedIds } } })
+      ? await db.websiteSharedComponent.findMany({ where: { id: { in: uniqueSharedIds }, websiteId } })
       : [];
     const sharedMap = new Map<string, any>(sharedRows.map((r: any) => [r.id, r]));
 
@@ -194,11 +194,13 @@ export const ContentRepository = {
   async saveSharedComponentContent(
     sharedId: string,
     content: Record<string, unknown>,
-    opts?: { mirrorDefaultProps?: boolean; ifUnchangedSince?: Date }
+    opts?: { websiteId?: string; mirrorDefaultProps?: boolean; ifUnchangedSince?: Date }
   ): Promise<void> {
     await db.$transaction(async (tx: any) => {
       const current = await tx.websiteSharedComponent.findUnique({ where: { id: sharedId } });
-      if (!current) throw new Error('Shared component not found');
+      if (!current || (opts?.websiteId && current.websiteId !== opts.websiteId)) {
+        throw new Error('Shared component not found');
+      }
       if (opts?.ifUnchangedSince && current.lastModified > opts.ifUnchangedSince) {
         throw new Error('Conflict: component modified since');
       }
@@ -285,6 +287,13 @@ export const ContentRepository = {
   ): Promise<{ instanceId: string }> {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
+    const shared = await db.websiteSharedComponent.findUnique({
+      where: { id: sharedId },
+      select: { id: true, websiteId: true },
+    });
+    if (!shared || shared.websiteId !== page.websiteId) {
+      throw new Error('Shared component not found');
+    }
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const content = (page.content || {}) as Record<string, unknown>;
     const components = [...(normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
@@ -336,6 +345,9 @@ export const ContentRepository = {
     const comp = { ...(components[idx] || {}) } as Record<string, unknown>;
     const props = { ...(toRecord(comp.props)) } as Record<string, unknown>;
     const shared = await db.websiteSharedComponent.findUnique({ where: { id: sharedId } });
+    if (!shared || shared.websiteId !== page.websiteId) {
+      throw new Error('Shared component not found');
+    }
     const sharedContent = toRecord(shared?.content ?? (toRecord(shared?.config).defaultProps ?? {}));
 
     // Compute overrides as shallow diff: props minus sharedContent

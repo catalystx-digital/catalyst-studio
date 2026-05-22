@@ -8,7 +8,6 @@
  * - executeContentFeedPromotion
  */
 
-import { describe, it, expect } from 'vitest'
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 import {
@@ -61,9 +60,21 @@ describe('executeMultiRowDetection', () => {
             { label: 'About', href: '/about' },
             { label: 'Contact', href: '/contact' },
             { label: 'Login', href: '/login' },
-            { label: 'Services', href: '/services' },
-            { label: 'Products', href: '/products' },
-            { label: 'Research', href: '/research' }
+            {
+              label: 'Services',
+              href: '/services',
+              children: [{ label: 'Consulting' }, { label: 'Support' }, { label: 'Training' }]
+            },
+            {
+              label: 'Products',
+              href: '/products',
+              children: [{ label: 'Platform' }, { label: 'Apps' }, { label: 'Integrations' }]
+            },
+            {
+              label: 'Research',
+              href: '/research',
+              children: [{ label: 'Reports' }, { label: 'Insights' }, { label: 'Labs' }]
+            }
           ]
         }
       }
@@ -220,6 +231,30 @@ describe('executeBackgroundPromotion', () => {
     expect(components[0].component).toBe('hero-banner')
     expect(components[0].content.backgroundImage).toContain('hero.jpg')
     expect(components[0].metadata?.variant).toBe('banner')
+  })
+
+  it('should find selector backgrounds when style appears before id with spaced attributes', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-simple' as any,
+        component: 'hero-simple',
+        confidence: 0.9,
+        content: {
+          heading: 'Welcome'
+        }
+      }
+    ]
+
+    const html = '<div style = "background-image: url(/wrong.jpg)"></div><section style = "background-image: url(\'/hero.jpg\')" id = "banner-wrap"></section>'
+
+    executeBackgroundPromotion(components, { enabled: true, domSelectors: ['banner-wrap'] }, {
+      domSnapshot: html,
+      pageUrl: 'https://example.com'
+    })
+
+    expect(components[0].type).toBe('hero-banner')
+    expect(components[0].content.backgroundImage).toContain('hero.jpg')
+    expect(components[0].content.backgroundImage).not.toContain('wrong.jpg')
   })
 
   it('should not promote if hero already has background', () => {

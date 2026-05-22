@@ -1346,18 +1346,19 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
 
         // If newly global and we have a page context, convert instance to shared overrides
         if (!isCurrentlyGlobal && sharedId && pageId) {
-          try {
-            await fetch(`/api/studio/site-builder/pages/${websiteId}/${pageId}/resolved`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                updates: [
-                  { type: 'convertFullPropsToOverrides', instanceId: componentId, sharedId }
-                ]
-              })
-            });
-          } catch (e) {
-            console.warn('[Store] Failed to convert instance to shared overrides', e);
+          const convertResponse = await fetch(`/api/studio/site-builder/pages/${pageId}/resolved?websiteId=${encodeURIComponent(websiteId)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              updates: [
+                { type: 'convertFullPropsToOverrides', instanceId: componentId, sharedId }
+              ]
+            })
+          });
+
+          if (!convertResponse.ok) {
+            const errorBody = await convertResponse.json().catch(() => null) as { error?: string } | null;
+            throw new Error(errorBody?.error || 'Failed to convert instance to shared overrides');
           }
         }
 

@@ -30,28 +30,32 @@ type UpdateOperation =
       instanceId: string;
     }
   | {
-    type: 'convertFullPropsToOverrides';
-    instanceId: string;
-    sharedId: string;
-  };
+      type: 'convertFullPropsToOverrides';
+      instanceId: string;
+      sharedId: string;
+    };
 
 export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ websiteId: string; pageId: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
-    const { websiteId, pageId } = await params;
+    const { pageId } = await params;
+    const websiteId = request.nextUrl.searchParams.get('websiteId');
 
-    if (!websiteId || !pageId) {
+    if (!pageId || !websiteId) {
       return NextResponse.json({ error: 'Missing identifiers' }, { status: 400 });
     }
 
-    // Ownership check
-    const auth = await getAuthContext(_request);
+    const auth = await getAuthContext(request);
     await assertWebsiteOwnership(prisma, auth.accountId, websiteId);
 
-    const start = performance.now();
+    const page = await getScopedPage(pageId, websiteId);
+    if (!page) {
+      return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+    }
 
+    const start = performance.now();
     const resolved = await ContentRepository.getPageWithResolvedComponents(websiteId, pageId);
 
     if (process.env.NODE_ENV !== 'production') {
@@ -83,18 +87,21 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ websiteId: string; pageId: string }> }
+  { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
-    const { websiteId, pageId } = await params;
-    if (!websiteId || !pageId) {
+    const { pageId } = await params;
+    const websiteId = request.nextUrl.searchParams.get('websiteId');
+    if (!pageId || !websiteId) {
       return NextResponse.json({ error: 'Missing identifiers' }, { status: 400 });
     }
 
-    const body = (await request.json().catch(() => ({}))) as {
-      updates?: UpdateOperation[];
-      // Optional: allow single operation payloads
-    } & Partial<UpdateOperation>;
+    let body: { updates?: UpdateOperation[] } & Partial<UpdateOperation>;
+    try {
+      body = (await request.json()) as { updates?: UpdateOperation[] } & Partial<UpdateOperation>;
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON body' }, { status: 400 });
+    }
 
     const updates: UpdateOperation[] = Array.isArray(body.updates)
       ? body.updates
@@ -104,9 +111,13 @@ export async function PUT(
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
     }
 
-    // Ownership check
     const auth = await getAuthContext(request);
     await assertWebsiteOwnership(prisma, auth.accountId, websiteId);
+
+    const page = await getScopedPage(pageId, websiteId);
+    if (!page) {
+      return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+    }
 
     const start = performance.now();
 
@@ -116,6 +127,7 @@ export async function PUT(
         switch (op.type) {
           case 'shared': {
             await ContentRepository.saveSharedComponentContent(op.sharedId, op.content, {
+              websiteId,
               ifUnchangedSince: op.ifUnchangedSince ? new Date(op.ifUnchangedSince) : undefined,
               mirrorDefaultProps: op.mirrorDefaultProps,
             });
@@ -150,16 +162,8 @@ export async function PUT(
       }
     });
 
-    // Re-resolve the page after saving
     const resolved = await ContentRepository.getPageWithResolvedComponents(websiteId, pageId);
-
-    // Sync content references (non-blocking on error)
-    try {
-      await contentReferenceSyncService.syncPageReferences(pageId, resolved, websiteId);
-    } catch (syncError) {
-      console.error('[ResolvedPageAPI] Failed to sync content references:', syncError);
-      // Don't fail the request - reference sync is best-effort
-    }
+    await contentReferenceSyncService.syncPageReferences(pageId, resolved, websiteId);
 
     if (process.env.NODE_ENV !== 'production') {
       try {
@@ -185,10 +189,22 @@ export async function PUT(
   }
 }
 
+async function getScopedPage(pageId: string, websiteId: string) {
+  const page = await prisma.websitePage.findUnique({
+    where: { id: pageId },
+    select: { id: true, websiteId: true },
+  });
+
+  if (!page || page.websiteId !== websiteId) {
+    return null;
+  }
+
+  return page;
+}
+
 function normalizeSingleOperation(body: Partial<UpdateOperation> & { updates?: UpdateOperation[] }): UpdateOperation[] {
   if (!body || typeof body !== 'object') return [];
   if ('type' in body && body.type) {
-    // Narrow types in runtime
     const t = body.type;
     if (t === 'shared' && 'sharedId' in body && 'content' in body) {
       return [

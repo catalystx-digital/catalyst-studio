@@ -161,6 +161,7 @@ export async function PUT(
         );
       }
       await ContentRepository.saveSharedComponentContent(id, content as Record<string, unknown>, {
+        websiteId: existingComponent.websiteId,
         mirrorDefaultProps: true,
         ifUnchangedSince,
       });

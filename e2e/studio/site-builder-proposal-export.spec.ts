@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { Buffer } from 'node:buffer'
 
 const sitemapResponse = {
@@ -81,6 +81,17 @@ const proposalResponse = {
   }
 }
 
+async function openPagesPanel(page: Page) {
+  await expect(page.getByRole('banner').getByRole('heading', { name: 'Site Builder' })).toBeVisible()
+  const searchInput = page.getByPlaceholder('Search pages...')
+  if (!(await searchInput.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Pages' }).click()
+  }
+  await expect(searchInput).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(searchInput).not.toBeVisible()
+}
+
 test.describe('Site Builder proposal export', () => {
   test('exports proposal PDF from builder menu', async ({ page }) => {
     await page.route('**/api/studio/sitemap/**', (route) => route.fulfill({ json: sitemapResponse }))
@@ -121,14 +132,13 @@ test.describe('Site Builder proposal export', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
-    await page.getByRole('button', { name: 'Menu' }).click()
-    await page.getByText('Extract proposal (PDF)').click()
+    await page.getByRole('button', { name: 'Proposal' }).click()
     await expect(page.getByText('Proposal title')).toBeVisible()
 
     const downloadPromise = page.waitForEvent('download')
-    await page.getByRole('button', { name: /Generate proposal/i }).click()
+    await page.getByRole('button', { name: /Generate PDF/i }).click()
     const download = await downloadPromise
     expect(download.suggestedFilename()).toContain('test-site')
 

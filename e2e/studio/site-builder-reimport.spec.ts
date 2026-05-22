@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 const SAMPLE_SITEMAP = {
   nodes: [
@@ -120,6 +120,17 @@ const toJsonResponse = (payload: unknown) => ({
   body: JSON.stringify(payload),
 })
 
+async function openPagesPanel(page: Page) {
+  await expect(page.getByRole('banner').getByRole('heading', { name: 'Site Builder' })).toBeVisible()
+  const searchInput = page.getByPlaceholder('Search pages...')
+  if (!(await searchInput.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Pages' }).click()
+  }
+  await expect(searchInput).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(searchInput).not.toBeVisible()
+}
+
 test.describe('Site Builder Page Re-Import', () => {
   test.beforeEach(async ({ page }) => {
     // Mock common API routes
@@ -161,7 +172,7 @@ test.describe('Site Builder Page Re-Import', () => {
     )
 
     // Wait for page to load
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Look for a reimport button or menu option
     // The exact selector depends on the UI implementation
@@ -209,7 +220,7 @@ test.describe('Site Builder Page Re-Import', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Right-click on a page node to open context menu (common pattern)
     const pageNode = page.locator('[data-testid="page-node-about"]').or(
@@ -263,7 +274,7 @@ test.describe('Site Builder Page Re-Import', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Find and trigger reimport dialog through any available UI path
     const reimportTriggers = [
@@ -320,7 +331,7 @@ test.describe('Site Builder Page Re-Import', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Find the reimport dialog with options
     const dialog = page.getByRole('dialog')
@@ -387,7 +398,7 @@ test.describe('Site Builder Page Re-Import', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Trigger reimport and verify error handling
     const dialog = page.getByRole('dialog')
@@ -430,7 +441,7 @@ test.describe('Site Builder Page Re-Import', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // After triggering reimport, check for loading indicators
     const loadingIndicators = [
@@ -458,7 +469,7 @@ test.describe('Site Builder Page Re-Import', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Open dialog
     const reimportButton = page.getByRole('button', { name: /re-?import/i })
@@ -553,7 +564,7 @@ test.describe('Site Builder Re-Import - Multi-Page', () => {
       '/studio/site-builder?websiteId=test-site&websiteName=Test%20Site&conceptId=concept-alpha&importJobId=job-1'
     )
 
-    await expect(page.getByPlaceholder('Search pages...')).toBeVisible()
+    await openPagesPanel(page)
 
     // Look for multi-select reimport UI
     // This could be a "Reimport All" button or checkbox selection

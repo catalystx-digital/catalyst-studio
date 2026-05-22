@@ -357,22 +357,35 @@ function extractHeroBackgroundWithRules(
  * Finds background image for a specific element ID.
  */
 function findBackgroundForSelector(html: string, id: string): string | undefined {
-  const regex = new RegExp(`<[^>]*id=["']${escapeRegex(id)}["'][^>]*style=["']([^"']*)["'][^>]*>`, 'i')
-  const match = regex.exec(html)
-  if (!match) {
-    return undefined
+  const tagRegex = /<[^>]*>/gi
+  let tagMatch: RegExpExecArray | null
+  while ((tagMatch = tagRegex.exec(html)) !== null) {
+    const tag = tagMatch[0]
+    const idMatch = /\bid\s*=\s*(["'])(.*?)\1/i.exec(tag)
+    if (!idMatch || idMatch[2] !== id) {
+      continue
+    }
+    const styleMatch = /\bstyle\s*=\s*(["'])(.*?)\1/i.exec(tag)
+    const url = extractBackgroundUrl(styleMatch?.[2])
+    if (url) {
+      return url
+    }
   }
-  return extractBackgroundUrl(match[1])
+  return undefined
 }
 
 /**
  * Finds the first background-image in HTML.
  */
 function findFirstBackgroundImage(html: string): string | undefined {
-  const regex = /style=["']([^"']*background-image:[^"']+)["']/gi
+  const regex = /\bstyle\s*=\s*(["'])(.*?)\1/gi
   let match: RegExpExecArray | null
   while ((match = regex.exec(html)) !== null) {
-    const url = extractBackgroundUrl(match[1])
+    const style = match[2]
+    if (!/background-image\s*:/i.test(style)) {
+      continue
+    }
+    const url = extractBackgroundUrl(style)
     if (url) {
       return url
     }
