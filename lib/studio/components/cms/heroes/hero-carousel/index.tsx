@@ -586,7 +586,7 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
               className={cn(
                 'cms-hero-carousel-slide absolute inset-0 flex h-full w-full flex-col',
                 transitionStyle === 'slide'
-                  ? 'transform-gpu transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]'
+                  ? 'transform-gpu transition-[transform,opacity] duration-700 ease-catalyst'
                   : 'transition-opacity duration-700 ease-out',
                 isActive
                   ? transitionClass
@@ -717,7 +717,7 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
         })}
       </div>
 
-      {false && showControls && totalSlides > 1 ? (
+      {showControls && totalSlides > 1 ? (
         <div
           className={cn(
             'pointer-events-none absolute inset-y-0 z-30 flex w-full items-center justify-between',

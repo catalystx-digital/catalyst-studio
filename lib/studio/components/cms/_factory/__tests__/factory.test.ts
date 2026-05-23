@@ -2,6 +2,7 @@ import React from 'react'
 import { z } from 'zod'
 import { CMSComponentFactory } from '../factory'
 import { ComponentCategory, ComponentType } from '../../_core/types'
+import { initializeCMSComponents } from '../initialize'
 
 describe('CMSComponentFactory', () => {
   const factory = CMSComponentFactory.getInstance()
@@ -50,5 +51,13 @@ describe('CMSComponentFactory', () => {
     })
 
     await expect(factory.loadComponent(testType)).resolves.toBe(Component)
+  })
+
+  it('registers feature comparison under its canonical component type', async () => {
+    await initializeCMSComponents()
+
+    expect(factory.hasComponent(ComponentType.FeatureComparison)).toBe(true)
+    expect(factory.getComponentMetadata(ComponentType.FeatureComparison)?.commonNames).toContain('FeatureComparison')
+    expect(factory.hasComponent(ComponentType.PricingTable)).toBe(true)
   })
 })

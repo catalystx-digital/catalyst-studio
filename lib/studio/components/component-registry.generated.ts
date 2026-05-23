@@ -230,6 +230,13 @@ export const COMPONENT_REGISTRY: ComponentRegistryEntry[] = [
     description: "Key performance indicators and metrics displayed as stats with labels, delta trends, and optional icons."
   },
   {
+    name: ComponentType.FeatureComparison,
+    path: 'lib/studio/components/cms/features/feature-comparison',
+    category: ComponentCategory.Features,
+    hasAdapter: true,
+    description: "Side-by-side comparison table for features/plans with optional highlights."
+  },
+  {
     name: ComponentType.FeatureGrid,
     path: 'lib/studio/components/cms/features/feature-grid',
     category: ComponentCategory.Features,

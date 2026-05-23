@@ -12,7 +12,7 @@ const APP_PORT = new URL(APP_BASE_URL).port || '3000';
 const SERVER_MODE = process.env.PLAYWRIGHT_SERVER_MODE ?? 'production';
 const WEB_SERVER_COMMAND = SERVER_MODE === 'dev'
   ? `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} npm run build:components && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} next dev -p ${APP_PORT}`
-  : `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true npm run build && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} next start -p ${APP_PORT}`;
+  : `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true npm run build:no-workflow && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} next start -p ${APP_PORT}`;
 const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true'
   || (!process.env.CI && !process.env.PLAYWRIGHT_APP_BASE_URL);
 

@@ -31,9 +31,9 @@ cmsComponentFactory.registerComponent(
 
 // Register Feature Comparison component
 cmsComponentFactory.registerComponent(
-  ComponentType.PricingTable,
+  ComponentType.FeatureComparison,
   FeatureComparisonAdapter,
-  detectionToAIMetadata(FeatureComparisonDef.detection!, ComponentType.PricingTable),
+  detectionToAIMetadata(FeatureComparisonDef.detection!, ComponentType.FeatureComparison),
   { description: FeatureComparisonDef.description, schema: FeatureComparisonDef.schema }
 );
 
