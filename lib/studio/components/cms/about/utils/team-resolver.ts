@@ -57,7 +57,7 @@ export function resolveTeamGridContent(content: TeamGridContent): TeamGridConten
 
   let members = [...manualMembers];
 
-  if (provider && (content.autoFill?.enabled ?? true)) {
+  if (provider && content.autoFill && content.autoFill.enabled !== false) {
     const remaining = desiredCount - members.length;
     if (remaining > 0) {
       const query: ContentQuery<TeamMemberFilters> = {

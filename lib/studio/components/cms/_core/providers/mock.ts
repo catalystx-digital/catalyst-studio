@@ -1,6 +1,4 @@
 import {
-  ContentResource,
-  registerContentProvider,
   ContentResult,
   ContentQuery,
   BlogPostFilters,
@@ -207,9 +205,6 @@ const teamProvider: TeamMemberProvider = {
   }
 };
 
-registerContentProvider(ContentResource.BlogPosts, blogProvider);
-registerContentProvider(ContentResource.TeamMembers, teamProvider);
-
 const mockFeedItems: Array<ContentFeedItem & Record<string, unknown>> = [
   {
     id: 'feed-1',
@@ -251,6 +246,9 @@ const contentFeedProvider: ContentFeedProvider = {
 };
 
 export {
+  mockBlogPosts,
+  mockTeamMembers,
+  mockFeedItems,
   blogProvider as mockBlogContentProvider,
   teamProvider as mockTeamContentProvider,
   contentFeedProvider as mockContentFeedProvider,

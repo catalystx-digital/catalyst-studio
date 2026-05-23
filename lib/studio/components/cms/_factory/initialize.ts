@@ -5,8 +5,6 @@
  * Separated from the factory to avoid circular dependencies.
  */
 
-// Register default data providers so components have sensible fallbacks during SSR and tests
-import '../_core/providers/mock';
 import { loadAllDefinitions } from '../_core/definition-loader';
 
 // Import registration functions that will register components with the factory

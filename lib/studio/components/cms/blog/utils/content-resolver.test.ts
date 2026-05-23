@@ -2,16 +2,31 @@ import { resolveBlogListContent, resolveRelatedPostsContent } from './content-re
 import type { BlogListContent } from '../blog-list/blog-list.types';
 import type { RelatedPostsContent } from '../related-posts/related-posts.types';
 import { resetContentProviders, registerContentProvider, ContentResource } from '../../_core/data-providers';
-import { mockBlogContentProvider, mockTeamContentProvider } from '../../_core/providers/mock';
+import { mockBlogContentProvider } from '../../_core/providers/mock';
 
 describe('content resolvers', () => {
   beforeEach(() => {
     resetContentProviders();
-    registerContentProvider(ContentResource.BlogPosts, mockBlogContentProvider);
-    registerContentProvider(ContentResource.TeamMembers, mockTeamContentProvider);
   });
 
-  it('auto-fills blog list content when manual posts are missing', () => {
+  it('does not inject blog posts when no blog provider is registered', () => {
+    const content: BlogListContent = {
+      autoFill: {
+        strategy: 'latest',
+        desiredCount: 3
+      },
+      showPagination: false
+    };
+
+    const resolved = resolveBlogListContent(content);
+
+    expect(resolved.posts).toEqual([]);
+    expect(resolved.manualPosts).toEqual([]);
+  });
+
+  it('auto-fills blog list content when a provider is explicitly registered', () => {
+    registerContentProvider(ContentResource.BlogPosts, mockBlogContentProvider);
+
     const content: BlogListContent = {
       manualPosts: [
         {
@@ -42,7 +57,30 @@ describe('content resolvers', () => {
     expect(autoIds).toEqual(expect.arrayContaining(['mock-blog-1', 'mock-blog-2']));
   });
 
-  it('backfills related posts up to the requested max', () => {
+  it('does not backfill related posts when no blog provider is registered', () => {
+    const content: RelatedPostsContent = {
+      manualPosts: [
+        {
+          id: 'manual-related-1',
+          title: 'Pinned related post',
+          slug: 'pinned-related',
+          categories: ['Product']
+        }
+      ],
+      maxPosts: 4,
+      relatedBy: 'both'
+    };
+
+    const resolved = resolveRelatedPostsContent(content);
+
+    expect(resolved.posts).toEqual([
+      expect.objectContaining({ id: 'manual-related-1' })
+    ]);
+  });
+
+  it('backfills related posts up to the requested max when a provider is explicitly registered', () => {
+    registerContentProvider(ContentResource.BlogPosts, mockBlogContentProvider);
+
     const content: RelatedPostsContent = {
       manualPosts: [
         {
@@ -63,5 +101,23 @@ describe('content resolvers', () => {
     // Ensure there are no duplicates in the auto-filled portion
     const uniqueIds = new Set(resolved.posts?.map(post => post.id));
     expect(uniqueIds.size).toBe(resolved.posts?.length);
+  });
+
+  it('surfaces registered blog provider errors', () => {
+    registerContentProvider(ContentResource.BlogPosts, {
+      fetch: () => {
+        throw new Error('blog provider failed');
+      }
+    });
+
+    const content: BlogListContent = {
+      autoFill: {
+        strategy: 'latest',
+        desiredCount: 2
+      },
+      showPagination: false
+    };
+
+    expect(() => resolveBlogListContent(content)).toThrow('blog provider failed');
   });
 });

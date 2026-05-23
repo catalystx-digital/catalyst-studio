@@ -8,6 +8,11 @@ import { initializeCMSComponents } from '../initialize'
 import { renderCMSComponents } from '../renderer.server'
 import { CMSBatchRenderer, CMSComponentRenderer } from '../renderer'
 import { preloadComponents } from '../../_core/lazy-loader'
+import {
+  ContentResource,
+  getContentProvider,
+  resetContentProviders,
+} from '../../_core/data-providers'
 
 describe('CMSComponentFactory', () => {
   const factory = CMSComponentFactory.getInstance()
@@ -16,12 +21,14 @@ describe('CMSComponentFactory', () => {
   beforeEach(() => {
     factory.unregisterComponent(testType)
     factory.clearCache()
+    resetContentProviders()
     ;(factory as unknown as { initializationPromise: Promise<void> | null }).initializationPromise = null
   })
 
   afterEach(() => {
     factory.unregisterComponent(testType)
     factory.clearCache()
+    resetContentProviders()
     ;(factory as unknown as { initializationPromise: Promise<void> | null }).initializationPromise = null
   })
 
@@ -63,6 +70,13 @@ describe('CMSComponentFactory', () => {
     expect(factory.hasComponent(ComponentType.FeatureComparison)).toBe(true)
     expect(factory.getComponentMetadata(ComponentType.FeatureComparison)?.commonNames).toContain('FeatureComparison')
     expect(factory.hasComponent(ComponentType.PricingTable)).toBe(true)
+  })
+
+  it('does not register mock content providers during initialization', async () => {
+    await initializeCMSComponents()
+
+    expect(getContentProvider(ContentResource.BlogPosts)).toBeUndefined()
+    expect(getContentProvider(ContentResource.TeamMembers)).toBeUndefined()
   })
 
   it('does not register placeholder-backed subcomponents as renderable components', async () => {
