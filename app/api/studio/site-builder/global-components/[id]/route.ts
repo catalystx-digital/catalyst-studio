@@ -25,7 +25,7 @@ async function assertComponentOwnership(request: NextRequest, componentId: strin
 // Validation schema for updates
 const UpdateGlobalComponentSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  content: z.any().optional() // Canonical props/content
+  content: z.record(z.unknown()).optional()
 });
 
 /**
@@ -67,7 +67,7 @@ export async function GET(
       componentId: sharedComponent.websiteComponentTypeId,
       name: sharedComponent.name,
       type: 'shared',
-      properties: (sharedComponent.content as Record<string, unknown>) || {},
+      properties: sharedComponent.content as Record<string, unknown>,
       usageCount: sharedComponent.usageCount,
       lastModified: sharedComponent.lastModified,
       createdBy: sharedComponent.createdBy,
@@ -162,7 +162,6 @@ export async function PUT(
       }
       await ContentRepository.saveSharedComponentContent(id, content as Record<string, unknown>, {
         websiteId: existingComponent.websiteId,
-        mirrorDefaultProps: true,
         ifUnchangedSince,
       });
     }
@@ -174,7 +173,7 @@ export async function PUT(
       componentId: updatedComponent.websiteComponentTypeId,
       name: updatedComponent.name,
       type: 'shared',
-      properties: (updatedComponent.content as Record<string, unknown>) || {},
+      properties: updatedComponent.content as Record<string, unknown>,
       usageCount: updatedComponent.usageCount,
       lastModified: updatedComponent.lastModified,
       createdBy: updatedComponent.createdBy

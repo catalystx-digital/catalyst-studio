@@ -9,6 +9,16 @@ import {
   ComponentTypeWithShared
 } from './interfaces/component-service.interface';
 
+function sanitizeSharedComponentConfig(config: unknown): Prisma.InputJsonValue {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return {} as Prisma.InputJsonValue;
+  }
+
+  const metadata = { ...(config as Record<string, unknown>) };
+  delete metadata[['default', 'Props'].join('')];
+  return metadata as Prisma.InputJsonValue;
+}
+
 export class ComponentService implements IComponentService {
   constructor(private prisma: PrismaClient) {}
 
@@ -160,7 +170,8 @@ export class SharedComponentService implements ISharedComponentService {
         websiteId: data.websiteId,
         websiteComponentTypeId: data.websiteComponentTypeId,
         name: data.name,
-        config: data.config,
+        content: data.content as Prisma.InputJsonValue,
+        config: sanitizeSharedComponentConfig(data.config),
         createdBy: data.createdBy,
         updatedBy: data.updatedBy
       }
@@ -190,9 +201,23 @@ export class SharedComponentService implements ISharedComponentService {
   }
 
   async updateSharedComponent(id: string, data: UpdateSharedComponentDto): Promise<WebsiteSharedComponent> {
+    const updateData: Prisma.WebsiteSharedComponentUpdateInput = {};
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+    }
+    if (data.updatedBy !== undefined) {
+      updateData.updatedBy = data.updatedBy;
+    }
+    if (data.content !== undefined) {
+      updateData.content = data.content as Prisma.InputJsonValue;
+    }
+    if (data.config !== undefined) {
+      updateData.config = sanitizeSharedComponentConfig(data.config);
+    }
+
     return await this.prisma.websiteSharedComponent.update({
       where: { id },
-      data
+      data: updateData
     });
   }
 
@@ -239,7 +264,8 @@ export class SharedComponentService implements ISharedComponentService {
         websiteId: original.websiteId,
         websiteComponentTypeId: original.websiteComponentTypeId,
         name: newName || `${original.name} (Clone)`,
-        config: original.config as any
+        content: original.content as Prisma.InputJsonValue,
+        config: sanitizeSharedComponentConfig(original.config)
       }
     });
   }

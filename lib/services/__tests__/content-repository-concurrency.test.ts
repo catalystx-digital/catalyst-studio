@@ -32,7 +32,7 @@ describe('ContentRepository.saveSharedComponentContent concurrency', () => {
     jest.clearAllMocks()
   })
 
-  it('updates content and removes legacy defaultProps transactionally', async () => {
+  it('updates content transactionally and strips legacy config.defaultProps', async () => {
     const sharedId = 'sc-1'
     const existing = {
       id: sharedId,
@@ -44,22 +44,20 @@ describe('ContentRepository.saveSharedComponentContent concurrency', () => {
     ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue(existing)
     ;(prisma.websiteSharedComponent.update as jest.Mock).mockResolvedValue({ ...existing, content: { a: 2 } })
 
-    await ContentRepository.saveSharedComponentContent(sharedId, { a: 2 }, { mirrorDefaultProps: true })
+    await ContentRepository.saveSharedComponentContent(sharedId, { a: 2 })
 
     expect(prisma.$transaction).toHaveBeenCalled()
     expect(prisma.websiteSharedComponent.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: sharedId },
-        data: expect.objectContaining({
-          content: expect.anything(),
-          config: expect.anything(),
-        }),
+        data: {
+          content: { a: 2 },
+          config: { other: 1 },
+        },
       })
     )
     const dataArg = (prisma.websiteSharedComponent.update as jest.Mock).mock.calls[0][0].data
-    expect(dataArg.config).toBeTruthy()
     expect(dataArg.config).not.toHaveProperty('defaultProps')
-    expect(dataArg.config).toEqual({ other: 1 })
   })
 
   it('throws conflict when lastModified is newer than ifUnchangedSince', async () => {

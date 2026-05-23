@@ -1433,13 +1433,14 @@ export class ReImportService implements IReImportService {
       where: { id: { in: sharedRefs } }
     })
 
-    // Build a map of shared component props from config.defaultProps
-    // Note: WebsiteSharedComponent has 'config' and 'content' fields, not 'props'
+    // Build a map of shared component props from canonical content.
     const sharedPropsMap = new Map<string, Record<string, unknown>>()
     for (const sc of sharedComponents) {
-      const config = sc.config as { defaultProps?: Record<string, unknown> } | null
-      const props = config?.defaultProps || {}
-      sharedPropsMap.set(sc.id, props)
+      const content = sc.content
+      if (!this.isRecord(content)) {
+        throw new Error(`Shared component ${sc.id} has invalid content`)
+      }
+      sharedPropsMap.set(sc.id, content)
     }
 
     // Update component props with latest shared data

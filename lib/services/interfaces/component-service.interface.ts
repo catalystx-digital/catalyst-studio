@@ -32,14 +32,16 @@ export interface CreateSharedComponentDto {
   websiteId: string;
   websiteComponentTypeId: string;
   name: string;
-  config: any;
+  content: Record<string, unknown>;
+  config?: Record<string, unknown>;
   createdBy?: string;
   updatedBy?: string;
 }
 
 export interface UpdateSharedComponentDto {
   name?: string;
-  config?: any;
+  content?: Record<string, unknown>;
+  config?: Record<string, unknown>;
   updatedBy?: string;
 }
 

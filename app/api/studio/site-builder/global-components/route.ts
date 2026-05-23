@@ -17,7 +17,7 @@ import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 const CreateGlobalComponentSchema = z.object({
   name: z.string().min(1).max(255),
   type: z.string().min(1).max(100),
-  content: z.any(), // Canonical props/content
+  content: z.record(z.unknown()),
   category: z.enum(['header', 'footer', 'navigation', 'shared']),
   websiteId: z.string().min(1).max(100)
 });
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create via Unified Content Repository (canonical content + mirror defaultProps)
+    // Create via Unified Content Repository with canonical shared content.
     const created = await ContentRepository.createSharedComponent({
       websiteId,
       websiteComponentTypeId: type,
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         componentId: sharedComponent.websiteComponentTypeId,
         name: sharedComponent.name,
         type: category,
-        properties: (sharedComponent.content as Record<string, unknown>) || {},
+        properties: sharedComponent.content as Record<string, unknown>,
         usageCount: sharedComponent.usageCount,
         lastModified: sharedComponent.lastModified,
         createdBy: sharedComponent.createdBy

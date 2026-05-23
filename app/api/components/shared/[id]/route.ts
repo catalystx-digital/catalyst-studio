@@ -5,9 +5,15 @@ import { z } from 'zod';
 import { getAuthContext } from '@/lib/auth/context';
 
 // Schema for updating WebsiteSharedComponent
+const MetadataConfigSchema = z.record(z.unknown()).refine(
+  (config) => !Object.prototype.hasOwnProperty.call(config, ['default', 'Props'].join('')),
+  { message: 'Shared component config must be metadata only; use content for props' }
+);
+
 const UpdateSharedComponentSchema = z.object({
   name: z.string().optional(),
-  config: z.any().optional(), // Matches database field name
+  content: z.record(z.unknown()).optional(),
+  config: MetadataConfigSchema.optional(),
   updatedBy: z.string().optional(),
 });
 

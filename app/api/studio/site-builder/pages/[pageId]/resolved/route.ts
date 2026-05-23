@@ -12,7 +12,6 @@ type UpdateOperation =
       sharedId: string;
       content: Record<string, unknown>;
       ifUnchangedSince?: string;
-      mirrorDefaultProps?: boolean;
     }
   | {
       type: 'override';
@@ -129,7 +128,6 @@ export async function PUT(
             await ContentRepository.saveSharedComponentContent(op.sharedId, op.content, {
               websiteId,
               ifUnchangedSince: op.ifUnchangedSince ? new Date(op.ifUnchangedSince) : undefined,
-              mirrorDefaultProps: op.mirrorDefaultProps,
             });
             break;
           }
@@ -213,7 +211,6 @@ function normalizeSingleOperation(body: Partial<UpdateOperation> & { updates?: U
           sharedId: (body as any).sharedId,
           content: (body as any).content,
           ifUnchangedSince: (body as any).ifUnchangedSince,
-          mirrorDefaultProps: (body as any).mirrorDefaultProps,
         },
       ];
     }

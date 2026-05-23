@@ -122,7 +122,7 @@ describe('/api/studio/site-builder/pages/[pageId]/resolved', () => {
     expect(ContentRepository.saveSharedComponentContent).toHaveBeenCalledWith(
       'shared-1',
       { title: 'Title' },
-      { websiteId: 'website-1', ifUnchangedSince: undefined, mirrorDefaultProps: undefined },
+      { websiteId: 'website-1', ifUnchangedSince: undefined },
     );
   });
 });

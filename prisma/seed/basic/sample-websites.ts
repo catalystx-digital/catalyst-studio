@@ -329,23 +329,29 @@ async function createComplexWebsite(prisma: PrismaClient, websiteId: string) {
     throw new Error('Navbar component type not found - ensure component types are created first')
   }
 
+  const globalNavbarContent = {
+    logo: '/images/logo.png',
+    links: [
+      { url: '/', label: 'Home' },
+      { url: '/about', label: 'About' },
+      { url: '/services', label: 'Services' },
+      { url: '/portfolio', label: 'Portfolio' },
+      { url: '/blog', label: 'Blog' },
+      { url: '/contact', label: 'Contact' }
+    ]
+  }
+
   const globalNavbar = await prisma.websiteSharedComponent.create({
     data: {
       id: 'global-navbar-complex',
       name: 'Main Navigation',
       websiteComponentTypeId: navbarType.id,
       websiteId,
-      config: createComponent('navbar-global', 'navbar-modern', null, 0, {
-        logo: '/images/logo.png',
-        links: [
-          { url: '/', label: 'Home' },
-          { url: '/about', label: 'About' },
-          { url: '/services', label: 'Services' },
-          { url: '/portfolio', label: 'Portfolio' },
-          { url: '/blog', label: 'Blog' },
-          { url: '/contact', label: 'Contact' }
-        ]
-      }) as any,
+      content: globalNavbarContent as any,
+      config: {
+        type: 'navbar-modern',
+        category: navbarType.category
+      } as any,
       usageCount: 0
     }
   })
@@ -361,24 +367,30 @@ async function createComplexWebsite(prisma: PrismaClient, websiteId: string) {
     throw new Error('Footer component type not found - ensure component types are created first')
   }
 
+  const globalFooterContent = {
+    companyInfo: {
+      name: 'Complex Corp',
+      address: '123 Business St',
+      phone: '(555) 123-4567'
+    },
+    links: [
+      { section: 'Company', links: ['About', 'Team', 'Careers'] },
+      { section: 'Services', links: ['Web Design', 'SEO', 'Consulting'] },
+      { section: 'Support', links: ['Help', 'Contact', 'FAQ'] }
+    ]
+  }
+
   const globalFooter = await prisma.websiteSharedComponent.create({
     data: {
       id: 'global-footer-complex',
       name: 'Main Footer',
       websiteComponentTypeId: footerType.id,
       websiteId,
-      config: createComponent('footer-global', 'footer-comprehensive', null, 0, {
-        companyInfo: {
-          name: 'Complex Corp',
-          address: '123 Business St',
-          phone: '(555) 123-4567'
-        },
-        links: [
-          { section: 'Company', links: ['About', 'Team', 'Careers'] },
-          { section: 'Services', links: ['Web Design', 'SEO', 'Consulting'] },
-          { section: 'Support', links: ['Help', 'Contact', 'FAQ'] }
-        ]
-      }) as any,
+      content: globalFooterContent as any,
+      config: {
+        type: 'footer-comprehensive',
+        category: footerType.category
+      } as any,
       usageCount: 0
     }
   })

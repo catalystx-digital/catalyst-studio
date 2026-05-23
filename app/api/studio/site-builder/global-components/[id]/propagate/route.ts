@@ -84,10 +84,9 @@ export async function POST(
     // Verify ownership
     await assertWebsiteOwnership(prismaClient, auth.accountId, sharedComponent.websiteId);
     
-    // Update canonical shared content via unified repository and mirror defaultProps
+    // Update canonical shared content via unified repository.
     await ContentRepository.saveSharedComponentContent(id, properties, {
       websiteId: sharedComponent.websiteId,
-      mirrorDefaultProps: true,
     });
 
     if (!options.convertToOverrides) {

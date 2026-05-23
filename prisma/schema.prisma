@@ -481,7 +481,7 @@ model WebsiteSharedComponent {
   createdAt              DateTime             @default(now())
   createdBy              String?
   updatedBy              String?
-  content                Json?
+  content                Json
   websiteComponentType   WebsiteComponentType @relation(fields: [websiteComponentTypeId], references: [id])
   website                Website              @relation(fields: [websiteId], references: [id])
 

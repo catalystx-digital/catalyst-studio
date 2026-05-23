@@ -342,13 +342,12 @@ export async function persistSharedComponentsAndUpdatePages({
       typeIndex.get(`cat:${(cand.category || '').toLowerCase()}`) ||
       genericType.id
 
-    const defaultProps =
+    const canonicalContent =
       cand.instances && cand.instances[0] ? extractCanonicalProps(cand.instances[0]) : {}
     const configType = canonicalType?.type || cand.pattern?.type || cand.category || 'shared'
     const configPayload = {
       type: configType,
       category: cand.category || 'content',
-      defaultProps,
       pattern: {
         structure: cand.pattern?.structure,
         frequency: cand.pattern?.frequency,
@@ -410,7 +409,7 @@ export async function persistSharedComponentsAndUpdatePages({
             websiteId,
             websiteComponentTypeId: preferredTypeId,
             name,
-            content: defaultProps,
+            content: canonicalContent,
             config: configPayload,
             usageCount: cand.pages?.length || 0
           }
@@ -425,7 +424,7 @@ export async function persistSharedComponentsAndUpdatePages({
         id: `${preferredTypeId}-${name}`,
         websiteComponentTypeId: preferredTypeId,
         name,
-        content: defaultProps,
+        content: canonicalContent,
         config: configPayload,
         usageCount: 0
       }
@@ -433,7 +432,7 @@ export async function persistSharedComponentsAndUpdatePages({
       record.id &&
       sharedComponentClient &&
       typeof sharedComponentClient.update === 'function' &&
-      (stableHash(record.content ?? {}) !== stableHash(defaultProps) ||
+      (stableHash(record.content ?? {}) !== stableHash(canonicalContent) ||
         stableHash(record.config ?? {}) !== stableHash(configPayload))
     ) {
       // Update existing record if content changed
@@ -442,14 +441,14 @@ export async function persistSharedComponentsAndUpdatePages({
         () => sharedComponentClient.update({
           where: { id: recordId },
           data: {
-            content: defaultProps,
+            content: canonicalContent,
             config: configPayload
           }
         }),
         `update shared component: ${name}`
       )
     } else if (!record.id) {
-      record.content = defaultProps
+      record.content = canonicalContent
       record.config = configPayload
     }
 

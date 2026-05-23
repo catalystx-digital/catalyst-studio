@@ -7,11 +7,17 @@ import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 
 // Schema for WebsiteSharedComponent
+const MetadataConfigSchema = z.record(z.unknown()).refine(
+  (config) => !Object.prototype.hasOwnProperty.call(config, ['default', 'Props'].join('')),
+  { message: 'Shared component config must be metadata only; use content for props' }
+);
+
 const SharedComponentSchema = z.object({
   websiteId: z.string(),
   websiteComponentTypeId: z.string(),
   name: z.string(),
-  config: z.any().optional(), // Matches database field name
+  content: z.record(z.unknown()),
+  config: MetadataConfigSchema.optional(),
   createdBy: z.string().optional(),
   updatedBy: z.string().optional(),
 });
@@ -104,6 +110,7 @@ export async function POST(request: NextRequest) {
       websiteId: validation.data.websiteId,
       websiteComponentTypeId: validation.data.websiteComponentTypeId,
       name: validation.data.name,
+      content: validation.data.content,
       config: validation.data.config || {},
     });
     

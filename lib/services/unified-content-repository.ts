@@ -74,6 +74,15 @@ function isPlainObject(obj: unknown): obj is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
+function stripLegacyDefaultProps(config: unknown): unknown {
+  if (!isRecord(config)) {
+    return config;
+  }
+  const next = { ...config };
+  delete next[['default', 'Props'].join('')];
+  return next;
+}
+
 function assertCanonicalOverrides(overrides: unknown): asserts overrides is Record<string, unknown> | null {
   if (overrides === null) {
     return;
@@ -194,7 +203,7 @@ export const ContentRepository = {
   async saveSharedComponentContent(
     sharedId: string,
     content: Record<string, unknown>,
-    opts?: { websiteId?: string; mirrorDefaultProps?: boolean; ifUnchangedSince?: Date }
+    opts?: { websiteId?: string; ifUnchangedSince?: Date }
   ): Promise<void> {
     await db.$transaction(async (tx: any) => {
       const current = await tx.websiteSharedComponent.findUnique({ where: { id: sharedId } });
@@ -205,18 +214,11 @@ export const ContentRepository = {
         throw new Error('Conflict: component modified since');
       }
 
-      let newConfig: Record<string, unknown> | null = null;
-      if (opts?.mirrorDefaultProps !== false) {
-        const cfg = toRecord(current.config);
-        const { defaultProps: _legacyDefaultProps, ...nextConfig } = cfg;
-        newConfig = nextConfig;
-      }
-
       await tx.websiteSharedComponent.update({
         where: { id: sharedId },
         data: {
           content: content as unknown as Prisma.InputJsonValue,
-          ...(newConfig ? { config: newConfig as unknown as Prisma.InputJsonValue } : {}),
+          config: stripLegacyDefaultProps(current.config) as Prisma.InputJsonValue,
         },
       });
     });

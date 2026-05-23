@@ -26,6 +26,12 @@ jest.mock('@/lib/prisma', () => ({
 }));
 
 jest.mock('@/lib/services/component-service');
+jest.mock('@/lib/auth/context', () => ({
+  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1', userId: 'user-1' }),
+}));
+jest.mock('@/lib/auth/ownership', () => ({
+  assertWebsiteOwnership: jest.fn().mockResolvedValue(undefined),
+}));
 
 describe('/api/components/shared', () => {
   beforeEach(() => {
@@ -80,6 +86,7 @@ describe('/api/components/shared', () => {
       expect(prisma.websiteSharedComponent.count).toHaveBeenCalledWith({
         where: {
           websiteId: 'site-123',
+          website: { accountId: 'account-1' },
         },
       });
     });
@@ -94,6 +101,7 @@ describe('/api/components/shared', () => {
       expect(prisma.websiteSharedComponent.count).toHaveBeenCalledWith({
         where: {
           websiteComponentTypeId: 'type-123',
+          website: { accountId: 'account-1' },
         },
       });
     });
@@ -135,6 +143,7 @@ describe('/api/components/shared', () => {
           websiteId: 'site-1',
           websiteComponentTypeId: 'type-1',
           name: 'Footer Component',
+          content: { copyright: '2024' },
           config: { copyright: '2024' },
           version: '1.0.0',
           isActive: true,
@@ -148,6 +157,7 @@ describe('/api/components/shared', () => {
           websiteId: 'site-1',
           websiteComponentTypeId: 'type-1',
           name: 'Footer Component',
+          content: { copyright: '2024' },
           config: { copyright: '2024' },
         }),
       });
@@ -161,6 +171,7 @@ describe('/api/components/shared', () => {
         websiteId: 'site-1',
         websiteComponentTypeId: 'type-1',
         name: 'Footer Component',
+        content: { copyright: '2024' },
         config: { copyright: '2024' },
       });
     });
@@ -192,6 +203,7 @@ describe('/api/components/shared', () => {
           websiteId: 'site-1',
           websiteComponentTypeId: 'invalid-type',
           name: 'Shared Component',
+          content: {},
           config: {},
         }),
       });
@@ -218,12 +230,14 @@ describe('/api/components/shared', () => {
           websiteId: 'site-1',
           websiteComponentTypeId: 'type-1',
           name: 'Shared Component',
+          content: { title: 'Shared' },
         }),
       });
 
       await POST(request);
 
       expect(mockService.createSharedComponent).toHaveBeenCalledWith(expect.objectContaining({
+        content: { title: 'Shared' },
         config: {},
       }));
     });
@@ -240,6 +254,7 @@ describe('/api/components/shared', () => {
           websiteId: 'site-1',
           websiteComponentTypeId: 'type-1',
           name: 'Shared Component',
+          content: {},
           config: {},
         }),
       });
