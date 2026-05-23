@@ -31,6 +31,43 @@ describe('SharedComponentService shared content contract', () => {
     })
   })
 
+  it('persists caller content only when component type has catalog defaults', async () => {
+    const prisma = {
+      websiteComponentType: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'type-1',
+          defaultConfig: {
+            props: { catalogOnlySentinel: 'default-config-sentinel' },
+          },
+          placeholderData: {
+            catalogPlaceholderSentinel: 'placeholder-sentinel',
+          },
+        }),
+      },
+      websiteSharedComponent: {
+        create: jest.fn().mockResolvedValue({ id: 'shared-1' }),
+      },
+    } as any
+    const service = new SharedComponentService(prisma)
+
+    await service.createSharedComponent({
+      websiteId: 'site-1',
+      websiteComponentTypeId: 'type-1',
+      name: 'Header',
+      content: { title: 'Caller Header' },
+      config: { category: 'header' },
+    })
+
+    expect(prisma.websiteSharedComponent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        content: { title: 'Caller Header' },
+      }),
+    })
+    const createArgs = prisma.websiteSharedComponent.create.mock.calls[0][0]
+    expect(JSON.stringify(createArgs.data.content)).not.toContain('default-config-sentinel')
+    expect(JSON.stringify(createArgs.data.content)).not.toContain('placeholder-sentinel')
+  })
+
   it('strips legacy defaultProps from config when updating shared components', async () => {
     const prisma = {
       websiteSharedComponent: {

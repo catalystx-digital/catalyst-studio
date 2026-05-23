@@ -191,11 +191,18 @@ describe('PageBuilderService', () => {
         name: 'Hero Banner',
         description: 'A hero banner component',
         defaultConfig: {
-          props: { title: 'Default Title' },
+          props: {
+            title: 'Default Title',
+            catalogOnlySentinel: 'default-config-sentinel'
+          },
           styles: { backgroundColor: '#f0f0f0' },
           responsive: {}
         },
-        placeholderData: { title: 'Hero Title', subtitle: 'Hero Subtitle' },
+        placeholderData: {
+          title: 'Hero Title',
+          subtitle: 'Hero Subtitle',
+          catalogPlaceholderSentinel: 'placeholder-sentinel'
+        },
         aiMetadata: {
           confidence: 0.95,
           modelVersion: 'openai/gpt-4o-mini',
@@ -252,6 +259,10 @@ describe('PageBuilderService', () => {
           templateProps: expect.any(Object)
         })
       })
+      const createArgs = prisma.websitePage.create.mock.calls[0][0]
+      const serializedContent = JSON.stringify(createArgs.data.content)
+      expect(serializedContent).not.toContain('default-config-sentinel')
+      expect(serializedContent).not.toContain('placeholder-sentinel')
     })
 
     it('uses mapped content type when template key is configured', async () => {
@@ -1377,7 +1388,7 @@ describe('PageBuilderService', () => {
         const codes = (error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)
         expect(codes).toEqual(expect.arrayContaining([
           'PAGE_CONTENT_COMPONENT_CONTENT_INVALID',
-          'PAGE_CONTENT_COMPONENT_CONTENT_JSON_PARSE_FAILED'
+          'PAGE_CONTENT_COMPONENT_CONTENT_STRING'
         ]))
       }
     })
@@ -1521,7 +1532,7 @@ describe('PageBuilderService', () => {
       
       expect(result.confidence).toBe(0.95)
       expect(result.metadata).toEqual({ test: 'value', summary: 'Test content' })
-      expect(result.defaultProp).toBe('defaultValue')
+      expect(result).not.toHaveProperty('defaultProp')
       expect(result).not.toHaveProperty('content')
       expect(result).not.toHaveProperty('text')
     })

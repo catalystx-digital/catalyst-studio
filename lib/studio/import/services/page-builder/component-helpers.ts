@@ -814,37 +814,6 @@ export function extractComponentPayload(
     }
   }
 
-  if (
-    componentType.defaultConfig &&
-    typeof componentType.defaultConfig === 'object' &&
-    canonicalComponentType !== 'hero-carousel'
-  ) {
-    const configRecord = componentType.defaultConfig as Record<string, unknown>
-    const defaultProps = (isRecord(configRecord.props) ? configRecord.props : {}) as Record<string, unknown>
-    // Keys that should only be merged from defaultConfig if they don't exist in canonical content either.
-    // This prevents sample/fallback data from contaminating actual extracted content.
-    const navigationContentKeys = new Set(['menuItems', 'cta', 'logo', 'columns', 'socialLinks', 'legalLinks'])
-    const contentRecord = isRecord(canonicalContent) ? (canonicalContent as Record<string, unknown>) : {}
-
-    Object.keys(defaultProps).forEach(key => {
-      if (key === 'content' || key === 'text') {
-        return
-      }
-      if (key in props) {
-        return // Already exists at root level, skip
-      }
-      // For navigation-related keys, also check if they exist in content
-      if (navigationContentKeys.has(key) && key in contentRecord) {
-        const contentValue = contentRecord[key]
-        // Skip if content already has a non-empty array or truthy value
-        if (Array.isArray(contentValue) ? contentValue.length > 0 : Boolean(contentValue)) {
-          return
-        }
-      }
-      props[key] = defaultProps[key]
-    })
-  }
-
   if (canonicalComponentType === 'timeline' && parsedContent) {
     const variant = normalizeString(parsedContent.variant)
     if (variant) {
@@ -858,7 +827,8 @@ export function extractComponentPayload(
     ? extractRegionFromRecord(canonicalContent as Record<string, unknown>)
     : undefined
   const desiredRegion = normalizedContentRegion ?? rawContentRegion ?? detectionRegion ?? derivedContentRegion
-  if (desiredRegion && currentRegion !== desiredRegion) {
+  const directPropsRegion = normalizeComponentRegionValue(props.region)
+  if (desiredRegion && (currentRegion !== desiredRegion || directPropsRegion !== desiredRegion)) {
     applyRegionToProps(props, desiredRegion)
     applyRegionToContent(canonicalContent, desiredRegion)
   }

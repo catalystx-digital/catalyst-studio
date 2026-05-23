@@ -274,6 +274,32 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(props.content?.metadata).toEqual(expect.objectContaining({ region: 'header' }))
   })
 
+  it('does not copy catalog defaultConfig props into extracted instance props', () => {
+    const detection: DetectionResult = {
+      id: 'hero-without-defaults',
+      type: 'hero-simple',
+      bounds: baseBounds,
+      content: {
+        heading: 'Detector heading',
+        body: '<p>Detector body.</p>'
+      }
+    }
+    const type = createComponentType('hero-simple')
+    ;(type.defaultConfig as any) = {
+      props: {
+        catalogOnlySentinel: 'default-config-sentinel',
+        nestedCatalogOnly: { value: 'nested-default-sentinel' }
+      }
+    }
+
+    const props = extractComponentProps(detection, type)
+
+    expect(props).not.toHaveProperty('catalogOnlySentinel')
+    expect(props).not.toHaveProperty('nestedCatalogOnly')
+    expect(JSON.stringify(props)).not.toContain('default-config-sentinel')
+    expect(JSON.stringify(props.content)).not.toContain('default-config-sentinel')
+  })
+
   it('prefers header regions emitted in content when detection metadata disagrees', () => {
     const detection: DetectionResult = {
       id: 'cta-header-content',
