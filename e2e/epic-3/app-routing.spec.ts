@@ -1,50 +1,40 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('App Routing', () => {
-  test('should redirect to /dashboard from root', async ({ page }) => {
-    // Navigate to root with longer timeout
-    await page.goto('/', { waitUntil: 'networkidle', timeout: 30000 });
-    
-    // Should redirect to dashboard with extended timeout
+  test('authenticated root redirects to dashboard', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await expect(page).toHaveURL('/dashboard');
-    
-    // Verify page content loaded
-    await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('body')).toBeVisible();
+  });
+});
+
+test.describe('App Routing - unauthenticated', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('root shows the public marketing page', async ({ page }) => {
+    const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    expect(response?.status()).toBeLessThan(400);
+    await expect(page).toHaveURL('/');
+    await expect(page.getByText('Catalyst Studio').first()).toBeVisible();
   });
 
-  test('dashboard should be accessible directly', async ({ page }) => {
-    // Navigate directly to dashboard with proper wait
-    await page.goto('/dashboard', { waitUntil: 'networkidle', timeout: 30000 });
-    
-    // Should stay on dashboard
+  test('dashboard shows the public dashboard shell', async ({ page }) => {
+    const response = await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+
+    expect(response?.status()).toBeLessThan(400);
     await expect(page).toHaveURL('/dashboard');
-    
-    // Check if page has loaded with content (more reliable than title)
-    await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
-    
-    // Try to find dashboard-specific content if title check fails
-    const hasTitle = await page.title().then(title => title.includes('Dashboard')).catch(() => false);
-    const hasContent = await page.locator('h1, h2, [data-testid*="dashboard"], main').first().isVisible().catch(() => false);
-    
-    expect(hasTitle || hasContent).toBeTruthy();
+    await expect(page.getByText('Please sign in to view your websites.')).toBeVisible();
   });
 
-  test('routing logic executes correctly', async ({ page }) => {
-    // Navigate to check if the page loads and routing logic runs
-    await page.goto('/', { waitUntil: 'networkidle', timeout: 30000 });
-    
-    // Wait for any redirect to complete with longer timeout
-    await page.waitForLoadState('networkidle', { timeout: 30000 });
-    
-    // Wait a bit more for any async redirects
-    await page.waitForTimeout(2000);
-    
-    // Check that we're redirected to dashboard
-    const url = page.url();
-    expect(url).toContain('dashboard');
-    
-    // Verify the page actually loaded content
-    await expect(page.locator('body')).not.toBeEmpty();
+  test('guarded routes redirect to sign-in with redirect_url', async ({ page }) => {
+    await page.goto('/studio/site-builder?websiteId=test-site', { waitUntil: 'domcontentloaded' });
+    await page.waitForURL('**/sign-in?**', { timeout: 30000 });
+
+    const url = new URL(page.url());
+    expect(url.pathname).toBe('/sign-in');
+    expect(url.searchParams.get('redirect_url')).toBe('/studio/site-builder?websiteId=test-site');
   });
 });

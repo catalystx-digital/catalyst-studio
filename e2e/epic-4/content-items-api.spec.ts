@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Epic 4 - Story 4.5: Content Items API', () => {
-  const APP_BASE_URL = process.env.PLAYWRIGHT_APP_BASE_URL ?? 'http://localhost:3000';
+  const APP_BASE_URL = process.env.PLAYWRIGHT_APP_BASE_URL ?? 'http://localhost:4300';
   const API_BASE = `${APP_BASE_URL}/api`;
   let testWebsiteId: string;
   let testContentTypeId: string;

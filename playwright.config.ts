@@ -1,4 +1,5 @@
 import path from 'path';
+import { randomBytes } from 'crypto';
 import { defineConfig, devices } from '@playwright/test';
 import { loadPlaywrightEnv } from './scripts/load-playwright-env';
 
@@ -7,14 +8,21 @@ loadPlaywrightEnv();
 const AUTH_STATE_PATH =
   process.env.PLAYWRIGHT_AUTH_STATE ?? path.resolve(process.cwd(), '.playwright/.auth/unified-chat.json');
 const SKIP_WEBSERVER = process.env.PLAYWRIGHT_SKIP_WEBSERVER === 'true';
-const APP_BASE_URL = process.env.PLAYWRIGHT_APP_BASE_URL ?? 'http://localhost:3000';
+const APP_BASE_URL = process.env.PLAYWRIGHT_APP_BASE_URL ?? 'http://localhost:4300';
 const APP_PORT = new URL(APP_BASE_URL).port || '3000';
 const SERVER_MODE = process.env.PLAYWRIGHT_SERVER_MODE ?? 'production';
+const rawTargetToken = process.env.PLAYWRIGHT_TARGET_TOKEN ?? `catalyst-studio-playwright-${randomBytes(16).toString('hex')}`;
+if (!/^[A-Za-z0-9_.:-]+$/.test(rawTargetToken)) {
+  throw new Error('PLAYWRIGHT_TARGET_TOKEN may only contain letters, numbers, dots, underscores, colons, and hyphens.');
+}
+const PLAYWRIGHT_TARGET_TOKEN = rawTargetToken;
+
+process.env.PLAYWRIGHT_TARGET_TOKEN = PLAYWRIGHT_TARGET_TOKEN;
+
 const WEB_SERVER_COMMAND = SERVER_MODE === 'dev'
-  ? `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} npm run build:components && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} next dev -p ${APP_PORT}`
-  : `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true npm run build:no-workflow && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=${APP_PORT} next start -p ${APP_PORT}`;
-const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true'
-  || (!process.env.CI && !process.env.PLAYWRIGHT_APP_BASE_URL);
+  ? `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PLAYWRIGHT_TARGET_TOKEN=${PLAYWRIGHT_TARGET_TOKEN} PORT=${APP_PORT} npm run build:components && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PLAYWRIGHT_TARGET_TOKEN=${PLAYWRIGHT_TARGET_TOKEN} PORT=${APP_PORT} next dev -p ${APP_PORT}`
+  : `cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PLAYWRIGHT_TARGET_TOKEN=${PLAYWRIGHT_TARGET_TOKEN} npm run build:no-workflow && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PLAYWRIGHT_TARGET_TOKEN=${PLAYWRIGHT_TARGET_TOKEN} PORT=${APP_PORT} next start -p ${APP_PORT}`;
+const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true';
 
 /**
  * Playwright configuration for Windows local testing

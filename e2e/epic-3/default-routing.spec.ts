@@ -1,76 +1,40 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Default Routing With Studio Deployment', () => {
-  test('should redirect root to /dashboard', async ({ page }) => {
-    // Navigate to root - dashboard is now enabled by default
-    await page.goto('/', { waitUntil: 'networkidle', timeout: 30000 });
+  test('authenticated root redirects to /dashboard', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    // Wait for redirect to complete with extended timeout
     await page.waitForURL('/dashboard', { timeout: 30000 });
-
-    // Verify we're on the dashboard page
     await expect(page).toHaveURL('/dashboard');
+    await expect(page.locator('body')).toBeVisible();
+  });
+});
 
-    // Ensure page content has loaded
-    await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
+test.describe('Default Routing With Studio Deployment - unauthenticated', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('root remains public marketing', async ({ page }) => {
+    const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    expect(response?.status()).toBeLessThan(400);
+    await expect(page).toHaveURL('/');
+    await expect(page.getByText('Catalyst Studio').first()).toBeVisible();
   });
 
-  test('dashboard page should be accessible directly', async ({ page }) => {
-    // Navigate directly to dashboard
-    const response = await page.goto('/dashboard', {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
+  test('dashboard is accessible as a public shell', async ({ page }) => {
+    const response = await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
-    // Should load the dashboard page without 404
     expect(response?.status()).toBeLessThan(400);
-
-    // Should be on dashboard URL
     await expect(page).toHaveURL('/dashboard');
-
-    // Ensure content has loaded
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Please sign in to view your websites.')).toBeVisible();
   });
 
-  test('studio site builder should be accessible directly', async ({ page }) => {
-    // Navigate directly to studio site builder
-    const response = await page.goto('/studio/site-builder', {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
+  test('studio routes require sign-in', async ({ page }) => {
+    await page.goto('/studio/deployment', { waitUntil: 'domcontentloaded' });
+    await page.waitForURL('**/sign-in?**', { timeout: 30000 });
 
-    // Should load without 404
-    expect(response?.status()).toBeLessThan(400);
-
-    // Should be on studio site builder URL
-    await expect(page).toHaveURL('/studio/site-builder');
-
-    // Ensure content has loaded
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
-  });
-
-  test('studio studio routes should be accessible', async ({ page }) => {
-    // Test studio studio deployment
-    const deployResponse = await page.goto('/studio/deployment', {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
-    expect(deployResponse?.status()).toBeLessThan(400);
-
-    // Test studio studio preview
-    const previewResponse = await page.goto('/studio/preview', {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
-    expect(previewResponse?.status()).toBeLessThan(400);
-
-    // Test studio studio team
-    const teamResponse = await page.goto('/studio/team', {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
-    expect(teamResponse?.status()).toBeLessThan(400);
+    const url = new URL(page.url());
+    expect(url.pathname).toBe('/sign-in');
+    expect(url.searchParams.get('redirect_url')).toBe('/studio/deployment');
   });
 });

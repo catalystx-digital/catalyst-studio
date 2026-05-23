@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const APP_BASE_URL = process.env.PLAYWRIGHT_APP_BASE_URL ?? 'http://localhost:3000';
+const APP_BASE_URL = process.env.PLAYWRIGHT_APP_BASE_URL ?? 'http://localhost:4300';
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? APP_BASE_URL;
 
 test.describe('Unified chat thread continuity', () => {

@@ -42,6 +42,9 @@ const PUBLIC_API_PATHS = [
 
 const HEADER_BYPASS_ENABLED =
   process.env.ALLOW_AUTH_HEADER_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
+const PLAYWRIGHT_TARGET_TOKEN = process.env.PLAYWRIGHT_TARGET_TOKEN;
+const PLAYWRIGHT_TARGET_HEADER_ENABLED = Boolean(PLAYWRIGHT_TARGET_TOKEN)
+  && (process.env.NODE_ENV !== 'production' || process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true');
 
 function matchesAny(pathname: string, patterns: RegExp[]): boolean {
   return patterns.some((regex) => regex.test(pathname));
@@ -49,6 +52,9 @@ function matchesAny(pathname: string, patterns: RegExp[]): boolean {
 
 function finalizeResponse(response: NextResponse, pathname: string, websiteId: string | null) {
   response.headers.set('x-request-path', pathname);
+  if (PLAYWRIGHT_TARGET_HEADER_ENABLED && PLAYWRIGHT_TARGET_TOKEN) {
+    response.headers.set('x-catalyst-playwright-target', PLAYWRIGHT_TARGET_TOKEN);
+  }
   if (websiteId) {
     response.headers.set('x-website-id', websiteId);
   } else {
@@ -106,7 +112,7 @@ export async function middleware(request: NextRequest) {
     if (!isApiPath && !authPage && !matchesAny(pathname, PUBLIC_APP_PATHS)) {
       const redirectUrl = new URL('/sign-in', request.url);
       redirectUrl.searchParams.set('redirect_url', `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      return NextResponse.redirect(redirectUrl);
+      return finalizeResponse(NextResponse.redirect(redirectUrl), pathname, websiteId);
     }
   }
 
