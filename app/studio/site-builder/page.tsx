@@ -44,7 +44,7 @@ import { GlobalSectionsLibrary } from '@/lib/studio/components/site-builder/glob
 import { VirtualCanvas } from '@/lib/studio/components/site-builder/virtual-canvas'
 import { PerformanceStatsPanel } from '@/lib/studio/components/site-builder/performance-stats-panel'
 import { ResponsiveWrapper } from '@/lib/studio/components/site-builder/responsive-wrapper'
-import { SectionPicker } from '@/lib/studio/components/site-builder/section-picker'
+import { SectionPicker, type SectionData } from '@/lib/studio/components/site-builder/section-picker'
 import { AssistantSurface, type AssistantScope } from '@/lib/studio/components/site-builder/assistant-surface'
 import { PropertyEditorPanel } from '@/lib/studio/components/site-builder/property-editor/PropertyEditorPanel'
 import { ComponentPropertiesPanel } from '@/lib/studio/components/site-builder/ComponentPropertiesPanel'
@@ -138,40 +138,45 @@ const readComponentContent = (
   return {}
 }
 
-const ensureComponentInstances = (components: ProfessionalNodeData['components']): ComponentInstance[] => {
+const readExplicitComponentInstances = (components: ProfessionalNodeData['components']): ComponentInstance[] => {
   if (!Array.isArray(components)) {
     return []
   }
-  if (components.every((item) => typeof (item as ComponentInstance).id === 'string')) {
-    return (components as ComponentInstance[]).map((component) => ({
-      ...component,
-      content: readComponentContent(component),
-    }))
-  }
 
-  return (components as ComponentData[]).map((component, index) => {
-    const fallbackId = component.id ?? `component-${index}-${Date.now()}`
-    const fallbackType = component.type ?? 'unknown'
-    const parentId = component.parentId ?? null
-    const position = component.position ?? index
-    const props = component.props ?? {}
+  return (components as ComponentData[]).flatMap((component, index) => {
+    if (typeof component?.id !== 'string' || component.id.trim().length === 0) {
+      console.error('[Site Builder] Component missing id; refusing to synthesize one', { index, component })
+      return []
+    }
+    if (typeof component?.type !== 'string' || component.type.trim().length === 0) {
+      console.error('[Site Builder] Component missing type; refusing to synthesize one', { id: component.id, index, component })
+      return []
+    }
+    if (typeof component.position !== 'number') {
+      console.error('[Site Builder] Component missing position; refusing to synthesize one', { id: component.id, index, component })
+      return []
+    }
+
+    const props = component.props && typeof component.props === 'object' && !Array.isArray(component.props)
+      ? component.props
+      : {}
     const content = readComponentContent({
       content: (component as { content?: unknown }).content,
     })
     const styles = (component as { styles?: unknown }).styles ?? (props as { styles?: unknown }).styles ?? {}
     const metadata = (component as { metadata?: unknown }).metadata ?? (props as { metadata?: unknown }).metadata ?? {}
 
-    return {
-      id: fallbackId,
-      type: fallbackType,
-      parentId,
-      position,
+    return [{
+      id: component.id,
+      type: component.type,
+      parentId: component.parentId ?? null,
+      position: component.position,
       props,
       content,
       styles: typeof styles === 'object' && styles !== null ? (styles as Record<string, unknown>) : {},
       metadata: typeof metadata === 'object' && metadata !== null ? (metadata as Record<string, unknown>) : {},
       globalComponentId: resolveSharedComponentReference(component as ComponentInstance) ?? undefined,
-    }
+    }]
   })
 }
 
@@ -1273,7 +1278,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     saveToHistory()
   }, [setNodes, nodes, websiteId, storeUpdateNode, saveToHistory])
 
-  const handleComponentAdd = useCallback((nodeId: string, component: string, afterIndex?: number) => {
+  const handleComponentAdd = useCallback((nodeId: string, component: string | SectionData, afterIndex?: number) => {
     // Check if this is a request to open the picker modal
     if (component === '__OPEN_PICKER__') {
       setSectionPickerNodeId(nodeId)
@@ -1281,24 +1286,28 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
       setSectionPickerOpen(true)
       return
     }
+
+    if (typeof component === 'string') {
+      toast.error('Select a component from the catalog before adding it')
+      return
+    }
     
     // Otherwise add the component normally
     setNodes((nodes) =>
       nodes.map((node) => {
         if (node.id === nodeId) {
-          const currentComponents = ensureComponentInstances(node.data.components || [])
+          const currentComponents = readExplicitComponentInstances(node.data.components || [])
           let newComponents: ComponentInstance[]
           
-          // Create new ComponentInstance for the component
           const newComponentInstance: ComponentInstance = {
-            id: `${component.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
-            type: component,
+            id: `${component.type}-${crypto.randomUUID()}`,
+            type: component.type,
             parentId: null,
             position: currentComponents.length,
-            props: {},
-            content: { text: '', images: [], links: [] },
-            styles: { desktop: {}, tablet: {}, mobile: {} },
-            metadata: { locked: false, visible: true, aiGenerated: false }
+            props: component.sharedComponentId ? { sharedComponentId: component.sharedComponentId } : {},
+            content: {},
+            styles: {},
+            metadata: {}
           }
           
           if (afterIndex !== undefined) {
@@ -1363,10 +1372,10 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
   saveToHistory()
   }, [setNodes, websiteId, storeUpdateNode, saveToHistory])
 
-  const handleSectionSelect = useCallback((sectionName: string) => {
+  const handleSectionSelect = useCallback((sectionName: SectionData) => {
     const targetNodeId = sectionPickerNodeId || (selectedNodes.length > 0 ? selectedNodes[0].id : null)
     if (targetNodeId) {
-      debugSiteBuilder('[handleSectionSelect] Adding component:', sectionName, 'to node:', targetNodeId)
+      debugSiteBuilder('[handleSectionSelect] Adding component:', sectionName.type, 'to node:', targetNodeId)
       handleComponentAdd(targetNodeId, sectionName, sectionPickerAfterIndex)
     } else {
       // CP-01: Show error when no target node is available
@@ -1496,7 +1505,7 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     
     // Find the node that contains this component
     const containingNode = nodes.find(node => {
-      const components = ensureComponentInstances(node.data.components || [])
+      const components = readExplicitComponentInstances(node.data.components || [])
       return components.some((c) => c.id === component.id)
     })
     setSelectedComponentNodeId(containingNode?.id || null)
@@ -3066,7 +3075,15 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
           // Add section to selected node or create new node
           if (selectedNodes.length > 0) {
             const nodeId = selectedNodes[0].id
-            handleComponentAdd(nodeId, section.name)
+            handleComponentAdd(nodeId, {
+              id: section.id,
+              type: section.type,
+              name: section.name,
+              category: section.category,
+              description: section.description,
+              instances: section.usageCount,
+              sharedComponentId: section.isGlobal ? section.id : undefined,
+            })
           }
         }}
         currentSections={selectedNodes[0]?.data.components || []}

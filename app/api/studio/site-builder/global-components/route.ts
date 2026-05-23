@@ -151,16 +151,28 @@ export async function GET(request: NextRequest) {
       }
     });
     
-    const components = sharedComponents.map(sc => ({
-      id: sc.id,
-      componentId: sc.websiteComponentTypeId,
-      name: sc.name,
-      type: 'shared', // Default type for MVP
-      properties: (sc.content as Record<string, unknown>) || {},
-      usageCount: sc.usageCount,
-      lastModified: sc.lastModified,
-      createdBy: sc.createdBy
-    }));
+    const components = sharedComponents.flatMap(sc => {
+      if (
+        typeof sc.websiteComponentTypeId !== 'string' ||
+        sc.websiteComponentTypeId.trim().length === 0 ||
+        !sc.content ||
+        typeof sc.content !== 'object' ||
+        Array.isArray(sc.content)
+      ) {
+        return [];
+      }
+
+      return [{
+        id: sc.id,
+        componentId: sc.websiteComponentTypeId,
+        name: sc.name,
+        type: sc.websiteComponentTypeId,
+        properties: sc.content as Record<string, unknown>,
+        usageCount: sc.usageCount,
+        lastModified: sc.lastModified,
+        createdBy: sc.createdBy
+      }];
+    });
     
     return createSuccessResponse(
       components,

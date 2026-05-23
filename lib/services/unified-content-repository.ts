@@ -119,7 +119,7 @@ export const ContentRepository = {
   }): Promise<{ id: string }> {
     const id = args.id || `global-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const createdBy = args.createdBy || 'user';
-    const config: Record<string, unknown> = { defaultProps: args.content, category: args.category };
+    const config: Record<string, unknown> = { category: args.category };
     const row = await db.websiteSharedComponent.create({
       data: {
         id,
@@ -142,7 +142,7 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>;
+    const components = normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>;
 
     const sharedIds = components
       .map((c) => {
@@ -157,16 +157,16 @@ export const ContentRepository = {
       : [];
     const sharedMap = new Map<string, any>(sharedRows.map((r: any) => [r.id, r]));
 
-    const resolved: ResolvedInstance[] = components.map((c, idx) => {
-      const id = (c.id as string) || `component-${idx}`;
-      const type = (c.type as string) || 'unknown';
-      const position = (c.position as number) ?? idx;
+    const resolved: ResolvedInstance[] = components.map((c) => {
+      const id = c.id as string;
+      const type = c.type as string;
+      const position = c.position as number;
       const parentId = (c.parentId as string | null) ?? null;
       const props = toRecord(c.props);
       const sharedId = (props.sharedComponentId as string) || (c.sharedComponentId as string) || null;
 
       const shared = sharedId ? sharedMap.get(sharedId) : undefined;
-      const sharedContent = toRecord(shared?.content ?? (toRecord(shared?.config).defaultProps ?? {}));
+      const sharedContent = toRecord(shared?.content);
       const overrides = toRecord(props.overrides ?? {});
       const hasOverrides = !!(props.hasOverrides || (overrides && Object.keys(overrides).length > 0));
       const effectiveProps = deepMerge(sharedContent, overrides) as Record<string, unknown>;
@@ -205,11 +205,11 @@ export const ContentRepository = {
         throw new Error('Conflict: component modified since');
       }
 
-      // Mirror to config.defaultProps for transition/back-compat
       let newConfig: Record<string, unknown> | null = null;
       if (opts?.mirrorDefaultProps !== false) {
         const cfg = toRecord(current.config);
-        newConfig = { ...cfg, defaultProps: content };
+        const { defaultProps: _legacyDefaultProps, ...nextConfig } = cfg;
+        newConfig = nextConfig;
       }
 
       await tx.websiteSharedComponent.update({
@@ -237,7 +237,7 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = (normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
@@ -296,7 +296,7 @@ export const ContentRepository = {
     }
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = [...(normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = [...(normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors)];
     components.splice(position, 0, {
       id: instanceId,
@@ -324,7 +324,7 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = (normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors);
     const filtered = components.filter((c) => (c.id as string) !== instanceId);
     await db.websitePage.update({
@@ -337,7 +337,7 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content).pageContent.components as unknown as Array<Record<string, unknown>>)
+    const components = (normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
       .map(stripLegacyStrictWriteMirrors);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
@@ -348,7 +348,7 @@ export const ContentRepository = {
     if (!shared || shared.websiteId !== page.websiteId) {
       throw new Error('Shared component not found');
     }
-    const sharedContent = toRecord(shared?.content ?? (toRecord(shared?.config).defaultProps ?? {}));
+    const sharedContent = toRecord(shared?.content);
 
     // Compute overrides as shallow diff: props minus sharedContent
     const currentFull = toRecord(props);

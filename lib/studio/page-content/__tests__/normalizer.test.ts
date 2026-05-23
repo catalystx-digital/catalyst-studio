@@ -429,6 +429,74 @@ describe('page content normalizer', () => {
     ])
   })
 
+  it('strict-read omits components that would require synthesized ids, types, or positions', () => {
+    const result = normalizePageContent({
+      components: [
+        null,
+        { type: 'text-block', position: 0 },
+        { id: 'missing-type', position: 1 },
+        { id: 'missing-position', type: 'hero-banner' },
+        {
+          id: 'string-content',
+          type: 'text-block',
+          position: 3,
+          content: '{"text":"legacy"}',
+        },
+        {
+          id: 'valid',
+          type: 'text-block',
+          position: 4,
+          props: {},
+          content: { text: 'Keep me' },
+        },
+      ],
+    }, { mode: 'strict-read' })
+
+    expect(result.pageContent.components).toEqual([
+      expect.objectContaining({
+        id: 'valid',
+        type: 'text-block',
+        position: 4,
+        content: { text: 'Keep me' },
+      }),
+    ])
+    expect(result.pageContent.components).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'component-0' }),
+      expect.objectContaining({ type: 'unknown' }),
+    ]))
+    expect(result.diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+      'PAGE_CONTENT_COMPONENT_INVALID',
+      'PAGE_CONTENT_COMPONENT_ID_MISSING',
+      'PAGE_CONTENT_COMPONENT_TYPE_MISSING',
+      'PAGE_CONTENT_COMPONENT_POSITION_MISSING',
+      'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
+    ])
+  })
+
+  it('strict-read reports invalid page content without synthesizing components', () => {
+    const invalidComponents = normalizePageContent({ components: { id: 'not-array' } }, { mode: 'strict-read' })
+    expect(invalidComponents.pageContent.components).toEqual([])
+    expect(invalidComponents.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENTS_INVALID',
+        severity: 'warn',
+        path: 'components',
+      }),
+    ])
+
+    const stringContent = normalizePageContent(JSON.stringify({
+      components: [{ id: 'component-1', type: 'text-block', position: 0 }],
+    }), { mode: 'strict-read' })
+    expect(stringContent.pageContent.components).toEqual([])
+    expect(stringContent.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_JSON_STRING',
+        severity: 'warn',
+        path: '$',
+      }),
+    ]))
+  })
+
   it('builds canonical persisted content while preserving extension fields', () => {
     const content = toCanonicalPageContent(
       {

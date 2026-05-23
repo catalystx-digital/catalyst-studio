@@ -18,6 +18,7 @@ import {
 
 export interface GlobalSection {
   id: string
+  type: string
   name: string
   category: string
   description: string
@@ -30,128 +31,20 @@ export interface GlobalSection {
   config?: any // Component configuration from database
 }
 
+type CurrentSection = string | {
+  id?: string
+  type?: string
+  name?: string
+  props?: Record<string, unknown>
+}
+
 interface GlobalSectionsLibraryProps {
   isOpen: boolean
   onClose: () => void
   onAddSection: (section: GlobalSection) => void
-  currentSections?: string[]
+  currentSections?: CurrentSection[]
   websiteId?: string // Added for API calls
 }
-
-const defaultGlobalSections: GlobalSection[] = [
-  {
-    id: 'global-header',
-    name: 'Global Header',
-    category: 'Navigation',
-    description: 'Consistent header with logo, navigation, and CTA',
-    icon: Home,
-    isGlobal: true,
-    isLocked: true,
-    usageCount: 0,
-    fields: ['Logo', 'Navigation Menu', 'CTA Button'],
-    preview: 'Standard header used across all pages'
-  },
-  {
-    id: 'global-footer',
-    name: 'Global Footer',
-    category: 'Navigation',
-    description: 'Footer with links, social media, and copyright',
-    icon: Layers,
-    isGlobal: true,
-    isLocked: true,
-    usageCount: 0,
-    fields: ['Links', 'Social Media', 'Copyright', 'Newsletter'],
-    preview: 'Standard footer used across all pages'
-  },
-  {
-    id: 'hero-section',
-    name: 'Hero Section',
-    category: 'Content',
-    description: 'Eye-catching hero with headline and CTA',
-    icon: Zap,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Headline', 'Subheadline', 'CTA', 'Background Image']
-  },
-  {
-    id: 'features-grid',
-    name: 'Features Grid',
-    category: 'Content',
-    description: '3-column feature showcase',
-    icon: Grid,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Feature 1', 'Feature 2', 'Feature 3']
-  },
-  {
-    id: 'testimonials',
-    name: 'Testimonials',
-    category: 'Trust',
-    description: 'Customer testimonials carousel',
-    icon: MessageSquare,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Testimonial 1', 'Testimonial 2', 'Testimonial 3']
-  },
-  {
-    id: 'cta-section',
-    name: 'CTA Section',
-    category: 'Conversion',
-    description: 'Call-to-action with button',
-    icon: Target,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Headline', 'Description', 'Button Text', 'Button Link']
-  },
-  {
-    id: 'newsletter',
-    name: 'Newsletter Signup',
-    category: 'Conversion',
-    description: 'Email subscription form',
-    icon: Mail,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Headline', 'Description', 'Email Input', 'Submit Button']
-  },
-  {
-    id: 'stats-counter',
-    name: 'Stats Counter',
-    category: 'Trust',
-    description: 'Animated statistics display',
-    icon: TrendingUp,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Stat 1', 'Stat 2', 'Stat 3', 'Stat 4']
-  },
-  {
-    id: 'gallery',
-    name: 'Image Gallery',
-    category: 'Media',
-    description: 'Responsive image grid',
-    icon: Image,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Images', 'Captions', 'Lightbox']
-  },
-  {
-    id: 'video-section',
-    name: 'Video Section',
-    category: 'Media',
-    description: 'Embedded video player',
-    icon: Video,
-    isGlobal: false,
-    isLocked: false,
-    usageCount: 0,
-    fields: ['Video URL', 'Thumbnail', 'Play Button']
-  }
-]
 
 export function GlobalSectionsLibrary({ 
   isOpen, 
@@ -160,7 +53,7 @@ export function GlobalSectionsLibrary({
   currentSections = [],
   websiteId
 }: GlobalSectionsLibraryProps) {
-  const [sections, setSections] = useState<GlobalSection[]>(defaultGlobalSections)
+  const [sections, setSections] = useState<GlobalSection[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [editingSection, setEditingSection] = useState<GlobalSection | null>(null)
@@ -187,11 +80,24 @@ export function GlobalSectionsLibrary({
       if (data.success) {
         // Convert database components to GlobalSection format
         const items: any[] = Array.isArray(data.data) ? data.data : (Array.isArray(data.components) ? data.components : [])
-        const globalSections = items.map((component: any) => {
-          const type = component.type || 'shared'
-          const properties = component.properties || {}
+        const globalSections = items.flatMap((component: any) => {
+          if (
+            typeof component.id !== 'string' ||
+            typeof component.type !== 'string' ||
+            typeof component.name !== 'string'
+          ) {
+            return []
+          }
+          const type = component.type
+          const properties = component.properties && typeof component.properties === 'object' && !Array.isArray(component.properties)
+            ? component.properties
+            : null
+          if (!properties) {
+            return []
+          }
           return {
             id: component.id,
+            type,
             name: component.name,
             category: getCategoryFromConfig({ type }) || 'shared',
             description: 'Global component',
@@ -205,9 +111,7 @@ export function GlobalSectionsLibrary({
           } as GlobalSection
         })
         
-        // Combine with default sections (only non-global ones for demo)
-        const demoSections = defaultGlobalSections.filter(s => !s.isGlobal)
-        setSections([...globalSections, ...demoSections])
+        setSections(globalSections)
       } else {
         throw new Error(data.error || 'Failed to load global components')
       }
@@ -216,8 +120,7 @@ export function GlobalSectionsLibrary({
       console.error('Error loading global components:', error)
       }
       setError(error instanceof Error ? error.message : 'Failed to load global components')
-      // Fallback to default sections only
-      setSections(defaultGlobalSections)
+      setSections([])
     } finally {
       setIsLoading(false)
     }
@@ -263,7 +166,7 @@ export function GlobalSectionsLibrary({
 
   // Save custom sections to localStorage
   const saveSections = (updatedSections: GlobalSection[]) => {
-    const customSections = updatedSections.filter(s => !defaultGlobalSections.some(d => d.id === s.id))
+    const customSections = updatedSections.filter(s => !s.isGlobal)
     localStorage.setItem('globalSections', JSON.stringify(customSections))
     setSections(updatedSections)
   }
@@ -288,6 +191,7 @@ export function GlobalSectionsLibrary({
   const handleCreateSection = () => {
     const newSection: GlobalSection = {
       id: `custom-${Date.now()}`,
+      type: 'custom-section',
       name: 'New Custom Section',
       category: 'Custom',
       description: 'Custom section description',
@@ -403,7 +307,17 @@ export function GlobalSectionsLibrary({
               <div className="grid grid-cols-2 gap-3">
                 {filteredSections.map(section => {
                   const Icon = section.icon
-                  const isUsed = currentSections.includes(section.name)
+                  const isUsed = currentSections.some((current) => {
+                    if (typeof current === 'string') {
+                      return current === section.name || current === section.id || current === section.type
+                    }
+                    return (
+                      current.id === section.id ||
+                      current.name === section.name ||
+                      current.type === section.type ||
+                      current.props?.sharedComponentId === section.id
+                    )
+                  })
                   
                   return (
                     <div

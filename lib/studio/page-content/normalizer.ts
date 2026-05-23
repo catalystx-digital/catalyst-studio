@@ -39,8 +39,20 @@ function isStrictWrite(options: StrictDiagnosticsOptions): boolean {
   return options.mode === 'strict-write'
 }
 
+function isStrictRead(options: StrictDiagnosticsOptions): boolean {
+  return options.mode === 'strict-read'
+}
+
+function isStrictMode(options: StrictDiagnosticsOptions): boolean {
+  return isStrictRead(options) || isStrictWrite(options)
+}
+
 function isCanonicalRead(options: StrictDiagnosticsOptions): boolean {
   return options.mode === 'canonical-read'
+}
+
+function shouldStripLegacyPropMirrors(options: StrictDiagnosticsOptions): boolean {
+  return isCanonicalRead(options) || isStrictRead(options)
 }
 
 function isRecord(value: unknown): value is AnyRecord {
@@ -180,7 +192,7 @@ export function normalizeProps(
 
   const normalized: Record<string, unknown> = {}
   Object.entries(value).forEach(([key, entry]) => {
-    if (isCanonicalRead(options) && (key === 'content' || key === 'text')) {
+    if (shouldStripLegacyPropMirrors(options) && (key === 'content' || key === 'text')) {
       return
     }
 
@@ -425,6 +437,62 @@ function strictPayloadDiagnostics(
   }
 }
 
+function validateStrictReadComponentIdentity(
+  instance: AnyRecord,
+  diagnostics: PageContentDiagnostic[],
+  path: string
+): boolean {
+  let isValid = true
+
+  if (typeof instance.id !== 'string' || instance.id.trim().length === 0) {
+    addDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_ID_MISSING',
+      severity: 'warn',
+      message: 'Component id is missing; strict reads omit components that would require generated ids.',
+      path,
+    })
+    isValid = false
+  }
+
+  if (
+    !(typeof instance.type === 'string' && instance.type.trim().length > 0)
+    && !(typeof instance.componentType === 'string' && instance.componentType.trim().length > 0)
+  ) {
+    addDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_TYPE_MISSING',
+      severity: 'warn',
+      message: 'Component type is missing; strict reads omit components that would require an unknown type.',
+      componentId: typeof instance.id === 'string' && instance.id.trim().length > 0 ? instance.id : undefined,
+      path,
+    })
+    isValid = false
+  }
+
+  if (typeof instance.position !== 'number' || !Number.isFinite(instance.position)) {
+    addDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_POSITION_MISSING',
+      severity: 'warn',
+      message: 'Component position is missing; strict reads omit components that would require generated positions.',
+      componentId: typeof instance.id === 'string' && instance.id.trim().length > 0 ? instance.id : undefined,
+      path: `${path}.position`,
+    })
+    isValid = false
+  }
+
+  if (typeof instance.content === 'string') {
+    addDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_CONTENT_STRING',
+      severity: 'warn',
+      message: 'Component content must be an object; strict reads omit components with string content.',
+      componentId: typeof instance.id === 'string' && instance.id.trim().length > 0 ? instance.id : undefined,
+      path: `${path}.content`,
+    })
+    isValid = false
+  }
+
+  return isValid
+}
+
 function omitKeys(value: AnyRecord, keys: Set<string>): AnyRecord {
   return Object.fromEntries(Object.entries(value).filter(([key]) => !keys.has(key)))
 }
@@ -510,6 +578,10 @@ export function normalizeComponent(
     return null
   }
 
+  if (isStrictRead(options) && !validateStrictReadComponentIdentity(instance, diagnostics, path)) {
+    return null
+  }
+
   strictPayloadDiagnostics(instance, diagnostics, path, options)
 
   const rawTypeId = typeof instance.typeId === 'string' ? instance.typeId : undefined
@@ -548,7 +620,7 @@ export function normalizeComponent(
   if (isStrictWrite(options)) {
     delete props.content
   }
-  if (isCanonicalRead(options)) {
+  if (shouldStripLegacyPropMirrors(options)) {
     delete props.content
     delete props.text
   }
@@ -617,8 +689,8 @@ export function normalizeComponents(
       addDiagnostic(diagnostics, {
         code: 'PAGE_CONTENT_COMPONENTS_INVALID',
         severity: isStrictWrite(options) ? 'error' : 'warn',
-        message: isStrictWrite(options)
-          ? 'Components value is not an array; strict writes require a components array.'
+        message: isStrictMode(options)
+          ? 'Components value is not an array; strict modes require a components array.'
           : 'Components value is not an array; using an empty component list.',
         path: 'components',
       })
@@ -648,8 +720,8 @@ function extractComponentCandidates(
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_ARRAY',
       severity: isStrictWrite(options) ? 'error' : 'warn',
-      message: isStrictWrite(options)
-        ? 'Legacy array page content is not valid for strict writes.'
+      message: isStrictMode(options)
+        ? 'Legacy array page content is not valid for strict modes.'
         : 'Legacy array page content is not valid PageContentV1 content.',
       path: '$',
     })
@@ -661,8 +733,8 @@ function extractComponentCandidates(
       addDiagnostic(diagnostics, {
         code: 'PAGE_CONTENT_INVALID',
         severity: isStrictWrite(options) ? 'error' : 'warn',
-        message: isStrictWrite(options)
-          ? 'Page content is not an object; strict writes require PageContentV1-compatible content.'
+        message: isStrictMode(options)
+          ? 'Page content is not an object; strict modes require PageContentV1-compatible content.'
           : 'Page content is not an object or array; using empty PageContentV1.',
         path: '$',
       })
@@ -675,8 +747,8 @@ function extractComponentCandidates(
       addDiagnostic(diagnostics, {
         code: 'PAGE_CONTENT_COMPONENTS_INVALID',
         severity: isStrictWrite(options) ? 'error' : 'warn',
-        message: isStrictWrite(options)
-          ? 'Components value is not an array; strict writes require a components array.'
+        message: isStrictMode(options)
+          ? 'Components value is not an array; strict modes require a components array.'
           : 'Components value is not an array; using an empty component list.',
         path: 'components',
       })
@@ -690,8 +762,8 @@ function extractComponentCandidates(
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_SECTIONS',
       severity: isStrictWrite(options) ? 'error' : 'warn',
-      message: isStrictWrite(options)
-        ? 'Legacy sections page content is not valid for strict writes.'
+      message: isStrictMode(options)
+        ? 'Legacy sections page content is not valid for strict modes.'
         : 'Legacy sections page content is not valid PageContentV1 content.',
       path: 'sections',
     })
@@ -702,8 +774,8 @@ function extractComponentCandidates(
     addDiagnostic(diagnostics, {
       code: 'PAGE_CONTENT_LEGACY_SINGLE_COMPONENT',
       severity: isStrictWrite(options) ? 'error' : 'warn',
-      message: isStrictWrite(options)
-        ? 'Single component page content is not valid for strict writes.'
+      message: isStrictMode(options)
+        ? 'Single component page content is not valid for strict modes.'
         : 'Single component page content is not valid PageContentV1 content.',
       path: '$',
     })
@@ -728,8 +800,8 @@ export function normalizePageContent(
         addDiagnostic(diagnostics, {
           code: 'PAGE_CONTENT_JSON_STRING',
           severity: isStrictWrite(options) ? 'error' : 'warn',
-          message: isStrictWrite(options)
-            ? 'JSON string page content is not valid for strict writes; use PageContentV1 object content.'
+          message: isStrictMode(options)
+            ? 'JSON string page content is not valid for strict modes; use PageContentV1 object content.'
             : 'JSON string page content is not valid; use PageContentV1 object content.',
           path: '$',
         })

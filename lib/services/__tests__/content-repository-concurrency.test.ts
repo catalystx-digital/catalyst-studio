@@ -27,12 +27,12 @@ jest.mock('@/lib/prisma', () => {
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { prisma } = require('@/lib/prisma')
 
-describe('ContentRepository.saveSharedComponentContent concurrency + mirroring', () => {
+describe('ContentRepository.saveSharedComponentContent concurrency', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('updates content and mirrors defaultProps transactionally', async () => {
+  it('updates content and removes legacy defaultProps transactionally', async () => {
     const sharedId = 'sc-1'
     const existing = {
       id: sharedId,
@@ -58,6 +58,8 @@ describe('ContentRepository.saveSharedComponentContent concurrency + mirroring',
     )
     const dataArg = (prisma.websiteSharedComponent.update as jest.Mock).mock.calls[0][0].data
     expect(dataArg.config).toBeTruthy()
+    expect(dataArg.config).not.toHaveProperty('defaultProps')
+    expect(dataArg.config).toEqual({ other: 1 })
   })
 
   it('throws conflict when lastModified is newer than ifUnchangedSince', async () => {
@@ -125,6 +127,44 @@ describe('ContentRepository.getPageWithResolvedComponents scope', () => {
       sharedId: 'sc-foreign',
       effectiveProps: {},
     }))
+  })
+
+  it('does not use config.defaultProps when shared component content is missing', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'Page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              overrides: { title: 'Override title' },
+            },
+          },
+        ],
+      },
+    })
+    ;(prisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'sc-1',
+        websiteId: 'w1',
+        content: null,
+        config: { defaultProps: { title: 'Legacy fallback title', body: 'Legacy body' } },
+      },
+    ])
+
+    const result = await ContentRepository.getPageWithResolvedComponents('w1', 'page-1')
+
+    expect(result.components[0]).toEqual(expect.objectContaining({
+      sharedId: 'sc-1',
+      hasOverrides: true,
+      effectiveProps: { title: 'Override title' },
+    }))
+    expect(result.components[0].effectiveProps).not.toHaveProperty('body')
   })
 })
 
@@ -406,5 +446,54 @@ describe('ContentRepository page mutations canonical reads', () => {
     ).rejects.toThrow('Shared component not found')
 
     expect(prisma.websitePage.update).not.toHaveBeenCalled()
+  })
+
+  it('does not diff full props against config.defaultProps when shared content is missing', async () => {
+    const page = {
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'T',
+      type: 'page',
+      content: {
+        version: 1,
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            props: {
+              sharedComponentId: 'sc-1',
+              heading: 'Legacy default heading',
+              body: 'Local body',
+            },
+            content: {},
+          },
+        ],
+      },
+      updatedAt: new Date('2025-09-12T00:00:00Z'),
+    }
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
+    ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue({
+      id: 'sc-1',
+      websiteId: 'w1',
+      content: null,
+      config: {
+        defaultProps: {
+          heading: 'Legacy default heading',
+          body: 'Legacy default body',
+        },
+      },
+    })
+    ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
+
+    await ContentRepository.convertFullPropsToOverrides('page-1', 'inst-1', 'sc-1')
+
+    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
+    const component = updateCall.data.content.components[0]
+
+    expect(component.props.overrides).toEqual({
+      heading: 'Legacy default heading',
+      body: 'Local body',
+    })
   })
 })

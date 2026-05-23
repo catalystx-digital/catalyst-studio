@@ -6,13 +6,15 @@ import { cn } from '@/lib/utils'
 import useSWR from 'swr'
 import { toast } from 'sonner'
 
-interface SectionData {
+export interface SectionData {
   id: string
+  type: string
   name: string
   category: string
   description?: string
   instances?: number
   preview?: string
+  sharedComponentId?: string
 }
 
 // API response interface
@@ -43,17 +45,10 @@ const fetcher = async (url: string): Promise<ComponentsApiResponse> => {
   return response.json()
 }
 
-// Fallback components for when API fails (minimum viable set)
-const fallbackComponents: SectionData[] = [
-  { id: 'fallback-navbar', name: 'Navbar', category: 'Navbar', description: 'Basic navigation bar' },
-  { id: 'fallback-footer', name: 'Footer', category: 'Footer', description: 'Basic footer section' },
-  { id: 'fallback-hero', name: 'Hero', category: 'Hero Header', description: 'Basic hero section' },
-  { id: 'fallback-feature', name: 'Feature', category: 'Feature', description: 'Basic feature section' },
-]
-
 // Transform ComponentType from API to SectionData format
 const transformComponentToSection = (component: ComponentType): SectionData => ({
   id: component.id,
+  type: component.type,
   name: component.defaultConfig?.name || component.type,
   category: component.category,
   description: component.defaultConfig?.description || '',
@@ -63,7 +58,7 @@ const transformComponentToSection = (component: ComponentType): SectionData => (
 interface SectionPickerProps {
   isOpen: boolean
   onClose: () => void
-  onSelectSection: (sectionName: string) => void
+  onSelectSection: (section: SectionData) => void
   nodeId?: string
   websiteId?: string
 }
@@ -89,7 +84,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
         if (process.env.NODE_ENV === 'development') {
         console.error('Failed to fetch components:', error)
         }
-        toast.error('Unable to load all components. Showing basic components only.')
+        toast.error('Unable to load components.')
       }
     }
   )
@@ -116,7 +111,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
     return []
   }
 
-  const { data: sharedItems, error: sharedError, isLoading: sharedLoading } = useSWR(
+  const { data: sharedItems, error: sharedError, isLoading: sharedLoading, mutate: mutateShared } = useSWR(
     websiteId ? `/api/studio/site-builder/global-components?websiteId=${websiteId}` : null,
     fetchShared,
     { revalidateOnFocus: false }
@@ -127,7 +122,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
     if (apiResponse?.items) {
       return apiResponse.items.map(transformComponentToSection)
     }
-    return fallbackComponents
+    return []
   }, [apiResponse])
 
   // Separate global (shared) and regular sections
@@ -140,11 +135,13 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
       sharedItems.forEach((gc) => {
         global.push({
           id: gc.id,
+          type: gc.type,
           name: gc.name,
           category: 'Global',
           description: '',
           instances: gc.usageCount ?? undefined,
           preview: undefined,
+          sharedComponentId: gc.id,
         })
       })
     }
@@ -204,8 +201,8 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
     setExpandedCategories(newExpanded)
   }
 
-  const handleSelectSection = (sectionName: string) => {
-    onSelectSection(sectionName)
+  const handleSelectSection = (section: SectionData) => {
+    onSelectSection(section)
     onClose()
   }
 
@@ -307,8 +304,29 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
               </div>
             )}
 
+            {!isLoading && !sharedLoading && (error || sharedError) && (
+              <div className="text-center py-8">
+                <p className="text-gray-400 text-sm">Components could not be loaded.</p>
+                <button
+                  onClick={() => {
+                    mutate()
+                    mutateShared()
+                  }}
+                  className="text-[#FF5500] text-sm mt-2 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!isLoading && !sharedLoading && !error && !sharedError && !searchQuery && filteredGlobalSections.length === 0 && filteredCategories.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">No sections available.</p>
+              </div>
+            )}
+
             {/* Shared Components */}
-            {!isLoading && filteredGlobalSections.length > 0 && (
+            {!isLoading && !sharedError && filteredGlobalSections.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
                   Shared components
@@ -317,7 +335,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
                   {filteredGlobalSections.map((section) => (
                   <button
                     key={section.id}
-                    onClick={() => handleSelectSection(section.name)}
+                    onClick={() => handleSelectSection(section)}
                     className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#FF5500]/50 rounded-lg transition-all group"
                   >
                     <div className="flex items-center gap-3">
@@ -337,7 +355,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
             )}
 
             {/* Categories */}
-            {!isLoading && filteredCategories.length > 0 && (
+            {!isLoading && !error && filteredCategories.length > 0 && (
               <div>
                 <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
                   Categories
@@ -349,7 +367,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
                       onClick={() => {
                         // If category has no sub-sections, add it directly
                         if (sections.length === 0) {
-                          handleSelectSection(category)
+                          return
                         } else {
                           // Otherwise toggle to show sub-sections
                           toggleCategory(category)
@@ -376,7 +394,7 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
                         {sections.map((section) => (
                           <button
                             key={section.id}
-                            onClick={() => handleSelectSection(section.name)}
+                            onClick={() => handleSelectSection(section)}
                             className="w-full text-left p-2 hover:bg-white/10 rounded transition-colors"
                           >
                             <div className="text-sm font-medium text-gray-300">{section.name}</div>
@@ -399,8 +417,5 @@ export function SectionPicker({ isOpen, onClose, onSelectSection, nodeId, websit
     </>
   )
 }
-
-
-
 
 

@@ -34,7 +34,7 @@ export interface NormalizePageContentResult {
   diagnostics: PageContentDiagnostic[]
 }
 
-export type NormalizePageContentMode = 'canonical-read' | 'strict-write'
+export type NormalizePageContentMode = 'canonical-read' | 'strict-read' | 'strict-write'
 
 export interface NormalizePageContentOptions {
   mode?: NormalizePageContentMode

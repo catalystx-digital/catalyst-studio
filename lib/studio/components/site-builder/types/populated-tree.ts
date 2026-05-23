@@ -1,6 +1,6 @@
 import { TreeNode } from '@/lib/types/site-structure.types';
 import { ContentTypeCategory } from '@/lib/generated/prisma';
-import { normalizePageContent } from '@/lib/studio/page-content';
+import { normalizePageContent, type PageContentDiagnostic } from '@/lib/studio/page-content';
 
 /**
  * TreeNode with populated relations for transform operations
@@ -67,7 +67,17 @@ export function getNodeComponents(node: PopulatedTreeNode & { components?: unkno
   
   // Then check websitePage content
   if (hasPopulatedContent(node) && node.websitePage?.content) {
-    return normalizePageContent(node.websitePage.content, { mode: 'canonical-read' }).pageContent.components;
+    return normalizePageContent(node.websitePage.content, { mode: 'strict-read' }).pageContent.components;
+  }
+  return [];
+}
+
+/**
+ * Safe accessor for page-content read diagnostics
+ */
+export function getNodeContentDiagnostics(node: PopulatedTreeNode): PageContentDiagnostic[] {
+  if (hasPopulatedContent(node) && node.websitePage?.content) {
+    return normalizePageContent(node.websitePage.content, { mode: 'strict-read' }).diagnostics;
   }
   return [];
 }

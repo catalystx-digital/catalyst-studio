@@ -354,11 +354,7 @@ export function AISuggestionsEnhanced({
         })
         break
       case 'add-testimonials':
-        // Add to home or about page
-        const targetPage = nodes.find(n => n.data.label?.toLowerCase() === 'home') || nodes[0]
-        if (targetPage) {
-          onAddSection(targetPage.id, 'Testimonials')
-        }
+        onOptimize(suggestion)
         break
       default:
         onOptimize(suggestion)

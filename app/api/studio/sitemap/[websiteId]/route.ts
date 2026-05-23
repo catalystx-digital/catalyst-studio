@@ -10,6 +10,7 @@ import { viewportQueryService } from '@/lib/studio/services/spatial/viewport-que
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 import { normalizePageContent } from '@/lib/studio/page-content';
+import type { NormalizePageContentResult } from '@/lib/studio/page-content';
 
 // Use threshold from layout constants (single source of truth)
 const LARGE_SITE_THRESHOLD = LAYOUT_CONSTANTS.LARGE_SITE_THRESHOLD;
@@ -247,10 +248,16 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
     select: { id: true, title: true, status: true, content: true, metadata: true },
   }) as Array<{ id: string; title: string; status: string; content: unknown; metadata: unknown }>;
   const pageMap = new Map<string, { id: string; title: string; status: string; content: unknown; metadata: unknown }>(pages.map((p) => [p.id, p]));
+  const normalizedPageContentMap = new Map<string, NormalizePageContentResult>(
+    pages.map((page) => [
+      page.id,
+      normalizePageContent(page.content, { mode: 'strict-read' }),
+    ])
+  );
   const pageComponentsMap = new Map(
     pages.map((page) => [
       page.id,
-      normalizePageContent(page.content, { mode: 'canonical-read' }).pageContent.components,
+      normalizedPageContentMap.get(page.id)?.pageContent.components ?? [],
     ])
   );
 
@@ -275,6 +282,23 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
     pagesWithComponents,
     totalComponents,
   });
+  const pagesWithContentDiagnostics = Array.from(normalizedPageContentMap.values())
+    .filter((result) => result.diagnostics.length > 0).length;
+  if (pagesWithContentDiagnostics > 0) {
+    console.warn('[SitemapAPI] strict page content read diagnostics:', {
+      websiteId,
+      pagesWithDiagnostics: pagesWithContentDiagnostics,
+      diagnostics: Array.from(normalizedPageContentMap.entries()).flatMap(([pageId, result]) =>
+        result.diagnostics.map((diagnostic) => ({
+          pageId,
+          code: diagnostic.code,
+          severity: diagnostic.severity,
+          path: diagnostic.path,
+          componentId: diagnostic.componentId,
+        }))
+      ),
+    });
+  }
 
   // Batch fetch shared components
   const sharedIds = new Set<string>();
@@ -292,6 +316,14 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
         })
       : [];
   const sharedMap = new Map((shared as any[]).map((s: any) => [s.id, s]));
+  const missingSharedIds = Array.from(sharedIds).filter((id) => !sharedMap.has(id));
+  if (missingSharedIds.length > 0) {
+    console.warn('[SitemapAPI] missing shared component references:', {
+      websiteId,
+      missingSharedIds,
+      missingSharedCount: missingSharedIds.length,
+    });
+  }
 
   // Get positions from database (single source of truth, includes dynamic heights)
   const positions = await viewportQueryService.getAllPositions(websiteId);
@@ -330,10 +362,46 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
     const page = node.websitePageId ? pageMap.get(node.websitePageId) : null;
 
     // Enrich components with shared content
+    const pageContentDiagnostics = page
+      ? normalizedPageContentMap.get(page.id)?.diagnostics ?? []
+      : [];
+    const sharedComponentDiagnostics: Array<Record<string, unknown>> = [];
     const components = (page ? pageComponentsMap.get(page.id) || [] : []).map((c: any) => {
       const sid = c?.props?.sharedComponentId;
       if (sid) {
-        const sharedContentRaw = sharedMap.get(sid)?.content;
+        const sharedComponent = sharedMap.get(sid);
+        if (!sharedComponent) {
+          const diagnostic = {
+            code: 'MISSING_SHARED_COMPONENT',
+            severity: 'error',
+            componentId: c?.id,
+            sharedComponentId: sid,
+            message: `Shared component "${sid}" referenced by component "${c?.id || 'unknown'}" was not found`,
+          };
+          sharedComponentDiagnostics.push(diagnostic);
+          return {
+            ...c,
+            props: {
+              ...c.props,
+              _sharedComponentResolution: {
+                status: 'missing',
+                sharedComponentId: sid,
+                diagnostic,
+              },
+            },
+            metadata: {
+              ...(typeof c.metadata === 'object' && c.metadata !== null ? c.metadata : {}),
+              sharedComponentResolution: {
+                status: 'missing',
+                sharedComponentId: sid,
+              },
+            },
+            _isShared: true,
+            _sharedComponentId: sid,
+            _sharedComponentStatus: 'missing',
+          };
+        }
+        const sharedContentRaw = sharedComponent.content;
         const sharedContent =
           typeof sharedContentRaw === 'object' && sharedContentRaw !== null
             ? sharedContentRaw
@@ -370,6 +438,8 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
         childCount: (node.children || []).length,
         componentCount: components.length,
         components: components,
+        ...(pageContentDiagnostics.length > 0 ? { pageContentDiagnostics } : {}),
+        ...(sharedComponentDiagnostics.length > 0 ? { sharedComponentDiagnostics } : {}),
         websitePageId: node.websitePageId,
         metadata: page?.metadata,
         // Include dimensions in data for component access (React Flow doesn't pass width/height to components)
@@ -392,10 +462,12 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
   }
 
   const duration = performance.now() - startTime;
+  const sharedComponentDiagnostics = nodes.flatMap((node) => node.data.sharedComponentDiagnostics ?? []);
 
   console.info('[SitemapAPI] full response', {
     websiteId,
     nodeCount: nodes.length,
+    sharedComponentDiagnosticCount: sharedComponentDiagnostics.length,
     durationMs: duration.toFixed(1),
     dbQueries: 4,
   });
@@ -415,6 +487,7 @@ async function getFullSitemap(websiteId: string, startTime: number, totalNodes: 
         nodeWidth: LAYOUT_CONSTANTS.NODE_WIDTH,
         // Note: nodeHeight is dynamic per level, use node.height from each node
         dynamicHeights: true,
+        ...(sharedComponentDiagnostics.length > 0 ? { sharedComponentDiagnostics } : {}),
       },
     },
     {

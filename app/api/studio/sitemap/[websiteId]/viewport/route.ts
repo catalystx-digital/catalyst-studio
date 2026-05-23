@@ -98,9 +98,10 @@ export async function GET(
     // Transform to React Flow format
     const nodes = visibleNodes.map((node) => {
       const pageData = node.structure?.websitePage;
-      const components = pageData
-        ? normalizePageContent(pageData.content, { mode: 'canonical-read' }).pageContent.components
-        : [];
+      const normalizedContent = pageData
+        ? normalizePageContent(pageData.content, { mode: 'strict-read' })
+        : null
+      const components = normalizedContent?.pageContent.components ?? [];
 
       // Debug: log component loading for ALL nodes when full detail
       if (detailLevel === 'full') {
@@ -129,6 +130,9 @@ export async function GET(
           hasContent: !!node.structure?.websitePageId,
           components: detailLevel === 'full' ? components : undefined,
           componentCount: components.length,
+          pageContentDiagnostics: detailLevel === 'full' && normalizedContent?.diagnostics.length
+            ? normalizedContent.diagnostics
+            : undefined,
           metadata: pageData?.metadata,
           websitePageId: node.structure?.websitePageId,
           parentId: node.structure?.parentId,

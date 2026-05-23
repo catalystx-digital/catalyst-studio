@@ -3,6 +3,7 @@ import {
   getNodeType,
   getNodeLabel,
   getNodeComponents,
+  getNodeContentDiagnostics,
   getNodeMetadata,
   PopulatedTreeNode
 } from '../populated-tree';
@@ -165,7 +166,7 @@ describe('populated-tree helper functions', () => {
 
   describe('getNodeComponents', () => {
     it('should return components array from websitePage.content object', () => {
-      const components = [{ id: '1', type: 'hero' }];
+      const components = [{ id: '1', type: 'hero', position: 0 }];
       const node: PopulatedTreeNode = {
         id: '1',
         slug: 'test',
@@ -191,8 +192,8 @@ describe('populated-tree helper functions', () => {
       ]);
     });
 
-    it('should parse JSON string content', () => {
-      const components = [{ id: '1', type: 'hero' }];
+    it('should reject JSON string content without synthesizing components', () => {
+      const components = [{ id: '1', type: 'hero', position: 0 }];
       const node: PopulatedTreeNode = {
         id: '1',
         slug: 'test',
@@ -209,13 +210,13 @@ describe('populated-tree helper functions', () => {
           type: 'page'
         }
       };
-      expect(getNodeComponents(node)).toEqual([
+      expect(getNodeComponents(node)).toEqual([]);
+      expect(getNodeContentDiagnostics(node)).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          id: '1',
-          type: 'hero',
-          content: {},
+          code: 'PAGE_CONTENT_JSON_STRING',
+          path: '$',
         }),
-      ]);
+      ]));
     });
 
     it('should return empty array when no websitePageId', () => {
@@ -252,8 +253,8 @@ describe('populated-tree helper functions', () => {
       expect(getNodeComponents(node)).toEqual([]);
     });
 
-    it('should handle content as direct array', () => {
-      const components = [{ id: '1', type: 'hero' }];
+    it('should reject content as direct array without synthesizing components', () => {
+      const components = [{ id: '1', type: 'hero', position: 0 }];
       const node: PopulatedTreeNode = {
         id: '1',
         slug: 'test',
@@ -270,13 +271,13 @@ describe('populated-tree helper functions', () => {
           type: 'page'
         }
       };
-      expect(getNodeComponents(node)).toEqual([
+      expect(getNodeComponents(node)).toEqual([]);
+      expect(getNodeContentDiagnostics(node)).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          id: '1',
-          type: 'hero',
-          content: {},
+          code: 'PAGE_CONTENT_LEGACY_ARRAY',
+          path: '$',
         }),
-      ]);
+      ]));
     });
 
     it('should not promote stale props.content into canonical component content', () => {
@@ -296,6 +297,7 @@ describe('populated-tree helper functions', () => {
               {
                 id: '1',
                 type: 'hero',
+                position: 0,
                 props: {
                   content: { heading: 'Legacy props.content heading' },
                 },
@@ -311,6 +313,49 @@ describe('populated-tree helper functions', () => {
       const [component] = getNodeComponents(node) as Array<Record<string, any>>;
       expect(component.content).toEqual({});
       expect(component.props).not.toHaveProperty('content');
+    });
+
+    it('should omit websitePage components that would need synthesized id, type, or position', () => {
+      const node: PopulatedTreeNode = {
+        id: '1',
+        slug: 'test',
+        title: 'Test',
+        websiteId: 'web1',
+        websitePageId: 'page1',
+        position: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        websitePage: {
+          title: 'Page',
+          content: {
+            components: [
+              { type: 'hero', position: 0 },
+              { id: 'missing-type', position: 1 },
+              { id: 'missing-position', type: 'text-block' },
+              { id: 'valid', type: 'text-block', position: 3 },
+            ],
+          },
+          metadata: null,
+          type: 'page'
+        }
+      };
+
+      expect(getNodeComponents(node)).toEqual([
+        expect.objectContaining({
+          id: 'valid',
+          type: 'text-block',
+          position: 3,
+        }),
+      ]);
+      expect(getNodeComponents(node)).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'component-0' }),
+        expect.objectContaining({ type: 'unknown' }),
+      ]));
+      expect(getNodeContentDiagnostics(node).map(diagnostic => diagnostic.code)).toEqual([
+        'PAGE_CONTENT_COMPONENT_ID_MISSING',
+        'PAGE_CONTENT_COMPONENT_TYPE_MISSING',
+        'PAGE_CONTENT_COMPONENT_POSITION_MISSING',
+      ]);
     });
   });
 

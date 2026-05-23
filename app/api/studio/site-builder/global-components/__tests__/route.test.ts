@@ -197,7 +197,7 @@ describe('Global Components API', () => {
           id: 'shared-1',
           componentId: 'header',
           name: 'Header',
-          type: 'shared',
+          type: 'header',
           properties: {},
           usageCount: 5,
           lastModified: firstModified.toISOString(),
@@ -207,7 +207,7 @@ describe('Global Components API', () => {
           id: 'shared-2',
           componentId: 'footer',
           name: 'Footer',
-          type: 'shared',
+          type: 'footer',
           properties: { theme: 'dark' },
           usageCount: 3,
           lastModified: secondModified.toISOString(),
@@ -219,6 +219,51 @@ describe('Global Components API', () => {
         where: { websiteId: 'website-123' },
         orderBy: { name: 'asc' },
       });
+    });
+
+    it('omits shared components without explicit type or content instead of synthesizing fallbacks', async () => {
+      (prisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'valid',
+          websiteComponentTypeId: 'header',
+          name: 'Header',
+          content: { title: 'Header' },
+          usageCount: 1,
+          lastModified: new Date('2024-01-01T00:00:00Z'),
+          createdBy: 'user-1',
+        },
+        {
+          id: 'missing-type',
+          websiteComponentTypeId: '',
+          name: 'Missing type',
+          content: { title: 'Missing type' },
+          usageCount: 0,
+          lastModified: new Date('2024-01-01T00:00:00Z'),
+          createdBy: 'user-1',
+        },
+        {
+          id: 'missing-content',
+          websiteComponentTypeId: 'footer',
+          name: 'Missing content',
+          content: null,
+          usageCount: 0,
+          lastModified: new Date('2024-01-01T00:00:00Z'),
+          createdBy: 'user-1',
+        },
+      ]);
+
+      const request = new NextRequest('http://localhost:3000/api/studio/site-builder/global-components?websiteId=website-123');
+
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.components).toHaveLength(1);
+      expect(data.components[0]).toEqual(expect.objectContaining({
+        id: 'valid',
+        type: 'header',
+        properties: { title: 'Header' },
+      }));
     });
 
     it('returns 400 when websiteId is missing', async () => {
