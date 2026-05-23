@@ -33,6 +33,37 @@ describe('normalizeAssetUrl', () => {
 })
 
 describe('buildUcsSiteSnapshot', () => {
+  const createPrisma = (overrides: Record<string, unknown> = {}) => ({
+    website: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'site',
+        name: 'Site',
+        description: null,
+        metadata: {},
+        settings: {}
+      })
+    },
+    websiteSharedComponent: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    websitePage: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    websiteStructure: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    websiteDesignConcept: {
+      findFirst: jest.fn().mockResolvedValue(null)
+    },
+    websiteDesignSystem: {
+      findFirst: jest.fn().mockResolvedValue(null)
+    },
+    redirect: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    ...overrides
+  })
+
   it('skips pages when structures are empty', async () => {
     const prisma = {
       website: {
@@ -464,5 +495,179 @@ describe('buildUcsSiteSnapshot', () => {
         })
       })
     ]))
+  })
+
+  it('exports only valid current shadcn design-system tokens', async () => {
+    const tokens = {
+      variables: { '--primary': '240 5.9% 10%' },
+      darkVariables: { '--primary': '0 0% 98%' },
+      extraction: {
+        timestamp: '2024-01-01T00:00:00.000Z',
+        confidence: 1,
+        source: 'detected',
+        detectedCount: 1,
+        defaultCount: 0
+      }
+    }
+    const prisma = createPrisma({
+      websiteDesignSystem: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'design-system-1', tokens })
+      }
+    })
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.designSystem).toEqual({
+      tokens,
+      conceptId: undefined,
+      conceptName: undefined
+    })
+    expect(diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: expect.stringMatching(/^DESIGN_SYSTEM_(LEGACY|INVALID)_PAYLOAD$/)
+      })
+    ]))
+  })
+
+  it('diagnoses legacy design-system payloads instead of exporting converted defaults', async () => {
+    const prisma = createPrisma({
+      websiteDesignSystem: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'design-system-1',
+          tokens: {
+            palette: {
+              primary: [{ value: '#ff0000', confidence: 1, source: 'css-var' }],
+              secondary: [],
+              accent: [],
+              neutral: [],
+              surface: []
+            }
+          }
+        })
+      }
+    })
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.designSystem).toBeNull()
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'DESIGN_SYSTEM_LEGACY_PAYLOAD',
+        level: 'error',
+        message: 'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          designSystemId: 'design-system-1'
+        })
+      })
+    ]))
+  })
+
+  it('diagnoses malformed current design-system payloads instead of exporting defaults', async () => {
+    const prisma = createPrisma({
+      websiteDesignSystem: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'design-system-1',
+          tokens: {
+            variables: { '--primary': 123 },
+            extraction: {
+              timestamp: '2024-01-01T00:00:00.000Z',
+              confidence: 1,
+              source: 'detected',
+              detectedCount: 1,
+              defaultCount: 0
+            }
+          }
+        })
+      }
+    })
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.designSystem).toBeNull()
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'DESIGN_SYSTEM_INVALID_PAYLOAD',
+        level: 'error',
+        message: 'Design-system payload is not valid current shadcn token data.',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          designSystemId: 'design-system-1'
+        })
+      })
+    ]))
+  })
+
+  it('does not report missing design-system records as default fallback', async () => {
+    const prisma = createPrisma()
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      resolveMedia: false
+    })
+
+    expect(snapshot.designSystem).toBeNull()
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'DESIGN_SYSTEM_MISSING',
+        message: 'No design system tokens were found for this website.'
+      })
+    ]))
+    expect(diagnostics.map(diagnostic => diagnostic.message).join('\n')).not.toContain('fall back to Catalyst defaults')
+  })
+
+  it('does not fall back to the default concept when a requested design concept is missing', async () => {
+    const designSystemFindFirst = jest.fn().mockResolvedValue({
+      id: 'design-system-1',
+      tokens: {
+        variables: { '--primary': '240 5.9% 10%' },
+        extraction: {
+          timestamp: '2024-01-01T00:00:00.000Z',
+          confidence: 1,
+          source: 'detected',
+          detectedCount: 1,
+          defaultCount: 0
+        }
+      }
+    })
+    const prisma = createPrisma({
+      websiteDesignConcept: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      websiteDesignSystem: {
+        findFirst: designSystemFindFirst
+      }
+    })
+
+    const { snapshot, diagnostics } = await buildUcsSiteSnapshot({
+      prisma: prisma as any,
+      websiteId: 'site',
+      designConcept: 'missing-concept',
+      resolveMedia: false
+    })
+
+    expect(snapshot.designSystem).toBeNull()
+    expect(designSystemFindFirst).not.toHaveBeenCalled()
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'DESIGN_CONCEPT_NOT_FOUND',
+        level: 'error',
+        message: 'Design concept "missing-concept" was not found.'
+      })
+    ]))
+    expect(diagnostics.map(diagnostic => diagnostic.message).join('\n')).not.toContain('Falling back')
   })
 })

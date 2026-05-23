@@ -7,13 +7,52 @@ jest.mock('@/lib/studio/preview/access', () => ({
   previewAccessErrorResponse: jest.fn(),
 }))
 
-jest.mock('@/lib/studio/design-system/design-system-reader', () => ({
-  getNormalizedDesignSystem: jest.fn(() => ({
-    variables: {},
-    darkVariables: {},
-  })),
-  generateDesignSystemCss: jest.fn(() => ':root {}'),
+const mockReadNullableShadcnDesignSystemTokens = jest.fn(() => ({
+  variables: {},
+  darkVariables: {},
 }))
+const mockGenerateStrictDesignSystemCss = jest.fn(() => ':root {}')
+var mockDesignSystemReaderError: new (
+  code: string,
+  message: string,
+  context?: Record<string, unknown>
+) => Error & { code: string; context?: Record<string, unknown> }
+
+jest.mock('@/lib/studio/design-system/design-system-reader', () => {
+  mockDesignSystemReaderError = class extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly context?: Record<string, unknown>
+    ) {
+      super(message)
+      this.name = 'DesignSystemReaderError'
+    }
+  }
+
+  return {
+    DesignSystemReaderError: mockDesignSystemReaderError,
+    isDesignSystemReaderError: (error: unknown) => {
+      const record = error as { code?: unknown; message?: unknown; context?: unknown }
+      return (
+        typeof record?.message === 'string' &&
+        (
+          record.code === 'DESIGN_SYSTEM_MISSING' ||
+          record.code === 'DESIGN_CONCEPT_NOT_FOUND' ||
+          record.code === 'DESIGN_SYSTEM_LEGACY_PAYLOAD' ||
+          record.code === 'DESIGN_SYSTEM_INVALID_PAYLOAD'
+        ) &&
+        (
+          record.context === undefined ||
+          record.context === null ||
+          (typeof record.context === 'object' && !Array.isArray(record.context))
+        )
+      )
+    },
+    readNullableShadcnDesignSystemTokens: (...args: unknown[]) => mockReadNullableShadcnDesignSystemTokens(...args),
+    generateStrictDesignSystemCss: (...args: unknown[]) => mockGenerateStrictDesignSystemCss(...args),
+  }
+})
 
 import { NextRequest } from 'next/server'
 import { getClient } from '@/lib/db/client'
@@ -206,6 +245,22 @@ describe('preview data GET diagnostics', () => {
     })
     mockPrisma.websiteDesignConcept.findFirst.mockResolvedValue(null)
     mockPrisma.websiteDesignSystem.findFirst.mockResolvedValue(null)
+    mockReadNullableShadcnDesignSystemTokens.mockReturnValue({
+      variables: {},
+      darkVariables: undefined,
+    })
+    mockGenerateStrictDesignSystemCss.mockReturnValue(':root {}')
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'About',
+        content: {
+          regions: [],
+          components: [],
+        },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
     mockPrisma.websiteStructure.findMany.mockResolvedValue([
       {
         id: 'structure-1',
@@ -219,6 +274,104 @@ describe('preview data GET diagnostics', () => {
 
   afterEach(() => {
     jest.restoreAllMocks()
+  })
+
+  it('returns explicit empty/no-style state when design system tokens are missing', async () => {
+    mockReadNullableShadcnDesignSystemTokens.mockReturnValue(null)
+    mockGenerateStrictDesignSystemCss.mockReturnValue(null)
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.designSystem).toEqual({ variables: {}, darkVariables: undefined })
+    expect(body.data.designSystemCss).toBe('')
+  })
+
+  it('returns current shadcn token payloads without runtime defaults', async () => {
+    mockReadNullableShadcnDesignSystemTokens.mockReturnValue({
+      variables: { '--primary': '240 5.9% 10%' },
+      darkVariables: undefined,
+    })
+    mockGenerateStrictDesignSystemCss.mockReturnValue(':root {\n  --primary: 240 5.9% 10%;\n}')
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.designSystem.variables).toEqual({ '--primary': '240 5.9% 10%' })
+    expect(body.data.designSystemCss).not.toContain('--background')
+  })
+
+  it('returns 422 diagnostics for invalid design system tokens', async () => {
+    mockReadNullableShadcnDesignSystemTokens.mockImplementation(() => {
+      throw new mockDesignSystemReaderError(
+        'DESIGN_SYSTEM_INVALID_PAYLOAD',
+        'Design-system payload is not valid current shadcn token data.',
+        { websiteId: 'website-1', designSystemId: 'design-system-1' }
+      )
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body).toEqual({
+      success: false,
+      error: 'Design-system payload is not valid current shadcn token data.',
+      diagnostics: [
+        expect.objectContaining({
+          code: 'DESIGN_SYSTEM_INVALID_PAYLOAD',
+          severity: 'error',
+          context: expect.objectContaining({
+            websiteId: 'website-1',
+            designSystemId: 'design-system-1',
+          }),
+        }),
+      ],
+    })
+  })
+
+  it('returns 422 diagnostics for legacy design system tokens', async () => {
+    mockReadNullableShadcnDesignSystemTokens.mockImplementation(() => {
+      throw new mockDesignSystemReaderError(
+        'DESIGN_SYSTEM_LEGACY_PAYLOAD',
+        'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+        { websiteId: 'website-1', designSystemId: 'design-system-1' }
+      )
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'DESIGN_SYSTEM_LEGACY_PAYLOAD',
+        severity: 'error',
+        message: 'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+      }),
+    ])
+  })
+
+  it('returns 422 when a requested design concept does not exist', async () => {
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&designConcept=missing-concept'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(mockPrisma.websiteDesignSystem.findFirst).not.toHaveBeenCalled()
+    expect(body).toEqual({
+      success: false,
+      error: 'Design concept "missing-concept" was not found.',
+      diagnostics: [
+        {
+          code: 'DESIGN_CONCEPT_NOT_FOUND',
+          severity: 'error',
+          message: 'Design concept "missing-concept" was not found.',
+          context: { websiteId: 'website-1', selector: 'missing-concept' },
+        },
+      ],
+    })
   })
 
   it('returns 422 with page-context diagnostics for malformed page content', async () => {
@@ -365,5 +518,134 @@ describe('preview data GET diagnostics', () => {
         }),
       ],
     })
+  })
+
+  it('passes current design system tokens through the strict runtime reader', async () => {
+    const tokens = {
+      variables: { '--primary': '240 5.9% 10%' },
+      darkVariables: { '--primary': '0 0% 98%' },
+      extraction: {
+        timestamp: '2024-01-01T00:00:00.000Z',
+        confidence: 1,
+        source: 'detected',
+        detectedCount: 1,
+        defaultCount: 0,
+      },
+    }
+    mockPrisma.websiteDesignSystem.findFirst.mockResolvedValue({ id: 'design-system-1', tokens })
+    mockReadNullableShadcnDesignSystemTokens.mockReturnValue(tokens)
+    mockGenerateStrictDesignSystemCss.mockReturnValue(':root { --primary: 240 5.9% 10%; }')
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockReadNullableShadcnDesignSystemTokens).toHaveBeenCalledWith(tokens, {
+      websiteId: 'website-1',
+      designSystemId: 'design-system-1',
+    })
+    expect(mockGenerateStrictDesignSystemCss).toHaveBeenCalledWith(tokens, {
+      websiteId: 'website-1',
+      designSystemId: 'design-system-1',
+    })
+    expect(body.data.designSystem).toEqual({
+      variables: tokens.variables,
+      darkVariables: tokens.darkVariables,
+    })
+    expect(body.data.designSystemCss).toBe(':root { --primary: 240 5.9% 10%; }')
+  })
+
+  it('does not synthesize default design-system tokens when the record is missing', async () => {
+    mockReadNullableShadcnDesignSystemTokens.mockReturnValue(null)
+    mockGenerateStrictDesignSystemCss.mockReturnValue(null)
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.designSystem).toEqual({
+      variables: {},
+    })
+    expect(body.data.designSystemCss).toBe('')
+  })
+
+  it('returns 422 when strict design-system parsing rejects a runtime payload', async () => {
+    mockPrisma.websiteDesignSystem.findFirst.mockResolvedValue({
+      id: 'design-system-1',
+      tokens: { palette: { primary: [] } },
+    })
+    mockReadNullableShadcnDesignSystemTokens.mockImplementation(() => {
+      throw new mockDesignSystemReaderError(
+        'DESIGN_SYSTEM_LEGACY_PAYLOAD',
+        'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+        { websiteId: 'website-1', designSystemId: 'design-system-1' }
+      )
+    })
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'About',
+        content: { components: [] },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body).toEqual({
+      success: false,
+      error: 'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+      diagnostics: [
+        {
+          code: 'DESIGN_SYSTEM_LEGACY_PAYLOAD',
+          severity: 'error',
+          message: 'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+          context: { websiteId: 'website-1', designSystemId: 'design-system-1' },
+        },
+      ],
+    })
+  })
+
+  it('returns 422 for structurally equivalent design-system reader errors', async () => {
+    mockPrisma.websiteDesignSystem.findFirst.mockResolvedValue({
+      id: 'design-system-1',
+      tokens: { variables: { '--primary': 123 } },
+    })
+    mockReadNullableShadcnDesignSystemTokens.mockImplementation(() => {
+      throw Object.assign(new Error('Design-system payload is not valid current shadcn token data.'), {
+        name: 'DifferentConstructor',
+        code: 'DESIGN_SYSTEM_INVALID_PAYLOAD',
+        context: { websiteId: 'website-1', designSystemId: 'design-system-1', invalidPath: 'variables' },
+      })
+    })
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(body.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'DESIGN_SYSTEM_INVALID_PAYLOAD',
+        context: expect.objectContaining({ invalidPath: 'variables' }),
+      }),
+    ])
   })
 })

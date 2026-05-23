@@ -28,7 +28,10 @@ import type {
   SnapshotStructureNode,
   SnapshotDesignSystem
 } from '@/lib/studio/headless/site-snapshot/types'
-import type { DesignSystem } from '@/lib/studio/import/types/design-system.types'
+import {
+  isDesignSystemReaderError,
+  readShadcnDesignSystemTokens,
+} from '@/lib/studio/design-system/design-system-reader'
 import { resolveRuntimeMediaBatch } from './runtime-media-resolver'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -255,6 +258,8 @@ class PrismaSiteSnapshotBuilder {
   private sharedComponents: SnapshotSharedComponent[] = []
   private siteOrigin?: string
   private resolvedConcept: WebsiteDesignConcept | null = null
+  private resolvedConceptLoaded = false
+  private requestedConceptMissing = false
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -494,11 +499,15 @@ class PrismaSiteSnapshotBuilder {
     const designConcept = await this.resolveDesignConcept()
     const delegate = (this.prisma as unknown as { websiteDesignSystem?: WebsiteDesignSystemDelegate }).websiteDesignSystem
 
+    if (this.requestedConceptMissing) {
+      return null
+    }
+
     if (!delegate || typeof delegate.findFirst !== 'function') {
       this.diagnostics.push({
         code: 'DESIGN_SYSTEM_DELEGATE_MISSING',
         level: 'info',
-        message: 'Current Prisma client does not expose website design system records; falling back to defaults.',
+        message: 'Current Prisma client does not expose website design system records; no design system tokens will be exported.',
         context: { websiteId: this.websiteId }
       })
       return null
@@ -524,8 +533,8 @@ class PrismaSiteSnapshotBuilder {
         code: designConcept ? 'DESIGN_SYSTEM_CONCEPT_MISSING' : 'DESIGN_SYSTEM_MISSING',
         level: 'warn',
         message: designConcept
-          ? `No design system tokens were found for concept "${designConcept.name}". Export will fall back to Catalyst defaults.`
-          : 'No design system tokens were found for this website. Export will fall back to Catalyst defaults.',
+          ? `No design system tokens were found for concept "${designConcept.name}".`
+          : 'No design system tokens were found for this website.',
         context: {
           websiteId: this.websiteId,
           conceptId: designConcept?.id,
@@ -535,29 +544,37 @@ class PrismaSiteSnapshotBuilder {
       return null
     }
 
-    const rawTokens = designSystemEntity.tokens as unknown
-    if (!isRecord(rawTokens)) {
+    let tokens: ReturnType<typeof readShadcnDesignSystemTokens>
+    try {
+      tokens = readShadcnDesignSystemTokens(designSystemEntity.tokens, {
+        designSystemId: designSystemEntity.id,
+        websiteId: this.websiteId,
+        conceptId: designConcept?.id,
+        conceptName: designConcept?.name
+      })
+    } catch (error) {
+      if (!isDesignSystemReaderError(error)) {
+        throw error
+      }
+
       this.diagnostics.push({
-        code: 'DESIGN_SYSTEM_INVALID_PAYLOAD',
-        level: 'warn',
-        message: 'Latest design system record has an invalid token payload and will be ignored.',
-        context: { designSystemId: designSystemEntity.id, websiteId: this.websiteId }
+        code: error.code,
+        level: 'error',
+        message: error.message,
+        context: error.context
       })
       return null
     }
 
-    const tokens = JSON.parse(JSON.stringify(rawTokens)) as DesignSystem
-
     return {
       tokens,
-      aliases: tokens.aliases ?? undefined,
       conceptId: designConcept?.id,
       conceptName: designConcept?.name ?? undefined
     }
   }
 
   private async resolveDesignConcept(): Promise<WebsiteDesignConcept | null> {
-    if (this.resolvedConcept) {
+    if (this.resolvedConceptLoaded) {
       return this.resolvedConcept
     }
 
@@ -583,12 +600,16 @@ class PrismaSiteSnapshotBuilder {
       })
 
       if (!concept) {
+        this.requestedConceptMissing = true
         this.diagnostics.push({
           code: 'DESIGN_CONCEPT_NOT_FOUND',
-          level: 'warn',
-          message: `Design concept "${selector}" was not found. Falling back to default concept.`,
+          level: 'error',
+          message: `Design concept "${selector}" was not found.`,
           context: { websiteId: this.websiteId, selector }
         })
+        this.resolvedConceptLoaded = true
+        this.resolvedConcept = null
+        return null
       }
     }
 
@@ -608,11 +629,12 @@ class PrismaSiteSnapshotBuilder {
       this.diagnostics.push({
         code: 'DESIGN_CONCEPT_MISSING',
         level: 'info',
-        message: 'No design concepts available for this website; falling back to latest tokens.',
+        message: 'No design concepts available for this website.',
         context: { websiteId: this.websiteId }
       })
     }
 
+    this.resolvedConceptLoaded = true
     this.resolvedConcept = concept
     return concept
   }

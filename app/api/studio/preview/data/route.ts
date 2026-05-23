@@ -15,7 +15,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getClient } from '@/lib/db/client'
 import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
-import { getNormalizedDesignSystem, generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
+import {
+  DesignSystemReaderError,
+  generateStrictDesignSystemCss,
+  isDesignSystemReaderError,
+  readNullableShadcnDesignSystemTokens,
+} from '@/lib/studio/design-system/design-system-reader'
 import type { PreviewDesignTokens, PreviewComponentConfig } from '@/lib/studio/preview/sandbox/types'
 import { normalizePageContent, type PageContentDiagnostic } from '@/lib/studio/page-content'
 
@@ -25,6 +30,15 @@ export interface PreviewPageContentDiagnostic extends PageContentDiagnostic {
   slug?: string
   fullPath?: string
 }
+
+interface PreviewDesignSystemDiagnostic {
+  code: string
+  severity: 'error'
+  message: string
+  context?: Record<string, unknown>
+}
+
+type PreviewDataDiagnostic = PreviewPageContentDiagnostic | PreviewDesignSystemDiagnostic
 
 interface PreviewDataResponse {
   success: boolean
@@ -43,7 +57,7 @@ interface PreviewDataResponse {
     }>
   }
   error?: string
-  diagnostics?: PreviewPageContentDiagnostic[]
+  diagnostics?: PreviewDataDiagnostic[]
 }
 
 interface ExtractComponentsContext {
@@ -102,9 +116,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
           ],
         },
       })
-      if (concept) {
-        designConceptId = concept.id
+      if (!concept) {
+        throw new DesignSystemReaderError(
+          'DESIGN_CONCEPT_NOT_FOUND',
+          `Design concept "${designConceptSlug}" was not found.`,
+          { websiteId, selector: designConceptSlug }
+        )
       }
+      designConceptId = concept.id
     }
 
     // Fetch design system - optionally filter by design concept
@@ -116,17 +135,23 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
       orderBy: { createdAt: 'desc' },
     })
 
-    // Extract design system tokens using existing reader (same as generate-head)
+    // Runtime preview accepts only current shadcn token payloads. Missing design
+    // systems are allowed; malformed or legacy payloads should fail loudly.
     const dsTokens = designSystemRecord?.tokens
-    const normalized = getNormalizedDesignSystem(dsTokens)
+    const normalized = readNullableShadcnDesignSystemTokens(dsTokens, {
+      websiteId,
+      designSystemId: designSystemRecord?.id,
+    })
 
     const designSystem: PreviewDesignTokens = {
-      variables: normalized.variables,
-      darkVariables: normalized.darkVariables,
+      variables: normalized?.variables ?? {},
+      darkVariables: normalized?.darkVariables,
     }
 
-    // Generate CSS using existing transformer (same output as generate-head)
-    const designSystemCss = generateDesignSystemCss(dsTokens)
+    const designSystemCss = generateStrictDesignSystemCss(dsTokens, {
+      websiteId,
+      designSystemId: designSystemRecord?.id,
+    }) ?? ''
 
     // Fetch pages with structure
     const pages = await prisma.websitePage.findMany({
@@ -217,6 +242,24 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
   } catch (error) {
     if (error && typeof error === 'object' && 'statusCode' in error) {
       return previewAccessErrorResponse(error) as NextResponse<PreviewDataResponse>
+    }
+
+    if (isDesignSystemReaderError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          diagnostics: [
+            {
+              code: error.code,
+              severity: 'error',
+              message: error.message,
+              ...(error.context ? { context: error.context } : {}),
+            },
+          ],
+        },
+        { status: 422 }
+      )
     }
 
     console.error('[preview-data] Error:', error)

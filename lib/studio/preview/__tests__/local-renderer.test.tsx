@@ -12,7 +12,7 @@ const mockResolveUrl = jest.fn()
 const mockPageRendererHelper = jest.fn(() => <section data-testid="page-renderer">Rendered page</section>)
 const mockFindDesignConcept = jest.fn()
 const mockFindDesignSystem = jest.fn()
-const mockGenerateDesignSystemCss = jest.fn(() => ':root { --color: red; }')
+const mockGenerateStrictDesignSystemCss = jest.fn(() => ':root { --color: red; }')
 const mockLoadSharedComponentsById = jest.fn()
 const mockEnrichComponentFromShared = jest.fn((component: unknown) => component)
 const mockExtractSiteOriginFromMetadata = jest.fn(() => null)
@@ -50,7 +50,17 @@ jest.mock('@/lib/prisma', () => ({
 
 jest.mock('@/lib/studio/design-system/design-system-reader', () => ({
   __esModule: true,
-  generateDesignSystemCss: (tokens: unknown) => mockGenerateDesignSystemCss(tokens),
+  DesignSystemReaderError: class DesignSystemReaderError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly context?: Record<string, unknown>
+    ) {
+      super(message)
+      this.name = 'DesignSystemReaderError'
+    }
+  },
+  generateStrictDesignSystemCss: (...args: unknown[]) => mockGenerateStrictDesignSystemCss(...args),
 }))
 
 jest.mock('@/lib/studio/headless/ucs/page-resolver', () => ({
@@ -106,6 +116,7 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     jest.spyOn(console, 'debug').mockImplementation(() => undefined)
     mockFindDesignConcept.mockResolvedValue(null)
     mockFindDesignSystem.mockResolvedValue(null)
+    mockGenerateStrictDesignSystemCss.mockReturnValue(':root { --color: red; }')
     mockLoadSharedComponentsById.mockResolvedValue([])
   })
 
@@ -270,6 +281,93 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
       }),
       sharedComponents: [],
     }))
+  })
+
+  it('passes design-system records through the strict runtime CSS reader', async () => {
+    const tokens = {
+      variables: { '--primary': '240 5.9% 10%' },
+      extraction: {
+        timestamp: '2024-01-01T00:00:00.000Z',
+        confidence: 1,
+        source: 'detected',
+        detectedCount: 1,
+        defaultCount: 0,
+      },
+    }
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage(),
+    })
+    mockFindDesignSystem.mockResolvedValue({ id: 'design-system-1', tokens })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })
+
+    const html = renderToStaticMarkup(element as React.ReactElement)
+    expect(html).toContain('studio-local-preview-design-system')
+    expect(mockGenerateStrictDesignSystemCss).toHaveBeenCalledWith(tokens, {
+      websiteId: 'website-1',
+      designSystemId: 'design-system-1',
+    })
+  })
+
+  it('uses no-style state when no design-system record exists', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage(),
+    })
+    mockFindDesignSystem.mockResolvedValue(null)
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })
+
+    const html = renderToStaticMarkup(element as React.ReactElement)
+    expect(html).not.toContain('studio-local-preview-design-system')
+    expect(mockGenerateStrictDesignSystemCss).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to current tokens when a requested design concept is missing', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage(),
+    })
+    mockFindDesignConcept.mockResolvedValue(null)
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+
+    await expect(renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+      designConcept: 'missing-concept',
+    })).rejects.toThrow('Design concept "missing-concept" was not found.')
+    expect(mockFindDesignSystem).not.toHaveBeenCalled()
+  })
+
+  it('propagates strict design-system reader errors', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage(),
+    })
+    mockFindDesignSystem.mockResolvedValue({
+      id: 'design-system-1',
+      tokens: { palette: { primary: [] } },
+    })
+    mockGenerateStrictDesignSystemCss.mockImplementation(() => {
+      throw new Error('Legacy palette design-system payloads are not valid runtime shadcn tokens.')
+    })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+
+    await expect(renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      slug: ['about'],
+    })).rejects.toThrow('Legacy palette design-system payloads are not valid runtime shadcn tokens.')
   })
 
   it('renders a diagnostic error panel and skips PageRendererHelper for invalid page content', async () => {

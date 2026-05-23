@@ -3,7 +3,10 @@ import { notFound, redirect, unstable_rethrow } from 'next/navigation'
 import { PageRendererHelper } from '@/lib/renderers/page-renderer'
 import { prisma } from '@/lib/prisma'
 import { UrlResolver } from '@/lib/services/url-resolution/url-resolver'
-import { generateDesignSystemCss } from '@/lib/studio/design-system/design-system-reader'
+import {
+  DesignSystemReaderError,
+  generateStrictDesignSystemCss,
+} from '@/lib/studio/design-system/design-system-reader'
 import {
   normalizePageContent,
   normalizeMetadata,
@@ -191,7 +194,7 @@ async function resolveDesignSystemCss(websiteId: string, designConcept?: string)
       findFirst: (args: Record<string, unknown>) => Promise<{ id: string } | null>
     }
     websiteDesignSystem: {
-      findFirst: (args: Record<string, unknown>) => Promise<{ tokens: unknown } | null>
+      findFirst: (args: Record<string, unknown>) => Promise<{ id?: string; tokens: unknown } | null>
     }
   }
 
@@ -208,6 +211,13 @@ async function resolveDesignSystemCss(websiteId: string, designConcept?: string)
       select: { id: true },
     })
     designConceptId = concept?.id
+    if (!designConceptId) {
+      throw new DesignSystemReaderError(
+        'DESIGN_CONCEPT_NOT_FOUND',
+        `Design concept "${designConcept}" was not found.`,
+        { websiteId, selector: designConcept }
+      )
+    }
   }
 
   const designSystem = await db.websiteDesignSystem.findFirst({
@@ -216,10 +226,12 @@ async function resolveDesignSystemCss(websiteId: string, designConcept?: string)
       ...(designConceptId ? { designConceptId } : { isCurrent: true }),
     },
     orderBy: { createdAt: 'desc' },
-    select: { tokens: true },
+    select: { id: true, tokens: true },
   })
 
-  return designSystem ? generateDesignSystemCss(designSystem.tokens) : null
+  return designSystem
+    ? generateStrictDesignSystemCss(designSystem.tokens, { websiteId, designSystemId: designSystem.id })
+    : null
 }
 
 export async function renderLocalWebsitePreview({ websiteId, slug, designConcept }: RenderLocalPreviewOptions) {

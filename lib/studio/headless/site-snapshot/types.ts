@@ -1,7 +1,8 @@
 import type { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { PageTemplateRegionKey } from '@/lib/studio/pages/_core/types'
 import type { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
-import type { DesignSystem, DesignSystemAliases } from '@/lib/studio/import/types/design-system.types'
+import type { DesignSystemAliases } from '@/lib/studio/import/types/design-system.types'
+import type { ShadcnDesignSystemTokens } from '@/lib/studio/design-system/shadcn-transformer'
 
 export type DiagnosticLevel = 'info' | 'warn' | 'error'
 
@@ -72,7 +73,7 @@ export interface SnapshotSharedComponent {
 }
 
 export interface SnapshotDesignSystem {
-  tokens: DesignSystem
+  tokens: ShadcnDesignSystemTokens
   aliases?: DesignSystemAliases
   conceptId?: string
   conceptName?: string

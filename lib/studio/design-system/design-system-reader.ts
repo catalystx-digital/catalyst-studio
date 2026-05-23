@@ -1,11 +1,10 @@
 /**
  * Design System Reader
  *
- * Handles reading design systems from storage, supporting both:
- * - NEW format: { variables: Record<string, string>, extraction: {...} }
- * - OLD format: { palette: {...}, typography: {...}, ... } (legacy)
+ * Handles reading design systems from storage.
  *
- * This provides backward compatibility during the Phase 1 transition.
+ * Runtime readers should use the strict helpers in this file. The legacy
+ * conversion helpers remain for import/migration paths that explicitly opt in.
  */
 
 import { SHADCN_DEFAULTS, getShadcnVariablesWithDefaults } from './shadcn-defaults'
@@ -15,6 +14,57 @@ import type { DesignSystem } from '@/lib/studio/import/types/design-system.types
 
 type ShadcnTypography = NonNullable<ShadcnDesignSystemTokens['typography']>
 type ShadcnSpacing = NonNullable<ShadcnDesignSystemTokens['spacing']>
+
+export type DesignSystemReaderErrorCode =
+  | 'DESIGN_SYSTEM_MISSING'
+  | 'DESIGN_CONCEPT_NOT_FOUND'
+  | 'DESIGN_SYSTEM_LEGACY_PAYLOAD'
+  | 'DESIGN_SYSTEM_INVALID_PAYLOAD'
+
+export class DesignSystemReaderError extends Error {
+  constructor(
+    public readonly code: DesignSystemReaderErrorCode,
+    message: string,
+    public readonly context?: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = 'DesignSystemReaderError'
+  }
+}
+
+export function isDesignSystemReaderError(error: unknown): error is DesignSystemReaderError {
+  if (!isRecord(error) || typeof error.message !== 'string') {
+    return false
+  }
+
+  const code = error.code
+  return (
+    (error.name === 'DesignSystemReaderError' || typeof code === 'string') &&
+    (
+      code === 'DESIGN_SYSTEM_MISSING' ||
+      code === 'DESIGN_CONCEPT_NOT_FOUND' ||
+      code === 'DESIGN_SYSTEM_LEGACY_PAYLOAD' ||
+      code === 'DESIGN_SYSTEM_INVALID_PAYLOAD'
+    ) &&
+    (
+      error.context === undefined ||
+      error.context === null ||
+      isRecord(error.context)
+    )
+  )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every(entry => typeof entry === 'string')
+}
+
+function cloneTokens(tokens: ShadcnDesignSystemTokens): ShadcnDesignSystemTokens {
+  return JSON.parse(JSON.stringify(tokens)) as ShadcnDesignSystemTokens
+}
 
 /**
  * Check if a string produces a valid Date when parsed
@@ -43,6 +93,209 @@ export function isNewFormat(tokens: unknown): tokens is ShadcnDesignSystemTokens
     typeof (tokens as any).variables === 'object' &&
     'extraction' in tokens
   )
+}
+
+/**
+ * Strict current-format guard for runtime callers.
+ *
+ * This accepts only the shadcn token payload shape written by the current
+ * design-system pipeline. It does not accept legacy palette payloads and does
+ * not fill missing fields from defaults.
+ */
+export function isShadcnDesignSystemTokens(tokens: unknown): tokens is ShadcnDesignSystemTokens {
+  return validateShadcnDesignSystemTokens(tokens) === null
+}
+
+function validateShadcnDesignSystemTokens(tokens: unknown): string | null {
+  if (!isRecord(tokens)) {
+    return '$'
+  }
+
+  if (!isStringRecord(tokens.variables)) {
+    return 'variables'
+  }
+
+  if (!isRecord(tokens.extraction)) {
+    return 'extraction'
+  }
+
+  const extraction = tokens.extraction
+  const source = extraction.source
+  if (tokens.darkVariables !== undefined && !isStringRecord(tokens.darkVariables)) {
+    return 'darkVariables'
+  }
+
+  if (tokens.typography !== undefined) {
+    if (!isRecord(tokens.typography)) {
+      return 'typography'
+    }
+
+    for (const group of ['heading', 'body', 'ui'] as const) {
+      const entries = tokens.typography[group]
+      if (!Array.isArray(entries)) {
+        return `typography.${group}`
+      }
+
+      for (const [index, entry] of entries.entries()) {
+        if (!isRecord(entry)) {
+          return `typography.${group}.${index}`
+        }
+        if (typeof entry.fontFamily !== 'string') {
+          return `typography.${group}.${index}.fontFamily`
+        }
+        if (typeof entry.fontSize !== 'string') {
+          return `typography.${group}.${index}.fontSize`
+        }
+        if (typeof entry.fontWeight !== 'string' && typeof entry.fontWeight !== 'number') {
+          return `typography.${group}.${index}.fontWeight`
+        }
+        if (entry.role !== 'heading' && entry.role !== 'body' && entry.role !== 'ui') {
+          return `typography.${group}.${index}.role`
+        }
+        if (entry.fontStack !== undefined && typeof entry.fontStack !== 'string') {
+          return `typography.${group}.${index}.fontStack`
+        }
+        if (entry.lineHeight !== undefined && typeof entry.lineHeight !== 'string') {
+          return `typography.${group}.${index}.lineHeight`
+        }
+        if (entry.letterSpacing !== undefined && typeof entry.letterSpacing !== 'string') {
+          return `typography.${group}.${index}.letterSpacing`
+        }
+        if (entry.name !== undefined && typeof entry.name !== 'string') {
+          return `typography.${group}.${index}.name`
+        }
+      }
+    }
+  }
+
+  if (tokens.spacing !== undefined) {
+    if (!isRecord(tokens.spacing)) {
+      return 'spacing'
+    }
+    if (tokens.spacing.baseUnitPx !== null && !isValidNumber(tokens.spacing.baseUnitPx)) {
+      return 'spacing.baseUnitPx'
+    }
+    if (!Array.isArray(tokens.spacing.scale)) {
+      return 'spacing.scale'
+    }
+    for (const [index, entry] of tokens.spacing.scale.entries()) {
+      if (!isRecord(entry)) {
+        return `spacing.scale.${index}`
+      }
+      if (!isValidNumber(entry.value)) {
+        return `spacing.scale.${index}.value`
+      }
+      if (typeof entry.unit !== 'string') {
+        return `spacing.scale.${index}.unit`
+      }
+      if (entry.name !== undefined && typeof entry.name !== 'string') {
+        return `spacing.scale.${index}.name`
+      }
+    }
+  }
+
+  if (!isValidDateString(extraction.timestamp)) {
+    return 'extraction.timestamp'
+  }
+
+  if (!isValidNumber(extraction.confidence)) {
+    return 'extraction.confidence'
+  }
+
+  if (source !== 'detected' && source !== 'default' && source !== 'mixed') {
+    return 'extraction.source'
+  }
+
+  if (!isValidNumber(extraction.detectedCount)) {
+    return 'extraction.detectedCount'
+  }
+
+  if (!isValidNumber(extraction.defaultCount)) {
+    return 'extraction.defaultCount'
+  }
+
+  return null
+}
+
+/**
+ * Strict nullable runtime reader.
+ *
+ * Missing records are an allowed state and return null. Legacy palette payloads
+ * and malformed current-format payloads are invalid runtime data and throw.
+ */
+export function readNullableShadcnDesignSystemTokens(
+  tokens: unknown,
+  context?: Record<string, unknown>
+): ShadcnDesignSystemTokens | null {
+  if (tokens === null || tokens === undefined) {
+    return null
+  }
+
+  if (isLegacyFormat(tokens)) {
+    throw new DesignSystemReaderError(
+      'DESIGN_SYSTEM_LEGACY_PAYLOAD',
+      'Legacy palette design-system payloads are not valid runtime shadcn tokens.',
+      context
+    )
+  }
+
+  const invalidPath = validateShadcnDesignSystemTokens(tokens)
+  if (invalidPath) {
+    throw new DesignSystemReaderError(
+      'DESIGN_SYSTEM_INVALID_PAYLOAD',
+      'Design-system payload is not valid current shadcn token data.',
+      { ...context, invalidPath }
+    )
+  }
+
+  return cloneTokens(tokens as ShadcnDesignSystemTokens)
+}
+
+export function readShadcnDesignSystemTokens(
+  tokens: unknown,
+  context?: Record<string, unknown>
+): ShadcnDesignSystemTokens {
+  const parsed = readNullableShadcnDesignSystemTokens(tokens, context)
+  if (!parsed) {
+    throw new DesignSystemReaderError(
+      'DESIGN_SYSTEM_MISSING',
+      'Design-system tokens are missing.',
+      context
+    )
+  }
+  return parsed
+}
+
+export function generateStrictDesignSystemCss(
+  tokens: unknown,
+  context?: Record<string, unknown>
+): string | null {
+  const parsed = readNullableShadcnDesignSystemTokens(tokens, context)
+  if (!parsed) {
+    return null
+  }
+
+  const lightVars = Object.entries(parsed.variables)
+    .map(([key, value]) => `  ${key}: ${value};`)
+    .join('\n')
+
+  const darkVars = parsed.darkVariables
+    ? Object.entries(parsed.darkVariables)
+        .map(([key, value]) => `  ${key}: ${value};`)
+        .join('\n')
+    : null
+
+  return darkVars
+    ? `:root {
+${lightVars}
+}
+
+.dark {
+${darkVars}
+}`
+    : `:root {
+${lightVars}
+}`
 }
 
 /**

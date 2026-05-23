@@ -15,6 +15,10 @@ import type {
 import type { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
 import { OptimizelyGraphqlClient, type OptimizelyGraphqlClientOptions } from './graphql-client'
 import { DISCOVER_PAGES_QUERY, PAGE_BY_ID_QUERY } from './queries'
+import {
+  isDesignSystemReaderError,
+  readNullableShadcnDesignSystemTokens,
+} from '@/lib/studio/design-system/design-system-reader'
 
 export interface OptimizelySnapshotOptions extends OptimizelyGraphqlClientOptions {
   /** Starting page ID for site traversal */
@@ -24,7 +28,7 @@ export interface OptimizelySnapshotOptions extends OptimizelyGraphqlClientOption
   /** Strip locale prefix from paths (default: true) */
   stripLocalePrefix?: boolean
   /** Design system to bake into the snapshot */
-  designSystem?: import('@/lib/studio/import/types/design-system.types').DesignSystem
+  designSystem?: unknown
 }
 
 interface OptiMetadata {
@@ -184,6 +188,24 @@ export class OptimizelySnapshotBuilder {
       sharedComponentIds: []
     }))
 
+    let designSystem: SiteSnapshot['designSystem'] = null
+    if (this.options.designSystem) {
+      try {
+        const tokens = readNullableShadcnDesignSystemTokens(this.options.designSystem)
+        designSystem = tokens ? { tokens } : null
+      } catch (error) {
+        if (!isDesignSystemReaderError(error)) {
+          throw error
+        }
+        this.diagnostics.push({
+          level: 'error',
+          code: error.code,
+          message: error.message,
+          context: error.context,
+        })
+      }
+    }
+
     const snapshot: SiteSnapshot = {
       site: {
         id: 'optimizely-site',
@@ -195,9 +217,7 @@ export class OptimizelySnapshotBuilder {
       structure,
       sharedComponents: [],
       capturedAt: new Date().toISOString(),
-      designSystem: this.options.designSystem
-        ? { tokens: this.options.designSystem }
-        : null
+      designSystem
     }
 
     this.diagnostics.push({
@@ -344,7 +364,7 @@ export interface BuildOptimizelySnapshotOptions {
    * For non-UCS providers like Optimizely, design system is provided at build time
    * rather than extracted from the CMS.
    */
-  designSystem?: import('@/lib/studio/import/types/design-system.types').DesignSystem
+  designSystem?: unknown
 }
 
 export async function buildOptimelySiteSnapshot(
