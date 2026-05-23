@@ -73,7 +73,7 @@ async function investigateComponentPatterns() {
   
   console.log(`  ✓ Found ${componentContentTypes.length} component-type ContentTypes`);
   
-  // 3. Check for Component References in WebsitePage/WebsiteCustomContentData
+  // 3. Check for Component References in WebsitePage
   console.log('\n📊 Analyzing WebsitePage References...');
   const contentItems = await prisma.websitePage.findMany({
     take: 100
@@ -104,7 +104,7 @@ async function investigateComponentPatterns() {
   }
   
   patterns.contentItemReferences = {
-    location: 'ContentItem.content field (JSON)',
+    location: 'WebsitePage.content field (JSON)',
     count: componentReferences,
     examples: [],
     structure: {
@@ -161,19 +161,19 @@ function generateReport(
 
 ## Executive Summary
 
-Component storage in the current system uses the **CMSComponent table** as the primary storage mechanism. The ContentType table with category='component' is not currently utilized, and ContentItem records do not exist in the seed data.
+Component storage in the current system uses the **WebsiteComponentType table** as the template storage mechanism. Page component hierarchy and ordering are stored in WebsitePage.content JSON.
 
 ## Storage Patterns Discovered
 
 ### 1. Primary Pattern: CMSComponent Table ✅
 
-**Location**: \`CMSComponent\` table
+**Location**: \`WebsiteComponentType\` table
 **Count**: ${patterns.cmsComponent.count} components
 **Structure**:
 - Primary key: \`id\` (CUID)
 - Component identifier: \`type\` (e.g., "nav-bar", "hero-banner")
 - Categorization: \`category\` field for grouping
-- Content storage: Separate \`props\` and \`content\` JSON fields
+- Content storage: \`defaultConfig\` and \`placeholderData\` JSON fields
 - Category-based scoping: \`category\` field determines component scope
 - AI support: \`aiMetadata\` field with detection patterns
 - Versioning: \`version\` field (default "1.0.0")
@@ -195,11 +195,11 @@ This pattern exists in the schema but is not populated by seed data. The Content
 
 ### 3. Component References in Content
 
-**Location**: \`ContentItem.content\` field
+**Location**: \`WebsitePage.content\` field
 **Count**: ${patterns.contentItemReferences.count} references found
-**Status**: ⚠️ No ContentItems in current seed data
+**Status**: Page content is the canonical location for component references.
 
-The system appears designed to support component references within content items, but no test data exists to validate this pattern.
+The system supports component references within WebsitePage.content using canonical component instances.
 
 ## Component Distribution
 
@@ -235,8 +235,8 @@ interface CMSComponent {
   type: string;         // Component type identifier
   category: string;     // Component category
   version: string;      // Version (default "1.0.0")
-  props: Json;          // Component properties
-  content: Json;        // Component content
+  defaultConfig: Json;  // Component default configuration
+  placeholderData: Json;// Component placeholder content
   styles?: Json;        // Optional custom styles
   aiMetadata: Json;     // AI detection metadata
   confidence: number;   // AI confidence score
@@ -280,17 +280,15 @@ interface CMSComponent {
 
 ### ❌ Issues Identified
 
-1. **No ContentItem records**: Seed data doesn't create content items
-2. **ContentType.category='component' unused**: Despite schema support
-3. **No component nesting examples**: Need to validate nested component patterns
-4. **Missing site structure**: No folder hierarchy in seed data
+1. **ContentType.category='component' unused**: Despite schema support
+2. **No component nesting examples**: Need to validate nested component patterns
+3. **Missing site structure**: No folder hierarchy in seed data
 
 ### ⚠️ Gaps Requiring Investigation
 
-1. How are components referenced within ContentItems?
-2. Is ContentType.category='component' a legacy pattern?
-3. How do nested components work?
-4. What's the relationship between CMSComponent and ContentType?
+1. Is ContentType.category='component' a legacy pattern?
+2. How do nested components work?
+3. What's the relationship between WebsiteComponentType and ContentType?
 
 ## Recommendations
 
@@ -312,7 +310,7 @@ interface CMSComponent {
 
 1. ✅ Component storage pattern confirmed as CMSComponent table
 2. 🔄 Need to investigate why ContentType.category='component' exists but is unused
-3. 🔄 Create test ContentItems with component references
+3. 🔄 Create test WebsitePage content with component references
 4. 🔄 Build component detection algorithm based on CMSComponent structure
 5. 🔄 Test export with actual component resolution`;
   

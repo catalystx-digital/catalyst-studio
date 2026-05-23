@@ -223,7 +223,6 @@ model Website {
   integrationUsageRecords IntegrationUsage[]
   account                 Account?                   @relation(fields: [accountId], references: [id])
   websiteComponentTypes   WebsiteComponentType[]
-  websiteCustomContent    WebsiteCustomContentData[]
   designConcepts          WebsiteDesignConcept[]
   designSystems           WebsiteDesignSystem[]
   mediaAssets             WebsiteMedia[]
@@ -254,7 +253,6 @@ model ContentType {
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
   website              Website                    @relation(fields: [websiteId], references: [id])
-  websiteCustomContent WebsiteCustomContentData[]
   websitePages         WebsitePage[]
 
   @@unique([websiteId, key])
@@ -308,22 +306,6 @@ model StudioEvent {
   @@index([websiteId, createdAt])
   @@index([websiteId, type])
   @@index([resourceType, resourceId])
-}
-
-model WebsiteCustomContentData {
-  id            String      @id @default(cuid())
-  websiteId     String
-  title         String
-  data          Json
-  contentTypeId String
-  status        String      @default("draft")
-  publishedAt   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  createdBy     String?
-  updatedBy     String?
-  contentType   ContentType @relation(fields: [contentTypeId], references: [id])
-  website       Website     @relation(fields: [websiteId], references: [id])
 }
 
 model Deployment {

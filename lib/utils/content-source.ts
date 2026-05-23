@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@/lib/generated/prisma'
+import { toCanonicalPageContent } from '@/lib/studio/page-content'
 
 export type ContentSource = {
   content: Record<string, unknown>
@@ -51,7 +52,7 @@ export async function updateContentSource(
   await tx.websitePage.update({
     where: { id: source.id },
     data: {
-      content: updatedContent as unknown as Prisma.InputJsonValue
+      content: toCanonicalPageContent(updatedContent, undefined, { mode: 'strict-write' }) as unknown as Prisma.InputJsonValue
     }
   })
   

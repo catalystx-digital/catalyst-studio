@@ -20,6 +20,9 @@ jest.mock('@prisma/client', () => {
       update: jest.fn(),
       deleteMany: jest.fn(),
     },
+    contentType: {
+      findFirst: jest.fn(),
+    },
   };
   return { PrismaClient: jest.fn(() => mockPrisma) };
 });
@@ -67,6 +70,9 @@ describe('PageService', () => {
         const tx = {
           websitePage: {
             create: jest.fn().mockResolvedValue(mockPage),
+          },
+          contentType: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'ct-page', websiteId: 'web-1', category: 'page' }),
           },
           websiteStructure: {
             create: jest.fn().mockResolvedValue(mockStructure),
@@ -149,6 +155,7 @@ describe('PageService', () => {
       prisma.$transaction.mockImplementation(async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
         const tx = {
           websitePage: {
+            findUnique: jest.fn().mockResolvedValue({ metadata: {} }),
             update: jest.fn().mockResolvedValue(mockPage),
           },
           websiteStructure: {
@@ -219,7 +226,7 @@ describe('PageService', () => {
       expect(result).toEqual(mockPage);
       expect(prisma.websitePage.update).toHaveBeenCalledWith({
         where: { id: 'page-1' },
-        data: { isPublished: true },
+        data: { status: 'published', publishedAt: expect.any(Date) },
       });
     });
 
@@ -236,7 +243,7 @@ describe('PageService', () => {
       expect(result).toEqual(mockPage);
       expect(prisma.websitePage.update).toHaveBeenCalledWith({
         where: { id: 'page-1' },
-        data: { isPublished: false },
+        data: { status: 'draft', publishedAt: null },
       });
     });
   });

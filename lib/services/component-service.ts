@@ -9,14 +9,43 @@ import {
   ComponentTypeWithShared
 } from './interfaces/component-service.interface';
 
-function sanitizeSharedComponentConfig(config: unknown): Prisma.InputJsonValue {
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function validateSharedComponentConfig(config: unknown): Prisma.InputJsonValue {
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     return {} as Prisma.InputJsonValue;
   }
 
-  const metadata = { ...(config as Record<string, unknown>) };
-  delete metadata[['default', 'Props'].join('')];
+  const metadata = config as Record<string, unknown>;
+  if (hasOwn(metadata, 'defaultProps')) {
+    throw new Error('Shared component config.defaultProps is not accepted; store shared defaults in content.');
+  }
   return metadata as Prisma.InputJsonValue;
+}
+
+function componentTreeUsesSharedComponent(components: unknown, sharedComponentId: string): boolean {
+  if (!Array.isArray(components)) {
+    return false;
+  }
+
+  return components.some((component) => {
+    if (!component || typeof component !== 'object') {
+      return false;
+    }
+
+    const record = component as Record<string, unknown>;
+    const props = record.props && typeof record.props === 'object' && !Array.isArray(record.props)
+      ? record.props as Record<string, unknown>
+      : {};
+
+    if (props.sharedComponentId === sharedComponentId) {
+      return true;
+    }
+
+    return componentTreeUsesSharedComponent(record.children, sharedComponentId);
+  });
 }
 
 export class ComponentService implements IComponentService {
@@ -171,7 +200,7 @@ export class SharedComponentService implements ISharedComponentService {
         websiteComponentTypeId: data.websiteComponentTypeId,
         name: data.name,
         content: data.content as Prisma.InputJsonValue,
-        config: sanitizeSharedComponentConfig(data.config),
+        config: validateSharedComponentConfig(data.config),
         createdBy: data.createdBy,
         updatedBy: data.updatedBy
       }
@@ -212,7 +241,7 @@ export class SharedComponentService implements ISharedComponentService {
       updateData.content = data.content as Prisma.InputJsonValue;
     }
     if (data.config !== undefined) {
-      updateData.config = sanitizeSharedComponentConfig(data.config);
+      updateData.config = validateSharedComponentConfig(data.config);
     }
 
     return await this.prisma.websiteSharedComponent.update({
@@ -265,7 +294,9 @@ export class SharedComponentService implements ISharedComponentService {
         websiteComponentTypeId: original.websiteComponentTypeId,
         name: newName || `${original.name} (Clone)`,
         content: original.content as Prisma.InputJsonValue,
-        config: sanitizeSharedComponentConfig(original.config)
+        config: validateSharedComponentConfig(original.config),
+        createdBy: original.createdBy ?? undefined,
+        updatedBy: original.updatedBy ?? undefined
       }
     });
   }
@@ -279,39 +310,20 @@ export class SharedComponentService implements ISharedComponentService {
       return 0;
     }
 
-    // Use Prisma's JSON field querying for better performance
-    // This searches for the shared component ID within the content JSON field
-    const count = await this.prisma.websitePage.count({
+    const pages = await this.prisma.websitePage.findMany({
       where: {
         websiteId: sharedComponent.websiteId,
-        content: {
-          path: ['components'],
-          array_contains: [{ sharedComponentId: id }]
-        }
-      }
+        content: { not: Prisma.DbNull }
+      },
+      select: { content: true }
     });
 
-    // Fallback to string search if structured search returns 0
-    // This handles cases where the structure might be different
-    if (count === 0) {
-      const pages = await this.prisma.websitePage.findMany({
-        where: { 
-          websiteId: sharedComponent.websiteId,
-          content: { not: Prisma.DbNull }
-        },
-        select: { content: true }
-      });
-
-      let fallbackCount = 0;
-      for (const page of pages) {
-        if (page.content) {
-          const contentStr = JSON.stringify(page.content);
-          if (contentStr.includes(id)) {
-            fallbackCount++;
-          }
-        }
+    let count = 0;
+    for (const page of pages) {
+      const content = page.content as any;
+      if (componentTreeUsesSharedComponent(content?.components, id)) {
+        count++;
       }
-      return fallbackCount;
     }
 
     return count;
@@ -326,42 +338,23 @@ export class SharedComponentService implements ISharedComponentService {
       return [];
     }
 
-    // Try structured JSON query first for better performance
-    let pages = await this.prisma.websitePage.findMany({
+    const pages = await this.prisma.websitePage.findMany({
       where: {
         websiteId: sharedComponent.websiteId,
-        content: {
-          path: ['components'],
-          array_contains: [{ sharedComponentId: id }]
-        }
+        content: { not: Prisma.DbNull }
       },
-      select: { id: true }
+      select: { id: true, content: true }
     });
 
-    // Fallback to string search if structured search returns empty
-    // This handles cases where the content structure might be different
-    if (pages.length === 0) {
-      const allPages = await this.prisma.websitePage.findMany({
-        where: { 
-          websiteId: sharedComponent.websiteId,
-          content: { not: Prisma.DbNull }
-        },
-        select: { id: true, content: true }
-      });
-
-      const pageIds: string[] = [];
-      for (const page of allPages) {
-        if (page.content) {
-          const contentStr = JSON.stringify(page.content);
-          if (contentStr.includes(id)) {
-            pageIds.push(page.id);
-          }
-        }
+    const pageIds: string[] = [];
+    for (const page of pages) {
+      const content = page.content as any;
+      if (componentTreeUsesSharedComponent(content?.components, id)) {
+        pageIds.push(page.id);
       }
-      return pageIds;
     }
 
-    return pages.map(p => p.id);
+    return pageIds;
   }
 
   async updateSharedComponentVersion(id: string, version: string): Promise<WebsiteSharedComponent> {

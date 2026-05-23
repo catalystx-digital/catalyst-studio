@@ -33,7 +33,7 @@ import { professionalNodeTypes, ProfessionalNodeData } from '@/lib/studio/compon
 import type { PageContextMenuAction } from '@/lib/studio/components/site-builder/page-context-menu'
 import { buildPlaceholderGraph, normalizeImportUrl, toReactFlowPlaceholders } from '@/lib/studio/components/site-builder/utils/placeholder-graph'
 import type { ComponentData } from '@/lib/studio/components/site-builder/types'
-import { ComponentInstance, resolveSharedComponentReference } from '@/lib/studio/types/site-builder/component-instance'
+import { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
 import { KeyboardShortcutsHelp } from '@/lib/studio/components/site-builder/keyboard-shortcuts-help'
 import { TutorialOverlay } from '@/lib/studio/components/site-builder/tutorial-overlay'
 import { useFirstVisit } from '@/lib/studio/hooks/use-first-visit'
@@ -175,7 +175,6 @@ const readExplicitComponentInstances = (components: ProfessionalNodeData['compon
       content,
       styles: typeof styles === 'object' && styles !== null ? (styles as Record<string, unknown>) : {},
       metadata: typeof metadata === 'object' && metadata !== null ? (metadata as Record<string, unknown>) : {},
-      globalComponentId: resolveSharedComponentReference(component as ComponentInstance) ?? undefined,
     }]
   })
 }
@@ -1457,8 +1456,8 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     const component = node.data.components[componentIndex]
 
     // Check if component is a global/shared component
-    const isGlobalComponent = !!(component as ComponentInstance & { globalComponentId?: string })?.globalComponentId ||
-                              !!(component as ComponentInstance & { sharedComponentRef?: string })?.sharedComponentRef
+    const isGlobalComponent = typeof (component as ComponentInstance)?.props?.sharedComponentId === 'string' &&
+      (component as ComponentInstance).props.sharedComponentId.trim().length > 0
 
     if (isGlobalComponent) {
       // Show confirmation dialog for global components

@@ -5,6 +5,7 @@ import { Prisma } from '@/lib/generated/prisma';
 import { validateUpdateContentItem } from '@/lib/api/validation/content-item';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
+import { PageContentNormalizationError } from '@/lib/studio/page-content';
 
 // GET /api/content/pages/[id] - Get a single page
 export async function GET(
@@ -120,6 +121,13 @@ export async function PUT(
           { status: 409 }
         );
       }
+    }
+
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: { message: 'Invalid page content', details: error.diagnostics } },
+        { status: 400 }
+      );
     }
     
     return NextResponse.json(

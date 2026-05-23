@@ -350,6 +350,27 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
       throw new Error('ComponentInstanceExtractor: props.content is not accepted; use component.content')
     }
 
+    const propsRecord = comp?.props && typeof comp.props === 'object' && !Array.isArray(comp.props)
+      ? comp.props as Record<string, any>
+      : {}
+    const legacySharedFields = [
+      ['sharedId', comp?.sharedId],
+      ['sharedComponentId', comp?.sharedComponentId],
+      ['globalComponentId', comp?.globalComponentId],
+      ['isShared', comp?.isShared],
+      ['props.sharedId', propsRecord.sharedId],
+      ['props.globalComponentId', propsRecord.globalComponentId],
+      ['props.isShared', propsRecord.isShared],
+    ].filter(([, value]) => value !== undefined)
+
+    if (comp?.type === '_shared') {
+      throw new Error('ComponentInstanceExtractor: type "_shared" is not accepted; use the actual component type with props.sharedComponentId')
+    }
+    if (legacySharedFields.length > 0) {
+      const fields = legacySharedFields.map(([field]) => field).join(', ')
+      throw new Error(`ComponentInstanceExtractor: legacy shared component fields are not accepted (${fields}); use props.sharedComponentId`)
+    }
+
     mergeIfObject(comp?.properties)
     mergeIfObject(comp?.props)
     mergeIfObject(comp?.content)
@@ -370,18 +391,10 @@ export class ComponentInstanceExtractor implements IComponentInstanceExtractor {
       }
     } catch {}
 
-    const sharedIdCandidate = (
-      comp?.sharedId ||
-      comp?.sharedComponentId ||
-      collected?.sharedComponentId ||
-      collected?.sharedId
-    )
-    const isShared = (
-      comp?.type === '_shared' ||
-      comp?.type === 'shared' ||
-      comp?.isShared === true ||
-      Boolean(sharedIdCandidate)
-    )
+    const sharedIdCandidate = typeof propsRecord.sharedComponentId === 'string' && propsRecord.sharedComponentId.trim().length > 0
+      ? propsRecord.sharedComponentId.trim()
+      : undefined
+    const isShared = Boolean(sharedIdCandidate)
 
     const resolvedType = this.normalizeComponentType(comp?.type, collected)
     const normalized = this.applySchemaNormalization(resolvedType, collected)

@@ -8,9 +8,6 @@ const prismaMock = {
   websitePage: {
     findMany: jest.fn()
   },
-  websiteCustomContentData: {
-    findMany: jest.fn()
-  },
   websiteStructure: {
     findMany: jest.fn()
   },
@@ -37,7 +34,7 @@ describe('ContentOrchestrator', () => {
   })
 
   describe('gatherAllContent', () => {
-    it('should fetch and unify content from all three tables', async () => {
+    it('should fetch and unify content from pages and structures', async () => {
       // Mock data
       const mockPages = [
         {
@@ -66,19 +63,6 @@ describe('ContentOrchestrator', () => {
         }
       ]
 
-      const mockCustomData = [
-        {
-          id: 'data-1',
-          websiteId,
-          title: 'Product Info',
-          data: { name: 'Widget', price: 99.99 },
-          contentTypeId: 'ct-product',
-          status: 'draft',
-          publishedAt: null,
-          contentType: { key: 'product', name: 'Product' }
-        }
-      ]
-
       const mockStructures = [
         {
           id: 'struct-1',
@@ -102,14 +86,13 @@ describe('ContentOrchestrator', () => {
 
       // Setup mocks
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue(mockPages)
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue(mockCustomData)
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue(mockStructures)
 
       // Execute
       const result = await orchestrator.gatherAllContent(websiteId)
 
       // Assertions
-      expect(result).toHaveLength(3)
+      expect(result).toHaveLength(2)
       
       // Check page content
       const homePage = result.find(item => item.id === 'page-1')
@@ -126,14 +109,6 @@ describe('ContentOrchestrator', () => {
       expect(blogFolder?.type).toBe('folder')
       expect(blogFolder?.url).toBe('/blog')
 
-      // Check custom data
-      const productData = result.find(item => item.id === 'data-1')
-      expect(productData).toBeDefined()
-      expect(productData?.source).toBe('WebsiteCustomContentData')
-      expect(productData?.type).toBe('data')
-      expect(productData?.url).toBeUndefined()
-      expect(productData?.content).toEqual({ name: 'Widget', price: 99.99 })
-
       // Verify all prisma methods were called with correct parameters
       expect(mockPrisma.websitePage.findMany).toHaveBeenCalledWith({
         where: {
@@ -141,12 +116,9 @@ describe('ContentOrchestrator', () => {
           type: { in: ['page', 'folder'] }
         }
       })
-      expect(mockPrisma.websiteCustomContentData.findMany).toHaveBeenCalledWith({
-        where: { websiteId },
-        include: { contentType: true }
-      })
       expect(mockPrisma.websiteStructure.findMany).toHaveBeenCalledWith({
         where: { websiteId },
+        include: { websitePage: { select: { metadata: true } } },
         orderBy: [
           { pathDepth: 'asc' },
           { position: 'asc' }
@@ -286,8 +258,6 @@ describe('ContentOrchestrator', () => {
 
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue(mockPages)
 
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
-
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue(mockStructures)
       ;(prismaMock.contentType.findFirst as jest.Mock).mockResolvedValue({ id: 'ct-folder-db' })
 
@@ -331,7 +301,6 @@ describe('ContentOrchestrator', () => {
     it('should handle parallel fetching with Promise.all', async () => {
       // Mock all calls to resolve quickly
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue([])
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
 
       const startTime = Date.now()
@@ -341,15 +310,13 @@ describe('ContentOrchestrator', () => {
       // Should complete quickly due to parallel execution
       expect(endTime - startTime).toBeLessThan(100)
 
-      // All three methods should have been called
+      // Both methods should have been called
       expect(mockPrisma.websitePage.findMany).toHaveBeenCalled()
-      expect(mockPrisma.websiteCustomContentData.findMany).toHaveBeenCalled()
       expect(mockPrisma.websiteStructure.findMany).toHaveBeenCalled()
     })
 
     it('should handle empty results gracefully', async () => {
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue([])
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
 
       const result = await orchestrator.gatherAllContent(websiteId)
@@ -374,7 +341,6 @@ describe('ContentOrchestrator', () => {
       ]
 
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue(mockPages)
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
 
       const result = await orchestrator.gatherAllContent(websiteId)
@@ -432,7 +398,6 @@ describe('ContentOrchestrator', () => {
       }
 
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue([pageContent])
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([
         {
           id: 'struct-1',
@@ -478,7 +443,6 @@ describe('ContentOrchestrator', () => {
           publishedAt: new Date()
         }
       ])
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([
         {
           id: 'struct-flag',
@@ -512,7 +476,6 @@ describe('ContentOrchestrator', () => {
       ]
 
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue([])
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue(mockStructures)
 
       // First call - should hit database
@@ -526,7 +489,6 @@ describe('ContentOrchestrator', () => {
 
     it('should clear cache when clearCache is called', async () => {
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue([])
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
 
       // First call
@@ -544,8 +506,8 @@ describe('ContentOrchestrator', () => {
 
   describe('performance requirements', () => {
     it('should complete within 5 seconds for large datasets', async () => {
-      // Create mock data for 1000 items
-      const largePagesArray = Array.from({ length: 500 }, (_, i) => ({
+      // Create mock data for 1000 page items
+      const largePagesArray = Array.from({ length: 1000 }, (_, i) => ({
         id: `page-${i}`,
         websiteId,
         type: 'page',
@@ -557,18 +519,7 @@ describe('ContentOrchestrator', () => {
         publishedAt: new Date()
       }))
 
-      const largeCustomDataArray = Array.from({ length: 500 }, (_, i) => ({
-        id: `data-${i}`,
-        websiteId,
-        title: `Data ${i}`,
-        data: { value: i },
-        contentTypeId: 'ct-data',
-        status: 'published',
-        publishedAt: new Date()
-      }))
-
       ;(mockPrisma.websitePage.findMany as jest.Mock).mockResolvedValue(largePagesArray)
-      ;(mockPrisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue(largeCustomDataArray)
       ;(mockPrisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
 
       const startTime = Date.now()

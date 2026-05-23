@@ -64,7 +64,7 @@ describe('ComponentInstanceExtractor', () => {
       expect(textBlock.isShared).toBe(false)
     })
 
-    it('should handle shared component references with "_shared" type', () => {
+    it('rejects shared component references with "_shared" type', () => {
       const pageContent = {
         components: [
           {
@@ -77,24 +77,15 @@ describe('ComponentInstanceExtractor', () => {
         ]
       }
 
-      const result = extractor.extractFromPageContent(pageContent)
-
-      expect(result).toHaveLength(1)
-      
-      const sharedComp = result[0]
-      expect(sharedComp.id).toBe('comp-shared-1')
-      expect(sharedComp.type).toBe('_shared')
-      expect(sharedComp.isShared).toBe(true)
-      expect(sharedComp.sharedId).toBe('shared-comp-123')
-      expect(sharedComp.properties).toEqual({ customProp: 'value' })
+      expect(() => extractor.extractFromPageContent(pageContent)).toThrow('type "_shared" is not accepted')
     })
 
-    it('should handle shared components flagged by isShared + sharedComponentId (no "_shared" type)', () => {
+    it('rejects legacy root shared flags and ids', () => {
       const pageContent = {
         components: [
           {
             id: 'comp-shared-2',
-            type: 'header', // not '_shared'
+            type: 'header',
             isShared: true,
             sharedComponentId: 'shared-comp-456',
             position: 0,
@@ -103,16 +94,7 @@ describe('ComponentInstanceExtractor', () => {
         ]
       }
 
-      const result = extractor.extractFromPageContent(pageContent)
-
-      expect(result).toHaveLength(1)
-      const sharedComp = result[0]
-      expect(sharedComp.id).toBe('comp-shared-2')
-      // Type remains as given; extractor defers replacement to resolveSharedComponents
-      expect(sharedComp.type).toBe('header')
-      expect(sharedComp.isShared).toBe(true)
-      expect(sharedComp.sharedId).toBe('shared-comp-456')
-      expect(sharedComp.properties).toEqual({ customProp: 'from-import' })
+      expect(() => extractor.extractFromPageContent(pageContent)).toThrow('legacy shared component fields are not accepted')
     })
 
     it('should handle components with alternative property names', () => {
@@ -438,11 +420,11 @@ describe('ComponentInstanceExtractor', () => {
   })
 
   describe('resolveSharedComponents', () => {
-    it('should resolve importer-shaped shared refs (type!=_shared, isShared=true, sharedComponentId) using content/defaultProps + deep-merge', async () => {
+    it('resolves canonical shared refs using content plus overrides', async () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-imp-1',
-          type: 'header', // not '_shared'
+          type: 'header',
           parentId: null,
           position: 0,
           properties: { overrides: { subtitle: 'Local Sub' }, hasOverrides: true },
@@ -456,7 +438,7 @@ describe('ComponentInstanceExtractor', () => {
           id: 'shared-imp-123',
           name: 'Site Header',
           content: { title: 'Global Header', subtitle: 'Global Sub', theme: 'light' },
-          config: { defaultProps: { title: 'Legacy Header' }, extra: 'ignored?' },
+          config: { extra: 'ignored?' },
           websiteComponentType: {
             type: 'header',
             category: 'navigation'
@@ -477,7 +459,7 @@ describe('ComponentInstanceExtractor', () => {
       expect(resolved.hasOverrides).toBe(true)
     })
 
-    it('detects shared refs when only props.sharedComponentId is present (type not _shared, no top-level flags)', () => {
+    it('detects shared refs when only props.sharedComponentId is present', () => {
       const pageContent = {
         components: [
           {
@@ -501,7 +483,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: { customProp: 'value' },
@@ -523,7 +505,7 @@ describe('ComponentInstanceExtractor', () => {
           id: 'shared-123',
           name: 'Global Navigation',
           content: { links: ['home', 'about'] },
-          config: { defaultProps: { links: ['fallback'] } },
+          config: {},
           websiteComponentType: {
             type: 'navigation',
             category: 'layout'
@@ -539,7 +521,7 @@ describe('ComponentInstanceExtractor', () => {
       
       // Shared component should be resolved
       const resolved = result[0]
-      expect(resolved.type).toBe('navigation') // Should replace "_shared" with actual type
+      expect(resolved.type).toBe('navigation')
       expect(resolved.properties).toEqual({
         links: ['home', 'about'] // Resolved from content only
       })
@@ -554,7 +536,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'shared-instance',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},
@@ -575,7 +557,7 @@ describe('ComponentInstanceExtractor', () => {
         {
           id: 'shared-usage-1',
           content: { headline: 'Hello' },
-          config: { defaultProps: { headline: 'Fallback' } },
+          config: {},
           websiteComponentType: { type: 'feature-hero' }
         }
       ])
@@ -588,11 +570,11 @@ describe('ComponentInstanceExtractor', () => {
       expect(usage.has('promo-card')).toBe(true)
     })
 
-    it('ignores shared component defaultProps when content is missing', async () => {
+    it('uses empty content when shared component content is missing', async () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},
@@ -606,7 +588,7 @@ describe('ComponentInstanceExtractor', () => {
           id: 'shared-999',
           name: 'Global Footer',
           // no content
-          config: { defaultProps: { copyright: '2025' } },
+          config: {},
           websiteComponentType: { type: 'footer', category: 'layout' }
         }
       ]
@@ -623,7 +605,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: { overrides: { style: { color: 'red' }, items: ['b'], title: null } },
@@ -655,7 +637,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: { overrides: { title: 'Local' }, hasOverrides: true, sharedComponentId: 'shared-abc', stray: 'ignore-me' },
@@ -669,7 +651,7 @@ describe('ComponentInstanceExtractor', () => {
           id: 'shared-abc',
           name: 'Header',
           content: { title: 'Global', theme: 'light' },
-          config: { defaultProps: { title: 'Legacy' } },
+          config: {},
           websiteComponentType: { type: 'header', category: 'content' }
         }
       ]
@@ -690,7 +672,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: { title: 'Local', theme: 'light' },
@@ -720,7 +702,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},
@@ -735,7 +717,7 @@ describe('ComponentInstanceExtractor', () => {
 
       expect(result).toHaveLength(1)
       // Should return original component unchanged if shared component not found
-      expect(result[0].type).toBe('_shared')
+      expect(result[0].type).toBe('shared')
       expect(result[0].isShared).toBe(true)
     })
 
@@ -743,7 +725,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},
@@ -752,7 +734,7 @@ describe('ComponentInstanceExtractor', () => {
         },
         {
           id: 'comp-2',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 1,
           properties: {},
@@ -761,7 +743,7 @@ describe('ComponentInstanceExtractor', () => {
         },
         {
           id: 'comp-3',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 2,
           properties: {},
@@ -804,7 +786,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'nav-instance-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: { sharedComponentId: 'shared-nav-1' },
@@ -871,7 +853,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},
@@ -894,8 +876,8 @@ describe('ComponentInstanceExtractor', () => {
         components: [
           {
             id: 'comp-1',
-            type: '_shared',
-            sharedId: 'shared-123',
+            type: 'header',
+            props: { sharedComponentId: 'shared-123' },
             properties: {}
           }
         ]
@@ -905,7 +887,7 @@ describe('ComponentInstanceExtractor', () => {
         {
           id: 'shared-123',
           content: { title: 'Global Header' },
-          config: { defaultProps: { title: 'Legacy Fallback' } },
+          config: {},
           websiteComponentType: { type: 'header' }
         }
       ]
@@ -925,7 +907,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},
@@ -957,7 +939,7 @@ describe('ComponentInstanceExtractor', () => {
       const components: ExtractedComponent[] = [
         {
           id: 'comp-1',
-          type: '_shared',
+          type: 'shared',
           parentId: null,
           position: 0,
           properties: {},

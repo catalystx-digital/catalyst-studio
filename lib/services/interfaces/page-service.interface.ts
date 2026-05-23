@@ -9,6 +9,7 @@ export interface CreatePageDto {
   type: 'page' | 'folder';
   title: string;
   content?: any;
+  contentTypeId?: string;
   slug?: string;
   parentId?: string;
   description?: string;

@@ -236,8 +236,8 @@ describe('OptimizelyProvider', () => {
           } as any,
           {
             id: 'data-1',
-            source: 'WebsiteCustomContentData',
-            type: 'data',
+            source: 'WebsitePage',
+            type: 'page',
             title: 'Block',
             contentTypeId: 'Block',
             content: {},

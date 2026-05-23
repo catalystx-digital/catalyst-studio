@@ -6,6 +6,7 @@ import {
   UpdatePageDto,
   PageWithStructure
 } from './interfaces/page-service.interface';
+import { toCanonicalPageContent } from '@/lib/studio/page-content';
 
 export class PageService implements IPageService {
   constructor(private prisma: PrismaClient) {}
@@ -19,6 +20,7 @@ export class PageService implements IPageService {
         type,
         title,
         content,
+        contentTypeId,
         description,
         seoTitle,
         seoDescription,
@@ -34,15 +36,21 @@ export class PageService implements IPageService {
         ogImage,
       });
       const metadataValue = this.mergeMetadata(undefined, metadataPatch);
-      const contentValue = this.normalizeJsonInput(content);
+      const contentValue = content === undefined
+        ? undefined
+        : this.normalizePageContentInput(content);
 
-      const defaultContentType = await tx.contentType.findFirst({
-        where: { websiteId, category: 'page' },
-        orderBy: { createdAt: 'asc' }
-      });
+      const pageContentType = contentTypeId
+        ? await tx.contentType.findFirst({
+            where: { id: contentTypeId, websiteId },
+          })
+        : await tx.contentType.findFirst({
+            where: { websiteId, category: 'page' },
+            orderBy: { createdAt: 'asc' },
+          });
 
-      if (!defaultContentType) {
-        throw new Error('No content type available for pages');
+      if (!pageContentType) {
+        throw new Error(contentTypeId ? 'Content type not found for website' : 'No content type available for pages');
       }
 
       // Create the page
@@ -51,7 +59,7 @@ export class PageService implements IPageService {
           websiteId,
           type,
           title,
-          contentTypeId: defaultContentType.id,
+          contentTypeId: pageContentType.id,
           ...(contentValue !== undefined ? { content: contentValue } : {}),
           ...(metadataValue !== undefined ? { metadata: metadataValue } : {}),
         }
@@ -141,8 +149,7 @@ export class PageService implements IPageService {
         updateData.title = updatedTitle;
       }
       if (updatedContent !== undefined) {
-        const normalizedContent = this.normalizeJsonInput(updatedContent);
-        updateData.content = normalizedContent === undefined ? Prisma.JsonNull : normalizedContent;
+        updateData.content = this.normalizePageContentInput(updatedContent);
       }
       if (status !== undefined) {
         updateData.status = status;
@@ -290,7 +297,7 @@ export class PageService implements IPageService {
       });
 
       const originalMetadata = this.parseMetadata(originalPage.metadata);
-      const contentValue = this.normalizeJsonInput(originalPage.content);
+      const contentValue = this.normalizePageContentInput(originalPage.content);
       const templatePropsValue = this.normalizeJsonInput(originalPage.templateProps);
       const metadataValue = this.normalizeJsonInput(originalMetadata);
 
@@ -429,6 +436,10 @@ export class PageService implements IPageService {
       return Prisma.JsonNull;
     }
     return value as Prisma.InputJsonValue;
+  }
+
+  private normalizePageContentInput(value: unknown): Prisma.InputJsonValue {
+    return toCanonicalPageContent(value ?? {}, undefined, { mode: 'strict-write' }) as Prisma.InputJsonValue;
   }
 
   private generateSlugFromTitle(title: string): string {

@@ -64,10 +64,6 @@ export interface PreviewComponentConfig {
   styles?: Record<string, unknown>
   /** Normalized component metadata */
   metadata?: Record<string, unknown>
-  /** Shared/global component reference */
-  sharedComponentId?: string
-  /** Global component reference */
-  globalComponentId?: string
 }
 
 /**

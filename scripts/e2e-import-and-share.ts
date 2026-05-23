@@ -98,7 +98,6 @@ async function run(url: string) {
   await prisma.websiteComponentType.deleteMany({ where: { websiteId: site.id } })
   await prisma.websiteStructure.deleteMany({ where: { websiteId: site.id } })
   await prisma.websitePage.deleteMany({ where: { websiteId: site.id } })
-  await prisma.websiteCustomContentData.deleteMany({ where: { websiteId: site.id } })
   await prisma.contentType.deleteMany({ where: { websiteId: site.id } })
   // Recreate core content type after cleanup
   await ensurePageContentType(site.id)

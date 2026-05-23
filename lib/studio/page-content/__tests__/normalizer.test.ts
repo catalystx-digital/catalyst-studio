@@ -535,20 +535,18 @@ describe('page content normalizer', () => {
           props: { content: { heading: 'Hello' } },
           bindings: { heading: 'cms.title' },
           regionHint: 'main',
-          isShared: false,
         },
       ],
     })
 
-    expect(content.components).toEqual([
-      expect.objectContaining({
-        id: 'hero-1',
-        type: 'hero-banner',
-        bindings: { heading: 'cms.title' },
-        regionHint: 'main',
-        isShared: false,
-      }),
-    ])
+    expect(content.components).toHaveLength(1)
+    expect(content.components[0]).toEqual(expect.objectContaining({
+      id: 'hero-1',
+      type: 'hero-banner',
+      bindings: { heading: 'cms.title' },
+      regionHint: 'main',
+    }))
+    expect(content.components[0]).not.toHaveProperty('isShared')
   })
 
   it('rejects object props.content as a strict-write source', () => {
@@ -897,6 +895,8 @@ describe('page content normalizer', () => {
           type: 'shared',
           globalComponentId: 'global-1',
           sharedComponentId: 'shared-root-1',
+          sharedId: 'shared-id-1',
+          isShared: true,
           props: { sharedComponentId: 'shared-props-1' },
           content: {},
         },
@@ -915,6 +915,16 @@ describe('page content normalizer', () => {
           path: 'components[0].sharedComponentId',
           severity: 'error',
         }),
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_ROOT_SHARED_ID',
+          path: 'components[0].sharedId',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_ROOT_IS_SHARED',
+          path: 'components[0].isShared',
+          severity: 'error',
+        }),
       ]))
     }
 
@@ -930,6 +940,17 @@ describe('page content normalizer', () => {
     expect(component.props).toEqual({ sharedComponentId: 'shared-props-1' })
     expect(component).not.toHaveProperty('globalComponentId')
     expect(component).not.toHaveProperty('sharedComponentId')
+  })
+
+  it('rejects _shared component type in strict writes', () => {
+    expect(() => toCanonicalPageContent({}, [
+      {
+        id: 'shared-sentinel',
+        type: '_shared',
+        props: { sharedComponentId: 'shared-props-1' },
+        content: {},
+      },
+    ], { mode: 'strict-write' })).toThrow(PageContentNormalizationError)
   })
 
   it('rejects invalid strict-write page metadata while canonical-read drops it', () => {

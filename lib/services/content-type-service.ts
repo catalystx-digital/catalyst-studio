@@ -317,13 +317,6 @@ export interface ContentTypeImpact {
         websiteName: string;
       }>;
     };
-    customContent: {
-      count: number;
-      items: Array<{
-        id: string;
-        title: string;
-      }>;
-    };
   };
   warnings: string[];
 }
@@ -338,7 +331,6 @@ export interface DeleteContentTypeResult {
   deleted: {
     contentType: { id: string; name: string };
     websitePages: number;
-    customContent: number;
   };
 }
 
@@ -372,7 +364,7 @@ export async function getDeleteImpact(contentTypeId: string): Promise<ContentTyp
   }
 
   // Query counts and sample items in parallel
-  const [pagesCount, pages, customContentCount, customContent] = await Promise.all([
+  const [pagesCount, pages] = await Promise.all([
     prisma.websitePage.count({ where: { contentTypeId } }),
     prisma.websitePage.findMany({
       where: { contentTypeId },
@@ -384,23 +376,14 @@ export async function getDeleteImpact(contentTypeId: string): Promise<ContentTyp
       },
       take: 10, // Limit for display
     }),
-    prisma.websiteCustomContentData.count({ where: { contentTypeId } }),
-    prisma.websiteCustomContentData.findMany({
-      where: { contentTypeId },
-      select: { id: true, data: true },
-      take: 10,
-    }),
   ]);
 
-  const totalAffectedItems = pagesCount + customContentCount;
+  const totalAffectedItems = pagesCount;
 
   // Build warnings
   const warnings: string[] = [];
   if (pagesCount > 0) {
     warnings.push(`${pagesCount} ${pagesCount === 1 ? 'page' : 'pages'} will be permanently deleted`);
-  }
-  if (customContentCount > 0) {
-    warnings.push(`${customContentCount} custom content ${customContentCount === 1 ? 'item' : 'items'} will be permanently deleted`);
   }
   if (totalAffectedItems > 0) {
     warnings.push('This action cannot be undone');
@@ -419,13 +402,6 @@ export async function getDeleteImpact(contentTypeId: string): Promise<ContentTyp
           title: p.title || 'Untitled',
           path: p.structures[0]?.fullPath || '/',
           websiteName: p.website?.name || 'Unknown',
-        })),
-      },
-      customContent: {
-        count: customContentCount,
-        items: customContent.map((c) => ({
-          id: c.id,
-          title: (c.data as Record<string, unknown>)?.title as string || 'Untitled',
         })),
       },
     },
@@ -468,10 +444,6 @@ export async function deleteContentType(
       where: { contentTypeId: id },
     });
 
-    const deletedCustomContent = await tx.websiteCustomContentData.deleteMany({
-      where: { contentTypeId: id },
-    });
-
     // Delete content type
     await tx.contentType.delete({
       where: { id },
@@ -482,7 +454,6 @@ export async function deleteContentType(
       deleted: {
         contentType: { id: contentType.id, name: contentType.name },
         websitePages: deletedPages.count,
-        customContent: deletedCustomContent.count,
       },
     };
   });

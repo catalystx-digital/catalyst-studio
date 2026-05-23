@@ -54,8 +54,8 @@ class ConsoleLogger implements ILogger {
 
 export interface UnifiedContent {
   id: string
-  source: 'WebsitePage' | 'WebsiteCustomContentData' | 'WebsiteStructure'
-  type: 'page' | 'folder' | 'data'
+  source: 'WebsitePage' | 'WebsiteStructure'
+  type: 'page' | 'folder'
   title: string
   contentTypeId: string
   content: any // The actual content/data
@@ -102,20 +102,18 @@ export class ContentOrchestrator implements IContentOrchestrator {
   }
 
   /**
-   * Main orchestration method - gathers content from all 3 tables in parallel
+   * Main orchestration method - gathers content from pages and site structure in parallel
    */
   async gatherAllContent(websiteId: string): Promise<UnifiedContent[]> {
     try {
       // CRITICAL: Use Promise.all for parallel fetching as per story requirements
-      const [pages, customData, structures] = await Promise.all([
+      const [pages, structures] = await Promise.all([
         this.fetchPages(websiteId),
-        this.fetchCustomData(websiteId),
         this.fetchStructures(websiteId)
       ])
 
-      this.logger.info(`Fetched ${pages.length} pages, ${customData.length} custom data, ${structures.length} structures`, {
+      this.logger.info(`Fetched ${pages.length} pages, ${structures.length} structures`, {
         pages: pages.length,
-        customData: customData.length,
         structures: structures.length
       })
 
@@ -123,7 +121,7 @@ export class ContentOrchestrator implements IContentOrchestrator {
       const pagesWithUrls = this.attachUrls(pages, structures)
 
       // Unify all content into single model
-      const unifiedContent = this.unifyContent(pagesWithUrls, customData)
+      const unifiedContent = this.unifyContent(pagesWithUrls)
       const folderContent = await this.createFolderUnifiedContent(structures, pagesWithUrls)
       const combinedContent = unifiedContent.concat(folderContent)
 
@@ -155,18 +153,6 @@ export class ContentOrchestrator implements IContentOrchestrator {
       }
     })
     return pages.filter((page: any) => !isHiddenImportContent(page.metadata))
-  }
-
-  /**
-   * Fetch all custom content data from WebsiteCustomContentData table
-   */
-  private async fetchCustomData(websiteId: string): Promise<any[]> {
-    return this.prisma.websiteCustomContentData.findMany({
-      where: { websiteId },
-      include: {
-        contentType: true
-      }
-    })
   }
 
   /**
@@ -303,9 +289,9 @@ export class ContentOrchestrator implements IContentOrchestrator {
   }
 
   /**
-   * Unify content from pages and custom data into single model
+   * Unify page content into a single model
    */
-  private unifyContent(pagesWithUrls: any[], customData: any[]): UnifiedContent[] {
+  private unifyContent(pagesWithUrls: any[]): UnifiedContent[] {
     const unifiedContent: UnifiedContent[] = []
 
     // Process WebsitePage records
@@ -328,27 +314,6 @@ export class ContentOrchestrator implements IContentOrchestrator {
         templateKey,
         templateProps,
         // Components will be extracted separately by ComponentInstanceExtractor
-        components: []
-      })
-    })
-
-    // Process custom data - treat as leaf nodes (data blocks)
-    customData.forEach(data => {
-      unifiedContent.push({
-        id: data.id,
-        source: 'WebsiteCustomContentData',
-        type: 'data',
-        title: data.title,
-        contentTypeId: data.contentTypeId,
-        content: data.data, // Note: data field, not content
-        metadata: {
-          contentType: data.contentType
-        },
-        websiteId: data.websiteId,
-        url: undefined, // Custom data doesn't have URLs
-        parentId: undefined, // Treat as leaf nodes
-        publishedAt: data.publishedAt,
-        status: data.status,
         components: []
       })
     })
@@ -620,7 +585,7 @@ export class ContentOrchestrator implements IContentOrchestrator {
    * Clear structure cache (useful for testing or when structures change)
    */
   clearCache(): void {
-    this.structureCache.reset()
+    this.structureCache.clear()
     this.folderTypeIdCache.clear()
   }
 }

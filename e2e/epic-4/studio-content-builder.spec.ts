@@ -275,12 +275,13 @@ test.describe('Studio Site Builder Content Types - Complete User Flow', () => {
     }
     
     // Create a content item via API
-    const response = await request.post('/api/content-items', {
+    const response = await request.post('/api/content/pages', {
       data: {
         websiteId: testWebsiteId,
         contentTypeId: contentTypeId,
         slug: 'test-blog-post',
-        data: {
+        title: 'Test Blog Post from E2E',
+        content: {
           title: 'Test Blog Post from E2E',
           content: 'This is test content created during E2E testing.',
           author: 'E2E Test Suite'
@@ -511,11 +512,12 @@ test.describe('Content Type and Item Management via UI', () => {
     const contentType = await typeResponse.json();
     
     // Step 3: Create content item
-    const itemResponse = await request.post('/api/content-items', {
+    const itemResponse = await request.post('/api/content/pages', {
       data: {
         websiteId: testWebsiteId,
         contentTypeId: contentType.data.id,
-        data: {
+        title: 'Test Product',
+        content: {
           name: 'Test Product',
           price: 99.99,
           description: 'A test product'
@@ -535,11 +537,11 @@ test.describe('Content Type and Item Management via UI', () => {
     await expect(errorMessage).not.toBeVisible({ timeout: 5000 });
     
     // Step 5: Verify content can be retrieved
-    const contentResponse = await request.get(`/api/content-items?websiteId=${testWebsiteId}`);
+    const contentResponse = await request.get(`/api/content/pages?websiteId=${testWebsiteId}`);
     expect(contentResponse.ok()).toBeTruthy();
     
     const items = await contentResponse.json();
     expect(items.data.length).toBeGreaterThan(0);
-    expect(items.data[0].data.name).toBe('Test Product');
+    expect(items.data[0].content.name).toBe('Test Product');
   });
 });

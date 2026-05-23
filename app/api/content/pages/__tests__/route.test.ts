@@ -13,6 +13,7 @@ jest.mock('@/lib/prisma', () => ({
     },
     website: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     contentType: {
       findUnique: jest.fn(),
@@ -21,6 +22,12 @@ jest.mock('@/lib/prisma', () => ({
 }));
 
 jest.mock('@/lib/services/page-service');
+jest.mock('@/lib/auth/context', () => ({
+  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1', userId: 'user-1' }),
+}));
+jest.mock('@/lib/auth/ownership', () => ({
+  assertWebsiteOwnership: jest.fn().mockResolvedValue(undefined),
+}));
 
 describe('/api/content/pages', () => {
   beforeEach(() => {
@@ -53,6 +60,7 @@ describe('/api/content/pages', () => {
         },
       ];
 
+      (prisma.website.findMany as jest.Mock).mockResolvedValue([{ id: 'site-1' }]);
       (prisma.websitePage.count as jest.Mock).mockResolvedValue(1);
       (prisma.websitePage.findMany as jest.Mock).mockResolvedValue(mockPages);
 
@@ -74,6 +82,7 @@ describe('/api/content/pages', () => {
     });
 
     it('should filter by status', async () => {
+      (prisma.website.findMany as jest.Mock).mockResolvedValue([{ id: 'site-1' }]);
       (prisma.websitePage.count as jest.Mock).mockResolvedValue(0);
       (prisma.websitePage.findMany as jest.Mock).mockResolvedValue([]);
 
@@ -84,6 +93,7 @@ describe('/api/content/pages', () => {
         where: {
           type: { in: ['page', 'folder'] },
           status: 'published',
+          websiteId: { in: ['site-1'] },
         },
       });
     });
@@ -142,6 +152,7 @@ describe('/api/content/pages', () => {
           websiteId: 'site-1',
           contentTypeId: 'type-1',
           title: 'New Page',
+          slug: 'new-page',
           type: 'page',
           content: { components: [] },
         }),
@@ -186,7 +197,9 @@ describe('/api/content/pages', () => {
           websiteId: 'site-1',
           contentTypeId: 'invalid-type',
           title: 'New Page',
+          slug: 'new-page',
           type: 'page',
+          content: { components: [] },
         }),
       });
 

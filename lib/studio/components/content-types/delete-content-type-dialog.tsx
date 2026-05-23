@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, FileText, Package, Loader2 } from 'lucide-react';
+import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -180,35 +180,10 @@ export function DeleteContentTypeDialog({
                 </div>
               )}
 
-              {/* Custom Content Section */}
-              {impact.impact.customContent.count > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Package className="h-4 w-4" />
-                    {impact.impact.customContent.count} Custom Content{' '}
-                    {impact.impact.customContent.count === 1 ? 'Item' : 'Items'}
-                  </div>
-                  <ScrollArea className="h-[80px] rounded-md border p-3">
-                    <ul className="space-y-1 text-sm">
-                      {impact.impact.customContent.items.slice(0, 5).map((item) => (
-                        <li key={item.id} className="text-muted-foreground">
-                          <span className="font-medium text-foreground">{item.title}</span>
-                        </li>
-                      ))}
-                      {impact.impact.customContent.count > 5 && (
-                        <li className="text-muted-foreground italic">
-                          ... and {impact.impact.customContent.count - 5} more
-                        </li>
-                      )}
-                    </ul>
-                  </ScrollArea>
-                </div>
-              )}
-
               {/* No Affected Items */}
               {!hasAffectedItems && (
                 <p className="text-sm text-muted-foreground">
-                  No pages or content items are using this content type. It can be safely deleted.
+                  No pages are using this content type. It can be safely deleted.
                 </p>
               )}
 

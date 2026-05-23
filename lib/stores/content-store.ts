@@ -50,6 +50,13 @@ function transformInternalToApi(item: ContentItem, websiteId: string): Partial<A
   };
 }
 
+function unwrapApiItem(result: ApiContentItem | { data?: ApiContentItem }): ApiContentItem {
+  if (result && typeof result === 'object' && 'data' in result && result.data) {
+    return result.data;
+  }
+  return result as ApiContentItem;
+}
+
 interface ContentState {
   contentItems: ContentItem[];
   projectId: string;
@@ -90,7 +97,7 @@ export const useContentStore = create<ContentState>()(
         api.cancelRequest('load-content');
         
         const response = await api.get(
-          `/api/content-items?websiteId=${websiteId}`,
+          `/api/content/pages?websiteId=${websiteId}`,
           { headers: { 'x-website-id': websiteId } },
           'load-content'
         );
@@ -153,7 +160,7 @@ export const useContentStore = create<ContentState>()(
         }
         
         const result = await response.json();
-        const apiItem = result.data;
+        const apiItem = unwrapApiItem(result);
         const persistedItem = transformApiToInternal(apiItem);
         
         // Replace optimistic item with persisted item
@@ -194,7 +201,7 @@ export const useContentStore = create<ContentState>()(
       
       try {
         const response = await api.put(
-          `/api/content-items/${id}`,
+          `/api/content/pages/${id}`,
           {
             title: title as string,
             content: fieldData,
@@ -208,7 +215,7 @@ export const useContentStore = create<ContentState>()(
         }
         
         const result = await response.json();
-        const apiItem = result.data;
+        const apiItem = unwrapApiItem(result);
         const updatedItem = transformApiToInternal(apiItem);
         
         // Replace with server response
@@ -237,7 +244,7 @@ export const useContentStore = create<ContentState>()(
       
       try {
         const response = await api.delete(
-          `/api/content-items/${id}`,
+          `/api/content/pages/${id}`,
           undefined,
           `delete-content-${id}`
         );

@@ -12,7 +12,6 @@ export interface ComponentData {
   metadata?: any;
   parentId?: string | null;
   position?: number;
-  globalComponentId?: string;
   [key: string]: any;
 }
 

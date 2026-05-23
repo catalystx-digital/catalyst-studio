@@ -575,7 +575,7 @@ function createGlobalComponent(globalId: string, position: number): ComponentIns
     parentId: null,
     position,
     props: {
-      globalComponentId: globalId
+      sharedComponentId: globalId
     },
     content: {},
     styles: {},

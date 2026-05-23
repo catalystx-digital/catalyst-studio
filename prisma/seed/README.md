@@ -25,7 +25,7 @@ prisma/seed/
 ├── index.ts              # Main orchestrator
 ├── basic/               # 20 basic test scenarios
 │   ├── simple-content-types.ts
-│   ├── basic-content-items.ts
+│   ├── website-pages.ts
 │   └── single-level-components.ts
 ├── complex/             # 15 complex scenarios
 │   ├── nested-components.ts

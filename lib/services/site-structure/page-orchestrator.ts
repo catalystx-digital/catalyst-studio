@@ -2,6 +2,7 @@ import { PrismaClient, Prisma } from '@/lib/generated/prisma';
 import type { WebsiteStructure } from '@/lib/generated/prisma';
 import { prisma } from '@/lib/prisma';
 import { generateUniqueSlug, validateAndSuggestSlug } from './slug-validator';
+import { toCanonicalPageContent } from '@/lib/studio/page-content';
 
 // Create a wrapper for slug operations
 const slugManager = {
@@ -107,6 +108,8 @@ export class PageOrchestrator implements IPageOrchestrator {
         position = lastSibling ? lastSibling.position + 1 : 0;
       }
 
+      const canonicalContent = toCanonicalPageContent(dto.content || {}, undefined, { mode: 'strict-write' });
+
       // Create ContentItem (source of truth for slug)
       const websitePage = await tx.websitePage.create({
         data: {
@@ -114,7 +117,7 @@ export class PageOrchestrator implements IPageOrchestrator {
           contentTypeId: dto.contentTypeId,
           type: 'page',
           title: dto.title,
-          content: dto.content || {},
+          content: canonicalContent as Prisma.InputJsonValue,
           metadata: dto.metadata || {},
           templateKey: dto.templateKey ?? null,
           templateProps: dto.templateProps ?? Prisma.JsonNull,
@@ -214,7 +217,7 @@ export class PageOrchestrator implements IPageOrchestrator {
       }
 
       if (dto.content !== undefined) {
-        updatePayload.content = dto.content as Prisma.InputJsonValue
+        updatePayload.content = toCanonicalPageContent(dto.content, undefined, { mode: 'strict-write' }) as Prisma.InputJsonValue
       }
       if (dto.metadata !== undefined) {
         updatePayload.metadata = dto.metadata as Prisma.InputJsonValue

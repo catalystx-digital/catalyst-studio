@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getClient } from '@/lib/db/client';
 import { businessRules } from '@/lib/ai-tools/business-rules';
 import { getContentType } from '@/lib/services/content-type-service';
+import { toCanonicalPageContent } from '@/lib/studio/page-content';
 
 const updateContentItemInputSchema = z.object({
   id: z.string().describe('The ID of the content item to update'),
@@ -15,7 +16,7 @@ type UpdateContentItemInput = z.infer<typeof updateContentItemInputSchema>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const updateContentItem = (tool as any)({
-  description: 'Update page-level metadata (title, status) or custom content data fields. DO NOT use this for updating component properties like text, colors, or images - use updateComponentProperty instead for component-level changes.',
+  description: 'Update page-level metadata (title, status) or page content fields. DO NOT use this for updating component properties like text, colors, or images - use updateComponentProperty instead for component-level changes.',
   inputSchema: updateContentItemInputSchema,
   execute: async ({ id, title, data, status }: UpdateContentItemInput) => {
     const startTime = Date.now();
@@ -23,31 +24,16 @@ export const updateContentItem = (tool as any)({
     try {
       const prisma = getClient();
       
-      // Try to find the item in WebsitePage first, then WebsiteCustomContentData
-      let existingItem: any = await prisma.websitePage.findUnique({
+      const existingItem: any = await prisma.websitePage.findUnique({
         where: { id },
         include: {
           contentType: true,
           website: true,
         }
       });
-      
-      let modelType: 'page' | 'customContent' = 'page';
-      
-      // If not found in pages, try custom content
+
       if (!existingItem) {
-        existingItem = await prisma.websiteCustomContentData.findUnique({
-          where: { id },
-          include: {
-            contentType: true,
-            website: true,
-          }
-        });
-        modelType = 'customContent';
-      }
-      
-      if (!existingItem) {
-        throw new Error(`Content item with ID '${id}' not found in either pages or custom content`);
+        throw new Error(`Page content item with ID '${id}' not found`);
       }
       
       // Fetch content type to validate fields
@@ -56,10 +42,8 @@ export const updateContentItem = (tool as any)({
         throw new Error(`Content type with ID '${existingItem.contentTypeId}' not found`);
       }
       
-      // Get existing data based on model type
-      const dataField = modelType === 'page' ? 'content' : 'data';
-      const existingData = (typeof existingItem[dataField] === 'object' && existingItem[dataField] !== null && !Array.isArray(existingItem[dataField])) 
-        ? existingItem[dataField] as Record<string, any> 
+      const existingData = (typeof existingItem.content === 'object' && existingItem.content !== null && !Array.isArray(existingItem.content))
+        ? existingItem.content as Record<string, any>
         : {};
       
       // Merge data if provided
@@ -226,40 +210,25 @@ export const updateContentItem = (tool as any)({
         };
       }
       
-      // Update content item in a transaction based on model type
+      // Update page content item in a transaction.
       const updatedItem = await prisma.$transaction(async (tx) => {
         const updateData: Record<string, unknown> = {};
         
         if (title !== undefined) updateData.title = title;
         if (status !== undefined) updateData.status = status;
         
-        // Set the appropriate data field based on model type
         if (data !== undefined) {
-          if (modelType === 'page') {
-            updateData.content = mergedData;
-          } else {
-            updateData.data = mergedData;
-          }
+          updateData.content = toCanonicalPageContent(mergedData, undefined, { mode: 'strict-write' });
         }
-        
-        // Update the appropriate model
-        const updated = modelType === 'page'
-          ? await tx.websitePage.update({
-              where: { id },
-              data: updateData,
-              include: {
-                contentType: true,
-                website: true,
-              }
-            })
-          : await tx.websiteCustomContentData.update({
-              where: { id },
-              data: updateData,
-              include: {
-                contentType: true,
-                website: true,
-              }
-            });
+
+        const updated = await tx.websitePage.update({
+          where: { id },
+          data: updateData,
+          include: {
+            contentType: true,
+            website: true,
+          }
+        });
         
         return updated;
       });
@@ -271,9 +240,7 @@ export const updateContentItem = (tool as any)({
       
       // Transform response
       const contentTypeFields = updatedItem.contentType.fields || {};
-      const contentData = modelType === 'page' 
-        ? (updatedItem as any).content || {}
-        : (updatedItem as any).data || {};
+      const contentData = (updatedItem as any).content || {};
       
       return {
         success: true,
@@ -284,7 +251,7 @@ export const updateContentItem = (tool as any)({
           contentTypeId: updatedItem.contentTypeId,
           status: updatedItem.status,
           content: contentData,
-          modelType,
+          modelType: 'page',
           createdAt: updatedItem.createdAt,
           updatedAt: updatedItem.updatedAt,
           contentType: {

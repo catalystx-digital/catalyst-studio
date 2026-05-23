@@ -10,7 +10,7 @@ export interface ComponentOperation {
   nodeId: string;  // The page node containing the component
   componentId: string;
   data?: Record<string, any>;
-  globalComponentId?: string;  // If updating a global component
+  sharedComponentId?: string;  // If updating a shared component
 }
 
 export interface SaveManagerCallbacks {
@@ -173,7 +173,7 @@ class SaveManager {
       this.pendingComponentOperations.set(structuralKey, operation);
 
       for (const [key, pending] of this.pendingComponentOperations.entries()) {
-        if (key !== structuralKey && pending.nodeId === operation.nodeId && !pending.globalComponentId) {
+        if (key !== structuralKey && pending.nodeId === operation.nodeId && !pending.sharedComponentId) {
           this.pendingComponentOperations.delete(key);
         }
       }
@@ -182,7 +182,7 @@ class SaveManager {
     }
 
     const pendingStructural = this.pendingComponentOperations.get(structuralKey);
-    if (pendingStructural && !operation.globalComponentId) {
+    if (pendingStructural && !operation.sharedComponentId) {
       const components = getStructuralComponents(pendingStructural).map(component => {
         if (
           component &&
@@ -212,8 +212,8 @@ class SaveManager {
     const key = `${operation.nodeId}:${operation.componentId}`;
     const pendingUpdate = this.pendingComponentOperations.get(key);
     this.pendingComponentOperations.set(key, pendingUpdate?.type === 'COMPONENT_UPDATE'
-      && !pendingUpdate.globalComponentId
-      && !operation.globalComponentId
+      && !pendingUpdate.sharedComponentId
+      && !operation.sharedComponentId
       ? {
           ...pendingUpdate,
           ...operation,
@@ -249,8 +249,8 @@ class SaveManager {
     const structuralOps = operations.filter(op => op.type !== 'COMPONENT_UPDATE');
     // Group update operations by global vs page-only. Structural operations always
     // persist the canonical WebsitePage.content JSON for the page.
-    const globalOps = updateOps.filter(op => op.globalComponentId);
-    const pageUpdateOps = updateOps.filter(op => !op.globalComponentId);
+    const globalOps = updateOps.filter(op => op.sharedComponentId);
+    const pageUpdateOps = updateOps.filter(op => !op.sharedComponentId);
 
     this.updateStatus('saving');
 
@@ -258,7 +258,7 @@ class SaveManager {
       // Save global component updates
       if (globalOps.length > 0) {
         await Promise.all(globalOps.map(async op => {
-          const response = await fetch(`/api/studio/site-builder/global-components/${op.globalComponentId}`, {
+          const response = await fetch(`/api/studio/site-builder/global-components/${op.sharedComponentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'x-studio-session-id': getStudioSessionId() },
             body: JSON.stringify({ content: op.data })

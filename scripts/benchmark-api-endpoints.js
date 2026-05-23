@@ -1,6 +1,6 @@
 /**
  * API Endpoint Performance Benchmark
- * Compares old vs new endpoint performance
+ * Measures canonical endpoint performance.
  */
 
 const ITERATIONS = 10;
@@ -45,18 +45,15 @@ async function runBenchmarks() {
   const benchmarks = [
     {
       name: 'List Pages',
-      old: '/api/content-items?limit=10',
-      new: '/api/content/pages?limit=10',
+      path: '/api/content/pages?limit=10',
     },
     {
       name: 'List Component Types',
-      old: '/api/cms-components?limit=10',
-      new: '/api/components/types?limit=10',
+      path: '/api/components/types?limit=10',
     },
     {
       name: 'List Shared Components',
-      old: '/api/global-components?limit=10',
-      new: '/api/components/shared?limit=10',
+      path: '/api/components/shared?limit=10',
     },
   ];
   
@@ -65,49 +62,42 @@ async function runBenchmarks() {
   for (const benchmark of benchmarks) {
     console.log(`📊 Benchmarking: ${benchmark.name}`);
     
-    const oldResult = await measureEndpoint(benchmark.old);
-    const newResult = await measureEndpoint(benchmark.new);
+    const result = await measureEndpoint(benchmark.path);
     
-    if (oldResult && newResult) {
-      const overhead = ((newResult.avg - oldResult.avg) / oldResult.avg) * 100;
-      
+    if (result) {
       results.push({
         name: benchmark.name,
-        old: oldResult,
-        new: newResult,
-        overhead,
+        path: benchmark.path,
+        result,
       });
       
-      console.log(`  Old endpoint: ${oldResult.avg.toFixed(2)}ms (avg)`);
-      console.log(`  New endpoint: ${newResult.avg.toFixed(2)}ms (avg)`);
-      console.log(`  Overhead: ${overhead > 0 ? '+' : ''}${overhead.toFixed(2)}%\n`);
+      console.log(`  Endpoint: ${benchmark.path}`);
+      console.log(`  Average: ${result.avg.toFixed(2)}ms\n`);
     }
   }
   
   // Summary
   console.log('\n📈 Performance Summary\n');
-  console.log('| Endpoint | Old (ms) | New (ms) | Overhead |');
-  console.log('|----------|----------|----------|----------|');
+  console.log('| Endpoint | Path | Avg (ms) |');
+  console.log('|----------|------|----------|');
   
   results.forEach(r => {
     console.log(
-      `| ${r.name.padEnd(8)} | ${r.old.avg.toFixed(2).padEnd(8)} | ${r.new.avg.toFixed(2).padEnd(8)} | ${
-        r.overhead > 0 ? '+' : ''
-      }${r.overhead.toFixed(2)}% |`
+      `| ${r.name.padEnd(8)} | ${r.path} | ${r.result.avg.toFixed(2).padEnd(8)} |`
     );
   });
   
-  const avgOverhead = results.reduce((sum, r) => sum + r.overhead, 0) / results.length;
-  console.log(`\nAverage overhead: ${avgOverhead > 0 ? '+' : ''}${avgOverhead.toFixed(2)}%`);
+  const avgLatency = results.reduce((sum, r) => sum + r.result.avg, 0) / results.length;
+  console.log(`\nAverage latency: ${avgLatency.toFixed(2)}ms`);
   
   // Performance thresholds
   console.log('\n✅ Performance Validation:');
-  if (avgOverhead < 5) {
-    console.log('  ✓ Service layer overhead is within acceptable limits (<5%)');
-  } else if (avgOverhead < 10) {
-    console.log('  ⚠ Service layer overhead is moderate (5-10%)');
+  if (avgLatency < 250) {
+    console.log('  ✓ Canonical endpoint latency is within target (<250ms)');
+  } else if (avgLatency < 500) {
+    console.log('  ⚠ Canonical endpoint latency is moderate (250-500ms)');
   } else {
-    console.log('  ✗ Service layer overhead exceeds threshold (>10%)');
+    console.log('  ✗ Canonical endpoint latency exceeds target (>500ms)');
   }
   
   // Save results to file
@@ -115,8 +105,8 @@ async function runBenchmarks() {
     date: new Date().toISOString(),
     iterations: ITERATIONS,
     results,
-    avgOverhead,
-    conclusion: avgOverhead < 5 ? 'PASS' : avgOverhead < 10 ? 'WARNING' : 'FAIL',
+    avgLatency,
+    conclusion: avgLatency < 250 ? 'PASS' : avgLatency < 500 ? 'WARNING' : 'FAIL',
   };
   
   require('fs').writeFileSync(

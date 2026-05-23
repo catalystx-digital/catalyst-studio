@@ -6,9 +6,11 @@ describe('deleteWebsiteWithDependencies', () => {
   const createMockTx = () => {
     const calls: string[] = [];
     const tx: any = {
+      contentReference: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('contentReference'); }) },
+      failedReference: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('failedReference'); }) },
+      nodePosition: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('nodePosition'); }) },
       websiteStructure: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteStructure'); }) },
       websitePage: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websitePage'); }) },
-      websiteCustomContentData: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteCustomContentData'); }) },
       contentType: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('contentType'); }) },
       componentAnalytics: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('componentAnalytics'); }) },
       websiteSharedComponent: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteSharedComponent'); }) },
@@ -16,7 +18,16 @@ describe('deleteWebsiteWithDependencies', () => {
       redirect: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('redirect'); }) },
       deployment: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('deployment'); }) },
       integrationUsage: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('integrationUsage'); }) },
+      websiteMediaUsage: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteMediaUsage'); }) },
+      websiteMediaSource: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteMediaSource'); }) },
+      websiteMedia: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteMedia'); }) },
+      websiteDesignSystem: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteDesignSystem'); }) },
+      websiteDesignConcept: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('websiteDesignConcept'); }) },
+      importPageDetection: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('importPageDetection'); }) },
       importJob: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('importJob'); }) },
+      previewJob: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('previewJob'); }) },
+      accountApiKeyEvent: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('accountApiKeyEvent'); }) },
+      accountApiKey: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('accountApiKey'); }) },
       aIContext: { deleteMany: jest.fn().mockImplementation(async () => { calls.push('aIContext'); }) },
       website: { delete: jest.fn().mockImplementation(async () => { calls.push('website'); }) },
     };
@@ -36,9 +47,11 @@ describe('deleteWebsiteWithDependencies', () => {
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(calls).toEqual([
+      'contentReference',
+      'failedReference',
+      'nodePosition',
       'websiteStructure',
       'websitePage',
-      'websiteCustomContentData',
       'contentType',
       'componentAnalytics',
       'websiteSharedComponent',
@@ -46,7 +59,16 @@ describe('deleteWebsiteWithDependencies', () => {
       'redirect',
       'deployment',
       'integrationUsage',
+      'websiteMediaUsage',
+      'websiteMediaSource',
+      'websiteMedia',
+      'websiteDesignSystem',
+      'websiteDesignConcept',
+      'importPageDetection',
       'importJob',
+      'previewJob',
+      'accountApiKeyEvent',
+      'accountApiKey',
       'aIContext',
       'website',
     ]);

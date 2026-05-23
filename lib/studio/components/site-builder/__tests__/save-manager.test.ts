@@ -537,14 +537,14 @@ describe('SaveManager', () => {
       type: 'COMPONENT_UPDATE',
       nodeId: 'page-1',
       componentId: 'component-1',
-      globalComponentId: 'global-1',
+      sharedComponentId: 'global-1',
       data: { content: { title: 'First global title' }, props: { metadata: { schema: 'old' } } },
     });
     saveManager.addComponentOperation({
       type: 'COMPONENT_UPDATE',
       nodeId: 'page-1',
       componentId: 'component-1',
-      globalComponentId: 'global-1',
+      sharedComponentId: 'global-1',
       data: { content: { title: 'Latest global title' } },
     });
 
@@ -578,7 +578,7 @@ describe('SaveManager', () => {
       type: 'COMPONENT_UPDATE',
       nodeId: 'page-1',
       componentId: 'component-1',
-      globalComponentId: 'global-1',
+      sharedComponentId: 'global-1',
       data: { title: 'Bad global update' },
     });
 

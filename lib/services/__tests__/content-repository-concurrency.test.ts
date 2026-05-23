@@ -33,7 +33,7 @@ describe('ContentRepository.saveSharedComponentContent concurrency', () => {
     jest.clearAllMocks()
   })
 
-  it('updates content transactionally and strips legacy config.defaultProps', async () => {
+  it('updates shared content transactionally without mutating config', async () => {
     const sharedId = 'sc-1'
     const existing = {
       id: sharedId,
@@ -53,12 +53,11 @@ describe('ContentRepository.saveSharedComponentContent concurrency', () => {
         where: { id: sharedId },
         data: {
           content: { a: 2 },
-          config: { other: 1 },
         },
       })
     )
     const dataArg = (prisma.websiteSharedComponent.update as jest.Mock).mock.calls[0][0].data
-    expect(dataArg.config).not.toHaveProperty('defaultProps')
+    expect(dataArg).not.toHaveProperty('config')
   })
 
   it('throws conflict when lastModified is newer than ifUnchangedSince', async () => {

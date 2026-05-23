@@ -5,18 +5,12 @@ import { prisma } from '@/lib/prisma'
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     website: { findUnique: jest.fn() },
-    contentType: { findMany: jest.fn() },
+    contentType: { findMany: jest.fn(), findFirst: jest.fn() },
     websitePage: { findMany: jest.fn() },
-    websiteCustomContentData: { findMany: jest.fn() },
     websiteSharedComponent: { findMany: jest.fn() },
     websiteStructure: { findMany: jest.fn(), findFirst: jest.fn() },
   }
 }))
-
-// Minimal provider that bypasses preflight by not exposing compile
-class MinimalProvider {
-  getCompiledTypeSupport() { return {} as any }
-}
 
 describe('BundleExporter — shared overrides integration', () => {
   const websiteId = 'site-1'
@@ -24,7 +18,8 @@ describe('BundleExporter — shared overrides integration', () => {
 
   beforeEach(() => {
     jest.resetAllMocks()
-    service = new BundleExporter(new MinimalProvider() as any)
+    ;(prisma.contentType.findFirst as jest.Mock).mockResolvedValue(null)
+    service = new BundleExporter()
   })
 
   it('exports component props as content+overrides deep-merged and surfaces hasOverrides in metadata', async () => {
@@ -47,9 +42,8 @@ describe('BundleExporter — shared overrides integration', () => {
             {
               id: 'inst-1',
               type: 'header',
-              isShared: true,
-              sharedComponentId: 'shared-1',
               position: 0,
+              props: { sharedComponentId: 'shared-1' },
               properties: { overrides: { title: 'Local Title' }, hasOverrides: true }
             }
           ]
@@ -62,21 +56,20 @@ describe('BundleExporter — shared overrides integration', () => {
         id: 'shared-1',
         websiteId,
         content: { title: 'Global Title', links: ['a'] },
-        config: { defaultProps: { title: 'Legacy Title' } },
+        config: { category: 'header' },
         websiteComponentType: { type: 'header' }
       }
     ])
     // Structures not used here
     ;(prisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
-    ;(prisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
 
     // Act
     const result = await service.export(websiteId, { includeComponents: true, includeFolders: false })
 
     // Assert
-    expect(result.components).toBeDefined()
-    expect(result.components!.length).toBe(1)
-    const comp = result.components![0]
+    expect(result.exportData.components).toBeDefined()
+    expect(result.exportData.components!.length).toBe(1)
+    const comp = result.exportData.components![0]
     expect(comp.type).toBe('header')
     expect(comp.props).toEqual({ title: 'Local Title', links: ['a'] })
     // Negative assertions: no linkage/metadata inside props
@@ -106,9 +99,8 @@ describe('BundleExporter — shared overrides integration', () => {
             {
               id: 'inst-1',
               type: 'header',
-              isShared: true,
-              sharedComponentId: 'shared-1',
               position: 0,
+              props: { sharedComponentId: 'shared-1' },
               properties: { }
             }
           ]
@@ -120,15 +112,14 @@ describe('BundleExporter — shared overrides integration', () => {
         id: 'shared-1',
         websiteId,
         content: { title: 'Global Title', links: ['a'] },
-        config: { defaultProps: { title: 'Legacy Title' } },
+        config: { category: 'header' },
         websiteComponentType: { type: 'header' }
       }
     ])
     ;(prisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([])
-    ;(prisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([])
 
     const result = await service.export(websiteId, { includeComponents: true, includeFolders: false })
-    const comp = result.components![0]
+    const comp = result.exportData.components![0]
     expect(comp.props).toEqual({ title: 'Global Title', links: ['a'] })
     expect(comp.metadata?.hasOverrides).toBe(false)
   })

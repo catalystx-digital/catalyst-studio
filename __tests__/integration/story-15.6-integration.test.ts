@@ -127,15 +127,16 @@ describe('Story 15.6: Content Transformation & API Sequencing Integration', () =
       });
     });
 
-    it('should map WebsiteCustomContentData source correctly', async () => {
-      const dataContent: UnifiedContent = createTestUnifiedContent({
-        source: 'WebsiteCustomContentData'
+    it('should map WebsiteStructure source correctly', async () => {
+      const folderContent: UnifiedContent = createTestUnifiedContent({
+        source: 'WebsiteStructure',
+        type: 'folder'
       });
 
-      const result = await transformer.transformToOptimizely(dataContent);
+      const result = await transformer.transformToOptimizely(folderContent);
 
       expect(result).toMatchObject({
-        sourceType: 'data',
+        sourceType: 'folder',
         isPageContent: false,
         hasUrl: false
       });
@@ -147,7 +148,7 @@ describe('Story 15.6: Content Transformation & API Sequencing Integration', () =
       const contents: UnifiedContent[] = [
         createTestUnifiedContent({ id: 'page-1', type: 'page' }),
         createTestUnifiedContent({ id: 'folder-1', type: 'folder' }),
-        createTestUnifiedContent({ id: 'data-1', type: 'data' })
+        createTestUnifiedContent({ id: 'folder-2', type: 'folder' })
       ];
 
       const result = await transformer.transformBatch(contents);
@@ -178,7 +179,7 @@ describe('Story 15.6: Content Transformation & API Sequencing Integration', () =
       const contents: UnifiedContent[] = [
         createTestUnifiedContent({ id: 'page-1', type: 'page' }),
         createTestUnifiedContent({ id: 'folder-1', type: 'folder' }),
-        createTestUnifiedContent({ id: 'data-1', type: 'data' })
+        createTestUnifiedContent({ id: 'folder-2', type: 'folder' })
       ];
 
       const ordered = transformer.applyAPISequencing(contents);
@@ -388,7 +389,7 @@ describe('Story 15.6: Content Transformation & API Sequencing Integration', () =
       const contents: UnifiedContent[] = Array.from({ length: 500 }, (_, i) =>
         createTestUnifiedContent({ 
           id: `content-${i}`,
-          type: i % 3 === 0 ? 'folder' : i % 2 === 0 ? 'page' : 'data'
+          type: i % 3 === 0 ? 'folder' : 'page'
         })
       );
 

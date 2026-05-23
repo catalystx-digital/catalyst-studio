@@ -394,7 +394,55 @@ function strictPayloadDiagnostics(
     })
   }
 
+  if (hasOwn(instance, 'sharedId')) {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_ROOT_SHARED_ID',
+      message: 'Component root sharedId is not accepted for strict writes; use props.sharedComponentId.',
+      path: `${path}.sharedId`,
+    })
+  }
+
+  if (hasOwn(instance, 'isShared')) {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_ROOT_IS_SHARED',
+      message: 'Component root isShared is not accepted for strict writes; use props.sharedComponentId.',
+      path: `${path}.isShared`,
+    })
+  }
+
+  if (instance.type === '_shared') {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_TYPE_SHARED_SENTINEL',
+      message: 'Component type "_shared" is not accepted for strict writes; use the actual component type with props.sharedComponentId.',
+      path: `${path}.type`,
+    })
+  }
+
   if (propsSource) {
+    if (propsRecord && hasOwn(propsRecord, 'globalComponentId')) {
+      addStrictDiagnostic(diagnostics, {
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_GLOBAL_COMPONENT_ID',
+        message: 'Component props.globalComponentId is not accepted for strict writes; use props.sharedComponentId.',
+        path: `${path}.props.globalComponentId`,
+      })
+    }
+
+    if (propsRecord && hasOwn(propsRecord, 'sharedId')) {
+      addStrictDiagnostic(diagnostics, {
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_SHARED_ID',
+        message: 'Component props.sharedId is not accepted for strict writes; use props.sharedComponentId.',
+        path: `${path}.props.sharedId`,
+      })
+    }
+
+    if (propsRecord && hasOwn(propsRecord, 'isShared')) {
+      addStrictDiagnostic(diagnostics, {
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_IS_SHARED',
+        message: 'Component props.isShared is not accepted for strict writes; use props.sharedComponentId.',
+        path: `${path}.props.isShared`,
+      })
+    }
+
     if (propsRecord && hasOwn(propsRecord, 'content')) {
       const code = typeof propsRecord.content === 'string'
         ? 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING'
@@ -524,12 +572,10 @@ function omitKeys(value: AnyRecord, keys: Set<string>): AnyRecord {
 const STRICT_COMPONENT_SOURCE_KEYS = new Set([
   'componentType',
   'data',
-])
-
-const STRICT_WRITE_COMPONENT_SOURCE_KEYS = new Set([
-  ...STRICT_COMPONENT_SOURCE_KEYS,
   'globalComponentId',
   'sharedComponentId',
+  'sharedId',
+  'isShared',
 ])
 
 const STRICT_PAGE_SOURCE_KEYS = new Set([
@@ -663,9 +709,7 @@ export function normalizeComponent(
     message: 'Component metadata contains malformed JSON-like text and was left unchanged.',
   })
   const metadata = isRecord(rawMetadata) ? rawMetadata : {}
-  const globalComponentId = !isStrictWrite(options) && typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
-  const sharedComponentId = !isStrictWrite(options) && typeof instance.sharedComponentId === 'string' ? instance.sharedComponentId : undefined
-  const passthrough = omitKeys(instance, isStrictWrite(options) ? STRICT_WRITE_COMPONENT_SOURCE_KEYS : STRICT_COMPONENT_SOURCE_KEYS)
+  const passthrough = omitKeys(instance, STRICT_COMPONENT_SOURCE_KEYS)
 
   if (type === 'unknown') {
     addDiagnostic(diagnostics, {
@@ -703,8 +747,6 @@ export function normalizeComponent(
     content,
     styles,
     metadata,
-    ...(globalComponentId ? { globalComponentId } : {}),
-    ...(sharedComponentId ? { sharedComponentId } : {}),
   }
 }
 

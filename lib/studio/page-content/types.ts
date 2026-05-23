@@ -54,8 +54,6 @@ export const componentInstanceSchema = z.object({
   content: recordSchema,
   styles: recordSchema,
   metadata: recordSchema,
-  globalComponentId: z.string().optional(),
-  sharedComponentId: z.string().optional(),
 }).passthrough()
 
 export const pageContentV1Schema = z.object({

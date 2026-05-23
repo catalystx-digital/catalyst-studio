@@ -807,7 +807,8 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
               typeId: 'content-type',
               parentId: null,
               position: 1,
-              props: { text: 'Content' }
+              props: {},
+              content: { text: 'Content' }
             }
           ]
         }
@@ -834,9 +835,7 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
               typeId: 'header-type',
               parentId: null,
               position: 0,
-              props: { className: 'main-header' },
-              isShared: true,
-              sharedComponentId: 'shared-1'
+              props: { sharedComponentId: 'shared-1' }
             },
             {
               id: 'content1',
@@ -844,7 +843,8 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
               typeId: 'content-type',
               parentId: null,
               position: 1,
-              props: { text: 'Content' }
+              props: {},
+              content: { text: 'Content' }
             }
           ]
         }
@@ -860,8 +860,9 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
           content: expect.objectContaining({
             components: expect.arrayContaining([
               expect.objectContaining({
-                isShared: true,
-                sharedComponentId: 'shared-1'
+                props: expect.objectContaining({
+                  sharedComponentId: 'shared-1'
+                })
               })
             ])
           })
@@ -988,7 +989,7 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
           id: 'page1',
           content: {
             components: [
-              { sharedComponentId: 'shared-1' }
+              { props: { sharedComponentId: 'shared-1' } }
             ]
           }
         },
@@ -996,7 +997,7 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
           id: 'page2',
           content: {
             components: [
-              { sharedComponentId: 'shared-1' }
+              { props: { sharedComponentId: 'shared-1' } }
             ]
           }
         },
@@ -1004,7 +1005,7 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
           id: 'page3',
           content: {
             components: [
-              { sharedComponentId: 'shared-2' }
+              { props: { sharedComponentId: 'shared-2' } }
             ]
           }
         }
@@ -1021,7 +1022,7 @@ describe('CanonicalSignatureSharedComponentDetector', () => {
           id: 'page1',
           content: {
             components: [
-              { sharedComponentId: 'shared-2' }
+              { props: { sharedComponentId: 'shared-2' } }
             ]
           }
         }

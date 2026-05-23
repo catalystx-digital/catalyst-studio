@@ -1,5 +1,5 @@
 -- Epic 41 Phase 0: Add canonical content column for shared components
--- Adds content JSONB and optionally backfills from config.defaultProps for transition
+-- Adds content JSONB for canonical shared component content.
 
 -- Add column if not exists (idempotent safety)
 DO $$
@@ -12,8 +12,7 @@ BEGIN
   END IF;
 END $$;
 
--- Optional backfill: copy defaultProps into content where missing
 UPDATE "WebsiteSharedComponent"
-SET "content" = COALESCE("config"->'defaultProps', '{}'::jsonb)
+SET "content" = '{}'::jsonb
 WHERE "content" IS NULL;
 

@@ -145,8 +145,6 @@ export const ucsReadApiTypeDefs = /* GraphQL */ `
     metadata: JSON!
     """Linked shared component identifier when present."""
     sharedComponentId: ID
-    """Global component identifier retained for legacy imports."""
-    globalComponentId: ID
     """Effective props after merging shared defaults and overrides."""
     effectiveProps: JSON
     """Indicates whether overrides exist for the instance."""

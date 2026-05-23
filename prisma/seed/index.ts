@@ -246,7 +246,6 @@ async function cleanDatabase() {
   await prisma.websiteComponentType.deleteMany()
   await prisma.websiteStructure.deleteMany()
   await prisma.websitePage.deleteMany()
-  await prisma.websiteCustomContentData.deleteMany()
   await prisma.contentType.deleteMany()
   await prisma.aIContext.deleteMany()
   // Clean import jobs first (they reference websites)

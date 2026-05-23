@@ -64,7 +64,7 @@ interface GlobalComponent {
 
 interface GlobalComponentUsage {
   id: string;
-  globalComponentId: string;
+  sharedComponentId: string;
   pageId: string;
   position: any;
   overrides?: any;
@@ -1320,7 +1320,7 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
         const selectedInstance: any | undefined = containingNode && Array.isArray(containingNode.data?.components)
           ? (containingNode.data.components as any[]).find((c: any) => c.id === componentId)
           : undefined;
-        const currentGlobalId: string | undefined = selectedInstance?.globalComponentId || selectedInstance?.props?.sharedComponentId;
+        const currentGlobalId: string | undefined = selectedInstance?.props?.sharedComponentId;
         const isCurrentlyGlobal = !!(currentGlobalId && get().globalComponents.has(currentGlobalId));
 
         // Create (or ensure) shared component
@@ -1785,12 +1785,15 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
       // Find current component to check if global
       const state = get();
       const node = state.nodes.find(n => n.id === nodeId);
-      let globalComponentId: string | undefined;
+      let sharedComponentId: string | undefined;
       let pageId: string | undefined;
 
       if (node?.data.components && Array.isArray(node.data.components)) {
         const component = (node.data.components as ComponentInstanceArray).find(c => c.id === componentId);
-        globalComponentId = (component as any)?.globalComponentId;
+        const rawSharedComponentId = (component as any)?.props?.sharedComponentId;
+        sharedComponentId = typeof rawSharedComponentId === 'string' && rawSharedComponentId.trim().length > 0
+          ? rawSharedComponentId.trim()
+          : undefined;
       }
       pageId = (node?.data as any)?.websitePageId;
 
@@ -1816,7 +1819,7 @@ export const useSiteBuilderStore = create<SiteBuilderState>()(
           nodeId: pageId,
           componentId,
           data: updates as Record<string, any>,
-          globalComponentId
+          sharedComponentId
         });
       }
     },

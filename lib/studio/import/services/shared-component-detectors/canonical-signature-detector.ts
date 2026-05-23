@@ -6,6 +6,7 @@ import {
   SharedComponentCandidate,
   SharedComponentConfig
 } from '../interfaces/shared-component-detector.interface'
+import { toCanonicalPageContent } from '@/lib/studio/page-content'
 
 interface ComponentOccurrence {
   component: ComponentInstance
@@ -307,7 +308,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
 
     const seen = new Set<string>()
     const updatedComponents = this.rewriteComponentsArray(pageContent.components, sharedComponents, seen)
-    const updatedContent = { ...pageContent, components: updatedComponents }
+    const updatedContent = toCanonicalPageContent(pageContent, updatedComponents, { mode: 'strict-write' })
 
     return this.prisma.websitePage.update({
       where: { id: page.id },
@@ -328,7 +329,7 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
 
     const seen = new Set<string>()
     const updatedComponents = this.rewriteComponentsArray(pageContent.components, sharedComponents, seen)
-    const updatedContent = { ...pageContent, components: updatedComponents }
+    const updatedContent = toCanonicalPageContent(pageContent, updatedComponents, { mode: 'strict-write' })
 
     return prismaClient.websitePage.update({
       where: { id: page.id },
@@ -343,12 +344,10 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
     let count = 0
 
     for (const page of pages) {
-      const pageContent = page.content as { components?: Array<ComponentInstance & { sharedComponentId?: string }> }
+      const pageContent = page.content as { components?: ComponentInstance[] }
       if (!pageContent?.components) continue
 
-      const hasSharedComponent = pageContent.components.some((component) =>
-        component.sharedComponentId === sharedComponentId
-      )
+      const hasSharedComponent = this.componentTreeHasSharedComponent(pageContent.components, sharedComponentId)
 
       if (hasSharedComponent) count++
     }
@@ -955,7 +954,6 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
             position: comp.position ?? 0,
             props: nextProps,
             children: comp.children,
-            ...( { isShared: true, sharedComponentId: sid } as any )
           } as unknown as ComponentInstance
           break
         }
@@ -972,6 +970,22 @@ export class CanonicalSignatureSharedComponentDetector implements ISharedCompone
 
     result.forEach((c, idx) => { (c as any).position = idx })
     return result
+  }
+
+  private componentTreeHasSharedComponent(components: ComponentInstance[], sharedComponentId: string): boolean {
+    for (const component of components) {
+      const props = this.isRecord(component.props) ? component.props : {}
+      if (props.sharedComponentId === sharedComponentId) {
+        return true
+      }
+
+      const children = (component as unknown as { children?: ComponentInstance[] }).children
+      if (Array.isArray(children) && this.componentTreeHasSharedComponent(children, sharedComponentId)) {
+        return true
+      }
+    }
+
+    return false
   }
 
   private componentMatchesShared(

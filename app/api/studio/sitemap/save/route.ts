@@ -11,6 +11,7 @@ import { unifiedLayoutService } from '@/lib/studio/services/layout/unified-layou
 import { calculateLevelHeight } from '@/lib/studio/constants/layout-constants';
 import { redirectService } from '@/lib/services/redirect-service';
 import { studioEventBus, type StudioEventRecord } from '@/lib/studio/activity/studio-event-bus';
+import { PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content';
 
 // Input validation schemas with enhanced security
 const MAX_METADATA_SIZE = 100000; // 100KB limit for metadata (imported pages can be large)
@@ -68,7 +69,6 @@ const ComponentInstanceSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
   parentId: z.string().nullable().optional(),
   position: z.number().optional(),
-  globalComponentId: z.string().optional(),
 }).passthrough(); // Allow additional properties for flexibility
 
 const NodeDataSchema = z.object({
@@ -311,9 +311,7 @@ export async function POST(request: NextRequest) {
                     contentTypeId,
                     parentId: op.data.parentId === null ? undefined : op.data.parentId,
                     slug: op.data.slug || 'untitled',
-                    content: {
-                      components: op.data.components || []
-                    } as Prisma.JsonValue, // pageOrchestrator expects specific format
+                    content: toCanonicalPageContent({}, op.data.components || [], { mode: 'strict-write' }) as Prisma.JsonValue,
                     metadata: (op.data.metadata || {}) as Prisma.JsonValue
                   }, websiteId);
                 } else {
@@ -344,7 +342,8 @@ export async function POST(request: NextRequest) {
                       select: {
                         id: true,
                         title: true,
-                        metadata: true
+                        metadata: true,
+                        content: true
                       }
                     }
                   }
@@ -395,12 +394,16 @@ export async function POST(request: NextRequest) {
                 // If components were provided, update the WebsitePage
                 if (op.data?.components !== undefined) {
                   if (existingNode.websitePageId) {
+                    const currentContent = existingNode.websitePage?.content ?? {};
+                    const canonicalContent = toCanonicalPageContent(
+                      currentContent,
+                      op.data.components,
+                      { mode: 'strict-write' }
+                    );
                     await (prisma as any).websitePage.update({
                       where: { id: existingNode.websitePageId },
                       data: {
-                        content: {
-                          components: op.data.components
-                        } as Prisma.InputJsonValue,
+                        content: canonicalContent as Prisma.InputJsonValue,
                         revision: { increment: 1 }
                       }
                     });
@@ -566,6 +569,8 @@ export async function POST(request: NextRequest) {
                 clientError = 'Home page already exists for this site';
               } else if (opError.message.includes('Home page must be created at the root level')) {
                 clientError = 'Home page must be created at the root level';
+              } else if (opError instanceof PageContentNormalizationError) {
+                clientError = 'Invalid page content';
               }
             }
             

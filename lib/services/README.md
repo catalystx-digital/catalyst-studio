@@ -43,28 +43,6 @@ const page = await services.pageService.createPage({
 - `getPagesByWebsite()` - Gets all pages for website
 - `getPagesHierarchy()` - Gets pages with hierarchy
 
-### ContentDataService
-
-Manages WebsiteCustomContentData operations for custom content types.
-
-```typescript
-const contentData = await services.contentDataService.createContentData({
-  websiteId: 'web-1',
-  title: 'Blog Post',
-  data: { body: 'Content here' },
-  contentTypeId: 'type-1'
-});
-```
-
-**Key Methods:**
-- `createContentData()` - Creates custom content
-- `validateContentData()` - Validates against schema
-- `bulkCreateContentData()` - Bulk create operations
-- `publishContentData()` - Publishes content
-- `searchContentData()` - Searches content
-- `exportContentData()` - Exports to JSON
-- `importContentData()` - Imports from JSON
-
 ### ComponentService
 
 Manages WebsiteComponentType definitions and templates.

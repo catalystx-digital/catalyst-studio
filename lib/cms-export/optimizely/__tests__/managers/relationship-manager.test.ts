@@ -148,8 +148,8 @@ describe('RelationshipManager', () => {
         },
         {
           id: 'data-1',
-          source: 'WebsiteCustomContentData',
-          type: 'data',
+          source: 'WebsitePage',
+          type: 'page',
           title: 'Data Item',
           contentTypeId: 'product',
           content: { name: 'Product', price: 99 },
@@ -268,8 +268,8 @@ describe('RelationshipManager', () => {
       const unifiedContent: UnifiedContent[] = [
         {
           id: 'data-1',
-          source: 'WebsiteCustomContentData',
-          type: 'data',
+          source: 'WebsitePage',
+          type: 'page',
           title: 'Data Item',
           contentTypeId: 'product',
           content: {},
@@ -298,7 +298,7 @@ describe('RelationshipManager', () => {
       const unifiedContent: UnifiedContent[] = [
         {
           id: 'data-parent',
-          source: 'WebsiteCustomContentData',
+          source: 'WebsitePage',
           type: 'folder', // Artificially make it a valid parent type
           title: 'Data Parent',
           contentTypeId: 'folder',
@@ -392,8 +392,8 @@ describe('RelationshipManager', () => {
         },
         {
           id: 'another-independent',
-          source: 'WebsiteCustomContentData',
-          type: 'data',
+          source: 'WebsitePage',
+          type: 'page',
           title: 'Another Independent',
           contentTypeId: 'product',
           content: {},

@@ -176,21 +176,6 @@ describe('UnifiedContentTransformer', () => {
       });
     });
 
-    describe('WebsiteCustomContentData Source', () => {
-      it('should correctly map WebsiteCustomContentData source type', () => {
-        const content: UnifiedContent = createTestContent({
-          source: 'WebsiteCustomContentData'
-        });
-
-        const result = transformer.mapSourceType(content.source);
-
-        expect(result).toEqual({
-          sourceType: 'data',
-          isPageContent: false,
-          hasUrl: false
-        });
-      });
-    });
   });
 
   describe('Content Transformation (AC: 1)', () => {
@@ -270,7 +255,7 @@ describe('UnifiedContentTransformer', () => {
       const contents: UnifiedContent[] = [
         createTestContent({ id: 'page-1', type: 'page' }),
         createTestContent({ id: 'folder-1', type: 'folder' }),
-        createTestContent({ id: 'data-1', type: 'data' })
+        createTestContent({ id: 'data-1', type: 'page' })
       ];
 
       const ordered = transformer.applyAPISequencing(contents);
@@ -300,7 +285,7 @@ describe('UnifiedContentTransformer', () => {
       const contents: UnifiedContent[] = [
         createTestContent({ id: 'page-1', type: 'page' }),
         createTestContent({ id: 'folder-1', type: 'folder' }),
-        createTestContent({ id: 'data-1', type: 'data' })
+        createTestContent({ id: 'data-1', type: 'page' })
       ];
 
       const ordered = transformer.applyAPISequencing(contents);

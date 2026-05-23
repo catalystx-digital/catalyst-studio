@@ -35,9 +35,6 @@ const deletionSteps = [
     await tx.websitePage.deleteMany({ where: { websiteId } });
   },
   async (tx: Prisma.TransactionClient, websiteId: string) => {
-    await tx.websiteCustomContentData.deleteMany({ where: { websiteId } });
-  },
-  async (tx: Prisma.TransactionClient, websiteId: string) => {
     await tx.contentType.deleteMany({ where: { websiteId } });
   },
   async (tx: Prisma.TransactionClient, websiteId: string) => {

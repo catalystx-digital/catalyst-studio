@@ -228,126 +228,46 @@ const seoScoreColors = (score: number) => {
 }
 
 /**
- * Migration function to convert string arrays to ComponentInstance objects
- * This handles backward compatibility with existing data structures
+ * Validates sitemap component arrays before rendering.
  */
 export const migrateComponentsToInstances = (components: any): ComponentInstanceArray => {
   if (!components) return []
   
-  // If already ComponentInstance array, return as-is
   if (isComponentInstanceArray(components)) {
     if (process.env.NODE_ENV === 'development') {
-    console.log('[Site Builder] Components already in new format')
+      console.log('[Site Builder] Components are canonical instances')
     }
     return components.map((component) => {
-      const {
-        globalComponentId: _globalComponentId,
-        sharedComponentId: _sharedComponentId,
-        ...canonicalComponent
-      } = component as ComponentInstance & {
-        globalComponentId?: unknown
-        sharedComponentId?: unknown
+      const rawComponent = component as ComponentInstance & Record<string, unknown>
+      if (
+        Object.prototype.hasOwnProperty.call(rawComponent, 'globalComponentId')
+        || Object.prototype.hasOwnProperty.call(rawComponent, 'sharedComponentId')
+      ) {
+        throw new Error('Component root shared/global identifiers are not accepted; use props.sharedComponentId.')
       }
 
       return {
-        ...canonicalComponent,
+        ...component,
         content: getCanonicalContent(component)
       }
     }) as ComponentInstanceArray
   }
   
-  // If it's an array, check what type of data we have
   if (Array.isArray(components)) {
     if (process.env.NODE_ENV === 'development') {
-    console.log('[Site Builder] Checking component array type:', components)
+      console.log('[Site Builder] Checking component array type:', components)
     }
     
-    // Check if ALL items are strings (legacy format)
     if (components.every(c => typeof c === 'string')) {
-      if (process.env.NODE_ENV === 'development') {
-      console.log('[Site Builder] Migrating string array to ComponentInstance objects')
-      }
-      
-      return components.map((componentType: string, index: number) => ({
-        id: `${componentType.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${index}`,
-        type: componentType,
-        parentId: null,
-        position: index,
-        props: {},
-        content: {
-          text: '',
-          images: [],
-          links: []
-        },
-        styles: {
-          desktop: {},
-          tablet: {},
-          mobile: {}
-        },
-        metadata: {
-          locked: false,
-          visible: true,
-          aiGenerated: false
-        }
-      }))
+      throw new Error('Legacy string component arrays are not accepted.')
     }
     
-    // Handle component objects that have at least a 'type' field
-    // This covers both:
-    // 1. API format (has id and type)
-    // 2. Greenfield bootstrap format (has type but no id - we generate id)
     if (components.length > 0 && components[0].type) {
-      if (process.env.NODE_ENV === 'development') {
-      console.log('[Site Builder] Converting component objects to instances')
-      }
-
-      return components
-        .filter((component: any) => component && typeof component.type === 'string')
-        .map((component: any, index: number) => {
-        // Generate an ID if not present (greenfield bootstrap components don't have IDs)
-        const componentId = component.id ||
-          `${component.type.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${index}`
-
-        // The API returns components with props containing text, metadata, etc.
-        // Greenfield returns components with props at root level (e.g., menuItems, logo)
-        // Extract known component-specific props to keep them accessible
-        const knownRootProps = ['cta', 'logo', 'sticky', 'menuItems', 'heading', 'subheading',
-          'items', 'image', 'images', 'text', 'description', 'title', 'buttons', 'fields',
-          'eyebrow', 'primaryCta', 'secondaryCta', 'features', 'testimonials', 'gallery']
-        const extractedProps: Record<string, any> = {}
-        for (const prop of knownRootProps) {
-          if (component[prop] !== undefined) {
-            extractedProps[prop] = component[prop]
-          }
-        }
-
-        const sharedComponentId =
-          typeof component.props?.sharedComponentId === 'string'
-            ? component.props.sharedComponentId
-            : undefined
-
-        return {
-          id: componentId,
-          type: component.type,
-          parentId: component.parentId || null,
-          position: component.position ?? index,
-          props: {
-            ...extractedProps,
-            ...(component.props || {}),
-            ...(sharedComponentId ? { sharedComponentId } : {})
-          },
-          content: getCanonicalContent(component),
-          styles: component.props?.styles || component.styles || {},
-          metadata: component.props?.metadata || component.metadata || {},
-        }
-      })
+      throw new Error('Component arrays must contain canonical ComponentInstance objects.')
     }
   }
 
-  if (process.env.NODE_ENV === 'development') {
-  console.warn('[Site Builder] Unknown component format, returning empty array:', components)
-  }
-  return []
+  throw new Error('Component payload is not a canonical component array.')
 }
 
 export interface ProfessionalNodeData {
@@ -1358,7 +1278,6 @@ export const professionalNodeTypes = {
   folder: ProfessionalFolderNode,
   redirect: ProfessionalRedirectNode,
 }
-
 
 
 

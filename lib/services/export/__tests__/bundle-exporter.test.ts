@@ -165,11 +165,11 @@ describe('BundleExporter (bundle pipeline)', () => {
           metadata: { pathDepth: 0 }
         },
         {
-          id: 'data-1',
-          source: 'WebsiteCustomContentData',
-          type: 'data',
-          title: 'Footer data',
-          contentTypeId: 'footerData',
+          id: 'folder-1',
+          source: 'WebsiteStructure',
+          type: 'folder',
+          title: 'Footer',
+          contentTypeId: 'folder',
           content: { value: 1 }
         }
       ]
@@ -244,8 +244,19 @@ describe('BundleExporter (bundle pipeline)', () => {
         websiteId: 'site-1',
         extractor: expect.anything()
       })
-      expect(transformUnifiedContentToExport).toHaveBeenCalledWith(unifiedContent)
-      expect(attachMediaAssetsToContentItems).toHaveBeenCalledWith(unifiedContent, transformedItems)
+      const enrichedUnifiedContent = (transformUnifiedContentToExport as jest.Mock).mock.calls[0][0]
+      expect(enrichedUnifiedContent.find((item: any) => item.id === 'page-1')?.components).toEqual([
+        {
+          id: 'comp-1',
+          type: 'hero',
+          position: 0,
+          parentId: null,
+          properties: { title: 'Welcome' },
+          isShared: false,
+          sharedId: undefined
+        }
+      ])
+      expect(attachMediaAssetsToContentItems).toHaveBeenCalledWith(enrichedUnifiedContent, transformedItems)
       expect(contentTypeHelpers.fetchContentTypes).toHaveBeenCalledWith({
         websiteId: 'site-1',
         componentUsage: componentExtraction.usage,

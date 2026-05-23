@@ -5,7 +5,7 @@ import { getPageCatalogSummary } from '@/lib/studio/pages/catalog';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const listContentItems = (tool as any)({
-  description: 'List content items with filtering options (supports both pages and custom content)',
+  description: 'List page content items with filtering options',
   inputSchema: z.object({
     websiteId: z.string().optional().describe('Filter by website ID'),
     contentTypeId: z.string().optional().describe('Filter by content type ID'),
@@ -36,8 +36,7 @@ export const listContentItems = (tool as any)({
       // Calculate pagination
       const skip = (safePage - 1) * safeLimit;
 
-      // Query both models and the template registry in parallel
-      const [pages, customContent, pagesCount, customContentCount, templateSummary] = await Promise.all([
+      const [pages, pagesCount, templateSummary] = await Promise.all([
         prisma.websitePage.findMany({
           where,
           skip,
@@ -48,41 +47,15 @@ export const listContentItems = (tool as any)({
             website: true
           }
         }),
-        prisma.websiteCustomContentData.findMany({
-          where,
-          skip,
-          take: safeLimit,
-          orderBy: { [safeSortBy]: safeSortOrder },
-          include: {
-            contentType: true,
-            website: true
-          }
-        }),
         prisma.websitePage.count({ where }),
-        prisma.websiteCustomContentData.count({ where }),
         getPageCatalogSummary()
       ]);
 
-      // Merge and sort results
-      const allItems = [...pages, ...customContent]
-        .sort((a, b) => {
-          const aVal = a[safeSortBy as keyof typeof a] as Date;
-          const bVal = b[safeSortBy as keyof typeof b] as Date;
-          return safeSortOrder === 'desc'
-            ? bVal.getTime() - aVal.getTime()
-            : aVal.getTime() - bVal.getTime();
-        })
-        .slice(0, safeLimit);
-
-      const total = pagesCount + customContentCount;
+      const total = pagesCount;
 
       // Transform items to include parsed field values
-      const transformedItems = allItems.map(item => {
-        const isPage = 'type' in item && 'metadata' in item;
-        const modelType = isPage ? 'page' : 'customContent';
-        const contentData = isPage
-          ? (item as any).content || {}
-          : (item as any).data || {};
+      const transformedItems = pages.map(item => {
+        const contentData = (item as any).content || {};
         const contentTypeFields = item.contentType.fields || {};
 
         return {
@@ -92,7 +65,7 @@ export const listContentItems = (tool as any)({
           contentTypeId: item.contentTypeId,
           status: item.status,
           content: contentData,
-          modelType,
+          modelType: 'page',
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
           contentType: {
@@ -143,4 +116,3 @@ export const listContentItems = (tool as any)({
     }
   }
 });
-

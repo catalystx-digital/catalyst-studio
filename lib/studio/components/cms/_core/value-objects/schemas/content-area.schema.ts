@@ -15,8 +15,6 @@ const ComponentInstanceSchema = z.object({
   content: z.record(z.unknown()).optional().describe('Content data for the component'),
   styles: z.record(z.unknown()).optional().describe('Responsive styles for the component'),
   metadata: z.record(z.unknown()).optional().describe('Component metadata and flags'),
-  globalComponentId: z.string().optional().describe('Reference to global component ID'),
-  sharedComponentId: z.string().optional().describe('Shared component reference'),
 })
 
 /**

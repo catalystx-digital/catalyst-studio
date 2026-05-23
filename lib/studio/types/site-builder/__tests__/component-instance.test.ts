@@ -29,7 +29,6 @@ describe('resolveSharedComponentReference', () => {
   it('ignores root legacy references', () => {
     const instance = createInstance({
       sharedComponentId: 'legacy-shared',
-      globalComponentId: 'legacy-global',
     } as Partial<ComponentInstance>)
 
     expect(resolveSharedComponentReference(instance)).toBeUndefined()

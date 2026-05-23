@@ -1,11 +1,9 @@
 import { PrismaClient } from '../../../lib/generated/prisma'
 import { createSimpleContentTypes } from './simple-content-types'
-// import { createBasicContentItems } from './basic-content-items' // Replaced by WebsitePage seeds
 import { createWebsitePages } from './website-pages'
 import { createWebsiteStructures } from './website-structure'
 import { createSingleLevelComponents } from './single-level-components'
 import { createWebsiteSharedComponents } from './website-shared-components'
-import { createWebsiteCustomContentData } from './website-custom-content-data'
 // import { createSampleWebsites } from './sample-websites' // Moved to main seed script after Story 18.4 components
 
 /**
@@ -41,14 +39,10 @@ export async function createBasicScenarios(
   console.log('  🗂️ Creating website structures...')
   const structureCount = await createWebsiteStructures(prisma, websiteId, pages)
   
-  // 6. WebsiteCustomContentData (independent, can be last)
-  console.log('  📊 Creating custom content data...')
-  const customData = await createWebsiteCustomContentData(prisma, websiteId, contentTypesList)
-  
   // Note: Sample Websites moved to main seed script after Story 18.4 components
   
   const total = contentTypes + componentTypes + sharedComponents.length + 
-                pages.length + structureCount + customData.length
+                pages.length + structureCount
   
   console.log(`  ✅ Basic scenarios complete: ${total} test cases created`)
   

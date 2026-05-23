@@ -6,6 +6,7 @@ import { validateContentItemsQuery, validateCreateContentItem } from '@/lib/api/
 import { ContentStatus } from '@/types/api';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
+import { PageContentNormalizationError } from '@/lib/studio/page-content';
 
 // GET /api/content/pages - Get paginated pages
 export async function GET(request: NextRequest) {
@@ -151,6 +152,7 @@ export async function POST(request: NextRequest) {
     // Create page using service
     const result = await pageService.createPage({
       websiteId: body.websiteId,
+      contentTypeId: body.contentTypeId,
       type: body.type || 'page',
       title: body.title,
       slug: body.slug,
@@ -174,6 +176,23 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
+    }
+
+    if (
+      error instanceof Error
+      && (error.message === 'Content type not found for website' || error.message === 'Content type not found')
+    ) {
+      return NextResponse.json(
+        { error: { message: 'Content type not found' } },
+        { status: 404 }
+      );
+    }
+
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: { message: 'Invalid page content', details: error.diagnostics } },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(

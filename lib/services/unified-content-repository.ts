@@ -74,15 +74,6 @@ function isPlainObject(obj: unknown): obj is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
-function stripLegacyDefaultProps(config: unknown): unknown {
-  if (!isRecord(config)) {
-    return config;
-  }
-  const next = { ...config };
-  delete next[['default', 'Props'].join('')];
-  return next;
-}
-
 function assertCanonicalOverrides(overrides: unknown): asserts overrides is Record<string, unknown> | null {
   if (overrides === null) {
     return;
@@ -207,7 +198,6 @@ export const ContentRepository = {
         where: { id: sharedId },
         data: {
           content: content as unknown as Prisma.InputJsonValue,
-          config: stripLegacyDefaultProps(current.config) as Prisma.InputJsonValue,
         },
       });
     });
@@ -270,19 +260,31 @@ export const ContentRepository = {
   ): Promise<{ instanceId: string }> {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
+    const content = (page.content || {}) as Record<string, unknown>;
+    const components = [...readStrictWriteComponents(content)];
     const shared = await db.websiteSharedComponent.findUnique({
       where: { id: sharedId },
-      select: { id: true, websiteId: true },
+      select: {
+        id: true,
+        websiteId: true,
+        websiteComponentType: {
+          select: {
+            type: true,
+          },
+        },
+      },
     });
     if (!shared || shared.websiteId !== page.websiteId) {
       throw new Error('Shared component not found');
     }
+    const componentType = shared.websiteComponentType?.type;
+    if (typeof componentType !== 'string' || componentType.trim().length === 0) {
+      throw new Error('Shared component type not found');
+    }
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const content = (page.content || {}) as Record<string, unknown>;
-    const components = [...readStrictWriteComponents(content)];
     components.splice(position, 0, {
       id: instanceId,
-      type: 'shared',
+      type: componentType,
       parentId: null,
       position,
       props: {

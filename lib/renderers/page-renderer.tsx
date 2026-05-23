@@ -489,7 +489,6 @@ function componentInstanceToCMSProps(
 
   const sharedReference = resolveSharedComponentReference(instance);
   if (sharedReference) {
-    cmsProps.globalComponentId = sharedReference;
     const shared = sharedMap.get(sharedReference);
     if (shared) {
       cmsProps.sharedComponent = clone(shared);

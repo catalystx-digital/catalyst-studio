@@ -270,7 +270,7 @@ export interface ContentItem {
   updatedAt: Date;
   contentType?: ContentType;
   website?: Website;
-  modelType?: 'websitePage' | 'websiteCustomContentData';
+  modelType?: 'websitePage';
 }
 
 // New model types for refactored API
@@ -290,24 +290,9 @@ export interface WebsitePage {
   website?: Website;
 }
 
-export interface WebsiteCustomContentData {
-  id: string;
-  websiteId: string;
-  title: string;
-  data: Record<string, any>;
-  contentTypeId: string;
-  status: string;
-  publishedAt?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  contentType?: ContentType;
-  website?: Website;
-}
-
 export interface PageContentResponse {
   page?: WebsitePage;
-  customContent?: WebsiteCustomContentData;
-  modelType?: 'websitePage' | 'websiteCustomContentData';
+  modelType?: 'websitePage';
 }
 
 export interface CreateContentItemRequest {
