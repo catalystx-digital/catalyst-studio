@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ContentRepository } from '@/lib/services/unified-content-repository';
+import { PageContentNormalizationError } from '@/lib/studio/page-content';
 import { MAX_JSON_DEPTH, MAX_OVERRIDES_SIZE_BYTES, checkJSONDepth, checkJSONSizeBytes } from '@/lib/studio/utils/json-constraints';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
@@ -99,6 +100,12 @@ export async function PATCH(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Override PATCH error:', error);
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      );
+    }
     // Surface conflict if optimistic concurrency failed
     const msg = (error instanceof Error ? error.message : '').toLowerCase();
     if (msg.includes('conflict')) {

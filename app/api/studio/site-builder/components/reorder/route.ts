@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getContentSource, updateContentSource } from '@/lib/utils/content-source'
 import { getAuthContext } from '@/lib/auth/context'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
-import { normalizePageContent, parseJsonString, toCanonicalPageContent } from '@/lib/studio/page-content'
+import { normalizePageContent, PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content'
 
 // Type for component structure in JSON
 type ComponentType = {
@@ -72,8 +72,8 @@ export async function POST(request: NextRequest) {
       const content = source.content
 
       // Normalize current content into the canonical component tree before mutating.
-      const normalized = normalizePageContent(content)
-      const components = normalized.pageContent.components.map(stripLegacyStrictWriteMirrors) as unknown as ComponentType[]
+      const normalized = normalizePageContent(content, { mode: 'strict-write' })
+      const components = normalized.pageContent.components as unknown as ComponentType[]
 
       // Find the component to move
       const componentToMove = components.find((c: ComponentType) => c.id === componentId)
@@ -201,6 +201,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Reorder error:', error)
+
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      )
+    }
     
     if (error instanceof Error) {
       return NextResponse.json(
@@ -266,29 +273,4 @@ function calculateSubtreeDepth(components: ComponentType[], componentId: string)
   const componentDepth = calculateDepth(components, componentId)
   
   return Math.max(...depths) - componentDepth
-}
-
-function stripLegacyStrictWriteMirrors(component: unknown): unknown {
-  if (!component || typeof component !== 'object' || Array.isArray(component)) {
-    return component
-  }
-
-  const record = { ...(component as Record<string, unknown>) }
-  const props = record.props
-  if (props && typeof props === 'object' && !Array.isArray(props)) {
-    const nextProps = { ...(props as Record<string, unknown>) }
-    delete nextProps.content
-    if (
-      isRecord(nextProps.text) ||
-      (typeof nextProps.text === 'string' && isRecord(parseJsonString(nextProps.text)))
-    ) {
-      delete nextProps.text
-    }
-    record.props = nextProps
-  }
-  return record
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

@@ -81,7 +81,7 @@ describe('PATCH page overrides - concurrency and limits', () => {
     expect(updatedComponent.props).not.toHaveProperty('content')
   })
 
-  it('merges overrides into canonical component content before stale props text', async () => {
+  it('returns 400 when existing content contains legacy props text/content mirrors', async () => {
     const page = {
       ...basePage(new Date('2025-09-12T00:00:00Z')),
       content: {
@@ -109,19 +109,17 @@ describe('PATCH page overrides - concurrency and limits', () => {
     })
     const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
 
-    expect(res.status).toBe(200)
-    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
-    const updatedComponent = updateCall.data.content.components[0]
-
-    expect(updatedComponent.content).toEqual({
-      title: 'Edited title',
-      body: 'Canonical body',
-    })
-    expect(updatedComponent.props).not.toHaveProperty('text')
-    expect(updatedComponent.props).not.toHaveProperty('content')
+    const json = await res.json()
+    expect(res.status).toBe(400)
+    expect(json.error).toBe('Invalid page content')
+    expect(json.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING' }),
+      expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY' }),
+    ]))
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
-  it('clears canonical content and override props when overrides are null', async () => {
+  it('returns 400 when clearing overrides from content with legacy mirrors', async () => {
     const page = {
       ...basePage(new Date('2025-09-12T00:00:00Z')),
       content: {
@@ -151,18 +149,14 @@ describe('PATCH page overrides - concurrency and limits', () => {
     })
     const res = await patchOverrides(req, { params: Promise.resolve({ instanceId: 'inst-1' }) })
 
-    expect(res.status).toBe(200)
-    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
-    const updatedComponent = updateCall.data.content.components[0]
-
-    expect(updatedComponent.content).toEqual({})
-    expect(updatedComponent.props).toEqual({
-      sharedComponentId: 'sc-1',
-    })
-    expect(updatedComponent.props).not.toHaveProperty('text')
-    expect(updatedComponent.props).not.toHaveProperty('content')
-    expect(updatedComponent.props).not.toHaveProperty('overrides')
-    expect(updatedComponent.props).not.toHaveProperty('hasOverrides')
+    const json = await res.json()
+    expect(res.status).toBe(400)
+    expect(json.error).toBe('Invalid page content')
+    expect(json.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_LEGACY' }),
+      expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY' }),
+    ]))
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
   it('returns 409 when If-Unmodified-Since is stale', async () => {

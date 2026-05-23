@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/lib/generated/prisma';
-import { normalizePageContent, parseJsonString, toCanonicalPageContent } from '@/lib/studio/page-content';
+import { normalizePageContent, toCanonicalPageContent } from '@/lib/studio/page-content';
 
 export interface ResolvedInstance {
   id: string;
@@ -99,22 +99,11 @@ function assertCanonicalOverrides(overrides: unknown): asserts overrides is Reco
   }
 }
 
-function stripLegacyStrictWriteMirrors(component: Record<string, unknown>): Record<string, unknown> {
-  const next = { ...component };
-  const props = toRecord(next.props);
-  if (isTextMirror(props.text)) {
-    delete props.text;
-  }
-  delete props.content;
-  next.props = props;
-  return next;
-}
-
-function isTextMirror(value: unknown): boolean {
-  return isRecord(value) || (typeof value === 'string' && isRecord(parseJsonString(value)));
-}
-
 const db = prisma as any;
+
+function readStrictWriteComponents(content: unknown): Array<Record<string, unknown>> {
+  return normalizePageContent(content, { mode: 'strict-write' }).pageContent.components as unknown as Array<Record<string, unknown>>;
+}
 
 export const ContentRepository = {
   async createSharedComponent(args: {
@@ -156,7 +145,7 @@ export const ContentRepository = {
     const sharedIds = components
       .map((c) => {
         const props = toRecord(c.props);
-        return (props.sharedComponentId as string) || (c.sharedComponentId as string) || null;
+        return (props.sharedComponentId as string) || null;
       })
       .filter((v): v is string => !!v);
 
@@ -172,7 +161,7 @@ export const ContentRepository = {
       const position = c.position as number;
       const parentId = (c.parentId as string | null) ?? null;
       const props = toRecord(c.props);
-      const sharedId = (props.sharedComponentId as string) || (c.sharedComponentId as string) || null;
+      const sharedId = (props.sharedComponentId as string) || null;
 
       const shared = sharedId ? sharedMap.get(sharedId) : undefined;
       const sharedContent = toRecord(shared?.content);
@@ -239,8 +228,7 @@ export const ContentRepository = {
     }
 
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
-      .map(stripLegacyStrictWriteMirrors);
+    const components = readStrictWriteComponents(content);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
 
@@ -251,17 +239,10 @@ export const ContentRepository = {
       // Clear overrides - reset props.text/content to remove override values
       delete props.overrides;
       delete props.hasOverrides;
-      if (isTextMirror(props.text)) {
-        delete props.text;
-      }
-      delete props.content;
       comp.content = {};
     } else {
       const existingContent = isPlainObject(comp.content) ? comp.content : {};
       const mergedContent = { ...existingContent, ...overrides };
-      if (isTextMirror(props.text)) {
-        delete props.text;
-      }
 
       // Also store overrides separately for tracking/rollback purposes
       props.overrides = overrides;
@@ -298,8 +279,7 @@ export const ContentRepository = {
     }
     const instanceId = `instance-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = [...(normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
-      .map(stripLegacyStrictWriteMirrors)];
+    const components = [...readStrictWriteComponents(content)];
     components.splice(position, 0, {
       id: instanceId,
       type: 'shared',
@@ -326,8 +306,7 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
-      .map(stripLegacyStrictWriteMirrors);
+    const components = readStrictWriteComponents(content);
     const filtered = components.filter((c) => (c.id as string) !== instanceId);
     await db.websitePage.update({
       where: { id: pageId },
@@ -339,8 +318,7 @@ export const ContentRepository = {
     const page = await db.websitePage.findUnique({ where: { id: pageId } });
     if (!page) throw new Error('Page not found');
     const content = (page.content || {}) as Record<string, unknown>;
-    const components = (normalizePageContent(content, { mode: 'strict-read' }).pageContent.components as unknown as Array<Record<string, unknown>>)
-      .map(stripLegacyStrictWriteMirrors);
+    const components = readStrictWriteComponents(content);
     const idx = components.findIndex((c) => (c.id as string) === instanceId);
     if (idx === -1) throw new Error('Instance not found on page');
 

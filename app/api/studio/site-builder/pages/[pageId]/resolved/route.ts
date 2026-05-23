@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
 import { contentReferenceSyncService } from '@/lib/services/content-reference/sync-service';
+import { PageContentNormalizationError } from '@/lib/studio/page-content';
 
 type UpdateOperation =
   | {
@@ -78,6 +79,12 @@ export async function GET(
     });
   } catch (error) {
     console.error('Resolved page GET error:', error);
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      );
+    }
     const message = error instanceof Error ? error.message : 'Failed to resolve page';
     const status = message.includes('not found') ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
@@ -181,8 +188,14 @@ export async function PUT(
     return NextResponse.json({ success: true, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error('Resolved page PUT error:', error);
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      );
+    }
     const message = error instanceof Error ? error.message : 'Failed to save updates';
-    const status = message.startsWith('Conflict') ? 409 : 500;
+    const status = message.startsWith('Conflict') ? 409 : message.includes('not found') ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

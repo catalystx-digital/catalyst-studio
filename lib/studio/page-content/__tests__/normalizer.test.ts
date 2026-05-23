@@ -807,7 +807,7 @@ describe('page content normalizer', () => {
       expect((error as PageContentNormalizationError).diagnostics.map(diagnostic => diagnostic.code)).toEqual([
         'PAGE_CONTENT_COMPONENT_DATA_INVALID',
         'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_STRING',
-        'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY_JSON',
+        'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY',
         'PAGE_CONTENT_COMPONENT_CONTENT_INVALID',
         'PAGE_CONTENT_COMPONENT_STYLES_INVALID',
         'PAGE_CONTENT_COMPONENT_METADATA_INVALID',
@@ -841,8 +841,8 @@ describe('page content normalizer', () => {
     }
   })
 
-  it('rejects malformed JSON-like props.text in strict-write', () => {
-    for (const text of ['{"heading":', '[{"x":']) {
+  it('rejects any props.text in strict-write', () => {
+    for (const text of ['{"heading":', '[{"x":', 'Plain text label', { title: 'Legacy text' }]) {
       try {
         toCanonicalPageContent({}, [
           {
@@ -857,7 +857,7 @@ describe('page content normalizer', () => {
         expect(error).toBeInstanceOf(PageContentNormalizationError)
         expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
           expect.objectContaining({
-            code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+            code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY',
             path: 'components[0].props.text',
             severity: 'error',
           }),
@@ -866,22 +866,70 @@ describe('page content normalizer', () => {
     }
   })
 
-  it.each([
-    '[Draft] Title',
-    '[todo]',
-    '[- draft]',
-    '[2026 Roadmap]',
-    '[null hypothesis]',
-    '{{name}}',
-  ])('does not reject plain props.text starting with JSON delimiters in strict-write: %s', (text) => {
-    expect(() => toCanonicalPageContent({}, [
+  it('rejects data.text in strict-write before it can be promoted into props', () => {
+    try {
+      toCanonicalPageContent({}, [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          data: { text: 'Legacy data text' },
+          content: {},
+        },
+      ], { mode: 'strict-write' })
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_DATA_TEXT_LEGACY',
+          path: 'components[0].data.text',
+          severity: 'error',
+        }),
+      ]))
+    }
+  })
+
+  it('rejects root shared/global component ids and omits them from strict-write output', () => {
+    try {
+      toCanonicalPageContent({}, [
+        {
+          id: 'shared-legacy',
+          type: 'shared',
+          globalComponentId: 'global-1',
+          sharedComponentId: 'shared-root-1',
+          props: { sharedComponentId: 'shared-props-1' },
+          content: {},
+        },
+      ], { mode: 'strict-write' })
+      throw new Error('Expected strict canonical write to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(PageContentNormalizationError)
+      expect((error as PageContentNormalizationError).diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_ROOT_GLOBAL_COMPONENT_ID',
+          path: 'components[0].globalComponentId',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_ROOT_SHARED_COMPONENT_ID',
+          path: 'components[0].sharedComponentId',
+          severity: 'error',
+        }),
+      ]))
+    }
+
+    const output = toCanonicalPageContent({}, [
       {
-        id: 'text-1',
-        type: 'text-block',
-        props: { text },
+        id: 'shared-valid',
+        type: 'shared',
+        props: { sharedComponentId: 'shared-props-1' },
         content: {},
       },
-    ], { mode: 'strict-write' })).not.toThrow()
+    ], { mode: 'strict-write' })
+    const component = (output.components as Array<Record<string, unknown>>)[0]
+    expect(component.props).toEqual({ sharedComponentId: 'shared-props-1' })
+    expect(component).not.toHaveProperty('globalComponentId')
+    expect(component).not.toHaveProperty('sharedComponentId')
   })
 
   it('rejects invalid strict-write page metadata while canonical-read drops it', () => {

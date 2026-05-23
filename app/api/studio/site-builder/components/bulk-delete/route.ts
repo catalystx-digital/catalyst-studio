@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getContentSource, updateContentSource } from '@/lib/utils/content-source'
 import { getAuthContext } from '@/lib/auth/context'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
+import { normalizePageContent, PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content'
 
 const db = prisma as any
 
@@ -62,12 +63,7 @@ export async function DELETE(request: NextRequest) {
       const source = await getContentSource(tx, contentItemId)
       const content = source.content
 
-      // Parse the content JSON to get component tree
-      const components = (content?.components as Record<string, unknown>[]) || []
-      
-      if (!Array.isArray(components)) {
-        throw new Error('Invalid content structure')
-      }
+      const components = normalizePageContent(content, { mode: 'strict-write' }).pageContent.components as unknown as Record<string, unknown>[]
 
       // Find all components to delete and their descendants
       const allIdsToDelete = new Set(componentIds)
@@ -126,10 +122,7 @@ export async function DELETE(request: NextRequest) {
       })
 
       // Update the content item with the modified component tree
-      const updatedContent = {
-        ...content,
-        components: remainingComponents
-      }
+      const updatedContent = toCanonicalPageContent(content, remainingComponents, { mode: 'strict-write' })
       await updateContentSource(tx, source, updatedContent)
 
       // Note: Global component associations removed as globalComponentUsage table doesn't exist
@@ -165,6 +158,13 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error('Bulk delete error:', error)
+
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      )
+    }
     
     if (error instanceof Error) {
       return NextResponse.json(

@@ -1,3 +1,4 @@
+import { PageContentNormalizationError } from '@/lib/studio/page-content'
 import { ContentRepository } from '../unified-content-repository'
 
 // Mock prisma and shape a transactional client
@@ -164,6 +165,35 @@ describe('ContentRepository.getPageWithResolvedComponents scope', () => {
     }))
     expect(result.components[0].effectiveProps).not.toHaveProperty('body')
   })
+
+  it('does not resolve root sharedComponentId fallback references', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({
+      id: 'page-1',
+      websiteId: 'w1',
+      title: 'Page',
+      content: {
+        components: [
+          {
+            id: 'inst-1',
+            type: 'shared',
+            position: 0,
+            sharedComponentId: 'sc-root',
+            props: {},
+          },
+        ],
+      },
+    })
+    ;(prisma.websiteSharedComponent.findMany as jest.Mock).mockResolvedValue([])
+
+    const result = await ContentRepository.getPageWithResolvedComponents('w1', 'page-1')
+
+    expect(prisma.websiteSharedComponent.findMany).not.toHaveBeenCalled()
+    expect(result.components[0]).toEqual(expect.objectContaining({
+      sharedId: undefined,
+      isShared: false,
+      effectiveProps: {},
+    }))
+  })
 })
 
 describe('ContentRepository.savePageOverrides contract', () => {
@@ -171,7 +201,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
     jest.clearAllMocks()
   })
 
-  it('saves canonical content and override props without content mirrors', async () => {
+  it('rejects existing props.text mirrors instead of cleaning them before saving overrides', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -197,24 +227,14 @@ describe('ContentRepository.savePageOverrides contract', () => {
     ;(prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue({ id: 'sc-1', websiteId: 'w1' })
     ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
 
-    await ContentRepository.savePageOverrides('page-1', 'inst-1', { title: 'Edited title' })
+    await expect(
+      ContentRepository.savePageOverrides('page-1', 'inst-1', { title: 'Edited title' })
+    ).rejects.toBeInstanceOf(PageContentNormalizationError)
 
-    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
-    const component = updateCall.data.content.components[0]
-
-    expect(component.content).toEqual({
-      title: 'Edited title',
-      body: 'Canonical body',
-    })
-    expect(component.props).toEqual({
-      sharedComponentId: 'sc-1',
-      overrides: { title: 'Edited title' },
-      hasOverrides: true,
-    })
-    expect(component.props).not.toHaveProperty('text')
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
-  it('does not persist props.text from canonical page mutations', async () => {
+  it('saves canonical page mutations without legacy mirrors', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -226,9 +246,7 @@ describe('ContentRepository.savePageOverrides contract', () => {
             id: 'inst-1',
             type: 'button',
             position: 0,
-            props: {
-              text: 'Click me',
-            },
+            props: {},
             content: { label: 'Click me', href: '/old' },
           },
         ],
@@ -247,11 +265,10 @@ describe('ContentRepository.savePageOverrides contract', () => {
       label: 'Click me',
       href: '/new',
     })
-    expect(component.props).not.toHaveProperty('text')
     expect(component.props).not.toHaveProperty('content')
   })
 
-  it('clears mirror-shaped props.text when overrides are removed', async () => {
+  it('rejects mirror-shaped props.text when overrides are removed', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -279,22 +296,14 @@ describe('ContentRepository.savePageOverrides contract', () => {
     ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
     ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
 
-    await ContentRepository.savePageOverrides('page-1', 'inst-1', null)
+    await expect(
+      ContentRepository.savePageOverrides('page-1', 'inst-1', null)
+    ).rejects.toBeInstanceOf(PageContentNormalizationError)
 
-    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
-    const component = updateCall.data.content.components[0]
-
-    expect(component.content).toEqual({})
-    expect(component.props).toEqual({
-      sharedComponentId: 'sc-1',
-    })
-    expect(component.props).not.toHaveProperty('text')
-    expect(component.props).not.toHaveProperty('content')
-    expect(component.props).not.toHaveProperty('overrides')
-    expect(component.props).not.toHaveProperty('hasOverrides')
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
-  it('does not promote stale legacy mirrors when clearing overrides from missing canonical content', async () => {
+  it('rejects stale legacy mirrors when clearing overrides from missing canonical content', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -321,17 +330,11 @@ describe('ContentRepository.savePageOverrides contract', () => {
     ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
     ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
 
-    await ContentRepository.savePageOverrides('page-1', 'inst-1', null)
+    await expect(
+      ContentRepository.savePageOverrides('page-1', 'inst-1', null)
+    ).rejects.toBeInstanceOf(PageContentNormalizationError)
 
-    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
-    const component = updateCall.data.content.components[0]
-
-    expect(component.content).toEqual({})
-    expect(component.props).toEqual({
-      sharedComponentId: 'sc-1',
-    })
-    expect(component.props).not.toHaveProperty('text')
-    expect(component.props).not.toHaveProperty('content')
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -354,7 +357,7 @@ describe('ContentRepository page mutations canonical reads', () => {
     jest.clearAllMocks()
   })
 
-  it('does not promote stale props.content, props.text, or data.content when adding a shared instance', async () => {
+  it('rejects stale props.content, props.text, and data.content when adding a shared instance', async () => {
     const page = {
       id: 'page-1',
       websiteId: 'w1',
@@ -385,18 +388,11 @@ describe('ContentRepository page mutations canonical reads', () => {
     ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(page)
     ;(prisma.websitePage.update as jest.Mock).mockResolvedValue({ ...page })
 
-    await ContentRepository.addSharedInstanceToPage('page-1', 'sc-1', 1)
+    await expect(
+      ContentRepository.addSharedInstanceToPage('page-1', 'sc-1', 1)
+    ).rejects.toBeInstanceOf(PageContentNormalizationError)
 
-    const updateCall = (prisma.websitePage.update as jest.Mock).mock.calls[0][0]
-    const existing = updateCall.data.content.components.find((component: Record<string, unknown>) => (
-      component.id === 'existing-1'
-    ))
-
-    expect(existing.content).toEqual({})
-    expect(existing.props).toEqual({ className: 'hero-shell' })
-    expect(existing).not.toHaveProperty('data')
-    expect(existing.props).not.toHaveProperty('content')
-    expect(existing.props).not.toHaveProperty('text')
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
   it('rejects adding a shared instance from another website', async () => {

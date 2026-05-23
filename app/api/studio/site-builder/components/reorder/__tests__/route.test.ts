@@ -89,7 +89,7 @@ describe('/api/studio/site-builder/components/reorder', () => {
       })
     })
 
-    it('should reorder canonical components without persisting legacy props.content mirrors', async () => {
+    it('should reject legacy props.text mirrors during reorder', async () => {
       const mockComponents = [
         {
           id: 'hero-1',
@@ -137,28 +137,18 @@ describe('/api/studio/site-builder/components/reorder', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-
-      const updateCall = (mockTransaction.websitePage.update as jest.Mock).mock.calls[0][0]
-      const updatedComponents = updateCall.data.content.components as Array<Record<string, unknown>>
-      const updatedHero = updatedComponents.find(component => component.id === 'hero-1') as Record<string, unknown>
-
-      expect(updatedHero).toEqual(expect.objectContaining({
-        position: 1,
-        content: { heading: 'Hello', body: 'Canonical content' },
-        props: {}
-      }))
-      expect(updatedComponents).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 'text-1', position: 0, props: {} })
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid page content')
+      expect(data.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY',
+          path: 'components[0].props.text',
+        }),
       ]))
-      for (const component of updatedComponents) {
-        expect(Object.prototype.hasOwnProperty.call(component.props, 'content')).toBe(false)
-        expect(Object.prototype.hasOwnProperty.call(component.props, 'text')).toBe(false)
-      }
+      expect(mockTransaction.websitePage.update).not.toHaveBeenCalled()
     })
 
-    it('keeps empty canonical content empty when stale legacy mirrors exist during reorder', async () => {
+    it('rejects stale legacy mirrors during reorder', async () => {
       const mockComponents = [
         {
           id: 'hero-1',
@@ -211,21 +201,14 @@ describe('/api/studio/site-builder/components/reorder', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-
-      const updateCall = (mockTransaction.websitePage.update as jest.Mock).mock.calls[0][0]
-      const updatedComponents = updateCall.data.content.components as Array<Record<string, unknown>>
-      const updatedHero = updatedComponents.find(component => component.id === 'hero-1') as Record<string, unknown>
-
-      expect(updatedHero).toEqual(expect.objectContaining({
-        position: 1,
-        content: {},
-        props: { variant: 'primary' }
-      }))
-      expect(updatedHero).not.toHaveProperty('data')
-      expect(updatedHero.props).not.toHaveProperty('content')
-      expect(updatedHero.props).not.toHaveProperty('text')
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid page content')
+      expect(data.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_PROPS_CONTENT_LEGACY' }),
+        expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY' }),
+        expect.objectContaining({ code: 'PAGE_CONTENT_COMPONENT_DATA_CONTENT_LEGACY' }),
+      ]))
+      expect(mockTransaction.websitePage.update).not.toHaveBeenCalled()
     })
 
     it('should successfully reorder component to different parent', async () => {

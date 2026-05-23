@@ -329,7 +329,7 @@ describe('SaveManager', () => {
     expect((fetch as jest.Mock).mock.calls[0][0]).not.toContain('/page-components/');
   });
 
-  it('does not persist stale props content mirrors when a pending structural component is canonically edited before save', async () => {
+  it('does not strip stale props content mirrors before structural save validation', async () => {
     saveManager.initialize('test-website');
     (fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -384,6 +384,8 @@ describe('SaveManager', () => {
       parentId: null,
       position: 0,
       props: {
+        content: { title: 'Stale props.content title' },
+        text: { title: 'Stale props.text title' },
         metadata: { schema: 'hero' },
         sharedComponentId: 'shared-1',
         overrides: { title: 'Canonical title' },
@@ -393,8 +395,6 @@ describe('SaveManager', () => {
       styles: {},
       metadata: {},
     });
-    expect(body.components[0].props).not.toHaveProperty('content');
-    expect(body.components[0].props).not.toHaveProperty('text');
   });
 
   it('preserves canonical content while merging legitimate props into a pending same-component structural update', async () => {

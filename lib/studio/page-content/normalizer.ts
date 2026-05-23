@@ -378,6 +378,22 @@ function strictPayloadDiagnostics(
   const propsRecord = isRecord(instance.props) ? instance.props : undefined
   const dataRecord = isRecord(instance.data) ? instance.data : undefined
   const propsSource = propsRecord ?? dataRecord
+  if (hasOwn(instance, 'globalComponentId')) {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_ROOT_GLOBAL_COMPONENT_ID',
+      message: 'Component root globalComponentId is not accepted for strict writes; use props.sharedComponentId for shared component references.',
+      path: `${path}.globalComponentId`,
+    })
+  }
+
+  if (hasOwn(instance, 'sharedComponentId')) {
+    addStrictDiagnostic(diagnostics, {
+      code: 'PAGE_CONTENT_COMPONENT_ROOT_SHARED_COMPONENT_ID',
+      message: 'Component root sharedComponentId is not accepted for strict writes; use props.sharedComponentId.',
+      path: `${path}.sharedComponentId`,
+    })
+  }
+
   if (propsSource) {
     if (propsRecord && hasOwn(propsRecord, 'content')) {
       const code = typeof propsRecord.content === 'string'
@@ -403,11 +419,19 @@ function strictPayloadDiagnostics(
       })
     }
 
-    if (typeof propsSource.text === 'string' && isRecord(parseJsonString(propsSource.text))) {
+    if (propsRecord && hasOwn(propsRecord, 'text')) {
       addStrictDiagnostic(diagnostics, {
-        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY_JSON',
-        message: 'Component props.text legacy JSON payloads are not accepted for strict writes.',
-        path: `${path}.${isRecord(instance.props) ? 'props' : 'data'}.text`,
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_LEGACY',
+        message: 'Component props.text is a legacy content mirror and is not accepted for strict writes; use component.content.',
+        path: `${path}.props.text`,
+      })
+    }
+
+    if (dataRecord && hasOwn(dataRecord, 'text')) {
+      addStrictDiagnostic(diagnostics, {
+        code: 'PAGE_CONTENT_COMPONENT_DATA_TEXT_LEGACY',
+        message: 'Component data.text is a legacy content mirror and is not accepted for strict writes; use component.content.',
+        path: `${path}.data.text`,
       })
     }
   }
@@ -500,6 +524,12 @@ function omitKeys(value: AnyRecord, keys: Set<string>): AnyRecord {
 const STRICT_COMPONENT_SOURCE_KEYS = new Set([
   'componentType',
   'data',
+])
+
+const STRICT_WRITE_COMPONENT_SOURCE_KEYS = new Set([
+  ...STRICT_COMPONENT_SOURCE_KEYS,
+  'globalComponentId',
+  'sharedComponentId',
 ])
 
 const STRICT_PAGE_SOURCE_KEYS = new Set([
@@ -633,9 +663,9 @@ export function normalizeComponent(
     message: 'Component metadata contains malformed JSON-like text and was left unchanged.',
   })
   const metadata = isRecord(rawMetadata) ? rawMetadata : {}
-  const globalComponentId = typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
-  const sharedComponentId = typeof instance.sharedComponentId === 'string' ? instance.sharedComponentId : undefined
-  const passthrough = omitKeys(instance, STRICT_COMPONENT_SOURCE_KEYS)
+  const globalComponentId = !isStrictWrite(options) && typeof instance.globalComponentId === 'string' ? instance.globalComponentId : undefined
+  const sharedComponentId = !isStrictWrite(options) && typeof instance.sharedComponentId === 'string' ? instance.sharedComponentId : undefined
+  const passthrough = omitKeys(instance, isStrictWrite(options) ? STRICT_WRITE_COMPONENT_SOURCE_KEYS : STRICT_COMPONENT_SOURCE_KEYS)
 
   if (type === 'unknown') {
     addDiagnostic(diagnostics, {

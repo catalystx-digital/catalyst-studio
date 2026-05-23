@@ -52,13 +52,6 @@ function mergeComponentUpdateData(
       ...pendingData.props,
       ...nextProps,
     };
-
-    if (!Object.prototype.hasOwnProperty.call(nextProps, 'content')) {
-      delete merged.props.content;
-    }
-    if (!Object.prototype.hasOwnProperty.call(nextProps, 'text')) {
-      delete merged.props.text;
-    }
   }
 
   return merged;

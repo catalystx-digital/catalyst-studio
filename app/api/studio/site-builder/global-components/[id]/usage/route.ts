@@ -4,6 +4,7 @@ import { Prisma } from '@/lib/generated/prisma';
 import { ContentRepository } from '@/lib/services/unified-content-repository';
 import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
+import { normalizePageContent, PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content';
 
 // Type for page content structure
 interface PageContent {
@@ -228,6 +229,13 @@ export async function POST(
     
   } catch (error) {
     console.error('Error tracking component usage:', error);
+
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      );
+    }
     
     if (error instanceof Error && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(
@@ -305,7 +313,7 @@ export async function DELETE(
         return NextResponse.json({ error: 'Page not found' }, { status: 404 });
       }
       const content = (page.content || {}) as unknown as PageContent;
-      const components = Array.isArray(content.components) ? content.components : [];
+      const components = normalizePageContent(content, { mode: 'strict-write' }).pageContent.components as unknown as PageContent['components'];
       const filtered = components.filter(
         (c) => !(c?.props && (c.props as Record<string, unknown>).sharedComponentId === id)
       );
@@ -313,7 +321,7 @@ export async function DELETE(
       if (removedCount > 0) {
         await prisma.websitePage.update({
           where: { id: pageId },
-          data: { content: { ...content, components: filtered } as unknown as Prisma.InputJsonValue },
+          data: { content: toCanonicalPageContent(content, filtered, { mode: 'strict-write' }) as Prisma.InputJsonValue },
         });
         await prisma.websiteSharedComponent.update({ where: { id }, data: { usageCount: { decrement: removedCount } } });
       }
@@ -324,6 +332,13 @@ export async function DELETE(
     
   } catch (error) {
     console.error('Error removing component usage:', error);
+
+    if (error instanceof PageContentNormalizationError) {
+      return NextResponse.json(
+        { error: 'Invalid page content', diagnostics: error.diagnostics },
+        { status: 400 }
+      );
+    }
     
     if (error instanceof Error && 'code' in error && (error as { code: string }).code === 'P2025') {
       return NextResponse.json(
