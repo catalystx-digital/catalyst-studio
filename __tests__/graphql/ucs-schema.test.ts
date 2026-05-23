@@ -247,6 +247,68 @@ describe('ucsGraphqlSchema', () => {
     expect(result.data).toMatchSnapshot();
   });
 
+  it('surfaces invalid page content diagnostics as a GraphQL error', async () => {
+    const diagnostics = [
+      {
+        code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
+        level: 'error' as const,
+        message: 'Page content JSON could not be parsed.',
+        context: { pageId: homePage.id },
+      },
+    ];
+    mockedResolver.mockResolvedValueOnce({
+      payload: null,
+      diagnostics,
+    });
+
+    const result = await executeQuery(
+      `
+        query PageBySlug($slug: String!, $websiteId: ID!) {
+          page(slug: $slug, websiteId: $websiteId) {
+            id
+          }
+        }
+      `,
+      { slug: '/', websiteId: website.id },
+    );
+
+    expect(result.data).toEqual({ page: null });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors?.[0].message).toBe('Invalid page content');
+    expect(result.errors?.[0].extensions).toEqual({
+      code: 'INVALID_PAGE_CONTENT',
+      diagnostics,
+    });
+  });
+
+  it('returns null without an error when the UCS slug is not found', async () => {
+    mockedResolver.mockResolvedValueOnce({
+      payload: null,
+      diagnostics: [
+        {
+          code: 'UCS_SLUG_NOT_FOUND',
+          level: 'info',
+          message: 'No UCS page matched the requested slug.',
+          context: { slug: '/missing' },
+        },
+      ],
+    });
+
+    const result = await executeQuery(
+      `
+        query PageBySlug($slug: String!, $websiteId: ID!) {
+          page(slug: $slug, websiteId: $websiteId) {
+            id
+          }
+        }
+      `,
+      { slug: '/missing', websiteId: website.id },
+    );
+
+    expect(result.errors).toBeUndefined();
+    expect(result.data).toEqual({ page: null });
+  });
+
   it('returns shared components when scoped to website', async () => {
     const result = await executeQuery(
       `

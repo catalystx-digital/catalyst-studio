@@ -6,7 +6,11 @@ import {
   normalizeTemplateProps,
   extractSiteOriginFromMetadata
 } from '@/lib/studio/headless/ucs/snapshot-builder'
-import { normalizePageContent, type PageContentDiagnostic } from '@/lib/studio/page-content'
+import {
+  normalizePageContent,
+  PageContentNormalizationError,
+  type PageContentDiagnostic
+} from '@/lib/studio/page-content'
 import type {
   SnapshotPage,
   SnapshotSharedComponent,
@@ -348,7 +352,29 @@ export async function resolveUcsPageBySlug(
   }
 
   const pageRecord = structureRecord.websitePage
-  const { pageContent, diagnostics: normalizerDiagnostics } = normalizePageContent(pageRecord.content)
+  let pageContent: ReturnType<typeof normalizePageContent>['pageContent']
+  let normalizerDiagnostics: PageContentDiagnostic[]
+  try {
+    const normalized = normalizePageContent(pageRecord.content, { mode: 'strict-write' })
+    pageContent = normalized.pageContent
+    normalizerDiagnostics = normalized.diagnostics
+  } catch (error) {
+    if (!(error instanceof PageContentNormalizationError)) {
+      throw error
+    }
+
+    error.diagnostics.forEach(diagnostic => {
+      diagnostics.push(mapNormalizerDiagnosticToResolver(diagnostic, {
+        websiteId: options.websiteId,
+        pageId: pageRecord.id,
+        source: 'page.content',
+        fullPath: structureRecord.fullPath ?? canonicalPath,
+      }))
+    })
+
+    return { payload: null, diagnostics }
+  }
+
   normalizerDiagnostics.forEach(diagnostic => {
     diagnostics.push(mapNormalizerDiagnosticToResolver(diagnostic, {
       websiteId: options.websiteId,

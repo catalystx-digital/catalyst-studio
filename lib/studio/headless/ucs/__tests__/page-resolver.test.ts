@@ -63,7 +63,7 @@ describe('resolveUcsPageBySlug', () => {
     expect(result.diagnostics).toHaveLength(0)
   })
 
-  it('rejects legacy sections without promoting data.content into snapshot page components', async () => {
+  it('rejects legacy sections without resolving a snapshot page', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',
       parentId: null,
@@ -104,11 +104,11 @@ describe('resolveUcsPageBySlug', () => {
       sharedComponentCache: new Map()
     })
 
-    expect(result.payload?.page.components).toEqual([])
+    expect(result.payload).toBeNull()
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PAGE_CONTENT_LEGACY_SECTIONS',
-        level: 'warn',
+        level: 'error',
         context: expect.objectContaining({
           websiteId: 'site',
           pageId: 'page-home',
@@ -181,7 +181,7 @@ describe('resolveUcsPageBySlug', () => {
     expect(result.payload?.page.components[0].props).not.toHaveProperty('content')
   })
 
-  it('ignores malformed two-column props.text during canonical enrichment', async () => {
+  it('rejects malformed two-column props.text instead of resolving a snapshot page', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',
       parentId: null,
@@ -227,13 +227,23 @@ describe('resolveUcsPageBySlug', () => {
       resolveMedia: false
     })
 
-    expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain('UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON')
-    expect(result.diagnostics.map(diagnostic => diagnostic.code)).not.toContain('PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED')
-    expect(result.payload?.page.components[0].content).toEqual({})
-    expect(result.payload?.page.components[0].props).not.toHaveProperty('text')
+    expect(result.payload).toBeNull()
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+        level: 'error',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-home',
+          source: 'page.content',
+          fullPath: '/',
+          path: 'components[0].props.text'
+        })
+      })
+    ]))
   })
 
-  it('returns normalizer parse diagnostics for malformed page content', async () => {
+  it('rejects malformed page content with normalizer parse diagnostics', async () => {
     const findFirst = jest.fn().mockResolvedValue({
       id: 'struct-home',
       parentId: null,
@@ -267,11 +277,11 @@ describe('resolveUcsPageBySlug', () => {
       resolveMedia: false
     })
 
-    expect(result.payload?.page.components).toEqual([])
+    expect(result.payload).toBeNull()
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
-        level: 'warn',
+        level: 'error',
         context: expect.objectContaining({
           websiteId: 'site',
           pageId: 'page-home',

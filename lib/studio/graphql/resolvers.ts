@@ -2,6 +2,7 @@ import { GraphQLError } from 'graphql';
 
 import type { ResolvedInstance } from '@/lib/services/unified-content-repository';
 import { resolveUcsPageBySlug } from '@/lib/studio/headless/ucs/page-resolver';
+import type { ResolverDiagnostic } from '@/lib/studio/headless/ucs/page-resolver';
 import { DateTimeScalar, JSONScalar } from '@/lib/studio/graphql/scalars';
 import type { GraphqlContext, GraphqlPageNode } from '@/lib/studio/graphql/types';
 import { RESOLVED_COMPONENTS_SYMBOL } from '@/lib/studio/graphql/types';
@@ -18,6 +19,21 @@ import { createPagePathLoader } from '@/lib/services/content-reference/page-path
 function encodeBadRequest(message: string): GraphQLError {
   return new GraphQLError(message, {
     extensions: { code: 'BAD_REQUEST' },
+  });
+}
+
+function getInvalidPageContentDiagnostics(diagnostics: ResolverDiagnostic[]): ResolverDiagnostic[] {
+  return diagnostics.filter(
+    diagnostic => diagnostic.level === 'error' && diagnostic.code.startsWith('PAGE_CONTENT_'),
+  );
+}
+
+function encodeInvalidPageContent(diagnostics: ResolverDiagnostic[]): GraphQLError {
+  return new GraphQLError('Invalid page content', {
+    extensions: {
+      code: 'INVALID_PAGE_CONTENT',
+      diagnostics,
+    },
   });
 }
 
@@ -111,6 +127,10 @@ async function resolvePageNode(
   });
 
   if (!payload) {
+    const invalidPageContentDiagnostics = getInvalidPageContentDiagnostics(diagnostics);
+    if (invalidPageContentDiagnostics.length > 0) {
+      throw encodeInvalidPageContent(invalidPageContentDiagnostics);
+    }
     return null;
   }
 

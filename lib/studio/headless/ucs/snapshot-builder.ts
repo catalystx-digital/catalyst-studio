@@ -11,6 +11,7 @@ import {
   normalizeComponents,
   normalizeMetadata,
   normalizePageContent,
+  PageContentNormalizationError,
   normalizeProps,
   normalizeRegionSummary,
   normalizeTemplateProps,
@@ -372,7 +373,28 @@ class PrismaSiteSnapshotBuilder {
       return null
     }
 
-    const { pageContent, diagnostics } = normalizePageContent(page.content)
+    let pageContent: ReturnType<typeof normalizePageContent>['pageContent']
+    let diagnostics: PageContentDiagnostic[]
+    try {
+      const normalized = normalizePageContent(page.content, { mode: 'strict-write' })
+      pageContent = normalized.pageContent
+      diagnostics = normalized.diagnostics
+    } catch (error) {
+      if (!(error instanceof PageContentNormalizationError)) {
+        throw error
+      }
+
+      error.diagnostics.forEach(diagnostic => {
+        this.diagnostics.push(mapNormalizerDiagnosticToGenerator(diagnostic, {
+          websiteId: this.websiteId,
+          pageId: page.id,
+          source: 'page.content',
+        }))
+      })
+
+      return null
+    }
+
     diagnostics.forEach(diagnostic => {
       this.diagnostics.push(mapNormalizerDiagnosticToGenerator(diagnostic, {
         websiteId: this.websiteId,

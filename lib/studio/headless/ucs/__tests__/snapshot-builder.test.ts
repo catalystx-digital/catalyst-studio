@@ -166,7 +166,7 @@ describe('buildUcsSiteSnapshot', () => {
     ]))
   })
 
-  it('rejects legacy sections without promoting data.content into snapshot page components', async () => {
+  it('rejects legacy sections without including a snapshot page', async () => {
     const prisma = {
       website: {
         findUnique: jest.fn().mockResolvedValue({
@@ -226,11 +226,11 @@ describe('buildUcsSiteSnapshot', () => {
       resolveMedia: false
     })
 
-    expect(snapshot.pages[0].components).toEqual([])
+    expect(snapshot.pages).toEqual([])
     expect(diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PAGE_CONTENT_LEGACY_SECTIONS',
-        level: 'warn',
+        level: 'error',
         context: expect.objectContaining({
           websiteId: 'site',
           pageId: 'page-1',
@@ -320,7 +320,7 @@ describe('buildUcsSiteSnapshot', () => {
     expect(snapshot.pages[0].components[0].props).not.toHaveProperty('content')
   })
 
-  it('ignores malformed two-column props.text during canonical enrichment', async () => {
+  it('rejects malformed two-column props.text instead of including a snapshot page', async () => {
     const prisma = {
       website: {
         findUnique: jest.fn().mockResolvedValue({
@@ -384,13 +384,22 @@ describe('buildUcsSiteSnapshot', () => {
       resolveMedia: false
     })
 
-    expect(diagnostics.map(diagnostic => diagnostic.code)).not.toContain('UCS_TWO_COLUMN_PROPS_TEXT_INVALID_JSON')
-    expect(diagnostics.map(diagnostic => diagnostic.code)).not.toContain('PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED')
-    expect(snapshot.pages[0].components[0].content).toEqual({})
-    expect(snapshot.pages[0].components[0].props).not.toHaveProperty('text')
+    expect(snapshot.pages).toEqual([])
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAGE_CONTENT_COMPONENT_PROPS_TEXT_JSON_PARSE_FAILED',
+        level: 'error',
+        context: expect.objectContaining({
+          websiteId: 'site',
+          pageId: 'page-1',
+          source: 'page.content',
+          path: 'components[0].props.text'
+        })
+      })
+    ]))
   })
 
-  it('returns normalizer parse diagnostics for malformed page content', async () => {
+  it('rejects malformed page content with normalizer parse diagnostics', async () => {
     const prisma = {
       website: {
         findUnique: jest.fn().mockResolvedValue({
@@ -442,11 +451,11 @@ describe('buildUcsSiteSnapshot', () => {
       resolveMedia: false
     })
 
-    expect(snapshot.pages[0].components).toEqual([])
+    expect(snapshot.pages).toEqual([])
     expect(diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PAGE_CONTENT_JSON_PARSE_FAILED',
-        level: 'warn',
+        level: 'error',
         context: expect.objectContaining({
           websiteId: 'site',
           pageId: 'page-1',
