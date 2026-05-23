@@ -34,8 +34,6 @@ import { ContentFeedDef } from './content-feed/content-feed.def';
 import { QuoteBlockDef } from './quote-block/quote-block.def';
 import { HtmlBlockDef } from './html-block/html-block.def';
 import { CardItemDef } from './card-item/card-item.def';
-import { PromoItemDef } from './promo-item/promo-item.def';
-import Placeholder from '../_placeholder/placeholder';
 
 /**
  * Register all content display component adapters with the factory.
@@ -136,14 +134,6 @@ export function registerContentComponents(): void {
     CardItemAdapter,
     detectionToAIMetadata(CardItemDef.detection!, ComponentType.CardItem),
     { description: CardItemDef.description, schema: CardItemDef.schema }
-  );
-
-  // PromoItem - sub-component placeholder
-  cmsComponentFactory.registerComponent(
-    ComponentType.PromoItem,
-    Placeholder as any,
-    detectionToAIMetadata(PromoItemDef.detection!, ComponentType.PromoItem),
-    { description: PromoItemDef.description, schema: PromoItemDef.schema, subOnly: true }
   );
 
   // AccordionItem and TabItem are no longer separate components - they're defined inline in parent schemas

@@ -126,7 +126,7 @@ const getCategorySkeleton = (category: ComponentCategory) => {
 
 
 
-// Component manifest for dynamic imports (partial; missing entries fall back to placeholder)
+// Component manifest for dynamic imports.
 const componentManifest: Partial<Record<ComponentType, () => Promise<any>>> = {
   // Navigation Components
 
@@ -264,26 +264,13 @@ const componentManifest: Partial<Record<ComponentType, () => Promise<any>>> = {
 
   
 
-  // Add fallback for any missing types
-
-  [ComponentType.SideMenu]: () => import('../_placeholder/placeholder'),
-
-  [ComponentType.Breadcrumb]: () => import('../_placeholder/placeholder'),
-
-  [ComponentType.MegaMenu]: () => import('../_placeholder/placeholder'),
-
   [ComponentType.HeroSimple]: () => import('../heroes/hero-simple'),
 
   [ComponentType.HeroWithImage]: () => import('../heroes/hero-with-image'),
 
   [ComponentType.VideoEmbed]: () => import('../content/video-embed'),
 
-  [ComponentType.CTASimple]: () => import('../cta/cta-simple'),
-
-  [ComponentType.CaseStudy]: () => import('../_placeholder/placeholder'),
-
-
-  [ComponentType.PricingComparison]: () => import('../_placeholder/placeholder')
+  [ComponentType.CTASimple]: () => import('../cta/cta-simple')
 
 }
 
@@ -473,7 +460,7 @@ export function lazyLoadComponent(
       console.warn(`No loader found for component type: ${type}`)
       }
 
-      return import('../_placeholder/placeholder')
+      throw new Error(`No loader found for component type: ${type}`)
 
     }
 
@@ -501,7 +488,7 @@ export function lazyLoadComponent(
       console.error(`Failed to load component ${type}:`, error)
       }
 
-      return import('../_placeholder/placeholder')
+      throw error
 
     }
 
@@ -563,7 +550,7 @@ export async function preloadCategory(category: ComponentCategory): Promise<void
 
       if (!loader) {
 
-        return
+        throw new Error(`No loader found for component type: ${type}`)
 
       }
 
@@ -580,6 +567,8 @@ export async function preloadCategory(category: ComponentCategory): Promise<void
         if (process.env.NODE_ENV === 'development') {
         console.error(`Failed to preload component ${type}:`, error)
         }
+
+        throw error
 
       }
 
@@ -607,7 +596,7 @@ export async function preloadComponents(types: ComponentType[]): Promise<void> {
 
       if (!loader) {
 
-        return
+        throw new Error(`No loader found for component type: ${type}`)
 
       }
 
@@ -622,6 +611,8 @@ export async function preloadComponents(types: ComponentType[]): Promise<void> {
         if (process.env.NODE_ENV === 'development') {
         console.error(`Failed to preload component ${type}:`, error)
         }
+
+        throw error
 
       }
 

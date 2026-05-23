@@ -1,4 +1,3 @@
-import React from "react";
 import { z } from "zod";
 import {
   ComponentType,
@@ -6,7 +5,6 @@ import {
   ComponentRegistryMap,
   ComponentRegistryEntry,
   ComponentConstructor,
-  CMSComponentProps,
   AIComponentMetadata,
 } from "../_core/types";
 // ============================================================================
@@ -153,11 +151,7 @@ export class CMSComponentFactory {
       return component;
     } catch (error) {
       this.loadingPromises.delete(type);
-      // Return a fallback for this render without caching it as a successful load.
-      // A transient failure should not poison future attempts after registration
-      // or initialization recovers.
-      const fallback = this.createFallbackComponent(error as Error);
-      return fallback;
+      throw error;
     }
   }
   private async ensureRegistryInitialized(): Promise<void> {
@@ -191,7 +185,7 @@ export class CMSComponentFactory {
     ) {
       const [category] = this.getComponentCategoryAndName(type);
       console.warn(
-        `[CMSComponentFactory] Component "${type}" (category: ${category}) is not registered. Falling back to placeholder.`,
+        `[CMSComponentFactory] Component "${type}" (category: ${category}) is not registered.`,
       );
     }
   }
@@ -212,16 +206,7 @@ export class CMSComponentFactory {
         this.componentCache.set(type, registration.component);
         return registration.component;
       }
-      const placeholderModule = await import("../_placeholder/placeholder");
-      const placeholderComponent = (placeholderModule.default ||
-        placeholderModule.PlaceholderComponent) as
-        | ComponentConstructor
-        | undefined;
-      if (!placeholderComponent) {
-        throw new Error(`Placeholder component unavailable for type: ${type}`);
-      }
-      this.componentCache.set(type, placeholderComponent);
-      return placeholderComponent;
+      throw new Error(`Component type is not registered: ${type}`);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
       console.error(`Failed to load component ${type}:`, error);
@@ -449,24 +434,6 @@ export class CMSComponentFactory {
     return Object.values(ComponentType).filter(
       (type) => this.getComponentCategory(type) === category,
     );
-  }
-  /**
-   * Create a fallback component for error handling
-   */
-  public createFallbackComponent(error: Error): ComponentConstructor {
-    return (props: CMSComponentProps) => {
-      if (process.env.NODE_ENV === "development") {
-        console.error("Component failed to load:", error);
-      }
-      return React.createElement("div", {
-        className: "cms-component-error",
-        "data-component-type": props.type,
-        children:
-          process.env.NODE_ENV === "development"
-            ? `Failed to load component: ${props.type}`
-            : null,
-      });
-    };
   }
 }
 // ============================================================================

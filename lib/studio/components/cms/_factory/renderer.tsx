@@ -79,8 +79,7 @@ const DynamicComponentLoader: React.FC<{
   type: ComponentType;
   props: CMSComponentProps;
   onLoad?: (Component: React.ComponentType<CMSComponentProps>) => void;
-  onError?: (error: Error) => void;
-}> = ({ type, props, onLoad, onError }) => {
+}> = ({ type, props, onLoad }) => {
   const [Component, setComponent] = useState<React.ComponentType<CMSComponentProps> | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const mountedRef = useRef(true);
@@ -101,11 +100,6 @@ const DynamicComponentLoader: React.FC<{
         
         if (!cancelled && mountedRef.current) {
           setError(error);
-          onError?.(error);
-          
-          // Use fallback component
-          const fallback = cmsComponentFactory.createFallbackComponent(error);
-          setComponent(() => fallback);
         }
       }
     };
@@ -115,7 +109,7 @@ const DynamicComponentLoader: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [type, onLoad, onError]);
+  }, [type, onLoad]);
 
   useEffect(() => {
     return () => {
@@ -125,6 +119,10 @@ const DynamicComponentLoader: React.FC<{
 
   if (error && process.env.NODE_ENV === 'development') {
     console.error(`Failed to load component ${type}:`, error);
+  }
+
+  if (error) {
+    throw error;
   }
 
   if (!Component) {
@@ -247,7 +245,6 @@ export const CMSComponentRenderer: React.FC<CMSComponentRendererProps> = ({
           type={componentProps.type}
           props={safeProps}
           onLoad={handleComponentLoad}
-          onError={handleComponentError}
         />
       </Suspense>
     </ErrorBoundary>
@@ -273,16 +270,36 @@ export const CMSBatchRenderer: React.FC<CMSBatchRendererProps> = ({
   onMetrics,
   preload = false
 }) => {
+  const [preloadError, setPreloadError] = useState<Error | null>(null);
+
   useEffect(() => {
+    let cancelled = false;
+
+    setPreloadError(null);
+
     if (preload) {
       // Preload all components in the batch
       const types = components.map(c => c.type);
-      cmsComponentFactory.preloadComponents(types);
+      cmsComponentFactory.preloadComponents(types).catch(error => {
+        if (!cancelled) {
+          setPreloadError(error instanceof Error ? error : new Error(String(error)));
+        }
+      });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [components, preload]);
 
+  const ErrorFallbackComponent = errorFallback || DefaultErrorFallback;
+
   return (
-    <>
+    <ErrorBoundary
+      FallbackComponent={ErrorFallbackComponent}
+      onReset={() => {}}
+    >
+      {preloadError ? <PreloadError error={preloadError} /> : null}
       {components.map((component) => (
         <CMSComponentRenderer
           key={component.id}
@@ -292,8 +309,12 @@ export const CMSBatchRenderer: React.FC<CMSBatchRendererProps> = ({
           onMetrics={onMetrics}
         />
       ))}
-    </>
+    </ErrorBoundary>
   );
+};
+
+const PreloadError: React.FC<{ error: Error }> = ({ error }) => {
+  throw error;
 };
 
 // ============================================================================

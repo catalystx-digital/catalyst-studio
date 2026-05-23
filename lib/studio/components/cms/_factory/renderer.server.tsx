@@ -9,7 +9,6 @@ import type {
 import { performanceMonitor } from '../_core/monitoring';
 
 type RenderOptions = {
-  fallback?: React.ReactNode;
   onMetrics?: (metrics: ComponentPerformanceMetrics) => void;
 };
 
@@ -58,15 +57,7 @@ async function renderComponent(
       }
     }
 
-    if (options.fallback) {
-      return (
-        <React.Fragment key={componentProps.id}>
-          {options.fallback}
-        </React.Fragment>
-      );
-    }
-
-    return null;
+    throw error;
   }
 }
 
