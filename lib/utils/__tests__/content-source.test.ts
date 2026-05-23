@@ -7,10 +7,6 @@ const mockPrismaClient = {
   websitePage: {
     findUnique: jest.fn(),
     update: jest.fn()
-  },
-  websiteCustomContentData: {
-    findUnique: jest.fn(),
-    update: jest.fn()
   }
 }
 
@@ -34,7 +30,6 @@ describe('Content Source Utility', () => {
       }
       
       mockPrismaClient.websitePage.findUnique.mockResolvedValue(mockPageData)
-      mockPrismaClient.websiteCustomContentData.findUnique.mockResolvedValue(null)
       
       const result = await getContentSource(mockPrismaClient as Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">, 'page-123')
       
@@ -48,7 +43,6 @@ describe('Content Source Utility', () => {
       expect(mockPrismaClient.websitePage.findUnique).toHaveBeenCalledWith({
         where: { id: 'page-123' }
       })
-      expect(mockPrismaClient.websiteCustomContentData.findUnique).not.toHaveBeenCalled()
       
       // Verify performance logging
       expect(console.log).toHaveBeenCalledWith(
@@ -56,47 +50,14 @@ describe('Content Source Utility', () => {
       )
     })
 
-    it('should fall back to WebsiteCustomContentData when WebsitePage not found', async () => {
-      const mockCustomData = {
-        id: 'custom-456',
-        data: { components: [], customField: 'value' }
-      }
-      
+    it('should throw error when page content is not found', async () => {
       mockPrismaClient.websitePage.findUnique.mockResolvedValue(null)
-      mockPrismaClient.websiteCustomContentData.findUnique.mockResolvedValue(mockCustomData)
-      
-      const result = await getContentSource(mockPrismaClient as Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">, 'custom-456')
-      
-      expect(result).toEqual({
-        content: mockCustomData.data,
-        type: 'custom',
-        model: 'websiteCustomContentData',
-        id: 'custom-456'
-      })
-      
-      expect(mockPrismaClient.websitePage.findUnique).toHaveBeenCalledWith({
-        where: { id: 'custom-456' }
-      })
-      expect(mockPrismaClient.websiteCustomContentData.findUnique).toHaveBeenCalledWith({
-        where: { id: 'custom-456' }
-      })
-      
-      // Verify performance logging
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('[PERF] Content lookup (WebsiteCustomContentData)')
-      )
-    })
-
-    it('should throw error when content not found in either model', async () => {
-      mockPrismaClient.websitePage.findUnique.mockResolvedValue(null)
-      mockPrismaClient.websiteCustomContentData.findUnique.mockResolvedValue(null)
       
       await expect(
         getContentSource(mockPrismaClient as Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">, 'not-found')
       ).rejects.toThrow('Content item not found')
       
       expect(mockPrismaClient.websitePage.findUnique).toHaveBeenCalled()
-      expect(mockPrismaClient.websiteCustomContentData.findUnique).toHaveBeenCalled()
     })
 
     it('should handle empty content gracefully', async () => {
@@ -152,39 +113,9 @@ describe('Content Source Utility', () => {
         data: { content: updatedContent }
       })
       
-      expect(mockPrismaClient.websiteCustomContentData.update).not.toHaveBeenCalled()
-      
       // Verify performance logging
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('[PERF] Content update (websitePage)')
-      )
-    })
-
-    it('should update WebsiteCustomContentData when source is custom type', async () => {
-      const source: ContentSource = {
-        content: { components: [] },
-        type: 'custom',
-        model: 'websiteCustomContentData',
-        id: 'custom-456'
-      }
-      
-      const updatedContent = {
-        components: [{ id: 'comp-2', type: 'text' }],
-        customField: 'updated'
-      }
-      
-      await updateContentSource(mockPrismaClient as Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">, source, updatedContent)
-      
-      expect(mockPrismaClient.websiteCustomContentData.update).toHaveBeenCalledWith({
-        where: { id: 'custom-456' },
-        data: { data: updatedContent }
-      })
-      
-      expect(mockPrismaClient.websitePage.update).not.toHaveBeenCalled()
-      
-      // Verify performance logging
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('[PERF] Content update (websiteCustomContentData)')
       )
     })
 

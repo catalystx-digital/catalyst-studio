@@ -7,9 +7,6 @@ jest.mock('@/lib/prisma', () => ({
     websitePage: {
       findUnique: jest.fn()
     },
-    websiteCustomContentData: {
-      findUnique: jest.fn()
-    },
     $transaction: jest.fn()
   }
 }))
@@ -31,7 +28,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({ websiteId: 'website-1' })
-    ;(prisma.websiteCustomContentData.findUnique as jest.Mock).mockResolvedValue(null)
     ;(prisma.$transaction as jest.Mock).mockImplementation((fn) => fn(mockTransaction))
   })
 
@@ -51,9 +47,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
       mockTransaction.websitePage = {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn().mockResolvedValue({ ...mockWebsitePage })
-      }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
       }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
@@ -120,9 +113,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn().mockResolvedValue({ ...mockWebsitePage })
       }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
-      }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
         method: 'POST',
@@ -184,9 +174,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn().mockResolvedValue({ ...mockWebsitePage })
       }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
-      }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
         method: 'POST',
@@ -226,9 +213,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
       mockTransaction.websitePage = {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn().mockResolvedValue({ ...mockWebsitePage })
-      }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
       }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
@@ -277,9 +261,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn()
       }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
-      }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
         method: 'POST',
@@ -320,9 +301,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn()
       }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
-      }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
         method: 'POST',
@@ -342,27 +320,8 @@ describe('/api/studio/site-builder/components/reorder', () => {
       expect(mockTransaction.websitePage.update).not.toHaveBeenCalled()
     })
 
-    it('should handle WebsiteCustomContentData fallback', async () => {
+    it('should return 404 when content item id is not a WebsitePage', async () => {
       ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(null)
-      ;(prisma.websiteCustomContentData.findUnique as jest.Mock).mockResolvedValue({ websiteId: 'website-1' })
-
-      const mockComponents = [
-        { id: 'comp1', parentId: null, position: 0, type: 'widget' },
-        { id: 'comp2', parentId: null, position: 1, type: 'widget' }
-      ]
-
-      const mockCustomData = {
-        id: 'custom-123',
-        data: { components: mockComponents }
-      }
-
-      mockTransaction.websitePage = {
-        findUnique: jest.fn().mockResolvedValue(null)
-      }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(mockCustomData),
-        update: jest.fn().mockResolvedValue({ ...mockCustomData })
-      }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
         method: 'POST',
@@ -370,38 +329,21 @@ describe('/api/studio/site-builder/components/reorder', () => {
           componentId: 'comp1',
           newParentId: null,
           newPosition: 1,
-          contentItemId: 'custom-123'
+          contentItemId: 'content-data-123'
         })
       })
 
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      
-      // Verify WebsiteCustomContentData was updated
-      expect(mockTransaction.websiteCustomContentData.update).toHaveBeenCalledWith({
-        where: { id: 'custom-123' },
-        data: {
-          data: expect.objectContaining({
-            version: 1,
-            components: expect.arrayContaining([
-              expect.objectContaining({ id: 'comp1', position: 1 }),
-              expect.objectContaining({ id: 'comp2', position: 0 })
-            ])
-          })
-        }
-      })
+      expect(response.status).toBe(404)
+      expect(data.error).toContain('Content item not found')
+      expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
     it('should return 404 when content item not found', async () => {
       ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(null)
-      ;(prisma.websiteCustomContentData.findUnique as jest.Mock).mockResolvedValue(null)
       mockTransaction.websitePage = {
-        findUnique: jest.fn().mockResolvedValue(null)
-      }
-      mockTransaction.websiteCustomContentData = {
         findUnique: jest.fn().mockResolvedValue(null)
       }
 
@@ -434,9 +376,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
 
       mockTransaction.websitePage = {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage)
-      }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
       }
 
       const request = new NextRequest('http://localhost:3000/api/studio/site-builder/components/reorder', {
@@ -490,9 +429,6 @@ describe('/api/studio/site-builder/components/reorder', () => {
       mockTransaction.websitePage = {
         findUnique: jest.fn().mockResolvedValue(mockWebsitePage),
         update: jest.fn().mockResolvedValue({ ...mockWebsitePage })
-      }
-      mockTransaction.websiteCustomContentData = {
-        findUnique: jest.fn().mockResolvedValue(null)
       }
 
       // Move child4 to position 1 (between child1 and child2)

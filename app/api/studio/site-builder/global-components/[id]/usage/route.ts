@@ -74,19 +74,6 @@ export async function GET(
         AND component->'props'->>'sharedComponentId' = ${id}
     `;
 
-    // Search for usage in WebsiteCustomContentData
-    const customContentWithUsage = await prisma.$queryRaw<Array<{
-      id: string;
-      title: string;
-      data: Record<string, unknown>;
-      status: string;
-    }>>`
-      SELECT DISTINCT c.id, c.title, c.data, c.status
-      FROM "WebsiteCustomContentData" c
-      WHERE c."websiteId" = ${sharedComponent.websiteId}
-        AND c.data::jsonb @> ${JSON.stringify({ props: { sharedComponentId: id } })}::jsonb
-    `;
-
     // Get WebsiteStructure info for pages
     const pageIds = pagesWithUsage.map(p => p.id);
     const structures = pageIds.length > 0 ? await prisma.websiteStructure.findMany({
@@ -130,30 +117,10 @@ export async function GET(
       };
     });
 
-    // Build custom content usage details
-    const customContentUsageDetails = customContentWithUsage.map((content, index) => {
-      const data = content.data as Record<string, unknown>;
-      const overrides = (data?.overrides as Record<string, unknown>) || undefined;
-      const hasOverrides = !!(overrides && Object.keys(overrides).length > 0);
-      return {
-        usageId: `custom-${content.id}`, // Generate stable ID
-        pageId: content.id,
-        pageTitle: content.title || 'Unknown Content',
-        pageSlug: '', // Custom content doesn't have slugs in structure
-        pageStatus: content.status || 'unknown',
-        position: index,
-        hasOverrides,
-        overridesSummary: overrides ? Object.keys(overrides) : []
-      };
-    });
-
-    // Combine all usages
-    const allUsages = [...pageUsageDetails, ...customContentUsageDetails];
-    
     return NextResponse.json({
       usageCount: sharedComponent.usageCount,
-      actualUsageCount: allUsages.length,
-      pages: allUsages
+      actualUsageCount: pageUsageDetails.length,
+      pages: pageUsageDetails
     });
     
   } catch (error) {

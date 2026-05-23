@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getContentSource, updateContentSource } from '@/lib/utils/content-source'
+import { Prisma } from '@/lib/generated/prisma'
 import { getAuthContext } from '@/lib/auth/context'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
 import { normalizePageContent, PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content'
@@ -59,9 +59,13 @@ export async function DELETE(request: NextRequest) {
     const result = await db.$transaction(async (tx: any) => {
       const startTime = Date.now()
       
-      // Get content source using shared utility
-      const source = await getContentSource(tx, contentItemId)
-      const content = source.content
+      const pageData = await tx.websitePage.findUnique({
+        where: { id: contentItemId }
+      })
+      if (!pageData) {
+        throw new Error('Content item not found')
+      }
+      const content = pageData.content as Record<string, unknown>
 
       const components = normalizePageContent(content, { mode: 'strict-write' }).pageContent.components as unknown as Record<string, unknown>[]
 
@@ -123,7 +127,12 @@ export async function DELETE(request: NextRequest) {
 
       // Update the content item with the modified component tree
       const updatedContent = toCanonicalPageContent(content, remainingComponents, { mode: 'strict-write' })
-      await updateContentSource(tx, source, updatedContent)
+      await tx.websitePage.update({
+        where: { id: contentItemId },
+        data: {
+          content: updatedContent as Prisma.InputJsonValue
+        }
+      })
 
       // Note: Global component associations removed as globalComponentUsage table doesn't exist
 
@@ -133,7 +142,7 @@ export async function DELETE(request: NextRequest) {
         userId: auth.userId ?? null,
         action: 'BULK_DELETE_COMPONENTS',
         contentItemId,
-        model: source.model,
+        model: 'websitePage',
         performance: {
           totalTime: `${totalTime}ms`,
           componentsProcessed: components.length,

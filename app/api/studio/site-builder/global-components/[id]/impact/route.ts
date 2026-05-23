@@ -76,31 +76,9 @@ export async function GET(
       }
     });
     
-    // Search for usage in WebsiteCustomContentData JSON (if applicable)
-    const customContentData = await prisma.websiteCustomContentData.findMany({
-      where: {
-        websiteId: sharedComponent.websiteId,
-        data: {
-          path: ['$'],
-          string_contains: `"sharedComponentId":"${id}"`
-        } as Prisma.JsonFilter
-      },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        updatedAt: true,
-        publishedAt: true,
-        data: true
-      }
-    });
-    
-    // Get site structure for full paths using parallel queries
+    // Get site structure for full paths.
     const pageIds = websitePages.map(p => p.id);
-    const customIds = customContentData.map(c => c.id);
-    
-    const [pageStructures, customStructures] = await Promise.all([
-      pageIds.length > 0 ? prisma.websiteStructure.findMany({
+    const pageStructures = pageIds.length > 0 ? await prisma.websiteStructure.findMany({
         where: {
           websitePageId: {
             in: pageIds
@@ -110,21 +88,7 @@ export async function GET(
           websitePageId: true,
           fullPath: true
         }
-      }) : Promise.resolve([]),
-      
-      // Note: Custom content may not have structure entries
-      customIds.length > 0 ? prisma.websiteStructure.findMany({
-        where: {
-          websitePageId: {
-            in: customIds
-          }
-        },
-        select: {
-          websitePageId: true,
-          fullPath: true
-        }
-      }) : Promise.resolve([])
-    ]);
+      }) : [];
     
     // Extract usage details from JSON content
     const extractUsageFromContent = (content: unknown): ComponentUsage[] => {
@@ -162,9 +126,6 @@ export async function GET(
     pageStructures.forEach(s => {
       if (s.websitePageId) pathMap.set(s.websitePageId, s.fullPath);
     });
-    customStructures.forEach(s => {
-      if (s.websitePageId) pathMap.set(s.websitePageId, s.fullPath);
-    });
     
     // Build affected pages list
     const affectedPages: AffectedPage[] = [];
@@ -181,24 +142,6 @@ export async function GET(
           status: page.status || 'draft',
           lastModified: page.updatedAt,
           isPublished: !!page.publishedAt,
-          hasOverrides: usage.hasOverrides,
-          position: usage.position
-        });
-      });
-    });
-    
-    // Process custom content data
-    customContentData.forEach(item => {
-      const usages = extractUsageFromContent(item.data);
-      usages.forEach(usage => {
-        const fullPath = pathMap.get(item.id);
-        affectedPages.push({
-          id: item.id,
-          title: item.title || 'Untitled Content',
-          path: fullPath || `/content/${item.id}`,
-          status: item.status || 'draft',
-          lastModified: item.updatedAt,
-          isPublished: !!item.publishedAt,
           hasOverrides: usage.hasOverrides,
           position: usage.position
         });

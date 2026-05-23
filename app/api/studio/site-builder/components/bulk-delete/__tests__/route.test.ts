@@ -75,4 +75,24 @@ describe('/api/studio/site-builder/components/bulk-delete', () => {
     ]))
     expect(tx.websitePage.update).not.toHaveBeenCalled()
   })
+
+  it('returns 404 when contentItemId is not a WebsitePage id', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue(null)
+
+    const request = new NextRequest('http://localhost/api/studio/site-builder/components/bulk-delete', {
+      method: 'DELETE',
+      body: JSON.stringify({
+        componentIds: ['hero-1'],
+        contentItemId: 'content-data-1',
+        confirmDeletion: true,
+      }),
+    })
+
+    const response = await DELETE(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(404)
+    expect(body.error).toBe('Content item not found')
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
 })

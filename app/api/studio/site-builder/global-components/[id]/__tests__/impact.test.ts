@@ -20,9 +20,6 @@ jest.mock('@/lib/prisma', () => ({
     },
     websiteStructure: {
       findMany: jest.fn()
-    },
-    websiteCustomContentData: {
-      findMany: jest.fn()
     }
   }
 }));
@@ -88,7 +85,6 @@ describe('Impact Analysis API', () => {
     (prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue(mockSharedComponent);
     (prisma.websitePage.findMany as jest.Mock).mockResolvedValue(mockPages);
     (prisma.websiteStructure.findMany as jest.Mock).mockResolvedValue(mockSiteStructures);
-    (prisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([]);
 
     const request = new NextRequest('http://localhost:3000/api/global-components/comp-123/impact');
     const response = await GET(request, { params: Promise.resolve({ id: 'comp-123' }) });
@@ -168,7 +164,6 @@ describe('Impact Analysis API', () => {
     (prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue(mockSharedComponent);
     (prisma.websitePage.findMany as jest.Mock).mockResolvedValue(createMockPages(15));
     (prisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([]);
 
     const request = new NextRequest('http://localhost:3000/api/global-components/comp-123/impact');
     const response = await GET(request, { params: Promise.resolve({ id: 'comp-123' }) });
@@ -192,7 +187,6 @@ describe('Impact Analysis API', () => {
     (prisma.websiteSharedComponent.findUnique as jest.Mock).mockResolvedValue(mockSharedComponent);
     (prisma.websitePage.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.websiteStructure.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.websiteCustomContentData.findMany as jest.Mock).mockResolvedValue([]);
 
     const request = new NextRequest('http://localhost:3000/api/global-components/comp-123/impact');
     const response = await GET(request, { params: Promise.resolve({ id: 'comp-123' }) });

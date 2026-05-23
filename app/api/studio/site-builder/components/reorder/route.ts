@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getContentSource, updateContentSource } from '@/lib/utils/content-source'
+import { Prisma } from '@/lib/generated/prisma'
 import { getAuthContext } from '@/lib/auth/context'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
 import { normalizePageContent, PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content'
@@ -52,24 +52,22 @@ export async function POST(request: NextRequest) {
       select: { websiteId: true }
     });
 
-    const customContent = page ? null : await db.websiteCustomContentData.findUnique({
-      where: { id: contentItemId },
-      select: { websiteId: true }
-    });
-    const websiteId = page?.websiteId ?? customContent?.websiteId;
-
-    if (!websiteId) {
+    if (!page) {
       return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
     }
-    await assertWebsiteOwnership(db, auth.accountId, websiteId);
+    await assertWebsiteOwnership(db, auth.accountId, page.websiteId);
 
     // Start transaction for atomic operation
     const result = await db.$transaction(async (tx: any) => {
       const startTime = Date.now()
       
-      // Get content source using shared utility
-      const source = await getContentSource(tx, contentItemId)
-      const content = source.content
+      const pageData = await tx.websitePage.findUnique({
+        where: { id: contentItemId }
+      })
+      if (!pageData) {
+        throw new Error('Content item not found')
+      }
+      const content = pageData.content as Record<string, unknown>
 
       // Normalize current content into the canonical component tree before mutating.
       const normalized = normalizePageContent(content, { mode: 'strict-write' })
@@ -158,14 +156,19 @@ export async function POST(request: NextRequest) {
 
       // Update the content item with the modified component tree
       const updatedContent = toCanonicalPageContent(content, components, { mode: 'strict-write' })
-      await updateContentSource(tx, source, updatedContent)
+      await tx.websitePage.update({
+        where: { id: contentItemId },
+        data: {
+          content: updatedContent as Prisma.InputJsonValue
+        }
+      })
       
       // Log performance metrics
       const totalTime = Date.now() - startTime
       console.log('Reorder completed:', {
         action: 'REORDER_COMPONENT',
         contentItemId,
-        model: source.model,
+        model: 'websitePage',
         performance: {
           totalTime: `${totalTime}ms`,
           componentsProcessed: components.length
