@@ -8,7 +8,7 @@
  * Benefits:
  * - Better content consistency (IA informs all pages)
  * - Faster execution (parallel content generation)
- * - Individual page failures don't block others
+ * - Page generation runs in parallel and reports any failures explicitly
  */
 
 import { Prisma, type Website } from '@/lib/generated/prisma'
@@ -20,7 +20,6 @@ import { createAIModel } from '@/lib/studio/ai/ai-sdk-provider'
 import { streamText, type UIMessage as Message, stepCountIs } from 'ai'
 import { DesignConceptRepository } from '@/lib/studio/design-system/design-concept.repository'
 import { DesignSystemRepository } from '@/lib/studio/import/repositories/design-system.repository'
-import { getShadcnVariablesWithDefaults } from '@/lib/studio/design-system/shadcn-defaults'
 import { generateDesignSystemFromPrompt } from '@/lib/studio/design-system/prompt-design-system-generator'
 import { updateSystemEvent } from '@/lib/studio/import/utils/update-system-event'
 import { getBuilderAssistantSessionId } from '@/lib/studio/components/site-builder/assistant-session'
@@ -209,38 +208,29 @@ export class GreenfieldBootstrapper {
       const successfulPages = contentResults.filter(r => r.success).length
       const failedPages = contentResults.filter(r => !r.success)
 
-      if (failedPages.length > 0) {
-        console.warn('[GreenfieldBootstrapper] Some pages failed to populate', {
-          websiteId: request.websiteId,
-          failed: failedPages.map(p => ({ slug: p.slug, error: p.error }))
-        })
-      }
-
       // Post-processing: Resolve references (90-95%)
       if (successfulPages > 0) {
         await this.updateProgress(request.websiteId, request.sessionId, request.accountId, 'resolving_references', 90, 'Resolving media references...', successfulPages, totalPages, request.jobId)
 
-        try {
-          await this.resolveReferences(request.websiteId, request.sessionId, request.accountId, request.jobId)
-        } catch (error) {
-          console.warn('[GreenfieldBootstrapper] Reference resolution failed (non-blocking)', {
-            websiteId: request.websiteId,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
+        await this.resolveReferences(request.websiteId, request.sessionId, request.accountId, request.jobId)
       }
 
       // Post-processing: Register component types (95-100%)
       if (successfulPages > 0) {
         await this.updateProgress(request.websiteId, request.sessionId, request.accountId, 'registering_components', 95, 'Registering components...', successfulPages, totalPages, request.jobId)
 
-        try {
-          await this.registerComponentTypesFromPages(request.websiteId)
-        } catch (error) {
-          console.warn('[GreenfieldBootstrapper] Component registration failed (non-blocking)', {
-            websiteId: request.websiteId,
-            error: error instanceof Error ? error.message : String(error)
-          })
+        await this.registerComponentTypesFromPages(request.websiteId)
+      }
+
+      if (failedPages.length > 0) {
+        const error = `Content generation failed for pages: ${failedPages.map(p => `${p.slug}: ${p.error ?? 'Unknown error'}`).join('; ')}`
+        await this.updateProgress(request.websiteId, request.sessionId, request.accountId, 'failed', 0, error, successfulPages, totalPages, request.jobId)
+        return {
+          pagesCreated: totalPages,
+          populatedPages: successfulPages,
+          fallbackApplied: false,
+          success: false,
+          error
         }
       }
 
@@ -415,7 +405,7 @@ export class GreenfieldBootstrapper {
 
   /**
    * Phase 2: Populate content for all pages in parallel
-   * Uses Promise.allSettled so individual failures don't block others
+   * Uses Promise.allSettled to attempt all pages before surfacing failures.
    */
   private async populateAllPagesParallel(
     request: BootstrapRequest,
@@ -483,7 +473,7 @@ export class GreenfieldBootstrapper {
     // Wait for all pages with allSettled
     const results = await Promise.allSettled(pagePromises)
 
-    return results.map((result, index) => {
+    const pageResults = results.map((result, index) => {
       if (result.status === 'fulfilled') {
         return result.value
       }
@@ -493,6 +483,16 @@ export class GreenfieldBootstrapper {
         error: result.reason?.message || 'Unknown error'
       }
     })
+
+    const failedPages = pageResults.filter(r => !r.success)
+    if (failedPages.length > 0) {
+      console.error('[GreenfieldBootstrapper] Page population failed', {
+        websiteId: request.websiteId,
+        failed: failedPages.map(p => ({ slug: p.slug, error: p.error }))
+      })
+    }
+
+    return pageResults
   }
 
   /**
@@ -550,9 +550,8 @@ export class GreenfieldBootstrapper {
       error: 'AI did not call populatePageContent tool' // Default error if tool not called
     }
 
-    // TKT-071: Retry loop - if AI doesn't call populatePageContent on first attempt, retry
-    // Increased to 3 attempts due to Grok model occasionally not following toolChoice: 'required'
-    const maxAttempts = 3
+    // TKT-071: Retry loop - if AI doesn't call populatePageContent on first attempt, retry once.
+    const maxAttempts = 2
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       let toolCalled = false
@@ -567,8 +566,9 @@ export class GreenfieldBootstrapper {
             `Generate page content and call populatePageContent with: websiteId="${request.websiteId}", slug="${page.slug}". ` +
             `Do NOT just search for images - you must call populatePageContent to create the page.`
         } else {
-          // Final attempt: Most direct, minimal prompt
-          messageContent = `CALL populatePageContent NOW with pageSlug="${page.slug}" and a components array containing navbar, hero-simple, and footer.`
+          messageContent = `IMPORTANT: You MUST call the populatePageContent tool to create the "${page.slug}" page. ` +
+            `Generate page content and call populatePageContent with: websiteId="${request.websiteId}", slug="${page.slug}". ` +
+            `Do NOT just search for images - you must call populatePageContent to create the page.`
         }
 
         const streamResult = this.streamText({
@@ -693,25 +693,12 @@ export class GreenfieldBootstrapper {
 
       return prompt
     } catch (error) {
-      console.error('[GreenfieldBootstrapper] Failed to load component catalog, using fallback', {
+      console.error('[GreenfieldBootstrapper] Failed to load component catalog', {
         websiteId,
         error: error instanceof Error ? error.message : String(error)
       })
 
-      // Fallback to minimal hardcoded schemas if catalog fails
-      return `
-## hero-simple
-{ type: "hero-simple", content: { heading: string, subheading?: string, ctaButtons?: [{label, href}] } }
-
-## text-block
-{ type: "text-block", content: { heading?: string, body: string } }
-
-## contact-form
-{ type: "contact-form", content: { title: string, fields: [{name, type, label}] } }
-
-## footer
-{ type: "footer", content: { copyright: string, links?: [{label, href}] } }
-`
+      throw new Error(`Failed to load component catalog for greenfield bootstrap: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -831,9 +818,7 @@ export class GreenfieldBootstrapper {
       const designSystemRepo = new DesignSystemRepository(this.prisma as any)
 
       const existing = await conceptRepo.findDefault(websiteId)
-      if (existing) return
-
-      const concept = await conceptRepo.create({
+      const concept = existing ?? await conceptRepo.create({
         websiteId,
         name: 'Default',
         slug: 'default',
@@ -841,49 +826,34 @@ export class GreenfieldBootstrapper {
         isDefault: true
       })
 
-      // TKT-088: Generate brand-appropriate colors using LLM
-      let tokens: Record<string, string>
-      let source: 'detected' | 'default' | 'mixed' = 'default'
-      let confidence = 1.0
+      const existingDesignSystem = await designSystemRepo.findLatestByConceptId(concept.id)
+      if (existingDesignSystem) return
 
-      try {
-        // Build prompt from business context
-        const prompt = [
-          processedPrompt.websiteName,
-          processedPrompt.description,
-          processedPrompt.targetAudience ? `Target audience: ${processedPrompt.targetAudience}` : ''
-        ].filter(Boolean).join(' - ')
+      const prompt = [
+        processedPrompt.websiteName,
+        processedPrompt.description,
+        processedPrompt.targetAudience ? `Target audience: ${processedPrompt.targetAudience}` : ''
+      ].filter(Boolean).join(' - ')
 
-        if (prompt.trim()) {
-          console.info('[GreenfieldBootstrapper] Generating design system from prompt', {
-            websiteId,
-            promptLength: prompt.length
-          })
-
-          const result = await generateDesignSystemFromPrompt({ prompt })
-          tokens = result.tokens.variables
-          source = result.hasCustomColors ? 'detected' : 'default'
-          confidence = result.hasCustomColors ? 0.8 : 0.5
-
-          console.info('[GreenfieldBootstrapper] Design system generated', {
-            websiteId,
-            hasCustomColors: result.hasCustomColors,
-            mode: result.mode
-          })
-        } else {
-          // No business context, use defaults
-          tokens = getShadcnVariablesWithDefaults({}, 'light')
-        }
-      } catch (llmError) {
-        // LLM failed, fall back to defaults
-        console.warn('[GreenfieldBootstrapper] LLM design system generation failed, using defaults', {
-          websiteId,
-          error: llmError instanceof Error ? llmError.message : String(llmError)
-        })
-        tokens = getShadcnVariablesWithDefaults({}, 'light')
-        source = 'default'
-        confidence = 1.0
+      if (!prompt.trim()) {
+        throw new Error('Cannot generate design system without prompt context')
       }
+
+      console.info('[GreenfieldBootstrapper] Generating design system from prompt', {
+        websiteId,
+        promptLength: prompt.length
+      })
+
+      const result = await generateDesignSystemFromPrompt({ prompt })
+      const tokens = result.tokens.variables
+      const source: 'detected' | 'default' | 'mixed' = result.hasCustomColors ? 'detected' : 'default'
+      const confidence = result.hasCustomColors ? 0.8 : 0.5
+
+      console.info('[GreenfieldBootstrapper] Design system generated', {
+        websiteId,
+        hasCustomColors: result.hasCustomColors,
+        mode: result.mode
+      })
 
       await designSystemRepo.create({
         websiteId,
@@ -904,6 +874,7 @@ export class GreenfieldBootstrapper {
         websiteId,
         error: error instanceof Error ? error.message : String(error)
       })
+      throw error
     }
   }
 }
