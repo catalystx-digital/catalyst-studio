@@ -49,9 +49,46 @@ export function applyTemplateCanonicalization({
   }
 
   const mutable = [...components]
+  validateTemplateCanonicalRequirements({
+    components: mutable,
+    template,
+    pageSummary,
+    pageUrl,
+    requirements
+  })
+
+  return enforceCanonicalContentInvariants(mutable)
+}
+
+export function validateTemplateCanonicalRequirements({
+  components,
+  template,
+  pageSummary,
+  pageUrl,
+  requirements: providedRequirements
+}: {
+  components: DetectedComponent[]
+  template: DetectedPageTemplate
+  pageSummary: PageCatalogSummary
+  pageUrl?: string
+  requirements?: CanonicalRequirement[]
+}): void {
+  ensureCanonicalComponentsRegistered()
+
+  const templateSummary = findTemplateSummary(template.templateKey, pageSummary)
+  if (!templateSummary) {
+    throw new Error(`Detection output selected unregistered template "${template.templateKey}"`)
+  }
+
+  const requirements = providedRequirements ?? deriveCanonicalRequirements(templateSummary)
+  if (requirements.length === 0) {
+    return
+  }
+
+  const missingRequirements: CanonicalRequirement[] = []
 
   for (const requirement of requirements) {
-    const satisfiedCount = countCanonicalInstancesForTypes(mutable, requirement.allowedCanonicalTypes)
+    const satisfiedCount = countCanonicalInstancesForTypes(components, requirement.allowedCanonicalTypes)
     if (satisfiedCount >= requirement.min) {
       console.info('[DetectionCanonicalizer] canonical-present', {
         templateKey: template.templateKey,
@@ -71,9 +108,17 @@ export function applyTemplateCanonicalization({
       source: requirement.source,
       message: 'Detection output omitted a required canonical component; strict import will not synthesize it.'
     })
+    missingRequirements.push(requirement)
   }
 
-  return enforceCanonicalContentInvariants(mutable)
+  if (missingRequirements.length > 0) {
+    const summary = missingRequirements
+      .map(requirement => `${requirement.region}:${requirement.canonicalType} min=${requirement.min}`)
+      .join(', ')
+    throw new Error(
+      `Detection output omitted required canonical component(s) for template "${template.templateKey}": ${summary}`
+    )
+  }
 }
 
 

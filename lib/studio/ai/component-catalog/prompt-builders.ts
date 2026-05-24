@@ -153,7 +153,11 @@ export function buildTemplateComplianceSection(pageSummary: PageCatalogSummary |
   if (exampleDefinition) {
     const sampleContent = exampleDefinition.sampleContent
     const examplePayload = {
-      components: [[exampleDefinition.canonicalType, 0.93, sampleContent]],
+      components: [{
+        component: exampleDefinition.canonicalType,
+        confidence: 0.93,
+        content: sampleContent
+      }],
       pageMetadata: {
         title: sampleContent.title ?? 'Imported page',
         description: sampleContent.excerpt ?? 'Generated automatically to satisfy template requirements.'
@@ -214,7 +218,7 @@ function buildRequiredReturnSection(pageSummary: PageCatalogSummary | undefined)
   for (const name of propertyNames) {
     if (name === primaryProperty) {
       propertySampleLines.push(
-        `  "${name}": [["<component-type>", confidence (0..1), { "summary": "<short description>", ... }], ...],`
+        `  "${name}": [{ "component": "<registered-component-type>", "confidence": 0.0-1.0, "content": { "summary": "<short description>", ... } }, ...],`
       )
     } else {
       propertySampleLines.push(`  "${name}": <value>,`)
@@ -224,6 +228,8 @@ function buildRequiredReturnSection(pageSummary: PageCatalogSummary | undefined)
   descriptorLines.push(...propertySampleLines)
   descriptorLines.push('  "pageMetadata": { /* metadata fields as specified */ }')
   descriptorLines.push('}')
+  descriptorLines.push('Every item in the primary content array MUST be an object with exactly this shape: { "component": "<registered-component-type>", "confidence": 0.0-1.0, "content": { ... } }.')
+  descriptorLines.push('Never return tuple arrays such as ["type", 0.9, {...}], bare strings, or component names without content objects.')
   descriptorLines.push('IMPORTANT: Return ONLY JSON (no prose, no code fences). Maximum of 40 components. All string values MUST be valid JSON strings with escaped quotes and backslashes.')
 
   return createStaticSection(descriptorLines)

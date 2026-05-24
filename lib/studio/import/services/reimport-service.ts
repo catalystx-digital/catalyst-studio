@@ -689,7 +689,7 @@ export class ReImportService implements IReImportService {
 
       // SAFEGUARD: Validate detection has actual components
       const componentCount = detection.components?.length || 0
-      if (componentCount === 0) {
+      if (componentCount === 0 && !detection.isRedirectPage) {
         console.warn(`[ReImportService] Detection succeeded but returned 0 components for ${url}`)
         return {
           success: false,

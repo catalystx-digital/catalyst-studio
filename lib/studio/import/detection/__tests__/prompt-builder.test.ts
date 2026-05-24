@@ -1,4 +1,5 @@
 import { buildDetectionPrompt } from '@/lib/studio/ai/component-catalog'
+import { buildDetectionPromptFromCatalog } from '../prompt-builder'
 import type { ComponentCatalogSummary } from '@/lib/studio/ai/component-catalog'
 import type { PromptSchemaSummary } from '@/lib/studio/ai/prompt-schema-builder'
 import type { PromptContractBundle } from '@/lib/studio/ai/prompt-contract-builder'
@@ -268,5 +269,96 @@ describe('detection prompt sub-component coverage', () => {
     expect(prompt).toContain('card-item — Card item with title, description, metadata, and optional image/link.')
     expect(prompt).toContain('Allowed in: card-grid.cards')
     expect(prompt).toContain('title: string (required)')
+  })
+
+  it('documents object-shaped component results instead of legacy tuple arrays', () => {
+    const summary: ComponentCatalogSummary = {
+      total: 1,
+      generatedAt: new Date().toISOString(),
+      components: [
+        {
+          type: 'card-grid',
+          category: 'content',
+          description: 'Grid of promotional cards.',
+          keywords: ['cards'],
+          patterns: ['card'],
+          confidence: 0.9,
+          metadata: {},
+          properties: []
+        }
+      ],
+      categories: [],
+      topLevelTypes: ['card-grid'],
+      subComponentTypes: [],
+      subComponents: []
+    }
+    const schemaSummary: PromptSchemaSummary = {
+      schemaHash: 'hash',
+      generatedAt: new Date().toISOString(),
+      components: [],
+      subcomponents: [],
+      warnings: []
+    }
+    const contractBundle: PromptContractBundle = {
+      hash: 'hash',
+      generatedAt: new Date().toISOString(),
+      components: [],
+      subcomponents: [],
+      subcomponentUsage: {}
+    }
+
+    const prompt = buildDetectionPrompt(summary, { schemaSummary, contractBundle })
+
+    expect(prompt).toContain('"component": "<registered-component-type>"')
+    expect(prompt).toContain('"confidence": 0.0-1.0')
+    expect(prompt).toContain('"content": {')
+    expect(prompt).toContain('Never return tuple arrays')
+    expect(prompt).not.toContain('[["<component-type>", confidence')
+  })
+})
+
+describe('catalog detection prompt candidate filtering', () => {
+  it('narrows the prompt by URL while keeping route-relevant components', async () => {
+    const full = await buildDetectionPromptFromCatalog()
+    const contact = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/contact' })
+
+    const fullTypes = new Set(full.components.map(component => component.type))
+    const contactTypes = new Set(contact.components.map(component => component.type))
+
+    expect(contact.components.length).toBeGreaterThan(0)
+    expect(contact.components.length).toBeLessThan(full.components.length)
+    expect(contactTypes).toContain('contact-form')
+    expect(contactTypes).toContain('contact-info')
+    expect(contactTypes).toContain('navbar')
+    expect(contactTypes).toContain('footer')
+
+    const omittedTypes = Array.from(fullTypes).filter(type => !contactTypes.has(type))
+    expect(omittedTypes.length).toBeGreaterThan(0)
+  })
+
+  it('keeps common marketing components for home and unknown routes', async () => {
+    const home = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/' })
+    const unknown = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/products/custom-platform' })
+
+    for (const prompt of [home, unknown]) {
+      const types = new Set(prompt.components.map(component => component.type))
+      expect(types).toContain('feature-grid')
+      expect(types).toContain('hero-carousel')
+      expect(types).toContain('statistics')
+      expect(types).toContain('testimonials')
+      expect(types).toContain('logo-cloud')
+      expect(types).toContain('content-feed')
+      expect(types).toContain('cta-with-form')
+      expect(types).toContain('navbar')
+      expect(types).toContain('footer')
+    }
+  })
+
+  it('matches hyphenated route hints after URL normalization', async () => {
+    const getInTouch = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/get-in-touch' })
+    const ourWork = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/our-work' })
+
+    expect(new Set(getInTouch.components.map(component => component.type))).toContain('contact-form')
+    expect(new Set(ourWork.components.map(component => component.type))).toContain('blog-post')
   })
 })

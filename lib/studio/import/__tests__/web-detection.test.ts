@@ -13,7 +13,7 @@ import { getComponentCatalogSummary } from '@/lib/studio/ai/component-catalog'
 
 const mockComponents: ComponentPattern[] = [
   {
-    type: 'NavBar',
+    type: 'navbar',
     category: 'navigation',
     keywords: ['navigation', 'menu', 'header'],
     patterns: ['nav', 'menu', 'header'],
@@ -26,7 +26,7 @@ const mockComponents: ComponentPattern[] = [
     }
   },
   {
-    type: 'HeroWithImage',
+    type: 'hero-with-image',
     category: 'heroes',
     keywords: ['hero', 'banner', 'image'],
     patterns: ['hero', 'banner'],
@@ -39,7 +39,7 @@ const mockComponents: ComponentPattern[] = [
     }
   },
   {
-    type: 'CardGrid',
+    type: 'card-grid',
     category: 'content',
     keywords: ['cards', 'grid', 'tiles'],
     patterns: ['card', 'grid'],
@@ -245,9 +245,9 @@ const mockWebResponse = JSON.stringify({
     reason: 'Hero with marketing content and footer detected'
   },
   components: [
-    { component: 'NavBar', confidence: 0.95, content: { logo: 'Company Logo', links: [{ label: 'Home', url: '/' }] } },
-    { component: 'HeroWithImage', confidence: 0.9, content: { heading: 'Welcome to Our Site', backgroundImage: '/images/hero-bg.jpg' } },
-    { component: 'CardGrid', confidence: 0.85, content: { cards: [{ title: 'Feature 1' }] } }
+    { component: 'navbar', confidence: 0.95, content: { logo: 'Company Logo', links: [{ label: 'Home', url: '/' }] } },
+    { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Welcome to Our Site', backgroundImage: '/images/hero-bg.jpg' } },
+    { component: 'card-grid', confidence: 0.85, content: { cards: [{ title: 'Feature 1' }] } }
   ],
   pageMetadata: { title: 'Example' }
 })
@@ -347,8 +347,8 @@ describe('DetectionService (web-based)', () => {
             content: JSON.stringify({
               pageTemplate: { templateKey: 'marketing/home-default' },
               components: [
-                { component: 'NavBar', confidence: 0.2, content: {} },
-                { component: 'HeroWithImage', confidence: 0.8, content: {} }
+                { component: 'navbar', confidence: 0.8, content: {} },
+                { component: 'hero-with-image', confidence: 0.2, content: {} }
               ]
             })
           }
@@ -357,10 +357,10 @@ describe('DetectionService (web-based)', () => {
       })
       const result = await service.detectComponentsFromUrl(mockPageUrl, { confidenceThreshold: 0.25 })
       expect(result.components.some(component => component.confidence < 0.25)).toBe(false)
-      const hero = result.components.find(component => component.component === 'HeroWithImage')
-      expect(hero).toBeDefined()
-      const nav = result.components.find(component => component.component === 'NavBar' || component.type === 'navbar')
-      expect(nav).toBeUndefined()
+      const hero = result.components.find(component => component.component === 'hero-with-image')
+      expect(hero).toBeUndefined()
+      const nav = result.components.find(component => component.component === 'navbar' || component.type === 'navbar')
+      expect(nav).toBeDefined()
     })
 
     it('handles API errors gracefully', async () => {
@@ -383,8 +383,8 @@ describe('DetectionService (web-based)', () => {
             content: JSON.stringify({
               pageTemplate: { templateKey: 'unknown-template', confidence: 0.6 },
               components: [
-                { component: 'NavBar', confidence: 0.95, content: { logo: 'Company Logo' } },
-                { component: 'HeroWithImage', confidence: 0.9, content: { heading: 'Example' } }
+                { component: 'navbar', confidence: 0.95, content: { logo: 'Company Logo' } },
+                { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Example' } }
               ],
               pageMetadata: {}
             })
@@ -436,7 +436,7 @@ describe('DetectionService (web-based)', () => {
     it('maps component types and metadata', async () => {
       const result = await service.detectComponentsFromUrl('https://example.com')
       expect(result.pageTemplate.templateKey).toBeDefined()
-      const navBar = result.components.find(c => c.type === 'NavBar')
+      const navBar = result.components.find(c => c.type === 'navbar')
       expect(navBar).toBeDefined()
       expect(navBar?.metadata).toBeDefined()
     })

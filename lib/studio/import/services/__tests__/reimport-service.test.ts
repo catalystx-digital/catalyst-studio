@@ -356,6 +356,46 @@ describe('ReImportService', () => {
       expect(result.results[0].error).toContain('Source HTTP status is not available')
     })
 
+    it('allows zero-component redirect detections through reimport detection', async () => {
+      const existingPage = {
+        id: 'page-1',
+        title: 'Outbound',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/outbound' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/outbound',
+            pageUrl: 'https://example.com/outbound',
+            components: [],
+            metadata: { httpStatus: 200, redirectedTo: 'https://external.example/' },
+            sourceHttpStatus: 200,
+            redirectInfo: {
+              type: 'http',
+              targetUrl: 'https://external.example/',
+              isExternal: true,
+              description: 'External redirect',
+            },
+            isRedirectPage: true,
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/outbound'],
+        dryRun: true,
+      })
+
+      expect(result.results[0].status).toBe('updated')
+      expect(result.results[0].error).toBeUndefined()
+    })
+
     it('creates new page when not found and createIfNotExists is true', async () => {
       mockPrisma.websitePage.findFirst.mockResolvedValueOnce(null)
       mockPrisma.websiteStructure.findFirst.mockResolvedValueOnce(null)

@@ -197,7 +197,7 @@ const FALLBACK_CONTENT_META: Record<string, Record<string, { type: string; requi
 
 // COMPONENT_CONTENT_NORMALIZERS is now imported from ./component-helpers/normalizers
 
-function normalizeComponentContent(
+export function normalizeComponentContent(
   content: Record<string, unknown>,
   options: {
     parentCanonicalType: string

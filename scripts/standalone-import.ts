@@ -35,7 +35,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { createId } from '@paralleldrive/cuid2';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 // =============================================================================
 // CLI Argument Parsing (no env dependencies, safe as static code)
@@ -51,6 +51,10 @@ interface ScriptArgs {
   retainCheckpoint?: boolean;
   /** Priority URLs/paths to process first (comma-separated) */
   priorityUrls?: string;
+  /** Override IMPORT_MODEL_CHAIN for this run */
+  modelChain?: string;
+  /** Override IMPORT_CONCURRENCY for this run */
+  concurrency?: number;
 
   // Re-import mode options
   /** Enable re-import mode */
@@ -96,6 +100,10 @@ function parseArgs(argv: string[]): ScriptArgs {
       args.retainCheckpoint = true;
     } else if (arg === '--priority-urls' && argv[i + 1]) {
       args.priorityUrls = argv[++i];
+    } else if (arg === '--model-chain' && argv[i + 1]) {
+      args.modelChain = argv[++i];
+    } else if (arg === '--concurrency' && argv[i + 1]) {
+      args.concurrency = parseInt(argv[++i], 10);
     }
     // Re-import mode arguments
     else if (arg === '--reimport') {
@@ -154,6 +162,20 @@ function parseArgs(argv: string[]): ScriptArgs {
   return args as ScriptArgs;
 }
 
+function applyRuntimeOverrides(args: ScriptArgs): void {
+  if (args.modelChain?.trim()) {
+    process.env.IMPORT_MODEL_CHAIN = args.modelChain.trim();
+  }
+
+  if (args.concurrency !== undefined) {
+    if (!Number.isFinite(args.concurrency) || args.concurrency < 1) {
+      console.error('Error: --concurrency must be a positive integer');
+      process.exit(1);
+    }
+    process.env.IMPORT_CONCURRENCY = String(Math.floor(args.concurrency));
+  }
+}
+
 function printUsage(): void {
   console.error('Usage:');
   console.error('');
@@ -185,6 +207,8 @@ function printUsage(): void {
   console.error('  --max-pages <n>             Maximum pages to import (default: 10)');
   console.error('  --priority-urls <paths>     Comma-separated paths to process first');
   console.error('                              (e.g., "/about,/services,/contact")');
+  console.error('  --model-chain <models>      Override IMPORT_MODEL_CHAIN for this run');
+  console.error('  --concurrency <n>           Override IMPORT_CONCURRENCY for this run');
   console.error('  --retain-checkpoint         Keep checkpoint files after success');
   console.error('');
   console.error('Re-import flags:');
@@ -396,6 +420,9 @@ async function main(args: ScriptArgs) {
   if (args.retainCheckpoint) {
     console.log(`  Retain Checkpoint: yes`);
   }
+  if (args.concurrency) {
+    console.log(`  Concurrency: ${args.concurrency}`);
+  }
   console.log('='.repeat(60));
 
   // Validate API key
@@ -412,17 +439,16 @@ async function main(args: ScriptArgs) {
   const prisma = new PrismaClient({
     log: ['error', 'warn'],
   });
+  const repository = new ImportJobRepository();
+  const checkpointService = getCheckpointService();
+  let job: { id: string } | undefined;
+  let checkpointSession: any = undefined;
 
   try {
-    const repository = new ImportJobRepository();
-    const checkpointService = getCheckpointService();
-
     // Handle resume mode vs new import mode
     let website: { id: string };
-    let job: { id: string };
     let urlsToScan: string[];
     let urlsContext: { urls: string[]; sitemapMetaByUrl: Map<string, any> };
-    let checkpointSession: any = undefined;
 
     if (isResumeMode) {
       // ========== RESUME MODE ==========
@@ -619,6 +645,14 @@ async function main(args: ScriptArgs) {
       throw new Error(result.errors?.[0] || 'Pipeline execution failed');
     }
 
+    const invalidDetections = result.data?.detectedComponents.filter(detection => detection.detectionError) ?? [];
+    if (invalidDetections.length > 0) {
+      throw new Error(
+        `Pipeline returned ${invalidDetections.length} failed detection(s); refusing to persist: ` +
+        invalidDetections.map(detection => `${detection.pageUrl}: ${detection.detectionError?.message ?? 'No components detected'}`).join('; ')
+      );
+    }
+
     console.log(`  Pipeline completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
 
     // 6. Persist results using existing orchestrator
@@ -687,6 +721,25 @@ async function main(args: ScriptArgs) {
 
   } catch (error) {
     console.error('\n[Error] Import failed:', error);
+    const failure = error instanceof Error ? error : new Error(String(error ?? 'Unknown import failure'));
+    if (job?.id) {
+      try {
+        await repository.update(job.id, {
+          status: ImportJobStatus.FAILED,
+          errorMessage: failure.message,
+          completedAt: new Date(),
+        });
+      } catch (statusError) {
+        console.error('[Error] Failed to mark import job failed:', statusError);
+      }
+    }
+    if (checkpointSession) {
+      try {
+        await checkpointService.updateStatus(checkpointSession, 'failed', failure);
+      } catch (checkpointError) {
+        console.error('[Error] Failed to mark checkpoint failed:', checkpointError);
+      }
+    }
     console.error('\nTo resume this import, run:');
     console.error(`  npx tsx scripts/standalone-import.ts --resume <jobId>`);
     await prisma.$disconnect();
@@ -699,6 +752,7 @@ async function main(args: ScriptArgs) {
 // =============================================================================
 
 const args = parseArgs(process.argv.slice(2));
+applyRuntimeOverrides(args);
 main(args)
   .then(() => process.exit(0))
   .catch((error) => {

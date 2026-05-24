@@ -201,6 +201,7 @@ interface ConversationParams {
   handlesUsed: Set<string>
   url: string
   messages: ChatCompletionMessageParam[]
+  forceFetchCompletionReserve: number
 }
 
 function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
@@ -344,6 +345,38 @@ function clampCompletionTokens(
     `[DetectionService] Reducing max_tokens from ${requested} to ${clamped} for ${model} (prompt≈${promptTokens} tokens, budget=${CONTEXT_BUDGET}).`
   )
   return clamped
+}
+
+function canAppendToolResultWithinBudget(
+  messages: ChatCompletionMessageParam[],
+  toolResult: unknown,
+  reserveCompletionTokens: number
+): boolean {
+  const CHAR_PER_TOKEN = 4
+  const serialized = JSON.stringify(toolResult)
+  const currentTokens = estimateMessageTokens(messages)
+  const addedTokens = Math.ceil(serialized.length / CHAR_PER_TOKEN)
+  return currentTokens + addedTokens <= CONTEXT_BUDGET - reserveCompletionTokens
+}
+
+function buildPageSpecificDetectionInstructions(url: string): string {
+  let path = ''
+  try {
+    path = new URL(url).pathname.toLowerCase()
+  } catch {
+    path = url.toLowerCase()
+  }
+
+  if (/(?:^|\/)(?:blog|news|insights?|articles?|posts?)(?:\/)?$/.test(path)) {
+    return [
+      'PAGE INTENT: This URL is a listing/index page for posts, articles, news, or insights.',
+      'Select a blog/news index template only when you can return a canonical blog-list component in the main region.',
+      'For blog-list, extract compact teaser data only: title, excerpt, href/slug, image when visible, category/tags, author, publishDate, and featured. Do not expand full article bodies on index pages.',
+      'If article teaser cards are visible anywhere in fetched sections or resourcesSummary anchors, return them as one blog-list.posts[] array rather than separate card-grid/card-item components.'
+    ].join('\n')
+  }
+
+  return ''
 }
 
 async function runDetectionConversation(params: ConversationParams): Promise<ConversationOutcome> {
@@ -542,6 +575,16 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
           })
 
           if (sectionResult) {
+            if (!canAppendToolResultWithinBudget(params.messages, sectionResult, params.forceFetchCompletionReserve)) {
+              console.warn('[SectionTracker] Skipping force-fetched section because it would exceed detection context budget', {
+                key: sectionKey,
+                reserveCompletionTokens: params.forceFetchCompletionReserve,
+                currentTokens: estimateMessageTokens(params.messages),
+                sectionBytes: JSON.stringify(sectionResult).length
+              })
+              continue
+            }
+
             // Add fake assistant message requesting this section
             const fakeAssistantMsg: ChatCompletionAssistantMessageParam = {
               role: 'assistant',
@@ -578,7 +621,7 @@ async function runDetectionConversation(params: ConversationParams): Promise<Con
       // Add a user message prompting re-analysis
       params.messages.push({
         role: 'user',
-        content: 'I have fetched additional page sections that were missed. Please analyze ALL the section data provided above and extract components from the ENTIRE page. Make sure to include components from every section, especially any course content, subject lists, curriculum details, or other content that may have been in the later sections.'
+        content: 'I have fetched additional page sections that were missed. Analyze all fetched section data that fits within the context budget and extract components from the page. For listing pages, return compact canonical listing components such as blog-list instead of expanding full detail content.'
       })
 
       // Make another LLM request with all sections now available
@@ -801,7 +844,7 @@ export class DetectionService {
           message: 'Preparing detection catalog...',
         })
 
-        const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({ telemetry })
+        const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({ telemetry, pageUrl: url })
 
         // Progress: prompt building complete (step 2 of 4)
         onProgress?.({
@@ -832,7 +875,8 @@ export class DetectionService {
             '9) IMPORTANT: DOM nodes may have a "bgImage" field containing a CSS background-image URL. When you see bgImage on a card, section, or container element, use it as the image source (image.src) for that component. This is how decorative images from CSS are exposed.',
             '10) DOM nodes may also have a "bgColor" field containing a CSS background-color in hex format (e.g., "#008ccc"). Use this for card/section styling - cards with distinct bgColor values are likely category cards or visual sections that should preserve their brand color identity. Map bgColor to a theme or accent color in the component props.',
             '11) IMPORTANT: Watch for linked-image + text-block patterns. When you see <a><img src="..."></a> immediately followed by a text container (li, div with text, etc.), these form a SINGLE card. The img.src becomes image.src, the img.alt or text block title becomes the card title. Group these as card-grid cards, NOT separate components.',
-            '12) Before finalizing, run this completeness checklist and backfill any gaps:',
+            '12) Do not place bookkeeping fields inside component content. Never put region, metadata, body, rawHtml, or arbitrary scraped attributes in content unless the component contract explicitly lists that field. Put placement in the component location field only.',
+            '13) Before finalizing, run this completeness checklist and backfill any gaps:',
             '   - hero-carousel.slides[] lists every visible slide with full copy, media, and CTAs.',
             '   - hero-with-image includes heading, copy, image.src + alt, layout/theme, and ctaButtons[] using the "variant" field (default|secondary|outline|ghost|link|destructive) following shadcn/ui button variants.',
             '   - card-grid.cards[] enumerates each card-item/promo-item with titles, descriptions, media (check for: 1) bgImage field, 2) backgroundColor from bgColor field, 3) sibling/child <img> elements), link/linkText strings, and stable ids (card-item-...). For promo tiles where <a><img></a> precedes a text block, use the img.src as image.src.',
@@ -848,9 +892,10 @@ export class DetectionService {
           role: 'system',
           content: [
             catalogPrompt,
-            'Use fetch_outline on the URL provided below. Then request get_section for header, footer, and sequential main slices (grab at least the first 6 slices when the outline shows many) until the hero and mid-page content blocks/lists are captured. Obey URL fidelity rules.',
+            buildPageSpecificDetectionInstructions(url),
+            'Use fetch_outline on the URL provided below. Then request get_section for header, footer, and only the main slices needed to capture hero and mid-page content blocks/lists. On listing pages, prioritize slices that contain teaser cards, dates, categories, or repeated article links. Obey URL fidelity rules.',
             'When forms, feature grids, or footers appear, explicitly fetch the corresponding sections so you can extract every field (CTA form inputs/actions, feature-item lists, footer columns/social/legal links). Continue requesting sections until the contract outputs are complete, especially for news/resource listings.'
-          ].join('\n\n')
+          ].filter(Boolean).join('\n\n')
         }
 
         const userMsg: ChatCompletionMessageParam = {
@@ -978,6 +1023,10 @@ export class DetectionService {
         const normalizedModelId = endpointModel.toLowerCase()
         const hasTools = tools.length > 0
         const shouldDelayJsonMode = hasTools || normalizedModelId.includes('gemini') || normalizedModelId.includes('grok')
+        const forceFetchCompletionReserve = Math.min(
+          effectiveMaxTokens,
+          Math.max(MIN_COMPLETION_BUDGET, Math.min(16000, USER_MAX_TOKENS))
+        )
         // Reuse webTools from earlier in function (line 450) - avoid redeclaration
 
         const conversationOutcome = await telemetry.timePhase(
@@ -991,7 +1040,8 @@ export class DetectionService {
               webTools,
               handlesUsed,
               url,
-              messages
+              messages,
+              forceFetchCompletionReserve
             }),
           outcome => ({
             requestCount: outcome?.requestCount ?? 0,

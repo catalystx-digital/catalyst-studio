@@ -52,7 +52,7 @@ describe('detection canonicalization', () => {
     { type: 'blog-post', confidence: 0.95, metadata: { category: 'blog' } }
   ]
 
-  it('does not synthesize a blog-post component when fragments are present', () => {
+  it('rejects blog-post fragments when the selected template requires the canonical blog-post component', () => {
     const spyWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const rawResponse = JSON.stringify({
@@ -86,16 +86,17 @@ describe('detection canonicalization', () => {
       ]
     })
 
-    const result = parseDetectionResponse({
-      rawResponse,
-      availableComponents: blogComponents,
-      pageSummary: blogSummary,
-      url: 'https://bathurstcitycentre.qicre.com/articles/barc-x-farmgate-meats',
-      confidenceThreshold: 0.1
-    })
-
-    const canonical = result.components.find(component => normalize(component.component) === 'blog-post' || normalize(component.type) === 'blog-post')
-    expect(canonical).toBeUndefined()
+    expect(() =>
+      parseDetectionResponse({
+        rawResponse,
+        availableComponents: blogComponents,
+        pageSummary: blogSummary,
+        url: 'https://bathurstcitycentre.qicre.com/articles/barc-x-farmgate-meats',
+        confidenceThreshold: 0.1
+      })
+    ).toThrow(
+      'Detection output omitted required canonical component(s) for template "blog/post-standard": main:blog-post min=1'
+    )
     expect(spyWarn).toHaveBeenCalledWith(
       expect.stringContaining('canonical-required-missing'),
       expect.objectContaining({ canonicalType: 'blog-post' })
@@ -140,7 +141,7 @@ describe('detection canonicalization', () => {
     spyInfo.mockRestore()
   })
 
-  it('does not synthesize navigation and footer for marketing home when missing', () => {
+  it('rejects missing required navigation for marketing home', () => {
     const marketingTemplate: PageCatalogTemplateSummary = {
       templateKey: 'marketing/home-default',
       name: 'Marketing Home',
@@ -209,23 +210,20 @@ describe('detection canonicalization', () => {
       ]
     })
 
-    const result = parseDetectionResponse({
-      rawResponse,
-      availableComponents: marketingPatterns,
-      pageSummary: marketingSummary,
-      url: 'https://example.com/',
-      confidenceThreshold: 0.1
-    })
-
-    const nav = result.components.find(component => normalize(component.component) === 'navbar')
-    const footer = result.components.find(component => normalize(component.component) === 'footer')
-
-    expect(nav).toBeUndefined()
-    expect(footer).toBeUndefined()
-    expect(result.components.map(component => component.component)).toEqual(['feature-grid'])
+    expect(() =>
+      parseDetectionResponse({
+        rawResponse,
+        availableComponents: marketingPatterns,
+        pageSummary: marketingSummary,
+        url: 'https://example.com/',
+        confidenceThreshold: 0.1
+      })
+    ).toThrow(
+      'Detection output omitted required canonical component(s) for template "marketing/home-default": header:navbar min=1, footer:footer min=1'
+    )
   })
 
-  it('does not synthesize hero content for product detail when missing', () => {
+  it('rejects missing required hero content for product detail', () => {
     const productTemplate: PageCatalogTemplateSummary = {
       templateKey: 'commerce/product-detail',
       name: 'Product Detail',
@@ -285,17 +283,17 @@ describe('detection canonicalization', () => {
       ]
     })
 
-    const result = parseDetectionResponse({
-      rawResponse,
-      availableComponents: productPatterns,
-      pageSummary: productSummary,
-      url: 'https://example.com/products/pro-x',
-      confidenceThreshold: 0.1
-    })
-
-    const hero = result.components.find(component => normalize(component.component) === 'hero-with-image')
-    expect(hero).toBeUndefined()
-    expect(result.components.map(component => component.component)).toEqual(['feature-grid'])
+    expect(() =>
+      parseDetectionResponse({
+        rawResponse,
+        availableComponents: productPatterns,
+        pageSummary: productSummary,
+        url: 'https://example.com/products/pro-x',
+        confidenceThreshold: 0.1
+      })
+    ).toThrow(
+      'Detection output omitted required canonical component(s) for template "commerce/product-detail": header:navbar min=1'
+    )
   })
 })
 

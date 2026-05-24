@@ -10,12 +10,6 @@ import { NavigationHierarchy, Template, DesignTokens } from './types'
 import { TemplateGenerator, CMSTemplate } from './template-generator'
 import { TemplateLibrary } from './template-library'
 import { PrismaClient } from '@/lib/generated/prisma'
-import {
-  getPageCatalogSummary,
-  type PageCatalogSummary,
-  type PageCatalogTemplateSummary
-} from '@/lib/studio/pages/catalog'
-import { PageTemplateCategory } from '@/lib/studio/pages/_core/types'
 import { traceMemory } from './utils/memory-trace'
 import { getWebFetchTools } from './services/web-tools'
 import { CapturedDesignSystem } from './types/design-system.types'
@@ -32,6 +26,8 @@ import {
 } from './utils/dom-probe-flags'
 import { importDesignSystemFromUrl } from '@/lib/studio/design-system/import-design-system'
 import { adjustDetectedComponents } from './services/detection-post-processor'
+import { validateTemplateCanonicalRequirements } from './detection/canonicalization'
+import { getPageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import {
   ModelConfig,
   ConfidenceConfig,
@@ -42,9 +38,8 @@ import {
   LoggingConfig,
   CheckpointConfig
 } from './config'
-import { classifyError as classifyErrorUtil, isRetryable } from './utils/error-classification'
+import { classifyError as classifyErrorUtil } from './utils/error-classification'
 import { sleep } from './utils/retry-utils'
-import { normalizePath, normalizePathname, isHomePath } from './utils/path-utils'
 import type { CheckpointSession, PipelineStage } from './types/checkpoint.types'
 import { getCheckpointService, ImportCheckpointService } from './services/checkpoint-service'
 
@@ -150,6 +145,7 @@ export class ImportPipeline {
       // =========================================================================
       let detectionResults: ImportDetectionResult[]
       const detectionStart = Date.now()
+      let completedDetectionThisRun = false
 
       if (shouldSkipStage('page_detection_done')) {
         // Load detection results from checkpoint
@@ -181,25 +177,81 @@ export class ImportPipeline {
           },
           options.onProgress
         )
+        completedDetectionThisRun = true
+      }
 
-        // Post-process detection results
-        detectionResults = detectionResults.map(result => ({
-          ...result,
-          components: adjustDetectedComponents(result.components, {
-            pageUrl: result.pageUrl,
-            resourcesSummary: result.resourcesSummary,
-            pageMetadata: result.pageMetadata
-          })
-        }))
+      const pageSummary = await getPageCatalogSummary()
 
-        traceMemory('pipeline:detection:complete', { urls: options.urls.length, detected: detectionResults.length })
-        if (LoggingConfig.memoryTrace) {
-          console.log('[ImportMemory] pipeline:web-tools-cache:post-detection', {
-            ...getWebFetchTools().getCacheStats(),
-            stage: 'post-detection'
-          })
+      // Post-process and validate both fresh and checkpoint-resumed detections.
+      detectionResults = detectionResults.map(result => ({
+        ...result,
+        components: adjustDetectedComponents(result.components, {
+          pageUrl: result.pageUrl,
+          resourcesSummary: result.resourcesSummary,
+          pageMetadata: result.pageMetadata
+        })
+      }))
+      detectionResults = detectionResults.map(result => {
+        if (result.isRedirectPage || result.detectionError) {
+          return result
         }
+        if (!result.pageTemplate) {
+          return {
+            ...result,
+            detectionError: {
+              stage: 'detection' as const,
+              message: 'Detection completed without a pageTemplate'
+            }
+          }
+        }
+        try {
+          validateTemplateCanonicalRequirements({
+            components: result.components,
+            template: result.pageTemplate,
+            pageSummary,
+            pageUrl: result.pageUrl
+          })
+          return result
+        } catch (error) {
+          return {
+            ...result,
+            detectionError: {
+              stage: 'detection' as const,
+              message: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }
+      })
+      detectionResults = detectionResults.map(result => {
+        if (result.isRedirectPage || result.detectionError || result.components.length > 0) {
+          return result
+        }
+        return {
+          ...result,
+          detectionError: {
+            stage: 'detection' as const,
+            message: 'Detection completed but found no components in page'
+          }
+        }
+      })
 
+      traceMemory('pipeline:detection:complete', { urls: options.urls.length, detected: detectionResults.length })
+      if (LoggingConfig.memoryTrace) {
+        console.log('[ImportMemory] pipeline:web-tools-cache:post-detection', {
+          ...getWebFetchTools().getCacheStats(),
+          stage: 'post-detection'
+        })
+      }
+
+      const detectionFailures = detectionResults.filter(result => this.isFailedDetectionResult(result))
+      if (detectionFailures.length > 0) {
+        throw new Error(
+          `Detection failed for ${detectionFailures.length}/${detectionResults.length} page(s): ` +
+          detectionFailures.map(result => `${result.pageUrl}: ${result.detectionError?.message ?? 'No components detected'}`).join('; ')
+        )
+      }
+
+      if (completedDetectionThisRun) {
         // Mark page_detection_done
         await completeStage('page_detection_done', Date.now() - detectionStart)
       }
@@ -428,8 +480,23 @@ export class ImportPipeline {
         this.logPerformanceMetrics(performanceMetrics, detectionResults)
       }
 
-      const hasValidResults = detectionResults.length > 0 && detectionResults.some(r => r.components && r.components.length > 0)
-      const success = hasValidResults
+      const failedDetections = detectionResults.filter(result => this.isFailedDetectionResult(result))
+      if (failedDetections.length > 0) {
+        this.errors.push(
+          `Detection failed for ${failedDetections.length}/${detectionResults.length} page(s): ` +
+          failedDetections.map(result => `${result.pageUrl}: ${result.detectionError?.message ?? 'No components detected'}`).join('; ')
+        )
+      }
+
+      const hasPersistableResults = detectionResults.some(result =>
+        result.isRedirectPage || (result.pageTemplate && result.components && result.components.length > 0)
+      )
+      const success = detectionResults.length > 0
+        && failedDetections.length === 0
+        && hasPersistableResults
+        && detectionResults.every(result =>
+          result.isRedirectPage || (result.pageTemplate && result.components && result.components.length > 0)
+        )
 
       this.reportProgress(options.onProgress, { message: (success ? 'Import pipeline completed successfully' : 'Import pipeline completed with errors'), progress: 100 })
 
@@ -559,7 +626,7 @@ export class ImportPipeline {
 
       if (budgetExceeded) {
         if (!results[current]) {
-          results[current] = await this.buildEmptyDetectionResult(
+          results[current] = this.buildFailedDetectionResult(
             url,
             primaryModel,
             'Detection skipped after import budget exhausted'
@@ -583,7 +650,7 @@ export class ImportPipeline {
       const openUntil = breakerOpenUntil.get(host) || 0
       if (Date.now() < openUntil) {
         setPageState(url, 'skipped', 'Detection skipped due to open circuit breaker')
-        results[current] = await this.buildEmptyDetectionResult(
+        results[current] = this.buildFailedDetectionResult(
           url,
           primaryModel,
           'Detection skipped due to open circuit breaker'
@@ -604,7 +671,7 @@ export class ImportPipeline {
       // Budget guard
       if (budgetMs && (Date.now() - startTime) > budgetMs) {
         console.warn('[ImportPipeline] Budget exhausted (' + budgetMs + 'ms). Skipping remaining URLs starting at index ' + current + '.')
-        results[current] = await this.buildEmptyDetectionResult(
+        results[current] = this.buildFailedDetectionResult(
           url,
           primaryModel,
           'Detection skipped after import budget exhausted'
@@ -735,7 +802,7 @@ export class ImportPipeline {
       } catch (error) {
         console.error('Web-based detection failed for ' + url + ':', error)
         const failureReason = error instanceof Error ? error.message : 'Unknown error'
-        results[current] = await this.buildEmptyDetectionResult(
+        results[current] = this.buildFailedDetectionResult(
           url,
           primaryModel,
           'Web detection failed: ' + failureReason
@@ -792,7 +859,7 @@ export class ImportPipeline {
   }
 
   private extractNavigationFromDetection(results: ImportDetectionResult[]): NavigationHierarchy {
-    const pages = results.map(r => ({
+    const pages = results.filter(result => !this.isFailedDetectionResult(result)).map(r => ({
       title: this.derivePageTitle(r),
       url: new URL(r.pageUrl).pathname,
       children: [] as any[]
@@ -800,112 +867,29 @@ export class ImportPipeline {
     return { pages, sections: [] }
   }
 
-  private async buildEmptyDetectionResult(
+  private buildFailedDetectionResult(
     url: string,
     modelUsed: string,
     reason: string
-  ): Promise<ImportDetectionResult> {
-    try {
-      const summary = await getPageCatalogSummary()
-      const path = normalizePath(url)
-      let template = this.matchTemplateByRouteHints(path, summary)
-
-      if (!template && isHomePath(path)) {
-        template = this.pickHomeTemplate(summary)
-      }
-
-      if (!template && summary.templates.length > 0) {
-        template = this.pickGenericTemplate(summary) ?? summary.templates[0]
-      }
-
-      if (template && isHomePath(path) && !template.isHomeEligible) {
-        const homeTemplate = this.pickHomeTemplate(summary)
-        if (homeTemplate) {
-          template = homeTemplate
-        }
-      }
-
-      const fallbackTemplateKey = template?.templateKey || 'core/generic-default'
-      const sanitizedReason = reason.trim().slice(0, 240)
-
-      return {
-        components: [],
-        pageTemplate: {
-          templateKey: fallbackTemplateKey,
-          confidence: 0,
-          source: 'fallback',
-          reason: sanitizedReason
-        },
-        pageMetadata: undefined,
-        processingTime: 0,
-        modelUsed,
-        tokenUsage: 0,
-        cost: 0,
-        pageUrl: url,
-        accuracy: 0
-      }
-    } catch (error) {
-      console.warn('Failed to fetch page catalog summary for fallback detection:', error)
-      const fallbackReason = `${reason} (default template applied)`
-      return {
-        components: [],
-        pageTemplate: {
-          templateKey: 'core/generic-default',
-          confidence: 0,
-          source: 'fallback',
-          reason: fallbackReason.slice(0, 240)
-        },
-        pageMetadata: undefined,
-        processingTime: 0,
-        modelUsed,
-        tokenUsage: 0,
-        cost: 0,
-        pageUrl: url,
-        accuracy: 0
+  ): ImportDetectionResult {
+    return {
+      components: [],
+      pageMetadata: undefined,
+      processingTime: 0,
+      modelUsed,
+      tokenUsage: 0,
+      cost: 0,
+      pageUrl: url,
+      accuracy: 0,
+      detectionError: {
+        stage: 'detection',
+        message: reason.trim() || 'Detection failed'
       }
     }
   }
 
-  private matchTemplateByRouteHints(
-    path: string,
-    summary: PageCatalogSummary
-  ): PageCatalogTemplateSummary | undefined {
-    for (const template of summary.templates) {
-      const hints = template.aiMetadata.routeHints || []
-      for (const hint of hints) {
-        const trimmed = (hint || '').trim()
-        if (!trimmed) continue
-        const preferPrefix = trimmed.endsWith('/') && trimmed !== '/'
-        const normalizedHint = normalizePathname(trimmed)
-        if (normalizedHint === '/' && isHomePath(path)) {
-          return template
-        }
-        if (preferPrefix) {
-          if (normalizedHint === '/') {
-            if (!isHomePath(path)) {
-              return template
-            }
-          } else if (path === normalizedHint || path.startsWith(`${normalizedHint}/`)) {
-            return template
-          }
-        } else if (path === normalizedHint) {
-          return template
-        }
-      }
-    }
-    return undefined
-  }
-
-  private pickHomeTemplate(summary: PageCatalogSummary): PageCatalogTemplateSummary | undefined {
-    if (summary.homeEligibleTemplates.length > 0) {
-      const key = summary.homeEligibleTemplates[0]
-      return summary.templates.find(template => template.templateKey === key)
-    }
-    return summary.templates.find(template => template.isHomeEligible)
-  }
-
-  private pickGenericTemplate(summary: PageCatalogSummary): PageCatalogTemplateSummary | undefined {
-    return summary.templates.find(template => template.category === PageTemplateCategory.Core)
+  private isFailedDetectionResult(result: ImportDetectionResult): boolean {
+    return Boolean(result.detectionError)
   }
 
   private derivePageTitle(result: ImportDetectionResult): string {

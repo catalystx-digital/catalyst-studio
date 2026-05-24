@@ -7,20 +7,9 @@ process.env.IMPORT_MODEL_CHAIN = process.env.IMPORT_MODEL_CHAIN || 'test-model'
 import { ImportPipeline, importPipeline } from '../import-pipeline'
 import { getDetectionService } from '../web-detection'
 import type { ImportDetectionResult } from '../web-detection'
-import * as pageCatalog from '@/lib/studio/pages/catalog'
 import { importDesignSystemFromUrl } from '@/lib/studio/design-system/import-design-system'
 import type { DesignSystem, CapturedDesignSystem } from '../types/design-system.types'
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service'
-
-jest.mock('@/lib/studio/pages/catalog', () => {
-  const actual = jest.requireActual('@/lib/studio/pages/catalog')
-  return {
-    ...actual,
-    getPageCatalogSummary: jest.fn(actual.getPageCatalogSummary)
-  }
-})
-
-const actualPageCatalog = jest.requireActual('@/lib/studio/pages/catalog') as typeof pageCatalog
 
 function createMockDesignSystem(): DesignSystem {
   const color = (value: string) => ({
@@ -341,7 +330,11 @@ describe('ImportPipeline', () => {
         .mockResolvedValueOnce(mockDetectionResult) // Page 2 - same template
         .mockResolvedValueOnce({
           ...mockDetectionResult,
-          components: mockDetectionResult.components.slice(0, 2) // Page 3 - different template
+          components: [
+            mockDetectionResult.components[0],
+            mockDetectionResult.components[1],
+            mockDetectionResult.components[3]
+          ] // Page 3 - different template, still satisfies required navbar/footer
         })
 
       const result = await pipeline.execute({ urls: mockUrls })
@@ -450,71 +443,68 @@ describe('ImportPipeline', () => {
       expect(result.data?.detectedComponents[1].pageTemplate.templateKey).toBe('marketing/home-default')
     })
 
-    it('falls back to generic template when detection cannot run', async () => {
-      const fallbackTemplates = [
-        {
-          templateKey: 'core/generic-default',
-          name: 'Generic',
-          category: 'core',
-          isHomeEligible: false,
-            description: 'Generic fallback template',
-            requiredRegions: [],
-            optionalRegions: [],
-            propsMeta: undefined,
-            aiMetadata: {
-              keywords: ['generic'],
-              layoutGuidelines: [],
-              contentGuidelines: [],
-              recommendedComponents: [],
-              discouragedComponents: [],
-              exampleUseCases: [],
-              routeHints: ['/generic']
-            }
-          },
-          {
-            templateKey: 'marketing/home-default',
-            name: 'Marketing Home',
-            category: 'marketing',
-            isHomeEligible: true,
-            description: 'Home template',
-            requiredRegions: [],
-            optionalRegions: [],
-            propsMeta: undefined,
-            aiMetadata: {
-              keywords: ['home'],
-              layoutGuidelines: [],
-              contentGuidelines: [],
-              recommendedComponents: [],
-              discouragedComponents: [],
-              exampleUseCases: [],
-              routeHints: ['/']
-            }
-          }
-        ]
-
-      const summaryMock = pageCatalog.getPageCatalogSummary as jest.Mock
-      summaryMock.mockImplementationOnce(async () => ({
-        total: fallbackTemplates.length,
-        generatedAt: new Date().toISOString(),
-        templates: fallbackTemplates,
-        categories: [
-          { category: 'core', templates: [fallbackTemplates[0]] },
-          { category: 'marketing', templates: [fallbackTemplates[1]] }
-        ],
-        homeEligibleTemplates: ['marketing/home-default']
-      }))
-
+    it('fails instead of creating fallback content when detection cannot run', async () => {
       mockDetectionService.detectComponentsFromUrl.mockRejectedValue(new Error('hard failure'))
 
       const result = await pipeline.execute({ urls: ['https://example.com/generic'] })
 
       expect(result.success).toBe(false)
-      expect(result.data?.detectedComponents).toHaveLength(1)
-      expect(result.data?.detectedComponents?.[0].components).toHaveLength(0)
-      expect(result.data?.detectedComponents?.[0].pageTemplate.templateKey).toBe('core/generic-default')
-      expect(result.data?.detectedComponents?.[0].pageTemplate.source).toBe('fallback')
+      expect(result.data).toBeUndefined()
+      expect(result.errors[0]).toContain('Detection failed for 1/1 page(s)')
+      expect(result.errors[0]).toContain('https://example.com/generic')
+    })
 
-      summaryMock.mockImplementation(actualPageCatalog.getPageCatalogSummary)
+    it('does not treat redirect detections as failed content fallbacks', async () => {
+      mockDetectionService.detectComponentsFromUrl.mockResolvedValueOnce({
+        components: [],
+        pageTemplate: {
+          templateKey: 'redirect',
+          confidence: 1,
+          source: 'redirect-detection',
+          reason: 'External redirect'
+        },
+        pageMetadata: { title: 'Redirect' },
+        processingTime: 10,
+        modelUsed: 'redirect-detection',
+        tokenUsage: 0,
+        cost: 0,
+        pageUrl: 'https://example.com/out',
+        accuracy: 1,
+        redirectInfo: {
+          type: 'http',
+          targetUrl: 'https://external.example/path',
+          isExternal: true,
+          description: 'External redirect'
+        },
+        isRedirectPage: true
+      })
+
+      const result = await pipeline.execute({ urls: ['https://example.com/out'] })
+
+      expect(result.success).toBe(true)
+      expect(result.errors).toHaveLength(0)
+      expect(result.data?.detectedComponents[0].isRedirectPage).toBe(true)
+      expect(result.data?.detectedComponents[0].components).toHaveLength(0)
+    })
+
+    it('fails non-redirect detections that parse with zero components', async () => {
+      mockDetectionService.detectComponentsFromUrl.mockResolvedValueOnce({
+        components: [],
+        pageTemplate: { templateKey: 'core/generic-default', confidence: 0.6, reason: 'No visible sections' },
+        pageMetadata: { title: 'Empty' },
+        processingTime: 10,
+        modelUsed: 'test-model',
+        tokenUsage: 0,
+        cost: 0,
+        pageUrl: 'https://example.com/empty',
+        accuracy: 0
+      })
+
+      const result = await pipeline.execute({ urls: ['https://example.com/empty'] })
+
+      expect(result.success).toBe(false)
+      expect(result.data).toBeUndefined()
+      expect(result.errors[0]).toContain('Detection completed but found no components')
     })
 
     it('should use custom model when specified', async () => {
@@ -608,6 +598,13 @@ describe('ImportPipeline', () => {
             type: 'contact-form' as any,
             confidence: 0.9,
             location: 'main',
+            content: {}
+          },
+          {
+            component: 'Footer',
+            type: 'footer' as any,
+            confidence: 0.9,
+            location: 'footer',
             content: {}
           }
         ]

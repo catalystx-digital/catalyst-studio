@@ -105,6 +105,11 @@ export interface ImportDetectionResult {
   redirectInfo?: RedirectInfo
   /** Whether this result represents a redirect page (skip content storage) */
   isRedirectPage?: boolean
+  /** Explicit detection failure details for pages that could not be imported */
+  detectionError?: {
+    stage: 'detection'
+    message: string
+  }
 }
 
 export interface ImportDetectionOptions {

@@ -31,6 +31,7 @@ import {
 } from './page-builder/normalization-telemetry';
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service';
 import { adjustDetectedComponents } from './detection-post-processor';
+import { normalizeComponentContent } from './page-builder/component-helpers';
 import { redirectService } from '@/lib/services/redirect-service';
 
 interface PersistOptions {
@@ -77,6 +78,46 @@ function formatFatalNormalizationError(warnings: ContentNormalizationWarning[]):
   );
   const remainder = entries.length > rendered.length ? `; ... ${entries.length - rendered.length} more` : '';
   return `Fatal content normalization warnings recorded: ${rendered.join('; ')}${remainder}`;
+}
+
+function collectPreflightNormalizationWarnings(
+  groups: Map<string, { pageUrl: string; pageTitle: string; components: any[] }>
+): ContentNormalizationWarning[] {
+  const warnings: ContentNormalizationWarning[] = [];
+
+  for (const group of groups.values()) {
+    for (const component of group.components) {
+      const parentType =
+        typeof component.type === 'string' && component.type.trim().length > 0
+          ? component.type
+          : typeof component.component === 'string'
+            ? component.component
+            : '';
+      const content = component.content;
+      if (!parentType || !content || typeof content !== 'object' || Array.isArray(content)) {
+        continue;
+      }
+
+      const normalized = normalizeComponentContent(content as Record<string, unknown>, {
+        parentCanonicalType: parentType,
+        pageUrl: group.pageUrl,
+      });
+
+      for (const warning of normalized.warnings) {
+        warnings.push({
+          pageUrl: group.pageUrl,
+          parentType,
+          field: warning.field,
+          childType: warning.childType,
+          issue: warning.issue,
+          message: warning.message,
+          details: warning.details,
+        });
+      }
+    }
+  }
+
+  return warnings;
 }
 
 export class ImportResultHandler {
@@ -462,6 +503,17 @@ export class ImportResultHandler {
           fonts: metadata?.fonts,
         };
       }
+    }
+
+    const preflightNormalizationWarnings = collectPreflightNormalizationWarnings(groups);
+    const fatalPreflightNormalizationWarnings = preflightNormalizationWarnings.filter(isFatalNormalizationWarning);
+    if (fatalPreflightNormalizationWarnings.length > 0) {
+      const fatalMessage = formatFatalNormalizationError(fatalPreflightNormalizationWarnings);
+      await this.repository.update(jobId, {
+        status: ImportJobStatus.FAILED,
+        errorMessage: fatalMessage,
+      });
+      throw new Error(fatalMessage);
     }
 
     // Persist page detections to dedicated table (batch insert for performance)

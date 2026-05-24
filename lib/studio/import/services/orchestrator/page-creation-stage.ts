@@ -72,44 +72,31 @@ export async function createPages(input: PageCreationInput): Promise<any[]> {
       try {
         return await pageBuilderService.createPagesInBatch(chunk.map(buildPageInput))
       } catch (error) {
-        console.warn('[PageCreationStage] Page batch failed; retrying individually', {
-          error: error instanceof Error ? error.message : error,
+        const firstDetection = chunk[0]
+        const pageUrl =
+          error instanceof TemplateValidationError
+            ? error.pageUrl
+            : (firstDetection as any)?.pageUrl || 'unknown'
+        const failure: ImportFailure = {
+          pageUrl,
+          error: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
+          stage: error instanceof TemplateValidationError ? 'validation' : 'page-creation',
+          metadata: error instanceof TemplateValidationError
+            ? {
+                templateKey: error.templateKey,
+                importIssues: error.issues
+              }
+            : undefined
+        }
+        failedPages.push(failure)
+        console.error('[PageCreationStage] Page batch failed; aborting import', {
+          ...failure,
           batchSize: chunk.length
         })
-        traceMemory('page-creation:batch-retry', { batchSize: chunk.length })
-
-        const fallbackPages: any[] = []
-        for (const detection of chunk) {
-          const pageUrl = (detection as any).pageUrl || 'unknown'
-          try {
-            const [page] = await pageBuilderService.createPagesInBatch([buildPageInput(detection)])
-            if (page) {
-              fallbackPages.push(page)
-            }
-          } catch (pageError) {
-            const isTemplateValidationError = pageError instanceof TemplateValidationError
-            const failure: ImportFailure = {
-              pageUrl: isTemplateValidationError ? pageError.pageUrl : pageUrl,
-              error: pageError instanceof Error ? pageError.message : String(pageError ?? 'Unknown error'),
-              stage: isTemplateValidationError ? 'validation' : 'page-creation',
-              metadata: {
-                pageTitle: (detection as any).pageTitle,
-                components: Array.isArray((detection as any).children) ? (detection as any).children.length : undefined,
-                ...(isTemplateValidationError
-                  ? {
-                      templateKey: pageError.templateKey,
-                      importIssues: pageError.issues
-                    }
-                  : {})
-              }
-            }
-            failedPages.push(failure)
-            traceMemory('page-creation:fallback-failed', { pageUrl })
-            console.error('[PageCreationStage] Failed to create page after fallback', failure)
-          }
-        }
-
-        return fallbackPages
+        traceMemory('page-creation:batch-failed', { pageUrl, batchSize: chunk.length })
+        throw new Error(
+          `Page creation failed for ${pageUrl}: ${failure.error}`
+        )
       }
     },
     'page creation',
