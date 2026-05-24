@@ -8,6 +8,10 @@ import {
   sanitizeReason,
   ensureHomeEligible
 } from '../services/page-builder/template-resolver'
+import { normalizeComponentContent } from '../services/page-builder/component-helpers'
+import { isFatalNormalizationWarning } from '../services/page-builder/normalization-telemetry'
+import { getComponentContractByCanonicalType } from '@/lib/studio/components/catalog/component-contracts'
+import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 
 // Use centralized confidence threshold
 const HIGH_CONFIDENCE = ConfidenceConfig.highConfidence
@@ -185,16 +189,85 @@ function parseComponentsArray(
     if (!pattern) {
       throw new Error(`Detection response components[${index}].component "${componentName}" is not registered`)
     }
+
+    const validatedContent = validateDetectedComponentContent({
+      index,
+      componentName,
+      canonicalType: pattern.type,
+      content,
+      pageUrl
+    })
+
     validComponents.push({
       component: componentName,
       type: pattern.type as DetectedComponent['type'],
       confidence,
-      content,
+      content: validatedContent,
       location: inferLocationFromType(pattern.type),
       metadata: pattern.metadata as DetectedComponent['metadata']
     })
   }
   return validComponents
+}
+
+function validateDetectedComponentContent({
+  index,
+  componentName,
+  canonicalType,
+  content,
+  pageUrl
+}: {
+  index: number
+  componentName: string
+  canonicalType: string
+  content: Record<string, unknown>
+  pageUrl?: string
+}): Record<string, unknown> {
+  const contract = getComponentContractByCanonicalType(canonicalType)
+  const allowedKeys = contract?.propsMeta ? new Set(Object.keys(contract.propsMeta)) : undefined
+  const unsupportedFields = allowedKeys
+    ? Object.keys(content).filter(field => !allowedKeys.has(field))
+    : []
+  if (unsupportedFields.length > 0) {
+    throw new Error(
+      `Detection response components[${index}].content is invalid for component "${componentName}" (${canonicalType}): ${unsupportedFields
+        .map(field => `${field}:unknown-field`)
+        .join('; ')}`
+    )
+  }
+
+  const { content: normalizedContent, warnings } = normalizeComponentContent(content, {
+    parentCanonicalType: canonicalType,
+    pageUrl
+  })
+  const fatalWarnings = warnings.filter(isFatalNormalizationWarning)
+  if (fatalWarnings.length > 0) {
+    const rendered = fatalWarnings.slice(0, 5).map(warning => {
+      const field = warning.field ?? warning.childType ?? 'unknown'
+      return `${field}:${warning.issue}`
+    })
+    const remainder = fatalWarnings.length > rendered.length ? `; ... ${fatalWarnings.length - rendered.length} more` : ''
+    throw new Error(
+      `Detection response components[${index}].content is invalid for component "${componentName}" (${canonicalType}): ${rendered.join('; ')}${remainder}`
+    )
+  }
+
+  const schema = contract?.componentType
+    ? cmsComponentFactory.getRegistry().get(contract.componentType)?.schema
+    : undefined
+  const validation = schema?.safeParse(normalizedContent)
+  if (validation && !validation.success) {
+    const rendered = validation.error.issues.slice(0, 5).map(issue => {
+      const field = issue.path.length > 0 ? issue.path.join('.') : 'content'
+      return `${field}:${issue.code}`
+    })
+    const remainder = validation.error.issues.length > rendered.length ? `; ... ${validation.error.issues.length - rendered.length} more` : ''
+    throw new Error(
+      `Detection response components[${index}].content is invalid for component "${componentName}" (${canonicalType}): ${rendered.join('; ')}${remainder}`
+    )
+  }
+
+  return validation?.success ? validation.data : normalizedContent
 }
 
 function inferLocationFromType(type: string): DetectedComponent['location'] {
@@ -265,5 +338,6 @@ export const detectionParserInternals = {
   parseCombinedDetectionResponse,
   parseComponentsArray,
   resolvePageTemplate,
+  validateDetectedComponentContent,
   calculateAccuracy
 }

@@ -1046,6 +1046,33 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
+  it('converts malformed navbar logo image payloads with alt text into text logos', () => {
+    const detection: DetectionResult = {
+      id: 'navbar-logo-link-as-src',
+      type: 'navbar',
+      bounds: baseBounds,
+      content: {
+        menuItems: [{ label: 'Home', href: '/' }],
+        logo: {
+          src: '/',
+          alt: 'Luminary'
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('navbar'))
+
+    expect(props.content?.logo).toEqual(
+      expect.objectContaining({
+        text: 'Luminary',
+        alt: 'Luminary'
+      })
+    )
+    expect(props.content?.logo?.src).toBeUndefined()
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
   it('emits fatal-classified warnings and drops malformed navbar logo image payloads', () => {
     consumeNormalizationWarnings()
     const malformedLogo = {

@@ -14,11 +14,10 @@ import {
   type LocalNormalizationWarning,
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
-import { containsHtmlTags, stripHtmlToText, convertPlainTextToHtml } from '../string-utils'
 
 /**
  * Normalizes blog-post component content.
- * Handles body/bodyHtml conversion and HTML detection.
+ * Handles bodyHtml/bodyText normalization without reintroducing legacy body aliases.
  */
 export const normalizeBlogPostContent: ComponentContentNormalizer = (
   content: Record<string, any>,
@@ -34,29 +33,29 @@ export const normalizeBlogPostContent: ComponentContentNormalizer = (
   })
 
   const normalized: Record<string, any> = { ...flattened }
-  const bodyCandidate =
-    normalizeString(flattened.body) ??
-    normalizeString(flattened.bodyText) ??
-    normalizeString(flattened.text) ??
-    normalizeString(flattened.copy) ??
-    normalizeString(flattened.excerpt)
+  const bodyText = normalizeString(flattened.bodyText)
+  const bodyHtml = normalizeString(flattened.bodyHtml)
 
-  let bodyHtml = normalizeString(flattened.bodyHtml ?? flattened.bodyHTML ?? flattened.html)
-  if (!bodyHtml && bodyCandidate) {
-    bodyHtml = containsHtmlTags(bodyCandidate) ? bodyCandidate : convertPlainTextToHtml(bodyCandidate)
-  }
+  delete normalized.body
+  delete normalized.text
+  delete normalized.copy
+  delete normalized.html
+  delete normalized.bodyHTML
 
-  if (bodyCandidate && !normalized.body) {
-    normalized.body = bodyCandidate
-  }
-  if (!normalized.body && bodyHtml) {
-    const plain = stripHtmlToText(bodyHtml)
-    if (plain) {
-      normalized.body = plain
-    }
+  if (bodyText) {
+    normalized.bodyText = bodyText
   }
   if (bodyHtml) {
     normalized.bodyHtml = bodyHtml
+  } else {
+    delete normalized.bodyHtml
+    warnings.push({
+      issue: 'missing-required-field',
+      message: 'Blog post is missing required bodyHtml field.',
+      field: 'bodyHtml',
+      childType: 'blog-post',
+      details: { field: 'bodyHtml' }
+    })
   }
 
   return { content: normalized, warnings }

@@ -32,6 +32,8 @@ import {
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service';
 import { adjustDetectedComponents } from './detection-post-processor';
 import { normalizeComponentContent } from './page-builder/component-helpers';
+import { canonicalizeComponentType } from './page-builder/component-helpers';
+import { PageBuilderService } from './page-builder-service';
 import { redirectService } from '@/lib/services/redirect-service';
 
 interface PersistOptions {
@@ -118,6 +120,84 @@ function collectPreflightNormalizationWarnings(
   }
 
   return warnings;
+}
+
+function inferPreflightCategory(type: string): string {
+  const lower = type.toLowerCase();
+  if (lower.includes('nav') || lower.includes('menu')) return 'navigation';
+  if (lower.includes('footer')) return 'footer';
+  if (lower.includes('hero') || lower.includes('banner')) return 'hero';
+  if (lower.includes('form') || lower.includes('input')) return 'form';
+  if (lower.includes('image') || lower.includes('gallery') || lower.includes('video')) return 'media';
+  if (lower.includes('card') || lower.includes('blog') || lower.includes('article') || lower.includes('list')) return 'content';
+  return 'layout';
+}
+
+function collectPreflightComponentTypes(detectionPayload: any[]): any[] {
+  const types = new Set<string>();
+  const walk = (node: any) => {
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+    const rawType = typeof node.type === 'string' ? node.type : '';
+    if (rawType && !/^page(?:-v\d+)?$/i.test(rawType)) {
+      types.add(canonicalizeComponentType(rawType) ?? rawType);
+    }
+    if (Array.isArray(node.children)) {
+      node.children.forEach(walk);
+    }
+  };
+  detectionPayload.forEach(walk);
+
+  return Array.from(types).map(type => ({
+    id: `preflight-type-${type}`,
+    type,
+    key: type,
+    category: inferPreflightCategory(type),
+    source: 'preflight',
+    metadata: {},
+    defaultConfig: { props: {} },
+    placeholderData: {},
+    styles: {},
+    aiMetadata: {},
+    version: '1.0.0',
+    isGlobal: false,
+    patterns: [],
+    createdBy: null,
+    updatedBy: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }));
+}
+
+async function validateDetectionPayloadWithPageBuilder(
+  prisma: PrismaClient,
+  detectionPayload: any[],
+): Promise<void> {
+  if (detectionPayload.length === 0) {
+    return;
+  }
+  const pageBuilder = new PageBuilderService(prisma);
+  pageBuilder.configureContentTypes({
+    defaultContentTypeId: 'preflight-content-type',
+    templateContentTypes: new Map(),
+  });
+  const componentTypes = collectPreflightComponentTypes(detectionPayload);
+  consumeNormalizationWarnings();
+  await pageBuilder.validatePagesInBatch(detectionPayload.map(detection => ({
+    pageData: {
+      url: detection.pageUrl || '/',
+      title: detection.pageTitle || 'Untitled',
+      detectedComponents: [detection],
+      pageTemplate: detection.metadata?.pageTemplate,
+    },
+    componentTypes,
+  })));
+  const normalizationWarnings = consumeNormalizationWarnings();
+  const fatalNormalizationWarnings = normalizationWarnings.filter(isFatalNormalizationWarning);
+  if (fatalNormalizationWarnings.length > 0) {
+    throw new Error(formatFatalNormalizationError(fatalNormalizationWarnings));
+  }
 }
 
 export class ImportResultHandler {
@@ -516,47 +596,6 @@ export class ImportResultHandler {
       throw new Error(fatalMessage);
     }
 
-    // Persist page detections to dedicated table (batch insert for performance)
-    console.log(`[ImportResultHandler] Persisting ${pageSummaries.length} page detections to database...`);
-    if (pageSummaries.length > 0) {
-      const BATCH_SIZE = 100;
-      const MILESTONE_PAGES = 500; // Show progress every 500 pages
-      let lastMilestone = 0;
-
-      for (let i = 0; i < pageSummaries.length; i += BATCH_SIZE) {
-        const batch = pageSummaries.slice(i, i + BATCH_SIZE);
-        await this.prisma.importPageDetection.createMany({
-          data: batch.map(summary => ({
-            jobId: job.id,
-            websiteId: job.websiteId,
-            pageUrl: summary.pageUrl,
-            pageTitle: summary.title ?? 'Untitled',
-            componentCount: summary.componentCount,
-            status: summary.status,
-            confidence: summary.accuracy,
-            errorMessage: summary.error,
-            detectionData: {
-              templateKey: summary.templateKey,
-              highConfidenceCount: summary.highConfidenceCount,
-              metadata: summary.metadata,
-              components: summary.components,
-            } as any
-          })),
-          skipDuplicates: true
-        });
-
-        const pagesPersisted = Math.min(i + BATCH_SIZE, pageSummaries.length);
-
-        // Show milestone progress every 500 pages or at completion
-        if (pagesPersisted - lastMilestone >= MILESTONE_PAGES || pagesPersisted === pageSummaries.length) {
-          const percentage = (pagesPersisted / pageSummaries.length * 100).toFixed(1);
-          console.log(`[ImportResultHandler] ▸ ${pagesPersisted}/${pageSummaries.length} (${percentage}%)`);
-          lastMilestone = pagesPersisted;
-        }
-      }
-      console.log(`[ImportResultHandler] ✓ Complete: ${pageSummaries.length} page detections persisted`);
-    }
-
     const detectionSummary: DetectionSummaryMetadata = {
       totalComponentsDetected,
       autoApprovedComponents,
@@ -612,10 +651,6 @@ export class ImportResultHandler {
       detectionRecord.originalScreenshots = originalScreenshots;
     }
 
-    await this.repository.update(jobId, {
-      detectionResults: detectionRecord as Prisma.JsonValue,
-    });
-
     traceMemory('import-service:saveResults:post-normalization', {
       pages: pageSummaries.length,
       approvedComponents: autoApprovedComponents,
@@ -670,6 +705,61 @@ export class ImportResultHandler {
         },
       };
     });
+
+    try {
+      await validateDetectionPayloadWithPageBuilder(this.prisma, detectionPayload);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.repository.update(jobId, {
+        status: ImportJobStatus.FAILED,
+        errorMessage: `Import preflight failed: ${message}`,
+      });
+      throw error;
+    }
+
+    await this.repository.update(jobId, {
+      detectionResults: detectionRecord as Prisma.JsonValue,
+    });
+
+    // Persist page detections only after page-builder preflight has accepted the payload.
+    console.log(`[ImportResultHandler] Persisting ${pageSummaries.length} page detections to database...`);
+    if (pageSummaries.length > 0) {
+      const BATCH_SIZE = 100;
+      const MILESTONE_PAGES = 500;
+      let lastMilestone = 0;
+
+      for (let i = 0; i < pageSummaries.length; i += BATCH_SIZE) {
+        const batch = pageSummaries.slice(i, i + BATCH_SIZE);
+        await this.prisma.importPageDetection.createMany({
+          data: batch.map(summary => ({
+            jobId: job.id,
+            websiteId: job.websiteId,
+            pageUrl: summary.pageUrl,
+            pageTitle: summary.title ?? 'Untitled',
+            componentCount: summary.componentCount,
+            status: summary.status,
+            confidence: summary.accuracy,
+            errorMessage: summary.error,
+            detectionData: {
+              templateKey: summary.templateKey,
+              highConfidenceCount: summary.highConfidenceCount,
+              metadata: summary.metadata,
+              components: summary.components,
+            } as any
+          })),
+          skipDuplicates: true
+        });
+
+        const pagesPersisted = Math.min(i + BATCH_SIZE, pageSummaries.length);
+
+        if (pagesPersisted - lastMilestone >= MILESTONE_PAGES || pagesPersisted === pageSummaries.length) {
+          const percentage = (pagesPersisted / pageSummaries.length * 100).toFixed(1);
+          console.log(`[ImportResultHandler] ▸ ${pagesPersisted}/${pageSummaries.length} (${percentage}%)`);
+          lastMilestone = pagesPersisted;
+        }
+      }
+      console.log(`[ImportResultHandler] ✓ Complete: ${pageSummaries.length} page detections persisted`);
+    }
 
     traceMemory('import-service:saveResults:pre-orchestrator', { stagedPages: detectionPayload.length });
 

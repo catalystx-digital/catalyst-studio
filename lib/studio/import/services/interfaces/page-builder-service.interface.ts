@@ -108,4 +108,12 @@ export interface IPageBuilderService {
    * Convert component tree to WebsitePage content format
    */
   formatPageContent(tree: ComponentTree, primaryFieldName: string): Record<string, any>
+
+  /**
+   * Run the page preparation and validation path without writing pages.
+   */
+  validatePagesInBatch(pagesData: Array<{
+    pageData: PageData
+    componentTypes: ImportComponentType[]
+  }>): Promise<void>
 }

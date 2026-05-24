@@ -246,8 +246,8 @@ const mockWebResponse = JSON.stringify({
   },
   components: [
     { component: 'navbar', confidence: 0.95, content: { logo: 'Company Logo', links: [{ label: 'Home', url: '/' }] } },
-    { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Welcome to Our Site', backgroundImage: '/images/hero-bg.jpg' } },
-    { component: 'card-grid', confidence: 0.85, content: { cards: [{ title: 'Feature 1' }] } }
+    { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Welcome to Our Site', image: { src: '/images/hero-bg.jpg', alt: 'Hero background' } } },
+    { component: 'card-grid', confidence: 0.85, content: { cards: [{ type: 'card-item', id: 'card-item-feature-1', title: 'Feature 1', description: 'Feature description' }] } }
   ],
   pageMetadata: { title: 'Example' }
 })

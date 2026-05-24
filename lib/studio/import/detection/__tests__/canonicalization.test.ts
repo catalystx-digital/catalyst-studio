@@ -65,6 +65,7 @@ describe('detection canonicalization', () => {
             title: 'Barc x Farmgate Meats Launch New Market',
             subtitle: 'Regional butchers partner with the centre.',
             publishDate: '2024-07-12',
+            author: { name: 'Jane Smith' },
             heroImage: { src: 'https://example.com/hero.jpg', alt: 'Farmgate storefront' }
           }
         },
@@ -116,8 +117,7 @@ describe('detection canonicalization', () => {
           confidence: 0.94,
           content: {
             title: 'Existing Canonical Article',
-            body: 'Existing body',
-            region: 'main'
+            bodyHtml: '<p>Existing body</p>'
           }
         }
       ]
@@ -134,7 +134,7 @@ describe('detection canonicalization', () => {
     const canonicalCount = result.components.filter(component => normalize(component.component) === 'blog-post').length
     expect(canonicalCount).toBe(1)
     const canonicalComponent = result.components.find(component => normalize(component.component) === 'blog-post')
-    expect(canonicalComponent?.content?.bodyHtml).toBeUndefined()
+    expect(canonicalComponent?.content?.bodyHtml).toBe('<p>Existing body</p>')
     expect((canonicalComponent?.content as any)?.body).toBeUndefined()
     expect(spyInfo).toHaveBeenCalledWith(expect.stringContaining('canonical-present'), expect.objectContaining({ canonicalType: 'blog-post' }))
 

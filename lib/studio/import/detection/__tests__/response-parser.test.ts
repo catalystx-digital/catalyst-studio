@@ -2,6 +2,8 @@ import { detectionParserInternals, parseDetectionResponse } from '../response-pa
 import { PageTemplateCategory } from '@/lib/studio/pages/_core/types'
 import type { PageCatalogSummary, PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
 import type { ComponentPattern } from '../types'
+import { initializeCMSComponents } from '@/lib/studio/components/cms/_factory/initialize'
+import { refreshComponentContracts } from '@/lib/studio/components/catalog/component-contracts'
 
 const buildTemplate = (templateKey: string, category: PageTemplateCategory): PageCatalogTemplateSummary => ({
   templateKey,
@@ -39,8 +41,16 @@ const summary: PageCatalogSummary = {
 
 const patterns: ComponentPattern[] = [
   { type: 'navbar', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
-  { type: 'blog-post', category: 'blog', confidence: 0.9, keywords: [], patterns: [] }
+  { type: 'blog-post', category: 'blog', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'cta-banner', category: 'cta', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'cta-simple', category: 'cta', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'hero-banner', category: 'hero', confidence: 0.9, keywords: [], patterns: [] }
 ]
+
+beforeAll(async () => {
+  await initializeCMSComponents()
+  refreshComponentContracts()
+})
 
 describe('resolvePageTemplate strict contract', () => {
   it('retains registered model template predictions', () => {
@@ -83,8 +93,8 @@ describe('parseComponentsArray strict contract', () => {
   it('parses contract-shaped component objects', () => {
     const components = detectionParserInternals.parseComponentsArray(
       [
-        { component: 'navbar', confidence: 0.9, content: { region: 'header' } },
-        { component: 'blog-post', confidence: 0.95, content: { region: 'main', bodyHtml: '<p>Hello</p>' } }
+        { component: 'navbar', confidence: 0.9, content: { menuItems: [{ label: 'Home', href: { type: 'external', url: 'https://example.com/' } }] } },
+        { component: 'blog-post', confidence: 0.95, content: { bodyHtml: '<p>Hello</p>' } }
       ],
       patterns,
       0.25,
@@ -94,7 +104,7 @@ describe('parseComponentsArray strict contract', () => {
     expect(components).toHaveLength(2)
     expect(components[0].component).toBe('navbar')
     expect(components[1].component).toBe('blog-post')
-    expect((components[1].content as any)?.region).toBe('main')
+    expect((components[1].content as any)?.bodyHtml).toBe('<p>Hello</p>')
   })
 
   it('rejects tuple-shaped legacy component output', () => {
@@ -122,14 +132,124 @@ describe('parseComponentsArray strict contract', () => {
       )
     ).toThrow('is not registered')
   })
+
+  it('rejects unsupported component content fields before persistence', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'cta-banner',
+            confidence: 0.9,
+            content: {
+              heading: 'Build faster',
+              body: 'Unsupported field from model output'
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('body:unknown-field')
+  })
+
+  it('accepts heading-only cta-banner section-title payloads', () => {
+    const components = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'cta-banner',
+          confidence: 0.9,
+          content: {
+            heading: 'Advance Care Planning',
+            alignment: 'left'
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/services'
+    )
+
+    expect(components[0].content).toEqual({
+      heading: 'Advance Care Planning',
+      alignment: 'left'
+    })
+  })
+
+  it('rejects nested cta-banner button alias fields', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'cta-banner',
+            confidence: 0.9,
+            content: {
+              heading: 'Support the Hospital',
+              primaryButton: {
+                text: 'Donate Now',
+                url: '/donate',
+                variant: 'primary'
+              }
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/support'
+      )
+    ).toThrow('primaryButton.label:invalid_type')
+  })
+
+  it('rejects model bookkeeping fields inside component content', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'hero-banner',
+            confidence: 0.92,
+            content: {
+              heading: 'Blog',
+              backgroundImage: 'https://example.com/blog.jpg',
+              region: 'hero',
+              metadata: { source: 'model' }
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/blog'
+      )
+    ).toThrow('region:unknown-field')
+  })
+
+  it('rejects unknown top-level fields even when a custom normalizer exists', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'cta-simple',
+            confidence: 0.91,
+            content: {
+              heading: 'Talk to us',
+              primaryButton: { text: 'Contact', url: '/contact' },
+              unexpectedModelField: 'legacy passthrough'
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/contact'
+      )
+    ).toThrow('unexpectedModelField:unknown-field')
+  })
 })
 
 describe('parseDetectionResponse strict contract', () => {
   it('parses valid JSON object responses end-to-end', () => {
     const rawResponse = JSON.stringify({
       components: [
-        { component: 'navbar', confidence: 0.9, content: { region: 'header' } },
-        { component: 'blog-post', confidence: 0.95, content: { region: 'main', bodyHtml: '<p>Hello</p>' } }
+        { component: 'navbar', confidence: 0.9, content: { menuItems: [{ label: 'Home', href: { type: 'external', url: 'https://example.com/' } }] } },
+        { component: 'blog-post', confidence: 0.95, content: { bodyHtml: '<p>Hello</p>' } }
       ],
       pageTemplate: { templateKey: 'blog/post-standard', confidence: 0.95, reason: 'LLM classified page as blog post' }
     })

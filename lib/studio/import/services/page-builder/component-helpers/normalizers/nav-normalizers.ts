@@ -92,9 +92,15 @@ function isLogoImageShaped(value: unknown): boolean {
 function extractTextLogo(
   value: Record<string, any>,
   fallbackAlt: string | undefined,
-  fallbackText?: string
+  fallbackText?: string,
+  allowAltAsText = false
 ): Record<string, any> | undefined {
-  const text = normalizeString(value.text) ?? normalizeString(value.label) ?? normalizeString(value.name) ?? fallbackText
+  const text =
+    normalizeString(value.text) ??
+    normalizeString(value.label) ??
+    normalizeString(value.name) ??
+    fallbackText ??
+    (allowAltAsText ? fallbackAlt : undefined)
   if (!text) {
     return undefined
   }
@@ -143,6 +149,9 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
     normalizeString(baseLogo.name) ??
     normalizeString(flattened.logoText) ??
     normalizeString(flattened.brand)
+  const baseLogoHasDirectUrlCandidate = ['src', 'url', 'href', 'link', 'path', 'value'].some(key =>
+    typeof baseLogo[key] === 'string' && baseLogo[key].trim().length > 0
+  )
 
   const logoCandidates: unknown[] = []
   if (Object.keys(baseLogo).length > 0) {
@@ -168,16 +177,6 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
     }
     if (isLogoImageShaped(candidate)) {
       malformedLogoCandidate = true
-      warnings.push({
-        issue: 'invalid-subcomponent',
-        message: 'Dropped navbar logo image payload because it did not contain a usable image source.',
-        field: 'logo',
-        childType: 'navbar',
-        details: {
-          index,
-          valueType: Array.isArray(candidate) ? 'array' : typeof candidate
-        }
-      })
     }
   }
 
@@ -198,7 +197,7 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
       }
     }
     if (malformedLogoCandidate) {
-      return extractTextLogo(baseLogo, fallbackAlt, logoTextFallback)
+      return extractTextLogo(baseLogo, fallbackAlt, logoTextFallback, baseLogoHasDirectUrlCandidate)
     }
     if (Object.keys(baseLogo).length > 0) {
       return baseLogo
@@ -230,6 +229,13 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
     }
     normalized.logo = resolvedLogoObject
   } else if (malformedLogoCandidate) {
+    warnings.push({
+      issue: 'invalid-subcomponent',
+      message: 'Dropped navbar logo image payload because it did not contain a usable image source or text label.',
+      field: 'logo',
+      childType: 'navbar',
+      details: { valueType: 'object' }
+    })
     delete normalized.logo
   }
 

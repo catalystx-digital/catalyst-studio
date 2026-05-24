@@ -434,7 +434,7 @@ export const COMPONENT_TYPE_ALIASES: Record<string, ComponentType> = {
   'text-block': ComponentType.TextBlock,
   text: ComponentType.TextBlock,
   cta: ComponentType.CTASimple,
-  'cta-banner': ComponentType.CTASimple,
+  'cta-banner': ComponentType.CTABanner,
   'cta-newsletter': ComponentType.CTAWithForm,
   newsletter: ComponentType.CTAWithForm,
   'newsletter-signup': ComponentType.CTAWithForm,

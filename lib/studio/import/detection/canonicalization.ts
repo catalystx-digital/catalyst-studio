@@ -57,7 +57,7 @@ export function applyTemplateCanonicalization({
     requirements
   })
 
-  return enforceCanonicalContentInvariants(mutable)
+  return mutable
 }
 
 export function validateTemplateCanonicalRequirements({
@@ -119,65 +119,6 @@ export function validateTemplateCanonicalRequirements({
       `Detection output omitted required canonical component(s) for template "${template.templateKey}": ${summary}`
     )
   }
-}
-
-
-function enforceCanonicalContentInvariants(components: DetectedComponent[]): DetectedComponent[] {
-  return components.map(component => {
-    const canonicalType = canonicalizeComponentType(component.component ?? component.type ?? '')
-    if (canonicalType === 'blog-post') {
-      return normalizeBlogPostComponent(component)
-    }
-    return component
-  })
-}
-
-function normalizeBlogPostComponent(component: DetectedComponent): DetectedComponent {
-  const rawContent = component.content
-  if (!rawContent || typeof rawContent !== 'object') {
-    return component
-  }
-
-  const normalized = normalizeBlogPostContent(rawContent as Record<string, any>)
-  if (normalized === rawContent) {
-    return component
-  }
-
-  return {
-    ...component,
-    content: normalized
-  }
-}
-
-function normalizeBlogPostContent(content: Record<string, any>): Record<string, any> {
-  const next = { ...content }
-  let changed = false
-
-  const pickString = (value: unknown): string | undefined =>
-    typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
-  const existingHtml = pickString(next.bodyHtml) ?? ''
-
-  if (existingHtml && next.bodyHtml !== existingHtml) {
-    next.bodyHtml = existingHtml
-    changed = true
-  }
-
-  if ('body' in next) {
-    delete next.body
-    changed = true
-  }
-
-  const resolvedTitle =
-    pickString(next.title) ??
-    pickString(next.heading) ??
-    pickString(next.name) ??
-    pickString((next.metadata as Record<string, any> | undefined)?.title)
-  if (!pickString(next.title) && resolvedTitle) {
-    next.title = resolvedTitle
-    changed = true
-  }
-
-  return changed ? next : content
 }
 
 function findTemplateSummary(templateKey: string, summary: PageCatalogSummary): PageCatalogTemplateSummary | undefined {

@@ -211,6 +211,17 @@ export class PageBuilderService implements IPageBuilderService {
     }
   }
 
+  async validatePagesInBatch(
+    pagesData: Array<{
+      pageData: PageData
+      componentTypes: ComponentType[]
+    }>
+  ): Promise<void> {
+    for (const { pageData, componentTypes } of pagesData) {
+      await this.preparePage({ pageData, componentTypes })
+    }
+  }
+
   private async preparePage({
     pageData,
     componentTypes
