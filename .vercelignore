@@ -84,6 +84,8 @@ Jenkinsfile
 
 # Media cache (use S3 in production)
 .media-cache/
+media-storage/
+.import-cache/
 
 # Temporary test files (in project root only, not subdirectories)
 /*.json.bak
