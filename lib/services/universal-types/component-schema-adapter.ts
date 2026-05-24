@@ -10,6 +10,9 @@
 import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 import { initializeCMSComponents } from '@/lib/studio/components/cms/_factory/initialize'
 import { canonicalizeComponentType } from '@/lib/studio/components/cms/_core/canonicalization'
+import { getSchema, type ValueObjectName } from '@/lib/studio/components/cms/_core/value-objects/registry'
+import { getAllValueObjectNames } from '@/lib/studio/components/cms/_core/value-objects/registry-lookup'
+import { zodToFieldSchema } from '@/lib/studio/components/cms/_core/value-objects/utils/zod-to-field-schema'
 import { normalizeFieldType } from './field-type-normalizer'
 import { cacheCoordinator } from '@/lib/services/cache-coordinator'
 
@@ -112,6 +115,69 @@ function parseObjectFields(body: string): Array<{ name: string; type: string }> 
   return fields
 }
 
+function getRegisteredValueObjectFields(typeName: string): ComponentField[] | undefined {
+  if (!getAllValueObjectNames().includes(typeName as ValueObjectName)) {
+    return undefined
+  }
+
+  const field = editorFieldToComponentField(zodToFieldSchema(typeName, getSchema(typeName as ValueObjectName)))
+  return field.fields ?? []
+}
+
+function editorFieldToComponentField(field: any): ComponentField {
+  const normalized = normalizeType(field.type)
+  const componentField: ComponentField = {
+    name: field.name,
+    type: normalized.type === 'externalUrl' ? 'url' : normalized.type,
+    required: field.required === true,
+    description: field.description || field.label,
+    rawType: field.type,
+    ...(normalized.options ? { options: normalized.options } : {})
+  }
+
+  if (field.type === 'object' && Array.isArray(field.fields)) {
+    componentField.type = 'object'
+    componentField.fields = field.fields.map(editorFieldToComponentField)
+  }
+
+  if (field.type === 'array' && field.items) {
+    componentField.type = 'array'
+    if (field.items.type === 'object' && Array.isArray(field.items.fields)) {
+      componentField.items = {
+        kind: 'object',
+        fields: field.items.fields.map(editorFieldToComponentField)
+      }
+    } else {
+      const itemType = normalizeType(field.items.type)
+      componentField.items = {
+        kind: 'primitive',
+        type: itemType.type === 'externalUrl' ? 'url' : itemType.type,
+        ...(itemType.options ? { options: itemType.options } : {})
+      }
+    }
+  }
+
+  return componentField
+}
+
+function mergeNestedFieldMetadata(componentField: ComponentField, zodType: any): void {
+  const editorField = editorFieldToComponentField(zodToFieldSchema(componentField.name, zodType))
+
+  if (componentField.type === 'object' && !componentField.fields && editorField.fields) {
+    componentField.fields = editorField.fields
+  }
+
+  if (
+    componentField.type === 'array' &&
+    componentField.items?.kind === 'object' &&
+    !componentField.items.fields &&
+    editorField.items?.kind === 'object' &&
+    editorField.items.fields
+  ) {
+    componentField.items.fields = editorField.items.fields
+  }
+}
+
 // Recursive parser for meta type strings -> ComponentField shape
 function parseTypeStringToField(
   name: string,
@@ -171,14 +237,13 @@ function parseTypeStringToField(
     // Array of primitives or content
     const norm = normalizeType(arrayInner)
     if (norm.type === 'object') {
-      // For value objects (e.g., MenuItem, CTAButton), include items descriptor
-      // This allows validation to know the array contains structured objects
+      const fields = getRegisteredValueObjectFields(arrayInner)
       return {
         name,
         type: 'array',
         required: false,
         rawType,
-        items: { kind: 'object' }
+        items: { kind: 'object', ...(fields ? { fields } : {}) }
       }
     }
     if (arrayInner.toLowerCase() === 'content') {
@@ -209,6 +274,17 @@ function parseTypeStringToField(
 
   // Primitive or select
   const norm = normalizeType(rawType)
+  if (norm.type === 'object') {
+    const fields = getRegisteredValueObjectFields(rawType)
+    return {
+      name,
+      type: 'object',
+      required: false,
+      rawType,
+      ...(fields ? { fields } : {})
+    }
+  }
+
   return {
     name,
     type: norm.type,
@@ -286,6 +362,7 @@ export async function getFieldsForComponentType(componentType: string): Promise<
 
     // Parse type string to ComponentField (reuse existing logic)
     const componentField = parseTypeStringToField(name, typeString, undefined)
+    mergeNestedFieldMetadata(componentField, field)
     componentField.required = isRequired
     componentField.description = description
     fields.push(componentField)
