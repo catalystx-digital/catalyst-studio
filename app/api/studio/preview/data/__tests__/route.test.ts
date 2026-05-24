@@ -57,11 +57,11 @@ jest.mock('@/lib/studio/design-system/design-system-reader', () => {
 import { NextRequest } from 'next/server'
 import { getClient } from '@/lib/db/client'
 import { assertStudioWebsiteAccess } from '@/lib/studio/preview/access'
+import { GET } from '@/app/api/studio/preview/data/route'
 import {
-  GET,
   extractComponents,
   extractComponentsWithDiagnostics,
-} from '@/app/api/studio/preview/data/route'
+} from '@/lib/studio/preview/component-extraction'
 
 describe('preview data component extraction', () => {
   it('emits canonical component.content without props.content projection', () => {
