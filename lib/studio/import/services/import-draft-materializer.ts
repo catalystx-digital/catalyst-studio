@@ -351,7 +351,13 @@ export class ImportDraftMaterializer {
       const parent = await tx.websiteStructure.findUnique({
         where: { websiteId_fullPath: { websiteId, fullPath: parentPath } },
       })
-      if (parent?.websitePageId) return parent
+      if (parent) return parent
+    }
+    if (segments.length > 0) {
+      const root = await tx.websiteStructure.findUnique({
+        where: { websiteId_fullPath: { websiteId, fullPath: '/' } },
+      })
+      if (root) return root
     }
     return null
   }

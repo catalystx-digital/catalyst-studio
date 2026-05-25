@@ -353,12 +353,23 @@ export class ImportRunService {
     if (!run) return null
 
     const normalizedPageUrl = normalizeImportUrl(input.canonicalUrl || input.pageUrl)
-    const canonicalStatus = normalizePageStageStatus(input.status)
+    const requestedStatus = normalizePageStageStatus(input.status)
+    const emptyCommittedContentError =
+      requestedStatus === 'committed' && !hasImportPageComponents(input.pageContent)
+        ? ({
+            code: 'EMPTY_IMPORT_PAGE_CONTENT',
+            message: 'Import page content has no components and cannot be committed',
+            pageUrl: input.pageUrl,
+          } satisfies Prisma.InputJsonValue)
+        : null
+    const canonicalStatus = emptyCommittedContentError ? 'failed_terminal' : requestedStatus
     const pageContent = input.pageContent
     const contentFingerprint = pageContent ? fingerprintImportContent(pageContent) : undefined
     const nextAttemptToken = input.attemptToken || cryptoRandomToken()
     const error =
-      input.error !== undefined
+      emptyCommittedContentError
+        ? emptyCommittedContentError
+        : input.error !== undefined
         ? input.error
         : ['processing', 'detected', 'normalized', 'draft_created', 'committed', 'redirect_created'].includes(canonicalStatus)
           ? null
@@ -387,7 +398,7 @@ export class ImportRunService {
           detectionPayload: input.detectionPayload,
           pageContent,
           structureCandidate: input.structureCandidate,
-          committedPageId: input.committedPageId ?? null,
+          committedPageId: canonicalStatus === 'committed' ? input.committedPageId ?? null : null,
           contentFingerprint,
           error,
           committedAt: canonicalStatus === 'committed' ? new Date() : undefined,
@@ -423,7 +434,7 @@ export class ImportRunService {
           detectionPayload: input.detectionPayload,
           pageContent,
           structureCandidate: input.structureCandidate,
-          committedPageId: input.committedPageId ?? undefined,
+          committedPageId: canonicalStatus === 'committed' ? input.committedPageId ?? undefined : null,
           contentFingerprint,
           ...(error !== undefined ? { error } : {}),
           committedAt: canonicalStatus === 'committed' ? new Date() : undefined,
@@ -737,4 +748,12 @@ export function normalizePageStageStatus(status: string | null | undefined): str
     default:
       return value
   }
+}
+
+function hasImportPageComponents(pageContent: Prisma.InputJsonValue | undefined): boolean {
+  if (!pageContent || typeof pageContent !== 'object' || Array.isArray(pageContent)) {
+    return false
+  }
+  const components = (pageContent as Record<string, unknown>).components
+  return Array.isArray(components) && components.length > 0
 }

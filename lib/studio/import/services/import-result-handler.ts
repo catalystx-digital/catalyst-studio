@@ -1081,14 +1081,24 @@ export class ImportResultHandler {
       });
     }
 
-      await this.runService.updateProgressForJob(job.id, {
-      status: 'completed',
+    const finalStatus = await this.runService.deriveFinalStatusForJob(job.id);
+
+    await this.runService.updateProgressForJob(job.id, {
+      status: finalStatus?.status ?? 'completed',
       phase: 'completed',
       progress: 100,
       message:
-        importResult.failedPages.length > 0
+        finalStatus?.message ??
+        (importResult.failedPages.length > 0
           ? `Import completed with ${importResult.failedPages.length} page warning${importResult.failedPages.length === 1 ? '' : 's'}`
-          : 'Import completed',
+          : 'Import completed'),
+      ...(finalStatus
+        ? {
+            totalPages: finalStatus.totalPages,
+            committedPages: finalStatus.committedPages,
+            failedPages: finalStatus.failedPages,
+          }
+        : {}),
       completedAt: new Date(),
     });
   }

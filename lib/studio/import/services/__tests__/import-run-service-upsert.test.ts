@@ -109,4 +109,139 @@ describe('ImportRunService upsertPageStageForJob', () => {
     expect(prismaMock.importPageStage.create).not.toHaveBeenCalled()
     expect(prismaMock.importPageStage.count).not.toHaveBeenCalled()
   })
+
+  it('marks empty committed page content as failed instead of committing a visible page', async () => {
+    const prismaMock = prisma as unknown as {
+      importPageStage: {
+        findUnique: jest.Mock
+        create: jest.Mock
+      }
+    }
+
+    const failedStage = {
+      ...committedStage,
+      status: 'failed_terminal',
+      committedPageId: null,
+      error: {
+        code: 'EMPTY_IMPORT_PAGE_CONTENT',
+        message: 'Import page content has no components and cannot be committed',
+        pageUrl: 'https://example.com/about',
+      },
+    }
+    prismaMock.importPageStage.findUnique.mockResolvedValueOnce(null)
+    prismaMock.importPageStage.create.mockResolvedValueOnce(failedStage)
+
+    const result = await new ImportRunService().upsertPageStageForJob('job-1', {
+      pageUrl: 'https://example.com/about',
+      title: 'Empty page',
+      status: 'committed',
+      phase: 'commit_page',
+      pageContent: {
+        version: 1,
+        components: [],
+      },
+      committedPageId: 'page-1',
+    })
+
+    expect(result).toEqual(failedStage)
+    expect(prismaMock.importPageStage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        status: 'failed_terminal',
+        committedPageId: null,
+        committedAt: undefined,
+        error: {
+          code: 'EMPTY_IMPORT_PAGE_CONTENT',
+          message: 'Import page content has no components and cannot be committed',
+          pageUrl: 'https://example.com/about',
+        },
+      }),
+    })
+  })
+
+  it('marks existing stages with empty committed page content as failed', async () => {
+    const prismaMock = prisma as unknown as {
+      importPageStage: {
+        findUnique: jest.Mock
+        updateMany: jest.Mock
+      }
+    }
+
+    const failedStage = {
+      ...committedStage,
+      status: 'failed_terminal',
+      committedPageId: null,
+      error: {
+        code: 'EMPTY_IMPORT_PAGE_CONTENT',
+        message: 'Import page content has no components and cannot be committed',
+        pageUrl: 'https://example.com/about',
+      },
+    }
+    prismaMock.importPageStage.findUnique
+      .mockResolvedValueOnce({
+        id: 'stage-1',
+        status: 'detected',
+        attemptToken: 'current-token',
+      })
+      .mockResolvedValueOnce(failedStage)
+
+    const result = await new ImportRunService().upsertPageStageForJob('job-1', {
+      pageUrl: 'https://example.com/about',
+      title: 'Empty page',
+      status: 'committed',
+      phase: 'commit_page',
+      pageContent: {
+        version: 1,
+        components: [],
+      },
+      committedPageId: 'page-1',
+    })
+
+    expect(result).toEqual(failedStage)
+    expect(prismaMock.importPageStage.updateMany).toHaveBeenCalledWith({
+      where: { id: 'stage-1' },
+      data: expect.objectContaining({
+        status: 'failed_terminal',
+        committedPageId: null,
+        committedAt: undefined,
+        error: {
+          code: 'EMPTY_IMPORT_PAGE_CONTENT',
+          message: 'Import page content has no components and cannot be committed',
+          pageUrl: 'https://example.com/about',
+        },
+      }),
+    })
+  })
+
+  it('commits page content when it contains components', async () => {
+    const prismaMock = prisma as unknown as {
+      importPageStage: {
+        findUnique: jest.Mock
+        create: jest.Mock
+      }
+    }
+
+    prismaMock.importPageStage.findUnique.mockResolvedValueOnce(null)
+    prismaMock.importPageStage.create.mockResolvedValueOnce(committedStage)
+
+    await new ImportRunService().upsertPageStageForJob('job-1', {
+      pageUrl: 'https://example.com/about',
+      title: 'Imported page',
+      status: 'committed',
+      phase: 'commit_page',
+      pageContent: {
+        version: 1,
+        components: [{ id: 'component-1', type: 'text-block', content: { text: 'Hello' } }],
+      },
+      committedPageId: 'page-1',
+    })
+
+    expect(prismaMock.importPageStage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        status: 'committed',
+        committedPageId: 'page-1',
+        committedAt: expect.any(Date),
+        error: null,
+      }),
+    })
+  })
 })
