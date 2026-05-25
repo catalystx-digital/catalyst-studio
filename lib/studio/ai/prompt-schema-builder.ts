@@ -222,6 +222,8 @@ function mapPrimitiveType(type: SchemaFieldType): string {
       return 'richText'
     case 'media':
       return 'media'
+    case 'json':
+      return 'json'
     case 'select':
       return 'select'
     case 'reference':

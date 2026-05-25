@@ -168,6 +168,20 @@ function createMockCapturedDesignSystem(overrides?: Partial<CapturedDesignSystem
 // Mock dependencies
 jest.mock('../web-detection')
 jest.mock('@/lib/studio/design-system/import-design-system')
+const mockCheckpointService = {
+  isStageComplete: jest.fn(),
+  saveAggregated: jest.fn(),
+  savePageResult: jest.fn(),
+  savePageError: jest.fn(),
+  markProcessing: jest.fn(),
+  getCompletedUrls: jest.fn(),
+  completeStage: jest.fn(),
+  streamCompletedResults: jest.fn()
+}
+jest.mock('../services/checkpoint-service', () => ({
+  getCheckpointService: jest.fn(() => mockCheckpointService),
+  ImportCheckpointService: jest.fn()
+}))
 jest.mock('@/lib/studio/components/cms/_import/performance', () => ({
   performanceMonitor: {
     measure: jest.fn(async (name, fn) => fn()),
@@ -268,6 +282,14 @@ describe('ImportPipeline', () => {
       detectComponentsFromUrl: jest.fn().mockResolvedValue(mockDetectionResult)
     }
     ;(getDetectionService as jest.Mock).mockReturnValue(mockDetectionService)
+    mockCheckpointService.isStageComplete.mockReturnValue(false)
+    mockCheckpointService.saveAggregated.mockResolvedValue(undefined)
+    mockCheckpointService.savePageResult.mockResolvedValue(undefined)
+    mockCheckpointService.savePageError.mockResolvedValue(undefined)
+    mockCheckpointService.markProcessing.mockResolvedValue(undefined)
+    mockCheckpointService.getCompletedUrls.mockResolvedValue(new Set())
+    mockCheckpointService.completeStage.mockResolvedValue(undefined)
+    mockCheckpointService.streamCompletedResults.mockImplementation(async function* () {})
 
     // Create pipeline instance
     pipeline = new ImportPipeline()
@@ -452,6 +474,38 @@ describe('ImportPipeline', () => {
       expect(result.data).toBeUndefined()
       expect(result.errors[0]).toContain('Detection failed for 1/1 page(s)')
       expect(result.errors[0]).toContain('https://example.com/generic')
+    })
+
+    it('checkpoints valid page detections before failing an aggregate detection run', async () => {
+      const validDetection = {
+        ...mockDetectionResult,
+        pageUrl: 'https://example.com'
+      }
+      const invalidDetection = {
+        ...mockDetectionResult,
+        pageUrl: 'https://example.com/empty',
+        components: []
+      }
+
+      mockDetectionService.detectComponentsFromUrl
+        .mockResolvedValueOnce(validDetection)
+        .mockResolvedValueOnce(invalidDetection)
+
+      const result = await pipeline.execute({
+        urls: ['https://example.com', 'https://example.com/empty'],
+        checkpointSession: {
+          manifest: { currentStage: 'initialized' }
+        } as any
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.errors[0]).toContain('Detection failed for 1/2 page(s)')
+      expect(mockCheckpointService.savePageResult).toHaveBeenCalledTimes(1)
+      expect(mockCheckpointService.savePageResult).toHaveBeenCalledWith(
+        expect.anything(),
+        'https://example.com',
+        expect.objectContaining({ pageUrl: 'https://example.com' })
+      )
     })
 
     it('does not treat redirect detections as failed content fallbacks', async () => {

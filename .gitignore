@@ -100,6 +100,9 @@ prompts/evals/*/*/raw.**.json
 .import-progress/**
 media-storage/**
 .import-cache/**
+.import-bakeoff/**
+openrouter-*-models*.json
+openrouter-models-*.html
 .claude/settings.json
 .env*.local
 vision-dom-probe/*

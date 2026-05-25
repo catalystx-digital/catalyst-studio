@@ -147,10 +147,10 @@ export function registerExperienceCanonicalComponents(): void {
     sampleContent: {
       heading: 'Trusted by experience-driven teams',
       logos: [
-        { id: 'acme', src: 'https://cdn.example.com/logos/acme.svg', alt: 'Acme' },
-        { id: 'northwind', src: 'https://cdn.example.com/logos/northwind.svg', alt: 'Northwind' },
-        { id: 'globex', src: 'https://cdn.example.com/logos/globex.svg', alt: 'Globex' },
-        { id: 'initech', src: 'https://cdn.example.com/logos/initech.svg', alt: 'Initech' }
+        { id: 'acme', src: { mediaId: 'detected:acme-logo', mediaType: 'image', url: 'https://cdn.example.com/logos/acme.svg' }, alt: 'Acme' },
+        { id: 'northwind', src: { mediaId: 'detected:northwind-logo', mediaType: 'image', url: 'https://cdn.example.com/logos/northwind.svg' }, alt: 'Northwind' },
+        { id: 'globex', src: { mediaId: 'detected:globex-logo', mediaType: 'image', url: 'https://cdn.example.com/logos/globex.svg' }, alt: 'Globex' },
+        { id: 'initech', src: { mediaId: 'detected:initech-logo', mediaType: 'image', url: 'https://cdn.example.com/logos/initech.svg' }, alt: 'Initech' }
       ]
     }
   })
@@ -329,7 +329,7 @@ export function registerExperienceCanonicalComponents(): void {
       sections: [
         {
           image: {
-            src: 'https://cdn.example.com/showcase/editor-collaboration.jpg',
+            src: { mediaId: 'detected:editor-collaboration', mediaType: 'image', url: 'https://cdn.example.com/showcase/editor-collaboration.jpg' },
             alt: 'Cross-functional team collaborating in the editor'
           },
           title: 'Collaborate in real time',
@@ -338,12 +338,12 @@ export function registerExperienceCanonicalComponents(): void {
             { icon: 'message-circle', text: 'Commenting and approvals' },
             { icon: 'shield-check', text: 'Role-based guardrails' }
           ],
-          cta: { text: 'See collaboration tools', url: '/platform/collaboration' },
+          cta: { text: 'See collaboration tools', href: { type: 'internal', pageId: 'platform-collaboration', path: '/platform/collaboration' } },
           imagePosition: 'right'
         },
         {
           image: {
-            src: 'https://cdn.example.com/showcase/publishing-automation.jpg',
+            src: { mediaId: 'detected:publishing-automation', mediaType: 'image', url: 'https://cdn.example.com/showcase/publishing-automation.jpg' },
             alt: 'Automated publishing pipeline'
           },
           title: 'Automate publishing',
@@ -406,6 +406,5 @@ export function registerExperienceCanonicalComponents(): void {
 
   registered = true
 }
-
 
 

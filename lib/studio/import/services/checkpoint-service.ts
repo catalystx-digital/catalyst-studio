@@ -12,6 +12,10 @@
  *         ├── sitemap.json
  *         ├── pages/{url-hash}.json
  *         ├── errors/{url-hash}.json
+ *         ├── sections/{url-hash}/{section-key}.json
+ *         ├── section-errors/{url-hash}/{section-key}.json
+ *         ├── page-plans/{url-hash}.json
+ *         ├── assembled/{url-hash}.json
  *         └── aggregated/{key}.json
  *
  * @module checkpoint-service
@@ -30,6 +34,8 @@ import type {
   CheckpointSitemap,
   CheckpointPageResult,
   CheckpointPageError,
+  CheckpointSectionResult,
+  CheckpointSectionError,
   CheckpointStatus,
   LLMDebugInfo,
   ErrorStage,
@@ -39,6 +45,7 @@ import type {
   PipelineStage,
   StageCompletion
 } from '../types/checkpoint.types'
+import type { DetectedComponent, PageMetadata } from '../detection/types'
 
 // Promisified fs functions
 const mkdir = promisify(fs.mkdir)
@@ -87,6 +94,10 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function safeSectionKey(sectionKey: string): string {
+  return sectionKey.replace(/[^a-zA-Z0-9._-]/g, '_')
 }
 
 /**
@@ -210,6 +221,10 @@ export class ImportCheckpointService implements IImportCheckpointService {
     // Create directory structure
     await mkdir(path.join(cacheDir, 'pages'), { recursive: true })
     await mkdir(path.join(cacheDir, 'errors'), { recursive: true })
+    await mkdir(path.join(cacheDir, 'sections'), { recursive: true })
+    await mkdir(path.join(cacheDir, 'section-errors'), { recursive: true })
+    await mkdir(path.join(cacheDir, 'page-plans'), { recursive: true })
+    await mkdir(path.join(cacheDir, 'assembled'), { recursive: true })
     await mkdir(path.join(cacheDir, 'aggregated'), { recursive: true })
 
     // Create manifest
@@ -380,7 +395,8 @@ export class ImportCheckpointService implements IImportCheckpointService {
     url: string,
     error: Error,
     attemptCount: number,
-    stage?: ErrorStage
+    stage?: ErrorStage,
+    debug?: LLMDebugInfo
   ): Promise<void> {
     const urlHash = hashUrl(url)
     const filePath = path.join(session.cacheDir, 'errors', `${urlHash}.json`)
@@ -404,7 +420,8 @@ export class ImportCheckpointService implements IImportCheckpointService {
         code: (error as any).code,
         stage: errorStage,
         retryable
-      }
+      },
+      ...(debug ? { llmDebug: this.sanitizeLlmDebug(debug) } : {})
     }
 
     // Save error file - each URL has its own file, no race condition
@@ -414,6 +431,166 @@ export class ImportCheckpointService implements IImportCheckpointService {
     session.manifest.progress.failedUrls++
     session.manifest.timing.lastActivityAt = new Date().toISOString()
     session.manifest.updatedAt = new Date().toISOString()
+  }
+
+  private getSectionDir(session: CheckpointSession, kind: 'sections' | 'section-errors', url: string): string {
+    return path.join(session.cacheDir, kind, hashUrl(url))
+  }
+
+  private getSectionPath(session: CheckpointSession, kind: 'sections' | 'section-errors', url: string, sectionKey: string): string {
+    return path.join(this.getSectionDir(session, kind, url), `${safeSectionKey(sectionKey)}.json`)
+  }
+
+  async saveSectionResult(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string,
+    sectionOrder: number,
+    components: DetectedComponent[],
+    durationMs: number,
+    pageMetadata?: PageMetadata,
+    debug?: LLMDebugInfo
+  ): Promise<void> {
+    const urlHash = hashUrl(url)
+    const dir = this.getSectionDir(session, 'sections', url)
+    await mkdir(dir, { recursive: true })
+
+    const sectionResult: CheckpointSectionResult = {
+      url,
+      urlHash,
+      sectionKey,
+      sectionOrder,
+      processedAt: new Date().toISOString(),
+      durationMs,
+      components,
+      ...(pageMetadata ? { pageMetadata } : {}),
+      ...(debug ? { llmDebug: this.sanitizeLlmDebug(debug) } : {})
+    }
+
+    await atomicWriteJson(this.getSectionPath(session, 'sections', url, sectionKey), sectionResult)
+    try {
+      await unlink(this.getSectionPath(session, 'section-errors', url, sectionKey))
+    } catch {
+      // No stale section error existed.
+    }
+    session.manifest.timing.lastActivityAt = new Date().toISOString()
+    session.manifest.updatedAt = new Date().toISOString()
+  }
+
+  async loadSectionResult(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string
+  ): Promise<CheckpointSectionResult | null> {
+    return safeReadJson<CheckpointSectionResult>(this.getSectionPath(session, 'sections', url, sectionKey))
+  }
+
+  async saveSectionError(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string,
+    sectionOrder: number,
+    error: Error,
+    attemptCount: number,
+    stage?: ErrorStage,
+    debug?: LLMDebugInfo
+  ): Promise<void> {
+    const urlHash = hashUrl(url)
+    const dir = this.getSectionDir(session, 'section-errors', url)
+    await mkdir(dir, { recursive: true })
+
+    const classified = classifyError(error)
+    const retryable = classified.class !== 'auth' && classified.class !== 'validation'
+    const errorStage: ErrorStage = stage ||
+      (classified.class === 'timeout' ? 'llm_call' :
+       classified.class === 'connection' ? 'fetch' : 'unknown')
+
+    const sectionError: CheckpointSectionError = {
+      url,
+      urlHash,
+      sectionKey,
+      sectionOrder,
+      attemptedAt: new Date().toISOString(),
+      attemptCount,
+      error: {
+        message: error.message,
+        code: (error as any).code,
+        stage: errorStage,
+        retryable
+      },
+      ...(debug ? { llmDebug: this.sanitizeLlmDebug(debug) } : {})
+    }
+
+    await atomicWriteJson(this.getSectionPath(session, 'section-errors', url, sectionKey), sectionError)
+    session.manifest.timing.lastActivityAt = new Date().toISOString()
+    session.manifest.updatedAt = new Date().toISOString()
+  }
+
+  async loadSectionError(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string
+  ): Promise<CheckpointSectionError | null> {
+    return safeReadJson<CheckpointSectionError>(this.getSectionPath(session, 'section-errors', url, sectionKey))
+  }
+
+  async getCompletedSections(session: CheckpointSession, url: string): Promise<Set<string>> {
+    const completed = new Set<string>()
+    const dir = this.getSectionDir(session, 'sections', url)
+    try {
+      const files = await readdir(dir)
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue
+        const section = await safeReadJson<CheckpointSectionResult>(path.join(dir, file))
+        if (section?.sectionKey) completed.add(section.sectionKey)
+      }
+    } catch {
+      // No section directory yet.
+    }
+    return completed
+  }
+
+  async *streamSectionResults(
+    session: CheckpointSession,
+    url: string
+  ): AsyncIterable<CheckpointSectionResult> {
+    const dir = this.getSectionDir(session, 'sections', url)
+    try {
+      const files = await readdir(dir)
+      const results: CheckpointSectionResult[] = []
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue
+        const result = await safeReadJson<CheckpointSectionResult>(path.join(dir, file))
+        if (result) results.push(result)
+      }
+      results.sort((a, b) => a.sectionOrder - b.sectionOrder)
+      for (const result of results) {
+        yield result
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+
+  async savePagePlan(session: CheckpointSession, url: string, data: unknown): Promise<void> {
+    await mkdir(path.join(session.cacheDir, 'page-plans'), { recursive: true })
+    await atomicWriteJson(path.join(session.cacheDir, 'page-plans', `${hashUrl(url)}.json`), data)
+  }
+
+  async saveAssembledPage(session: CheckpointSession, url: string, data: unknown): Promise<void> {
+    await mkdir(path.join(session.cacheDir, 'assembled'), { recursive: true })
+    await atomicWriteJson(path.join(session.cacheDir, 'assembled', `${hashUrl(url)}.json`), data)
+  }
+
+  private sanitizeLlmDebug(debug: LLMDebugInfo): LLMDebugInfo {
+    const { rawResponse, ...rest } = debug
+    return {
+      ...rest,
+      rawResponseLength: debug.rawResponseLength ?? rawResponse?.length ?? 0,
+      ...(CheckpointConfig.includeRawResponse && rawResponse ? { rawResponse } : {})
+    }
   }
 
   /**

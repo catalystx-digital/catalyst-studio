@@ -43,8 +43,8 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
           content: {
             title: 'Section Navigation',
             items: [
-              { label: 'Overview', href: '/overview' },
-              { label: 'Details', href: '/details' }
+              { label: 'Overview', href: { type: 'internal', pageId: 'overview', path: '/overview' } },
+              { label: 'Details', href: { type: 'internal', pageId: 'details', path: '/details' } }
             ]
           }
         }
@@ -54,8 +54,8 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
           type: 'breadcrumbs',
           content: {
             items: [
-              { label: 'Home', href: '/' },
-              { label: 'Section', href: '/section' }
+              { label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } },
+              { label: 'Section', href: { type: 'internal', pageId: 'section', path: '/section' } }
             ]
           }
         },
@@ -154,9 +154,10 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
       heading: 'Latest News',
       layout: 'card-grid',
       limit: 6,
-      items: [
-        { id: 'feed-item-example-1', title: 'School Holidays Announced', href: '/news/holidays-2024', excerpt: 'Important dates for the upcoming term break...', date: '2024-02-20', category: 'Announcements' },
-        { id: 'feed-item-example-2', title: 'Community Event Success', href: '/news/community-event', excerpt: 'Thank you to everyone who attended...', date: '2024-02-18', category: 'Events' }
+      source: {},
+      pinned: [
+        { title: 'School Holidays Announced', href: { type: 'internal', pageId: 'news-holidays-2024', path: '/news/holidays-2024' }, excerpt: 'Important dates for the upcoming term break...', date: '2024-02-20', category: 'Announcements' },
+        { title: 'Community Event Success', href: { type: 'internal', pageId: 'news-community-event', path: '/news/community-event' }, excerpt: 'Thank you to everyone who attended...', date: '2024-02-18', category: 'Events' }
       ]
     }
   },

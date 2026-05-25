@@ -89,6 +89,48 @@ function isLogoImageShaped(value: unknown): boolean {
   return keys.some(key => LOGO_IMAGE_SHAPE_KEYS.has(key))
 }
 
+function isMediaReferenceLike(value: unknown): value is Record<string, any> {
+  return isRecord(value) &&
+    typeof value.mediaId === 'string' &&
+    typeof value.mediaType === 'string' &&
+    (value.url == null || typeof value.url === 'string')
+}
+
+function extractStructuredLogoImage(
+  value: unknown,
+  fallbackAlt: string | undefined
+): Record<string, any> | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const srcCandidate = isMediaReferenceLike(value.src)
+    ? value.src
+    : isMediaReferenceLike(value)
+      ? value
+      : undefined
+  if (!srcCandidate) {
+    return undefined
+  }
+
+  const alt = normalizeString(value.alt) ?? normalizeString(srcCandidate.alt) ?? fallbackAlt
+  return {
+    ...value,
+    src: {
+      mediaId: srcCandidate.mediaId,
+      mediaType: srcCandidate.mediaType,
+      ...(typeof srcCandidate.url === 'string' ? { url: srcCandidate.url } : {}),
+      ...(alt ? { alt } : {})
+    },
+    ...(alt ? { alt } : {}),
+    ...(typeof value.originalUrl === 'string'
+      ? { originalUrl: value.originalUrl }
+      : typeof srcCandidate.url === 'string'
+        ? { originalUrl: srcCandidate.url }
+        : {})
+  }
+}
+
 function extractTextLogo(
   value: Record<string, any>,
   fallbackAlt: string | undefined,
@@ -167,9 +209,15 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   }
 
   let resolvedLogoImage: NormalizedImageValue | undefined
+  let resolvedStructuredLogoImage: Record<string, any> | undefined
   let malformedLogoCandidate = false
   for (let index = 0; index < logoCandidates.length; index += 1) {
     const candidate = logoCandidates[index]
+    const structuredLogo = extractStructuredLogoImage(candidate, fallbackAlt)
+    if (structuredLogo) {
+      resolvedStructuredLogoImage = structuredLogo
+      break
+    }
     const normalizedLogo = normalizeImage(candidate, fallbackAlt)
     if (normalizedLogo) {
       resolvedLogoImage = normalizedLogo
@@ -190,6 +238,12 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   }
 
   const resolvedLogoObject = (() => {
+    if (resolvedStructuredLogoImage) {
+      return {
+        ...baseLogo,
+        ...resolvedStructuredLogoImage
+      }
+    }
     if (resolvedLogoImage) {
       return {
         ...baseLogo,

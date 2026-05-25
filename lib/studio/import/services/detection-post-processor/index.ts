@@ -92,12 +92,6 @@ export {
   type ListingExtraction
 } from './content-tagging-processor'
 
-// Content feed processor
-export {
-  promoteContentFeeds,
-  ensureContentFeedFromAnchors
-} from './content-feed-processor'
-
 // Image enrichment processor
 export {
   enrichComponentImages,
@@ -119,8 +113,7 @@ export {
 export {
   executeMultiRowDetection,
   executeBackgroundPromotion,
-  executeDeduplication,
-  executeContentFeedPromotion
+  executeDeduplication
 } from './processing-engine'
 
 // Confidence threshold configuration

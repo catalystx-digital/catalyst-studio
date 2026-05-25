@@ -187,7 +187,12 @@ async function parseHtml(html: string): Promise<any> {
 // Traverse parse5 AST and build DomNode[] for a given root element
 function traverseToNodes(
   root: any,
-  opts: { maxTextPerNode: number; bgImageMap?: BackgroundImageMap; skipTags?: Set<string> }
+  opts: {
+    maxTextPerNode: number
+    bgImageMap?: BackgroundImageMap
+    skipTags?: Set<string>
+    skipNode?: (node: { tag: string; id?: string; className?: string; role?: string }) => boolean
+  }
 ): DomNode[] {
   const nodes: DomNode[] = []
   let counter = 0
@@ -209,16 +214,25 @@ function traverseToNodes(
     }
 
     const tag = String(node.tagName).toLowerCase()
-
-    // Skip specified tags (used to exclude header/footer when falling back to body for main content)
-    if (skipTags && skipTags.has(tag)) {
-      return
-    }
     const attrs = attrsToMap(node.attrs)
     const idRaw = attrs.id
     const clsRaw = attrs.class
     const styleRaw = attrs.style // Capture inline style for bgImage extraction
     const role = attrs.role
+
+    // Skip specified tags/nodes (used to exclude navigation chrome when falling back to body for main content)
+    if (skipTags && skipTags.has(tag)) {
+      return
+    }
+    if (opts.skipNode && opts.skipNode({
+      tag,
+      id: typeof idRaw === 'string' ? idRaw : undefined,
+      className: typeof clsRaw === 'string' ? clsRaw : undefined,
+      role: typeof role === 'string' ? role : undefined
+    })) {
+      return
+    }
+
     delete attrs.id
     delete attrs.class
     delete attrs.style
@@ -375,6 +389,112 @@ function traverseToNodes(
 
   walk(root, '')
   return nodes
+}
+
+function shouldSkipBodyFallbackMainNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
+  if (node.role === 'navigation') {
+    return true
+  }
+
+  const haystack = `${node.id ?? ''} ${node.className ?? ''}`.toLowerCase()
+  if (!haystack.trim()) {
+    return false
+  }
+
+  return [
+    'desktop-header',
+    'dropdown-navigation',
+    'global-header',
+    'main-header',
+    'main-navigation',
+    'main-nav',
+    'mobile-header',
+    'mobile-menu',
+    'navigation-cta',
+    'primary-navigation',
+    'primary-nav',
+    'site-header',
+    'nav-menu'
+  ].some(token => haystack.includes(token))
+}
+
+function isHeaderLikeNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
+  if (node.tag === 'header' || node.role === 'banner') {
+    return true
+  }
+
+  const haystack = `${node.id ?? ''} ${node.className ?? ''}`.toLowerCase()
+  if (!haystack.trim()) {
+    return false
+  }
+
+  return [
+    'desktop-header',
+    'site-header',
+    'global-header',
+    'main-header',
+    'mobile-header',
+    'main-navigation',
+    'primary-navigation',
+    'primary-nav',
+    'nav-menu'
+  ].some(token => haystack.includes(token))
+}
+
+function findHeaderLikeDescendant(node: any): any | undefined {
+  if (!node) return undefined
+  if (node.tagName) {
+    const tag = String(node.tagName).toLowerCase()
+    if (tag === 'main' || tag === 'footer') {
+      return undefined
+    }
+    const attrs = attrsToMap(node.attrs)
+    if (isHeaderLikeNode({
+      tag,
+      id: typeof attrs.id === 'string' ? attrs.id : undefined,
+      className: typeof attrs.class === 'string' ? attrs.class : undefined,
+      role: typeof attrs.role === 'string' ? attrs.role : undefined
+    })) {
+      return node
+    }
+  }
+  if (Array.isArray(node.childNodes)) {
+    for (const c of node.childNodes) {
+      const found = findHeaderLikeDescendant(c)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+function findFirstHeaderLikeNode(bodyNode: any): any | undefined {
+  if (!bodyNode || !Array.isArray(bodyNode.childNodes)) {
+    return undefined
+  }
+
+  let inspectedElementCount = 0
+  for (const child of bodyNode.childNodes) {
+    if (!child?.tagName) {
+      continue
+    }
+
+    const tag = String(child.tagName).toLowerCase()
+    if (tag === 'main' || tag === 'footer') {
+      return undefined
+    }
+
+    inspectedElementCount += 1
+    if (inspectedElementCount > 6) {
+      return undefined
+    }
+
+    const found = findHeaderLikeDescendant(child)
+    if (found) {
+      return found
+    }
+  }
+
+  return undefined
 }
 
 function computeSha256(data: string): string {
@@ -1333,18 +1453,19 @@ export class WebFetchTools {
 
       const headMeta = await buildHeadMeta(document, htmlNode)
 
-      const headerNode = findFirstByTag(bodyNode, 'header')
+      const headerNode = findFirstByTag(bodyNode, 'header') || findFirstHeaderLikeNode(bodyNode)
       const actualMainNode = findFirstByTag(bodyNode, 'main')
       const mainNode = actualMainNode || bodyNode
       const footerNode = findFirstByTag(bodyNode, 'footer')
 
       // When falling back to body (no <main> element), skip header and footer tags
       // to avoid duplicating navigation and footer content in main slices
-      const mainSkipTags = actualMainNode ? undefined : new Set(['header', 'footer'])
+      const mainSkipTags = actualMainNode ? undefined : new Set(['header', 'footer', 'nav'])
+      const mainSkipNode = actualMainNode ? undefined : shouldSkipBodyFallbackMainNode
 
       const maxSectionBytes = resolveSectionMaxBytes()
       const headerSlice = headerNode ? traverseToNodes(headerNode, { maxTextPerNode: 1500, bgImageMap }) : []
-      const mainNodes = mainNode ? traverseToNodes(mainNode, { maxTextPerNode: 1500, bgImageMap, skipTags: mainSkipTags }) : []
+      const mainNodes = mainNode ? traverseToNodes(mainNode, { maxTextPerNode: 1500, bgImageMap, skipTags: mainSkipTags, skipNode: mainSkipNode }) : []
       const footerSlice = footerNode ? traverseToNodes(footerNode, { maxTextPerNode: 1500, bgImageMap }) : []
 
       const { slices: mainSlices, sections } = sliceByApproxBytes(mainNodes, maxSectionBytes)

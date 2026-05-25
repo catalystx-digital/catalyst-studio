@@ -21,7 +21,7 @@ export const blogCanonicalDefinitions: CanonicalComponentDefinition[] = [
       bodyHtml: '<p>Opening paragraph describing the partnership.</p><p>Support details and quotes.</p>',
       categories: ['Retail'],
       tags: ['Local news', 'Partnership'],
-      heroImage: { src: 'https://example.com/images/hero.jpg', alt: 'Farmgate Meats storefront' },
+      heroImage: { src: { mediaId: 'detected:farmgate-meats-hero', mediaType: 'image', url: 'https://example.com/images/hero.jpg' }, alt: 'Farmgate Meats storefront' },
       author: { name: 'Jane Smith', title: 'Food Editor' },
       region: 'main'
     }
@@ -77,7 +77,7 @@ export const blogCanonicalDefinitions: CanonicalComponentDefinition[] = [
       readTimeMinutes: 5,
       categories: ['Community'],
       tags: ['Local partnerships', 'Events'],
-      heroImage: { src: 'https://cdn.example.com/articles/bathurst-market.jpg', alt: 'Visitors exploring the Bathurst community market' }
+      heroImage: { src: { mediaId: 'detected:bathurst-market', mediaType: 'image', url: 'https://cdn.example.com/articles/bathurst-market.jpg' }, alt: 'Visitors exploring the Bathurst community market' }
     }
   },
   {
@@ -106,9 +106,9 @@ export const blogCanonicalDefinitions: CanonicalComponentDefinition[] = [
     sampleContent: {
       heading: 'More stories from the center',
       posts: [
-        { id: 'artisan-food-trail', title: 'Artisan Food Trail launches this spring', href: '/articles/artisan-food-trail', publishDate: '2024-06-18' },
-        { id: 'winter-festival', title: 'Winter festival brings live music downtown', href: '/articles/winter-festival', publishDate: '2024-05-30' },
-        { id: 'makers-program', title: 'Makers-in-residence program expands', href: '/articles/makers-program', publishDate: '2024-05-15' }
+        { id: 'artisan-food-trail', title: 'Artisan Food Trail launches this spring', href: { type: 'internal', pageId: 'articles-artisan-food-trail', path: '/articles/artisan-food-trail' }, publishDate: '2024-06-18' },
+        { id: 'winter-festival', title: 'Winter festival brings live music downtown', href: { type: 'internal', pageId: 'articles-winter-festival', path: '/articles/winter-festival' }, publishDate: '2024-05-30' },
+        { id: 'makers-program', title: 'Makers-in-residence program expands', href: { type: 'internal', pageId: 'articles-makers-program', path: '/articles/makers-program' }, publishDate: '2024-05-15' }
       ],
       layout: 'grid'
     }

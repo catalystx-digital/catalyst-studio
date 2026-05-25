@@ -74,9 +74,6 @@ export const PROCESSOR_THRESHOLDS: Record<string, Partial<ConfidenceThresholds>>
   // Type-changing processors should respect LLM confidence more strictly
   heroCTAMerger: { skipProcessingThreshold: 0.80 },
   heroCtaMerge: { skipProcessingThreshold: 0.80 }, // Alias for telemetry name
-  promoteContentFeeds: { skipProcessingThreshold: 0.80 },
-  contentFeedPromotion: { skipProcessingThreshold: 0.80 }, // Alias for telemetry name
-  contentFeedFromAnchors: { skipProcessingThreshold: 0.80 }
 }
 
 /**

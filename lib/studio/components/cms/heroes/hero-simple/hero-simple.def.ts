@@ -110,6 +110,7 @@ export const HeroSimpleDef = defineComponent({
   // LLM extraction directives
   directives: [
     'Use hero-simple ONLY for actual hero sections with visual prominence (background color/image, large text).',
+    'Documented hero-simple fields are eyebrow, heading, subheading, body, ctaButtons, supportingLinks, alignment, background, and height. Do not emit variant, theme, region, metadata, or visual style aliases.',
     '',
     'Do NOT use hero-simple for:',
     '  - Content page titles (use html-block instead)',

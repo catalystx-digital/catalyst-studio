@@ -55,6 +55,46 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(payload.props).not.toHaveProperty('text')
   })
 
+  it('coerces schema-valid team-grid column strings without defaulting invalid values', () => {
+    const validDetection: DetectionResult = {
+      type: 'team-grid',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        heading: 'Meet the team',
+        columns: {
+          mobile: '1',
+          tablet: '2',
+          desktop: '5',
+          large: '5'
+        }
+      }
+    }
+    const invalidDetection: DetectionResult = {
+      type: 'team-grid',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        heading: 'Meet the team',
+        columns: {
+          mobile: '3',
+          tablet: 'wide'
+        }
+      }
+    }
+
+    expect(extractComponentPayload(validDetection, createComponentType('team-grid')).content.columns).toEqual({
+      mobile: 1,
+      tablet: 2,
+      desktop: 5,
+      large: 5
+    })
+    expect(extractComponentPayload(invalidDetection, createComponentType('team-grid')).content.columns).toEqual({
+      mobile: '3',
+      tablet: 'wide'
+    })
+  })
+
   it('classifies fatal and nonfatal normalization issues', () => {
     expect(isFatalNormalizationIssue('media-src-missing')).toBe(true)
     expect(isFatalNormalizationIssue('missing-required-field')).toBe(true)
@@ -226,7 +266,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
-  it('forces quick-exit cta-simple instances into the header region across props and content', () => {
+  it('forces quick-exit cta-simple instances into the header region without writing region into content', () => {
     const detection: DetectionResult = {
       id: 'cta-quick-exit',
       type: 'cta-simple',
@@ -245,8 +285,8 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     expect(props.region).toBe('header')
     expect(props.metadata).toEqual(expect.objectContaining({ region: 'header' }))
-    expect(props.content?.region).toBe('header')
-    expect(props.content?.metadata).toEqual(expect.objectContaining({ region: 'header' }))
+    expect(props.content).not.toHaveProperty('region')
+    expect(props.content).not.toHaveProperty('metadata')
   })
 
   it('preserves detector-supplied header regions even when default props specify main', () => {
@@ -270,8 +310,8 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     expect(props.region).toBe('header')
     expect(props.metadata).toEqual(expect.objectContaining({ region: 'header' }))
-    expect(props.content?.region).toBe('header')
-    expect(props.content?.metadata).toEqual(expect.objectContaining({ region: 'header' }))
+    expect(props.content).not.toHaveProperty('region')
+    expect(props.content).not.toHaveProperty('metadata')
   })
 
   it('does not copy catalog defaultConfig props into extracted instance props', () => {
@@ -300,7 +340,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(JSON.stringify(props.content)).not.toContain('default-config-sentinel')
   })
 
-  it('prefers header regions emitted in content when detection metadata disagrees', () => {
+  it('ignores regions emitted inside content when detection metadata disagrees', () => {
     const detection: DetectionResult = {
       id: 'cta-header-content',
       type: 'cta-simple',
@@ -318,8 +358,10 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, type)
 
-    expect(props.region).toBe('header')
-    expect(props.metadata).toEqual(expect.objectContaining({ region: 'header' }))
+    expect(props.region).toBe('main')
+    expect(props.metadata).toEqual(expect.objectContaining({ region: 'main' }))
+    expect(props.content).not.toHaveProperty('region')
+    expect(props.content).not.toHaveProperty('metadata')
   })
 
   it('preserves hero-with-image payloads emitted by the detector', () => {
@@ -591,7 +633,6 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       columnRatio: '60-40',
       reverseOnMobile: true,
       gap: 'medium',
-      region: 'main',
       leftColumn: [
         { type: 'text-block' },
         { type: 'cta-simple' }
@@ -630,7 +671,9 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, createComponentType('cta-simple'))
 
-    expect(props.content).toMatchObject(detection.content)
+    const { region: _region, ...expectedContent } = detection.content as Record<string, unknown>
+    expect(props.content).toMatchObject(expectedContent)
+    expect(props.content).not.toHaveProperty('region')
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
@@ -734,7 +777,9 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, createComponentType('testimonials'))
 
-    expect(props.content).toMatchObject(detection.content)
+    const { region: _region, ...expectedContent } = detection.content as Record<string, unknown>
+    expect(props.content).toMatchObject(expectedContent)
+    expect(props.content).not.toHaveProperty('region')
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
@@ -858,7 +903,9 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, createComponentType('cta-with-form'))
 
-    expect(props.content).toMatchObject(detection.content)
+    const { region: _region, ...expectedContent } = detection.content as Record<string, unknown>
+    expect(props.content).toMatchObject(expectedContent)
+    expect(props.content).not.toHaveProperty('region')
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
@@ -939,7 +986,8 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, createComponentType('footer'))
 
-    expect(props.content).toEqual(rawFooter)
+    const { region: _region, ...expectedFooter } = rawFooter
+    expect(props.content).toEqual(expectedFooter)
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
@@ -1111,7 +1159,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(warnings.some(warning => getNormalizationWarningSeverity(warning) === 'fatal')).toBe(true)
   })
 
-  it('hydrates card-grid cards with nested media references so mediaId is preserved', () => {
+  it('preserves card-grid card value-object media references', () => {
     const detection: DetectionResult = {
       id: 'card-grid-nested-media',
       type: 'card-grid',
@@ -1138,11 +1186,41 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     }
 
     const props = extractComponentProps(detection, createComponentType('card-grid'))
-    expect(props.content?.cards?.[0]?.image).toEqual(
+    expect(props.content?.cards?.[0]?.image?.src).toEqual(
       expect.objectContaining({
         mediaId: 'card-media-asset',
-        src: 'https://cdn.example.com/assets/card-thumb.png'
+        originalUrl: 'https://cdn.example.com/assets/card-thumb.png'
       })
     )
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('preserves untyped card-grid cards as value objects', () => {
+    const detection: DetectionResult = {
+      id: 'card-grid-untyped-card',
+      type: 'card-grid',
+      bounds: baseBounds,
+      content: {
+        heading: 'Features',
+        cards: [
+          {
+            title: 'Secure ingestion',
+            description: 'Handles nested payloads safely.',
+            href: { type: 'external', url: 'https://example.com/features/security' }
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('card-grid'))
+
+    expect(props.content?.cards?.[0]).toEqual(
+      expect.objectContaining({
+        title: 'Secure ingestion',
+        description: 'Handles nested payloads safely.'
+      })
+    )
+    expect(props.content?.cards?.[0]?.type).toBeUndefined()
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })

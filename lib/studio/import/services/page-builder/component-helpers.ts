@@ -148,9 +148,8 @@ const FALLBACK_CONTENT_META: Record<string, Record<string, { type: string; requi
     heading: { type: 'string', required: false },
     subheading: { type: 'string', required: false },
     cards: {
-      type: 'content[]',
-      required: true,
-      allowedTypes: ['card-item', 'promo-item']
+      type: 'Array<CardItem>',
+      required: true
     },
     columns: { type: 'string', required: false },
     gap: { type: 'string', required: false },
@@ -158,9 +157,8 @@ const FALLBACK_CONTENT_META: Record<string, Record<string, { type: string; requi
     imagePosition: { type: 'string', required: false },
     imageAspectRatio: { type: 'string', required: false },
     filters: {
-      type: 'content[]',
-      required: false,
-      allowedTypes: ['filter-chip']
+      type: 'Array<Filter>',
+      required: false
     }
   }
 }
@@ -408,21 +406,6 @@ function applyRegionToDetection(detection: DetectionResult, region: ComponentReg
   extended.location = region
   const existingMetadata = isRecord(extended.metadata) ? extended.metadata : {}
   extended.metadata = { ...existingMetadata, region }
-
-  if (isRecord(detection.content)) {
-    const contentRecord = detection.content as Record<string, unknown>
-    if (normalizeComponentRegionValue(contentRecord.region) === undefined) {
-      contentRecord.region = region
-    }
-    const contentMetadata = contentRecord.metadata as Record<string, unknown> | undefined
-    if (isRecord(contentMetadata)) {
-      if (normalizeComponentRegionValue(contentMetadata.region) === undefined) {
-        contentRecord.metadata = { ...contentMetadata, region }
-      }
-    } else if (normalizeComponentRegionValue(contentRecord.region) === region) {
-      contentRecord.metadata = { region }
-    }
-  }
 }
 
 function applyRegionToProps(props: Record<string, unknown> | undefined, region: ComponentRegion): void {
@@ -442,22 +425,18 @@ function applyRegionToProps(props: Record<string, unknown> | undefined, region: 
 }
 
 function applyRegionToContent(content: unknown, region: ComponentRegion): void {
+  void content
+  void region
+}
+
+function removeBookkeepingFieldsFromContent(content: unknown): unknown {
   if (!isRecord(content)) {
-    return
+    return content
   }
-
-  if (normalizeComponentRegionValue(content.region) !== region) {
-    content.region = region
-  }
-
-  const contentMetadata = isRecord(content.metadata) ? content.metadata : undefined
-  if (contentMetadata) {
-    if (normalizeComponentRegionValue(contentMetadata.region) !== region) {
-      content.metadata = { ...contentMetadata, region }
-    }
-  } else {
-    content.metadata = { region }
-  }
+  const cleaned = { ...content }
+  delete cleaned.region
+  delete cleaned.metadata
+  return cleaned
 }
 
 function normalizeTokenList(tokens: string[] | undefined): string[] {
@@ -696,8 +675,8 @@ export function extractComponentPayload(
               parentCanonicalType: canonicalComponentType,
               pageUrl
             })
-            canonicalContent = normalizedContent
-            parsedContent = normalizedContent as ParsedContent
+            canonicalContent = removeBookkeepingFieldsFromContent(normalizedContent)
+            parsedContent = canonicalContent as ParsedContent
             if (normalizationWarnings.length > 0) {
               for (const warning of normalizationWarnings) {
                 recordNormalizationWarning({
@@ -823,14 +802,10 @@ export function extractComponentPayload(
 
   const detectionRegion = getDetectionRegion(detection)
   const currentRegion = extractRegionFromRecord(props)
-  const derivedContentRegion = isRecord(canonicalContent)
-    ? extractRegionFromRecord(canonicalContent as Record<string, unknown>)
-    : undefined
-  const desiredRegion = normalizedContentRegion ?? rawContentRegion ?? detectionRegion ?? derivedContentRegion
+  const desiredRegion = detectionRegion
   const directPropsRegion = normalizeComponentRegionValue(props.region)
   if (desiredRegion && (currentRegion !== desiredRegion || directPropsRegion !== desiredRegion)) {
     applyRegionToProps(props, desiredRegion)
-    applyRegionToContent(canonicalContent, desiredRegion)
   }
 
   const summaryCandidate =

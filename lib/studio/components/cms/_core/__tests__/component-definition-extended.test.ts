@@ -73,23 +73,6 @@ describe('ComponentDefinition - Extended Fields (T-001)', () => {
     expect(def.processing?.deduplication?.context).toBe('adjacent')
   })
 
-  it('should accept processing.contentFeedPromotion field', () => {
-    const def = defineComponent({
-      type: ComponentType.CardGrid,
-      category: ComponentCategory.Content,
-      schema: z.object({ items: z.array(z.string()) }),
-      processing: {
-        contentFeedPromotion: {
-          enabled: true,
-          promotionPatterns: ['blog', 'article', 'news']
-        }
-      }
-    })
-
-    expect(def.processing?.contentFeedPromotion?.enabled).toBe(true)
-    expect(def.processing?.contentFeedPromotion?.promotionPatterns).toContain('blog')
-  })
-
   it('should accept normalization field', () => {
     const def = defineComponent({
       type: ComponentType.BlogPost,

@@ -105,7 +105,6 @@ function buildAliasMap(): Map<string, string> {
     ],
     'cta-simple': [
       'call-to-action',
-      'contact-form',
       'cta',
       'cta-section',
       'call-to-action-section',

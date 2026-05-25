@@ -28,6 +28,7 @@ const DETECTION_PRIMITIVE_FIELD_TYPES = new Set<SchemaFieldType>([
   'url',
   'richText',
   'media',
+  'json',
   'select',
   'reference'
 ])
@@ -40,6 +41,7 @@ function mapUnifiedFieldType(type: string | undefined, path: string): SchemaFiel
     case 'url':
     case 'richText':
     case 'media':
+    case 'json':
     case 'select':
     case 'reference':
     case 'array':

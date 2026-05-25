@@ -1,11 +1,16 @@
-import { detectionParserInternals, parseDetectionResponse } from '../response-parser'
+import { detectionParserInternals, parseDetectionResponse, parseSectionDetectionResponse } from '../response-parser'
 import { PageTemplateCategory } from '@/lib/studio/pages/_core/types'
+import { canonicalizeComponentType } from '@/lib/studio/components/cms/_core/canonicalization'
 import type { PageCatalogSummary, PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
 import type { ComponentPattern } from '../types'
 import { initializeCMSComponents } from '@/lib/studio/components/cms/_factory/initialize'
 import { refreshComponentContracts } from '@/lib/studio/components/catalog/component-contracts'
 
-const buildTemplate = (templateKey: string, category: PageTemplateCategory): PageCatalogTemplateSummary => ({
+const buildTemplate = (
+  templateKey: string,
+  category: PageTemplateCategory,
+  routeHints?: string[]
+): PageCatalogTemplateSummary => ({
   templateKey,
   name: templateKey,
   category,
@@ -21,7 +26,7 @@ const buildTemplate = (templateKey: string, category: PageTemplateCategory): Pag
     recommendedComponents: undefined,
     discouragedComponents: undefined,
     exampleUseCases: undefined,
-    routeHints: undefined
+    routeHints
   },
   canonical: undefined,
   detectionGuidance: undefined,
@@ -32,8 +37,8 @@ const summary: PageCatalogSummary = {
   total: 2,
   generatedAt: new Date().toISOString(),
   templates: [
-    buildTemplate('marketing/home-default', PageTemplateCategory.Marketing),
-    buildTemplate('blog/post-standard', PageTemplateCategory.Blog)
+    buildTemplate('marketing/home-default', PageTemplateCategory.Marketing, ['/', '/home']),
+    buildTemplate('blog/post-standard', PageTemplateCategory.Blog, ['/blog/'])
   ],
   categories: [],
   homeEligibleTemplates: ['marketing/home-default']
@@ -42,9 +47,21 @@ const summary: PageCatalogSummary = {
 const patterns: ComponentPattern[] = [
   { type: 'navbar', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'blog-post', category: 'blog', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'text-block', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'cta-banner', category: 'cta', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'cta-simple', category: 'cta', confidence: 0.9, keywords: [], patterns: [] },
-  { type: 'hero-banner', category: 'hero', confidence: 0.9, keywords: [], patterns: [] }
+  { type: 'content-feed', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'card-grid', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'contact-form', category: 'contact', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'video-embed', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'accordion', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'statistics', category: 'data', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'footer', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'team-grid', category: 'about', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'hero-banner', category: 'hero', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'hero-carousel', category: 'hero', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'hero-simple', category: 'hero', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'hero-with-image', category: 'hero', confidence: 0.9, keywords: [], patterns: [] }
 ]
 
 beforeAll(async () => {
@@ -87,9 +104,33 @@ describe('resolvePageTemplate strict contract', () => {
       )
     ).toThrow('is not registered')
   })
+
+  it('rejects home templates on non-home routes', () => {
+    expect(() =>
+      detectionParserInternals.resolvePageTemplate(
+        { templateKey: 'marketing/home-default', confidence: 0.8 },
+        summary,
+        'https://example.com/guides/luminary-resume'
+      )
+    ).toThrow('is not route-eligible')
+  })
+
+  it.each(['https://example.com/', 'https://example.com/home'])('allows home templates on home route %s', url => {
+    const result = detectionParserInternals.resolvePageTemplate(
+      { templateKey: 'marketing/home-default', confidence: 0.8 },
+      summary,
+      url
+    )
+
+    expect(result.templateKey).toBe('marketing/home-default')
+  })
 })
 
 describe('parseComponentsArray strict contract', () => {
+  it('keeps literal contact-form canonical instead of aliasing it to cta-simple', () => {
+    expect(canonicalizeComponentType('contact-form')).toBe('contact-form')
+  })
+
   it('parses contract-shaped component objects', () => {
     const components = detectionParserInternals.parseComponentsArray(
       [
@@ -118,6 +159,561 @@ describe('parseComponentsArray strict contract', () => {
         'https://example.com/test'
       )
     ).toThrow('components[0] must be an object')
+  })
+
+  it('rejects legacy string navbar hrefs and logo image URLs', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'navbar',
+            confidence: 0.9,
+            content: {
+              logo: {
+                src: 'https://example.com/logo.svg',
+                alt: 'Example'
+              },
+              menuItems: [
+                { label: 'Home', href: '/' }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/test'
+      )
+    ).toThrow('logo.src:invalid_type')
+  })
+
+  it('accepts structured navbar links and logo media references', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'navbar',
+          confidence: 0.9,
+          content: {
+            logo: {
+              src: {
+                mediaId: 'detected:brand-logo',
+                mediaType: 'image',
+                url: 'https://example.com/logo.svg'
+              },
+              alt: 'Brand'
+            },
+            menuItems: [
+              {
+                label: 'Home',
+                href: { type: 'internal', pageId: 'home', path: '/' }
+              }
+            ]
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/test'
+    )
+
+    expect((parsed[0].content.logo as any).src).toEqual(expect.objectContaining({
+      mediaId: 'detected:brand-logo',
+      mediaType: 'image',
+      url: 'https://example.com/logo.svg'
+    }))
+  })
+
+  it('accepts structured hero image media references', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'hero-with-image',
+          confidence: 0.9,
+          content: {
+            heading: 'AI strategy',
+            image: {
+              src: {
+                mediaId: 'detected:ai-strategy',
+                mediaType: 'image',
+                url: 'https://example.com/ai.jpg'
+              },
+              alt: 'AI strategy'
+            }
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/test'
+    )
+
+    expect((parsed[0].content.image as any).src).toEqual(expect.objectContaining({
+      mediaId: 'detected:ai-strategy',
+      mediaType: 'image',
+      url: 'https://example.com/ai.jpg'
+    }))
+  })
+
+  it('coerces statistics column counts emitted as numeric strings', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'statistics',
+          confidence: 0.9,
+          content: {
+            title: 'Some stats',
+            stats: [
+              { value: 26, label: 'Years in operation.', suffix: '+' },
+              { value: 85, label: 'Trees planted.', suffix: '+' }
+            ],
+            layout: 'grid',
+            columns: '2'
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/about'
+    )
+
+    expect(parsed[0].content.columns).toBe(2)
+  })
+
+  it('coerces team-grid responsive column counts emitted as numeric strings', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'team-grid',
+          confidence: 0.9,
+          content: {
+            heading: 'Meet the team',
+            members: [{ name: 'Adam Griffith', photo: 'https://example.com/adam.jpg' }],
+            columns: {
+              mobile: '1',
+              tablet: '2',
+              desktop: '5',
+              large: '5'
+            },
+            linkToProfile: true
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/about'
+    )
+
+    expect(parsed[0].content.columns).toEqual({
+      mobile: 1,
+      tablet: 2,
+      desktop: 5,
+      large: 5
+    })
+  })
+
+  it('normalizes video-embed videoUrl aliases and infers provider from the URL', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'video-embed',
+          confidence: 0.9,
+          content: {
+            videoUrl: 'https://www.youtube.com/embed/wGxC3_9GZJ4',
+            title: 'YouTube video player'
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/about'
+    )
+
+    expect(parsed[0].content).toEqual(expect.objectContaining({
+      provider: 'youtube',
+      url: 'https://www.youtube.com/embed/wGxC3_9GZJ4',
+      title: 'YouTube video player'
+    }))
+  })
+
+  it('normalizes video-embed URL aliases and title-cased providers', () => {
+    for (const alias of ['embedUrl', 'source', 'src']) {
+      const parsed = detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'video-embed',
+            confidence: 0.9,
+            content: {
+              [alias]: 'https://vimeo.com/123456',
+              provider: 'Vimeo'
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/about'
+      )
+
+      expect(parsed[0].content).toEqual(expect.objectContaining({
+        provider: 'vimeo',
+        url: 'https://vimeo.com/123456'
+      }))
+      expect(parsed[0].content).not.toHaveProperty(alias)
+    }
+  })
+
+  it('infers video provider from URL host, not query text', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'video-embed',
+          confidence: 0.9,
+          content: {
+            url: 'https://example.com/player?next=youtube.com/watch',
+            title: 'Hosted embed'
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/about'
+    )
+
+    expect(parsed[0].content).toEqual(expect.objectContaining({
+      provider: 'iframe',
+      url: 'https://example.com/player?next=youtube.com/watch'
+    }))
+  })
+
+  it('normalizes legacy text-block bodyHtml into the current body field only', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'text-block',
+          confidence: 0.9,
+          content: {
+            heading: 'About Us',
+            bodyHtml: '<p>We create brighter digital experiences.</p>'
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/about'
+    )
+
+    expect(parsed[0].content).toEqual({
+      heading: 'About Us',
+      body: '<p>We create brighter digital experiences.</p>'
+    })
+  })
+
+  it('accepts real contact-form payloads with fields and submit buttons', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'contact-form',
+          confidence: 0.9,
+          content: {
+            title: 'Project Details',
+            fields: [
+              { name: 'message', type: 'textarea', label: 'What do you need help with?', required: true },
+              { name: 'email', type: 'email', label: 'Email address', required: true }
+            ],
+            submitButton: { text: 'Submit' },
+            endpoint: '/contact/thanks/sales',
+            method: 'POST'
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/contact'
+    )
+
+    expect(parsed[0].content).toEqual(expect.objectContaining({
+      title: 'Project Details',
+      submitButton: { text: 'Submit' },
+      endpoint: '/contact/thanks/sales',
+      method: 'POST'
+    }))
+  })
+
+  it('preserves strict content-feed pinned item shapes', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'content-feed',
+          confidence: 0.9,
+          content: {
+            heading: 'Latest news',
+            layout: 'card-grid',
+            source: {},
+            pinned: [
+              {
+                title: 'Community Event',
+                excerpt: 'Join the community event.',
+                href: { type: 'internal', pageId: 'news-community-event', path: '/news/community-event' },
+                image: {
+                  src: {
+                    mediaId: 'detected:community-event',
+                    mediaType: 'image',
+                    url: 'https://example.com/community.jpg'
+                  },
+                  alt: 'Community event'
+                },
+                date: '2024-02-15',
+                category: 'Events'
+              }
+            ]
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/news'
+    )
+
+    expect((parsed[0].content.pinned as any[])[0]).toEqual(expect.objectContaining({
+      title: 'Community Event',
+      excerpt: 'Join the community event.',
+      href: { type: 'internal', pageId: 'news-community-event', path: '/news/community-event' },
+      image: expect.objectContaining({
+        src: expect.objectContaining({
+          mediaId: 'detected:community-event',
+          mediaType: 'image',
+          url: 'https://example.com/community.jpg'
+        })
+      }),
+      date: '2024-02-15',
+      category: 'Events'
+    }))
+  })
+
+  it('rejects legacy nested card-grid card fields', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: {
+              cards: [
+                {
+                  title: 'Project',
+                  description: 'Project summary',
+                  href: { type: 'internal', pageId: 'project', path: '/project' },
+                  linkText: 'Read more',
+                  metadata: { category: 'Projects' }
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('cards.0:unrecognized_keys')
+  })
+
+  it('rejects null optional nested card-grid card fields', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: {
+              cards: [
+                {
+                  title: 'Project',
+                  description: 'Project summary',
+                  href: { type: 'internal', pageId: 'project', path: '/project' },
+                  icon: null
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('cards.0.icon:invalid_type')
+  })
+
+  it('rejects flattened nested card-grid image media references', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: {
+              cards: [
+                {
+                  title: 'Project',
+                  image: {
+                    mediaId: 'detected:project',
+                    mediaType: 'image',
+                    url: 'https://example.com/project.jpg',
+                    alt: 'Project'
+                  },
+                  href: { type: 'internal', pageId: 'project', path: '/project' }
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('cards.0.image:unrecognized_keys')
+  })
+
+  it('rejects partially flattened nested card-grid image media identifiers', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: {
+              cards: [
+                {
+                  title: 'Project',
+                  image: {
+                    mediaId: 'detected:project',
+                    alt: 'Project'
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('cards.0.image:unrecognized_keys')
+  })
+
+  it('rejects hero-carousel slide media references missing required mediaType', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'hero-carousel',
+            confidence: 0.9,
+            content: {
+              slides: [
+                {
+                  heading: 'Feature',
+                  image: {
+                    src: {
+                      mediaId: 'detected:feature',
+                      url: 'https://example.com/feature.jpg'
+                    },
+                    alt: 'Feature'
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('slides.0.image.src.mediaType:invalid_type')
+  })
+
+  it('rejects invented hero-simple variant fields', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'hero-simple',
+            confidence: 0.9,
+            content: {
+              heading: 'Framework',
+              subheading: 'See how we make it work',
+              variant: 'primary'
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('variant:unknown-field')
+  })
+
+  it('rejects title-cased footer social platform values', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'footer',
+            confidence: 0.9,
+            content: {
+              socialLinks: [
+                { platform: 'LinkedIn', url: 'https://linkedin.com/company/example' }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('socialLinks.0.platform:invalid_enum_value')
+  })
+
+  it('rejects malformed content-feed pinned entries instead of synthesizing placeholders', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'content-feed',
+            confidence: 0.9,
+            content: {
+              source: {},
+              pinned: ['not a valid entry']
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/news'
+      )
+    ).toThrow('pinned:invalid-subcomponent')
+  })
+
+  it('rejects project sections mapped to content-feed instead of card-grid', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'content-feed',
+            confidence: 0.9,
+            content: {
+              heading: 'Some of our latest projects',
+              source: {},
+              pinned: [
+                {
+                  title: 'MCG and MCC',
+                  href: { type: 'internal', pageId: 'mcg', path: '/mcg-and-melbourne-cricket-club' }
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/'
+      )
+    ).toThrow('conflicts with section taxonomy')
   })
 
   it('rejects component types missing from the catalog', () => {
@@ -151,6 +747,73 @@ describe('parseComponentsArray strict contract', () => {
         'https://example.com/'
       )
     ).toThrow('body:unknown-field')
+  })
+
+  it('rejects schema-invalid statistics column strings after normalization', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'statistics',
+            confidence: 0.9,
+            content: {
+              title: 'Some stats',
+              stats: [
+                { value: 26, label: 'Years in operation.', suffix: '+' }
+              ],
+              layout: 'grid',
+              columns: '5'
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/about'
+      )
+    ).toThrow('columns:invalid_union')
+  })
+
+  it('rejects schema-invalid team-grid column strings after normalization', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'team-grid',
+            confidence: 0.9,
+            content: {
+              heading: 'Meet the team',
+              members: [{ name: 'Adam Griffith' }],
+              columns: {
+                mobile: '3',
+                tablet: '2',
+                desktop: '5',
+                large: '5'
+              }
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/about'
+      )
+    ).toThrow('columns.mobile:invalid_union')
+  })
+
+  it('rejects empty contact-form content against the actual form contract', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'contact-form',
+            confidence: 0.9,
+            content: {}
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/contact'
+      )
+    ).toThrow('fields:missing-required-field')
   })
 
   it('accepts heading-only cta-banner section-title payloads', () => {
@@ -241,6 +904,80 @@ describe('parseComponentsArray strict contract', () => {
         'https://example.com/contact'
       )
     ).toThrow('unexpectedModelField:unknown-field')
+  })
+
+  it('rejects accordion FAQ items with empty answers before persistence', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'accordion',
+            confidence: 0.9,
+            content: {
+              items: [
+                {
+                  question: 'Technology',
+                  answer: ''
+                }
+              ]
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://www.luminary.com/'
+      )
+    ).toThrow('items.0.answer:too_small')
+  })
+})
+
+describe('parseSectionDetectionResponse', () => {
+  it('parses an empty section artifact with matching section key', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({ sectionKey: 'main:0-99', components: [] }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com',
+      confidenceThreshold: 0.25
+    })
+
+    expect(parsed).toEqual({ sectionKey: 'main:0-99', components: [] })
+  })
+
+  it('rejects mismatched section keys', () => {
+    expect(() =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({ sectionKey: 'footer', components: [] }),
+        sectionKey: 'main:0-99',
+        availableComponents: patterns,
+        url: 'https://example.com',
+        confidenceThreshold: 0.25
+      })
+    ).toThrow('sectionKey must be "main:0-99"')
+  })
+
+  it('rejects missing section keys', () => {
+    expect(() =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({ components: [] }),
+        sectionKey: 'main:0-99',
+        availableComponents: patterns,
+        url: 'https://example.com',
+        confidenceThreshold: 0.25
+      })
+    ).toThrow('sectionKey must be "main:0-99"')
+  })
+
+  it('rejects explicitly wrong section keys', () => {
+    expect(() =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({ sectionKey: 'footer', components: [] }),
+        sectionKey: 'main:0-99',
+        availableComponents: patterns,
+        url: 'https://example.com',
+        confidenceThreshold: 0.25
+      })
+    ).toThrow('sectionKey must be "main:0-99"')
   })
 })
 

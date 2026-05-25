@@ -20,7 +20,7 @@ const ContentItemSchema = z.object({
   href: SmartLinkSchema.optional().describe('Link to full content (internal page or external URL)'),
   image: ImageSchema.optional().describe('Optional thumbnail image'),
   category: z.string().optional().describe('Content category'),
-})
+}).strict()
 
 /**
  * Content Feed component definition
@@ -115,43 +115,44 @@ export const ContentFeedDef = defineComponent({
 
   // LLM extraction directives
   directives: [
-    '*** PRIORITY SELECTION: Use content-feed (NOT card-grid) for any section that displays news articles, blog posts, announcements, updates, or chronologically-ordered content listings. ***',
+    '*** PRIORITY SELECTION: Use content-feed (NOT card-grid) only for sections that display news articles, blog posts, announcements, updates, or genuinely chronologically-ordered editorial listings. ***',
     'Content-feed is the CORRECT component for:',
     '  - "Latest News", "Recent News", "News & Updates" sections',
     '  - Blog post listings, article feeds, announcement boards',
     '  - Any grid/list of items that link to article/post detail pages',
-    '  - Content with dates, excerpts, "Read more" links, or chronological ordering',
+    '  - Editorial content with real rendered dates, excerpts, "Read more" links, or chronological ordering',
     '  - Sections with titles like: News, Blog, Posts, Articles, Updates, Announcements, What\'s New',
-    'Use card-grid ONLY for static feature/service/team/product cards WITHOUT chronological nature.',
-    'Data requirements: Populate items[] with every visible article/post in DOM order. Each item MUST include:',
-    '  - id: stable kebab-case identifier prefixed with "feed-item-" (e.g., "feed-item-school-holidays-2024")',
+    'Use card-grid for static feature/service/team/product/project/case-study cards WITHOUT editorial chronology. "Latest projects", case studies, client work, portfolio tiles, "Why <brand>" proof cards, or B Corp proof cards are card-grid unless they are explicitly news/blog/article feeds.',
+    'Data requirements: Populate pinned[] with every visible imported/static article/post in DOM order. Each item MUST include:',
     '  - title: the article headline exactly as rendered',
-    '  - href: the link URL to the article detail page',
+    '  - href: structured SmartLink object for the article detail page',
     '  - excerpt: the summary/teaser text (if shown)',
-    '  - image: { src, alt } for thumbnail images - MANDATORY when <img> exists in item markup',
+    '  - image: { src: MediaReference object, alt } for thumbnail images - MANDATORY when <img> exists in item markup',
     '  - date: publication date if displayed (ISO format or as rendered)',
     '  - category: category/tag label if shown',
-    '*** IMAGE EXTRACTION: For EVERY feed item, scan for <img> tags and extract the URL into image.src. Do NOT omit images when they exist in the DOM. ***',
-    'For imported/static content, populate items[] directly. The source field is optional and only needed for dynamic provider queries.',
-    'Never return content-feed with empty items[] when the section displays articles. Re-fetch and populate every visible item.',
+    'Never invent dates, categories, or chronology to justify using content-feed. If dates/categories are not visibly rendered and the cards are projects, case studies, services, clients, or proof points, use card-grid instead.',
+    '*** IMAGE EXTRACTION: For EVERY feed item, scan for <img> tags and extract the URL into image.src.url inside a MediaReference object. Do NOT omit images when they exist in the DOM. ***',
+    'For imported/static content, populate pinned[] directly and include source: {} unless a dynamic provider query is known.',
+    'source is required by the contract. If this is truly a content-feed, include source: {} for imported/static pinned items. If the section is projects/work/case studies, do not use content-feed at all; use card-grid.',
+    'Never return content-feed with empty pinned[] when the section displays articles. Re-fetch and populate every visible item.',
     'Example payload for a news section:',
     '  {',
     '    "heading": "Latest News",',
     '    "layout": "card-grid",',
-    '    "items": [',
+    '    "source": {},',
+    '    "pinned": [',
     '      {',
-    '        "id": "feed-item-community-event-2024",',
     '        "title": "Community Event Announced for March",',
-    '        "href": "/news/community-event-2024",',
+    '        "href": { "type": "internal", "pageId": "news-community-event-2024", "path": "/news/community-event-2024" },',
     '        "excerpt": "Join us for our annual community gathering...",',
-    '        "image": { "src": "https://...", "alt": "Event banner" },',
+    '        "image": { "src": { "mediaId": "detected:community-event-banner", "mediaType": "image", "url": "https://..." }, "alt": "Event banner" },',
     '        "date": "2024-02-15",',
     '        "category": "Events"',
     '      }',
     '    ],',
     '    "limit": 6',
     '  }',
-    'Section title heuristics: If the section heading contains any of these words, use content-feed: news, blog, posts, articles, updates, announcements, latest, recent, stories, press, media.',
+    'Section title heuristics: If the section heading contains news, blog, posts, articles, updates, announcements, stories, press, or media, use content-feed. Do not use content-feed for "latest projects", "latest work", "why <brand>", case studies, portfolio, clients, services, certifications, or proof/value sections.',
     'Link pattern heuristics: If items link to paths containing /news/, /blog/, /article/, /post/, /story/, use content-feed.',
   ],
 
@@ -181,14 +182,6 @@ export const ContentFeedDef = defineComponent({
 
   // Human-readable description
   description: 'Dynamic provider-backed content feed that supports pinned items, sorting, and list or grid layouts.',
-
-  // Processing rules for post-detection transformations
-  processing: {
-    contentFeedPromotion: {
-      enabled: true,
-      promotionPatterns: ['/news/', '/blog/', '/articles/'],
-    }
-  },
 })
 
 // Export inferred TypeScript type

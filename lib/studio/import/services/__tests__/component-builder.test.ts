@@ -64,8 +64,8 @@ describe('ComponentBuilder region mapping', () => {
 
     const [instance] = builder.mapToComponentInstances([detection], [baseType])
 
-    expect(instance.props.region).toBe('main')
-    expect(instance.props.metadata?.region).toBe('main')
+    expect(instance.props).not.toHaveProperty('region')
+    expect(instance.props.metadata?.region).toBeUndefined()
     expect(instance.componentType).toBe(CmsComponentType.BlogPost)
     expect(instance.componentTypeId).toBe(baseType.id)
     expect(instance.typeId).toBe(baseType.id)
@@ -109,11 +109,11 @@ describe('ComponentBuilder region mapping', () => {
 
     expect(instance.props.region).toBe('hero')
     expect(instance.props.metadata.region).toBe('hero')
-    expect((instance.content as any).region).toBe('main')
+    expect(instance.content).not.toHaveProperty('region')
     expect(instance.props).not.toHaveProperty('content')
   })
 
-  it('keeps content metadata region aligned with canonical content region', () => {
+  it('does not promote content metadata region into placement props', () => {
     const detection: DetectionResult = {
       id: 'det-content-metadata-conflict',
       type: 'blog-post',
@@ -129,10 +129,10 @@ describe('ComponentBuilder region mapping', () => {
 
     const [instance] = builder.mapToComponentInstances([detection], [baseType])
 
-    expect(instance.props.region).toBe('main')
-    expect(instance.props.metadata.region).toBe('main')
-    expect((instance.content as any).region).toBe('main')
-    expect((instance.content as any).metadata.region).toBe('main')
+    expect(instance.props).not.toHaveProperty('region')
+    expect(instance.props.metadata?.region).toBeUndefined()
+    expect(instance.content).not.toHaveProperty('region')
+    expect(instance.content).not.toHaveProperty('metadata')
     expect(instance.props).not.toHaveProperty('content')
   })
 })
@@ -807,7 +807,8 @@ describe('ComponentBuilder normalization', () => {
     const [instance] = builder.mapToComponentInstances([detection], [footerType])
     const footerContent = instance.content
 
-    expect(footerContent).toMatchObject(rawFooter)
+    const { region: _region, ...expectedFooter } = rawFooter
+    expect(footerContent).toMatchObject(expectedFooter)
   })
 
   it('preserves contract-compliant promo items', () => {
@@ -835,11 +836,7 @@ describe('ComponentBuilder normalization', () => {
     const promo = (instance.content as any).cards[0]
 
     expect(promo).toMatchObject({
-      ...rawPromo,
-      image: expect.objectContaining({
-        src: rawPromo.image,
-        alt: rawPromo.imageAlt
-      })
+      ...rawPromo
     })
   })
 })

@@ -12,15 +12,16 @@ import { detectionAPI, type DetectionRegistryStats } from '@/lib/studio/componen
 import { initializeCMSComponents } from '@/lib/studio/components/cms/_factory/initialize'
 import type {
   ChatCompletion,
-  ChatCompletionAssistantMessageParam,
-  ChatCompletionMessageParam,
-  ChatCompletionTool
+  ChatCompletionMessageParam
 } from 'openai/resources/chat/completions'
-import { getWebFetchTools } from './services/web-tools'
+import { getWebFetchTools, type HeadMeta, type ResourcesSummary } from './services/web-tools'
 import { isAssetUrl } from './services/sitemap-discovery.service'
 import { buildDetectionPromptFromCatalog } from './detection/prompt-builder'
-import { parseDetectionResponse } from './detection/response-parser'
-import type { DetectedComponent, ImportDetectionOptions, ImportDetectionResult } from './detection/types'
+import { parseDetectionResponse, parseSectionDetectionResponse } from './detection/response-parser'
+import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
+import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
+import { classifySectionIntent } from './detection/section-taxonomy'
+import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, PageMetadata } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
 import { createDetectionTelemetry } from './telemetry/detection-telemetry'
 import type { DetectionTelemetry } from './telemetry/detection-telemetry'
@@ -32,68 +33,8 @@ import {
   TimeoutConfig,
   ConfidenceConfig,
   LoggingConfig,
-  DetectionConfig,
-  OpenRouterConfig,
-  WebToolsConfig
+  OpenRouterConfig
 } from './config'
-import { safeStringify } from './utils/json-parsing'
-
-// Use centralized config values
-const LOG_WEB_TOOL_INPUT = LoggingConfig.logWebToolInput
-const LOG_WEB_TOOL_OUTPUT = LoggingConfig.logWebToolOutput
-const MAX_LOG_LENGTH = LoggingConfig.maxLogLength
-
-function truncateForLog(value: unknown): string {
-  const serialized = safeStringify(value)
-  if (!Number.isFinite(MAX_LOG_LENGTH) || MAX_LOG_LENGTH <= 0) {
-    return serialized
-  }
-  return serialized.length > MAX_LOG_LENGTH
-    ? `${serialized.slice(0, MAX_LOG_LENGTH)}.[truncated ${serialized.length - MAX_LOG_LENGTH} chars]`
-    : serialized
-}
-
-function logWebToolCall(
-  phase: 'INPUT' | 'OUTPUT' | 'ERROR',
-  name: string,
-  payload: unknown
-): void {
-  const shouldLog =
-    (phase === 'INPUT' && LOG_WEB_TOOL_INPUT) ||
-    (phase === 'OUTPUT' && LOG_WEB_TOOL_OUTPUT) ||
-    (phase === 'ERROR' && (LOG_WEB_TOOL_INPUT || LOG_WEB_TOOL_OUTPUT))
-
-  if (!shouldLog) {
-    return
-  }
-  console.log(`[ImportWebTool][${phase}] ${name}: ${truncateForLog(payload)}`)
-}
-
-function selectForceFetchSections(sectionKeys: string[], fetchedKeys: Set<string>, limit: number): string[] {
-  const missing = sectionKeys.filter(key => !fetchedKeys.has(key))
-  if (limit <= 0 || missing.length <= limit) return missing.slice(0, Math.max(0, limit))
-
-  const selected: string[] = []
-  const footer = missing.find(key => key.toLowerCase().includes('footer'))
-  const header = missing.find(key => key.toLowerCase().includes('header'))
-  if (header) selected.push(header)
-
-  const reserveFooter = footer && !selected.includes(footer) ? 1 : 0
-  const mainLimit = Math.max(0, limit - selected.length - reserveFooter)
-  for (const key of missing) {
-    if (selected.length >= limit - reserveFooter) break
-    if (key === header || key === footer) continue
-    if (key.toLowerCase().includes('main') || selected.length < mainLimit) {
-      selected.push(key)
-    }
-  }
-  for (const key of missing) {
-    if (selected.length >= limit - reserveFooter) break
-    if (!selected.includes(key) && key !== footer) selected.push(key)
-  }
-  if (footer && selected.length < limit && !selected.includes(footer)) selected.push(footer)
-  return selected.slice(0, limit)
-}
 
 // Use centralized configuration
 const CONFIDENCE_THRESHOLD = ConfidenceConfig.detection
@@ -103,52 +44,32 @@ const CONTEXT_BUDGET = TokenConfig.contextBudget
 const MIN_COMPLETION_BUDGET = TokenConfig.minCompletionBudget
 const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max (from env)
 const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
-const TOOL_LOOP_GUARD = DetectionConfig.toolLoopGuard
-const MAX_FORCE_FETCH_SECTIONS = WebToolsConfig.maxForceFetchSections
 
 let registryInitialization: Promise<void> | null = null
 
-/**
- * Extended tool call with vendor-specific fields (e.g., Gemini thought_signature).
- */
-interface ExtendedToolCall {
-  id: string
-  type: string
-  function: {
-    name: string
-    arguments: string
+function summarizeRegistry(stats: {
+  before?: DetectionRegistryStats
+  after?: DetectionRegistryStats
+  initialized?: boolean
+  skipped?: boolean
+  untracked?: boolean
+}): Record<string, unknown> {
+  const before = stats.before
+  const after = stats.after
+  return {
+    beforeComponentCount: before?.componentCount,
+    afterComponentCount: after?.componentCount,
+    registryDelta:
+      typeof before?.componentCount === 'number' && typeof after?.componentCount === 'number'
+        ? after.componentCount - before.componentCount
+        : undefined,
+    patternCacheEntries: after?.patternCacheEntries,
+    catalogCached: after?.catalogCached,
+    cacheAgeMs: after?.cacheAgeMs,
+    initialized: Boolean(stats.initialized),
+    skipped: Boolean(stats.skipped),
+    untracked: Boolean(stats.untracked)
   }
-  extra_content?: Record<string, unknown>
-}
-
-/**
- * Extended assistant message with vendor-specific fields.
- * Extends OpenAI types to include Gemini reasoning_details, etc.
- */
-interface ExtendedAssistantMessage {
-  role: 'assistant'
-  content?: string | null
-  tool_calls?: ExtendedToolCall[]
-  refusal?: string | null
-  audio?: unknown
-  reasoning_details?: unknown
-  function_call?: {
-    name: string
-    arguments: string
-  }
-  name?: string
-}
-
-/**
- * Arguments for web tool function calls.
- */
-interface WebToolArgs {
-  url?: string
-  handle?: string
-  selector?: string
-  stripScriptsStyles?: boolean
-  collapseWhitespace?: boolean
-  [key: string]: unknown
 }
 
 /**
@@ -159,18 +80,9 @@ interface LLMRequestPayload {
   messages: ChatCompletionMessageParam[]
   temperature: number
   max_tokens: number
-  tools?: ChatCompletionTool[]
   response_format?: { type: 'json_object' }
   reasoning?: Record<string, unknown>
   [key: string]: unknown
-}
-
-/**
- * Message content chunk types for multi-modal messages.
- */
-interface TextContentChunk {
-  type: 'text'
-  text: string
 }
 
 /**
@@ -184,36 +96,41 @@ interface TokenUsage {
   total_cost?: number
 }
 
-interface ConversationOutcome {
-  rawResult: string
-  response: ChatCompletion
-  usage: TokenUsage
-  requestCount: number
-  toolCallCount: number
+export interface DetectionFailureDebug {
+  model?: string
+  stage: 'llm_call' | 'budget' | 'parsing' | 'validation' | 'output_limit'
+  rawResponse?: string
+  rawResponseLength?: number
+  finishReason?: string
+  usage?: TokenUsage
+  validationPath?: string
+  requestCount?: number
+  toolCallCount?: number
+  contextBudget?: number
+  minCompletionBudget?: number
+  promptTokensEstimate?: number
+  effectiveCompletionTokens?: number
+  skippedSectionsDueToBudget?: string[]
 }
 
-interface ConversationParams {
-  createRequest: (useJsonMode: boolean, disallowTools?: boolean) => Promise<ChatCompletion>
-  withTimeout: <T>(promise: Promise<T>) => Promise<T>
-  initialJsonMode: boolean
-  telemetry: DetectionTelemetry
-  webTools: ReturnType<typeof getWebFetchTools>
-  handlesUsed: Set<string>
-  url: string
-  messages: ChatCompletionMessageParam[]
-  forceFetchCompletionReserve: number
+export class DetectionFailureError extends Error {
+  readonly debug: DetectionFailureDebug
+
+  constructor(message: string, debug: DetectionFailureDebug) {
+    super(message)
+    this.name = 'DetectionFailureError'
+    this.debug = debug
+  }
 }
 
 function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
   const CHAR_PER_TOKEN = 4
   let totalChars = 0
   for (const message of messages) {
-    if (!message?.content) continue
+    totalChars += 16
     if (typeof message.content === 'string') {
       totalChars += message.content.length
-      continue
-    }
-    if (Array.isArray(message.content)) {
+    } else if (Array.isArray(message.content)) {
       for (const chunk of message.content as unknown[]) {
         if (!chunk) continue
         if (typeof chunk === 'string') {
@@ -223,8 +140,15 @@ function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
         }
       }
     }
+    if ('tool_call_id' in message && typeof (message as { tool_call_id?: unknown }).tool_call_id === 'string') {
+      totalChars += (message as { tool_call_id: string }).tool_call_id.length
+    }
   }
   return Math.max(1, Math.ceil(totalChars / CHAR_PER_TOKEN))
+}
+
+function estimateTextTokens(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4))
 }
 
 /**
@@ -330,358 +254,656 @@ function detectIncompleteJson(jsonStr: string): {
   }
 }
 
+function extractValidationPath(message: string): string | undefined {
+  const afterColon = message.split(':').slice(1).join(':').trim()
+  const firstIssue = afterColon.split(';')[0]?.trim()
+  const path = firstIssue?.split(':')[0]?.trim()
+  return path || undefined
+}
+
+function expandCandidatesFromSectionEvidence(candidateTypes: Set<string>, sectionSlice: unknown): void {
+  const sectionText = JSON.stringify(sectionSlice).toLowerCase()
+  if (/\b(header|nav|navigation|menu|navbar)\b/.test(sectionText)) {
+    candidateTypes.add('navbar')
+  }
+  if (/\b(footer|copyright|legal|sociallinks|social links)\b/.test(sectionText)) {
+    candidateTypes.add('footer')
+  }
+  if (/\b(video|youtube|youtu\.be|vimeo|wistia|loom|iframe|embed)\b/.test(sectionText)) {
+    candidateTypes.add('video-embed')
+  }
+}
+
+function collectSectionPathIds(sectionSlice: unknown): Set<string> {
+  const pathIds = new Set<string>()
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    const record = value as Record<string, unknown>
+    if (typeof record.pathId === 'string') {
+      pathIds.add(record.pathId)
+    }
+    Object.values(record).forEach(visit)
+  }
+  visit(sectionSlice)
+  return pathIds
+}
+
+function filterResourcesForSection(resources: ResourcesSummary | undefined, sectionSlice: unknown): ResourcesSummary | undefined {
+  if (!resources) return undefined
+  const pathIds = collectSectionPathIds(sectionSlice)
+  if (pathIds.size === 0) {
+    return {
+      anchors: resources.anchors.slice(0, 12),
+      images: resources.images.slice(0, 12),
+      videos: resources.videos.slice(0, 4),
+      forms: resources.forms.slice(0, 4),
+      links: resources.links.slice(0, 12)
+    }
+  }
+  const belongsToSection = (item: { pathId: string }) =>
+    Array.from(pathIds).some(pathId => item.pathId === pathId || item.pathId.startsWith(`${pathId}.`))
+
+  return {
+    anchors: resources.anchors.filter(belongsToSection).slice(0, 20),
+    images: resources.images.filter(belongsToSection).slice(0, 20),
+    videos: resources.videos.filter(belongsToSection).slice(0, 6),
+    forms: resources.forms.filter(belongsToSection).slice(0, 6),
+    links: resources.links.slice(0, 12)
+  }
+}
+
 function clampCompletionTokens(
   model: string,
   messages: ChatCompletionMessageParam[],
   requested: number
 ): number {
   const promptTokens = estimateMessageTokens(messages)
-  const available = Math.max(MIN_COMPLETION_BUDGET, CONTEXT_BUDGET - promptTokens)
+  const available = CONTEXT_BUDGET - promptTokens
+  if (available < MIN_COMPLETION_BUDGET) {
+    throw new DetectionFailureError(
+      `Detection context budget exceeded before generation: prompt≈${promptTokens}, budget=${CONTEXT_BUDGET}, minimum completion reserve=${MIN_COMPLETION_BUDGET}`,
+      {
+        model,
+        stage: 'budget',
+        validationPath: 'context_budget_exceeded',
+        contextBudget: CONTEXT_BUDGET,
+        minCompletionBudget: MIN_COMPLETION_BUDGET,
+        promptTokensEstimate: promptTokens,
+        effectiveCompletionTokens: Math.max(0, available)
+      }
+    )
+  }
   if (requested <= available) {
     return requested
   }
-  const clamped = Math.max(MIN_COMPLETION_BUDGET, available)
+  const clamped = available
   console.warn(
     `[DetectionService] Reducing max_tokens from ${requested} to ${clamped} for ${model} (prompt≈${promptTokens} tokens, budget=${CONTEXT_BUDGET}).`
   )
   return clamped
 }
 
-function canAppendToolResultWithinBudget(
-  messages: ChatCompletionMessageParam[],
-  toolResult: unknown,
-  reserveCompletionTokens: number
-): boolean {
-  const CHAR_PER_TOKEN = 4
-  const serialized = JSON.stringify(toolResult)
-  const currentTokens = estimateMessageTokens(messages)
-  const addedTokens = Math.ceil(serialized.length / CHAR_PER_TOKEN)
-  return currentTokens + addedTokens <= CONTEXT_BUDGET - reserveCompletionTokens
-}
-
-function buildPageSpecificDetectionInstructions(url: string): string {
-  let path = ''
-  try {
-    path = new URL(url).pathname.toLowerCase()
-  } catch {
-    path = url.toLowerCase()
+export class DetectionService {
+  private templateAllowsDetectedComponents(
+    template: DetectionPromptPayload['pageSummary']['templates'][number],
+    components: DetectedComponent[]
+  ): boolean {
+    const regions = [...(template.requiredRegions ?? []), ...(template.optionalRegions ?? [])]
+    return components.every(component => {
+      const location = component.location ?? 'main'
+      const allowed = regions
+        .filter(region => region.region === location)
+        .flatMap(region => region.allowedComponents ?? [])
+        .map(type => String(type))
+      return allowed.includes(String(component.component)) || allowed.includes(String(component.type))
+    })
   }
 
-  if (/(?:^|\/)(?:blog|news|insights?|articles?|posts?)(?:\/)?$/.test(path)) {
-    return [
-      'PAGE INTENT: This URL is a listing/index page for posts, articles, news, or insights.',
-      'Select a blog/news index template only when you can return a canonical blog-list component in the main region.',
-      'For blog-list, extract compact teaser data only: title, excerpt, href/slug, image when visible, category/tags, author, publishDate, and featured. Do not expand full article bodies on index pages.',
-      'If article teaser cards are visible anywhere in fetched sections or resourcesSummary anchors, return them as one blog-list.posts[] array rather than separate card-grid/card-item components.'
-    ].join('\n')
-  }
-
-  return ''
-}
-
-async function runDetectionConversation(params: ConversationParams): Promise<ConversationOutcome> {
-  let requestJsonMode = params.initialJsonMode
-  let response = await params.withTimeout(params.createRequest(requestJsonMode))
-  let requestCount = 1
-  let toolCallCount = 0
-
-  // Track outline and fetched sections to ensure ALL sections are fetched
-  let outlineResult: { handle: string; sections: Array<{ key: string }> } | null = null
-  const fetchedSectionKeys = new Set<string>()
-
-  const recordAssistantMessage = (completion?: ChatCompletion): void => {
-    const assistantMessage = completion?.choices?.[0]?.message
-    if (!assistantMessage || assistantMessage.role !== 'assistant') {
-      return
-    }
-
-    // Cast to extended type that includes vendor-specific fields
-    const extendedMsg = assistantMessage as unknown as ExtendedAssistantMessage
-
-    // Log full response structure for debugging Gemini reasoning_details
-    if (LoggingConfig.logOutput) {
-      console.log('[LLM Response] Full message keys:', Object.keys(extendedMsg))
-      if (extendedMsg.reasoning_details) {
-        console.log('[LLM Response] reasoning_details:', JSON.stringify(extendedMsg.reasoning_details, null, 2))
-      }
-      if (extendedMsg.tool_calls?.length) {
-        console.log('[LLM Response] First tool_call keys:', Object.keys(extendedMsg.tool_calls[0]))
-        console.log('[LLM Response] First tool_call:', JSON.stringify(extendedMsg.tool_calls[0], null, 2))
-      }
-    }
-
-    // Build message to record with extended fields for Gemini compatibility
-    const messageToRecord: ExtendedAssistantMessage = {
-      role: 'assistant',
-      content: assistantMessage.content ?? ''
-    }
-
-    // Preserve reasoning_details if present (required for Gemini 3 Pro multi-turn)
-    if (extendedMsg.reasoning_details) {
-      messageToRecord.reasoning_details = extendedMsg.reasoning_details
-    }
-
-    if (extendedMsg.tool_calls?.length) {
-      // Preserve full tool_calls including extra_content for Gemini thought signatures.
-      // Gemini 3 Pro returns thought_signature tokens in extra_content.google.thought_signature
-      // that must be passed back in subsequent requests for multi-turn tool calling.
-      messageToRecord.tool_calls = extendedMsg.tool_calls.map((tc: ExtendedToolCall) => {
-        const toolCall: ExtendedToolCall = {
-          id: tc.id,
-          type: tc.type,
-          function: tc.function
-        }
-        // Preserve extra_content if present (contains Gemini thought_signature)
-        if (tc.extra_content) {
-          toolCall.extra_content = tc.extra_content
-        }
-        return toolCall
-      })
-    }
-    if (assistantMessage.refusal) {
-      messageToRecord.refusal = assistantMessage.refusal
-    }
-    if (assistantMessage.audio) {
-      messageToRecord.audio = assistantMessage.audio
-    }
-    if (assistantMessage.function_call) {
-      messageToRecord.function_call = assistantMessage.function_call
-    }
-    if ((assistantMessage as unknown as { name?: string }).name) {
-      messageToRecord.name = (assistantMessage as unknown as { name: string }).name
-    }
-    params.messages.push(messageToRecord as ChatCompletionMessageParam)
-  }
-
-  recordAssistantMessage(response)
-  let toolCalls = response.choices[0]?.message?.tool_calls
-  let guard = 0
-
-  while (Array.isArray(toolCalls) && toolCalls.length > 0 && guard < TOOL_LOOP_GUARD) {
-    toolCallCount += toolCalls.length
-
-    for (const tc of toolCalls) {
-      if (tc.type !== 'function') {
-        continue
-      }
-      const name = tc.function?.name
-      const argsStr = tc.function?.arguments
-      if (typeof argsStr !== 'string' || argsStr.trim().length === 0) {
-        throw new Error(`Detection tool call ${name || 'unknown'} omitted JSON arguments`)
-      }
-      let args: WebToolArgs
+  private selectPageTemplate(
+    pageSummary: DetectionPromptPayload['pageSummary'],
+    url: string,
+    components: DetectedComponent[] = []
+  ): DetectedPageTemplate {
+    const path = (() => {
       try {
-        args = JSON.parse(argsStr) as WebToolArgs
-      } catch (error) {
-        throw new Error(
-          `Detection tool call ${name || 'unknown'} returned malformed JSON arguments: ${
-            error instanceof Error ? error.message : String(error)
-          }`
+        return new URL(url).pathname.toLowerCase() || '/'
+      } catch {
+        return '/'
+      }
+    })()
+    const isRootPath = path === '/' || path === ''
+    const genericKey = pageSummary.templates.find(template => template.templateKey === 'core/generic-default')?.templateKey
+    let selectedByRouteHint = false
+    let templateKey: string | undefined = isRootPath && pageSummary.homeEligibleTemplates.length > 0
+      ? pageSummary.homeEligibleTemplates[0]
+      : undefined
+
+    if (!templateKey) {
+      const tokens = path.split(/[^a-z0-9]+/).filter(Boolean)
+      const scored = pageSummary.templates
+        .filter(template => template.templateKey !== genericKey)
+        .filter(template => isRootPath || !template.isHomeEligible)
+        .map(template => {
+          const routeHints = template.aiMetadata?.routeHints ?? []
+          const keywords = template.aiMetadata?.keywords ?? []
+          const haystack = [
+            template.templateKey,
+            template.name,
+            template.category,
+            template.description,
+            ...routeHints,
+            ...keywords
+          ].join(' ').toLowerCase()
+          let score = 0
+          let routeScore = 0
+          for (const hint of routeHints) {
+            const normalizedHint = String(hint).toLowerCase().replace(/\/+$/, '')
+            if (normalizedHint && (path === normalizedHint || path.startsWith(`${normalizedHint}/`))) {
+              const increment = normalizedHint.length > 1 ? 6 : 0
+              score += increment
+              routeScore += increment
+            }
+          }
+          for (const token of tokens) {
+            if (token.length >= 3 && haystack.includes(token)) score += 2
+          }
+          if (path.includes('/blog/') && template.templateKey.includes('post')) {
+            score += 4
+            routeScore += 4
+          }
+          if (/\/(?:blog|news|insights?|articles?)\/?$/.test(path) && template.templateKey.includes('index')) {
+            score += 4
+            routeScore += 4
+          }
+          return { template, score, routeScore }
+        })
+        .filter(candidate =>
+          candidate.score > 0 &&
+          (
+            candidate.routeScore > 0 ||
+            components.length === 0 ||
+            this.templateAllowsDetectedComponents(candidate.template, components)
+          )
+        )
+        .sort((a, b) => b.score - a.score)
+      const best = scored[0]
+      selectedByRouteHint = Boolean(best && best.routeScore > 0)
+      templateKey = best ? best.template.templateKey : genericKey || pageSummary.templates[0]?.templateKey
+    }
+
+    if (!templateKey) {
+      throw new Error('No page templates are registered for section harness assembly')
+    }
+
+    const selectedTemplate = pageSummary.templates.find(template => template.templateKey === templateKey)
+    if (
+      selectedTemplate &&
+      !isRootPath &&
+      components.length > 0 &&
+      (selectedTemplate.isHomeEligible || !selectedByRouteHint) &&
+      !this.templateAllowsDetectedComponents(selectedTemplate, components)
+    ) {
+      throw new Error(`Selected template ${selectedTemplate.templateKey} is incompatible with detected component regions for ${url}`)
+    }
+
+    return {
+      templateKey,
+      confidence: 0.8,
+      source: 'model',
+      reason: 'Selected deterministically by section detection harness from URL route hints and registered page templates.'
+    }
+  }
+
+  private buildPageMetadataFromHead(headMeta: HeadMeta | undefined): PageMetadata {
+    const meta = headMeta?.meta ?? []
+    const findMeta = (name: string): string | undefined => {
+      const match = meta.find(entry =>
+        String(entry.name ?? entry.property ?? '').toLowerCase() === name.toLowerCase()
+      )
+      return typeof match?.content === 'string' ? match.content : undefined
+    }
+
+    return {
+      title: headMeta?.title || findMeta('og:title') || '',
+      description: findMeta('description') || findMeta('og:description') || '',
+      canonicalUrl: headMeta?.canonical,
+      language: headMeta?.language,
+      robots: headMeta?.robots,
+      viewport: headMeta?.viewport,
+      openGraph: headMeta?.openGraph as PageMetadata['openGraph'],
+      twitterCard: headMeta?.twitter as PageMetadata['twitterCard']
+    }
+  }
+
+  private mergePageMetadata(base: PageMetadata, artifacts: SectionExtractionArtifact[]): PageMetadata {
+    return artifacts.reduce<PageMetadata>((merged, artifact) => {
+      if (!artifact.pageMetadata) return merged
+      return {
+        ...merged,
+        ...Object.fromEntries(
+          Object.entries(artifact.pageMetadata).filter(([, value]) => value !== undefined && value !== null && value !== '')
         )
       }
+    }, base)
+  }
+
+  private async runSectionHarness(params: {
+    url: string
+    options: ImportDetectionOptions
+    endpointModel: string
+    displayModel: string
+    effectiveMaxTokens: number
+    modelMaxTokens: number
+    telemetry: DetectionTelemetry
+    webTools: ReturnType<typeof getWebFetchTools>
+    preFlightFetch: Awaited<ReturnType<ReturnType<typeof getWebFetchTools>['fetchOutline']>>
+    handlesUsed: Set<string>
+    startTime: number
+    client: ReturnType<typeof createLLMClient>
+  }): Promise<ImportDetectionResult> {
+    const {
+      url,
+      options,
+      endpointModel,
+      displayModel,
+      effectiveMaxTokens,
+      telemetry,
+      webTools,
+      preFlightFetch,
+      startTime,
+      client
+    } = params
+    const {
+      includeContent = true,
+      confidenceThreshold = CONFIDENCE_THRESHOLD,
+      checkpointSession,
+      checkpointService
+    } = options
+
+    const tasks = buildDetectionSectionPlan({
+      pageUrl: url,
+      sections: preFlightFetch.sections ?? []
+    })
+    if (tasks.length === 0) {
+      throw new DetectionFailureError('Detection outline returned no sections to extract', {
+        model: endpointModel,
+        stage: 'validation',
+        validationPath: 'outline.sections'
+      })
+    }
+
+    if (checkpointSession && checkpointService) {
+      await checkpointService.savePagePlan(checkpointSession, url, {
+        url,
+        generatedAt: new Date().toISOString(),
+        sections: tasks
+      }).catch(error => {
+        console.warn('[Checkpoint] Failed to save page plan:', error)
+      })
+    }
+
+    const usageTotals: TokenUsage = {}
+    let requestCount = 0
+    const artifacts: SectionExtractionArtifact[] = []
+    let pageSummaryForAssembly: DetectionPromptPayload['pageSummary'] | undefined
+
+    const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
+      let timeout: ReturnType<typeof setTimeout> | null = null
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<T>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error(`web detection timeout after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS)
+          })
+        ])
+      } finally {
+        if (timeout) clearTimeout(timeout)
+      }
+    }
+
+    const runJsonRequest = async (messages: ChatCompletionMessageParam[]): Promise<ChatCompletion> => {
+      const maxTokens = clampCompletionTokens(endpointModel, messages, effectiveMaxTokens)
+      const payload: LLMRequestPayload = {
+        model: endpointModel,
+        messages,
+        temperature: TEMPERATURE,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' }
+      }
+      applyAllowedProviders(payload)
+      const reasoningConfig = await getReasoningConfig(endpointModel)
+      if (reasoningConfig) {
+        payload.reasoning = reasoningConfig as Record<string, unknown>
+      }
+      return await telemetry.timePhase(
+        'llm_call',
+        async () => await withTimeout(client.chat.completions.create(payload)),
+        response => ({
+          totalTokens: response?.usage?.total_tokens ?? 0,
+          promptTokens: response?.usage?.prompt_tokens ?? 0,
+          completionTokens: response?.usage?.completion_tokens ?? 0
+        })
+      )
+    }
+
+    for (const task of tasks) {
+      const sectionStart = Date.now()
+      const cached = checkpointSession && checkpointService
+        ? await checkpointService.loadSectionResult(checkpointSession, url, task.sectionKey)
+        : null
+      if (cached) {
+        artifacts.push({
+          sectionKey: cached.sectionKey,
+          sectionOrder: cached.sectionOrder,
+          components: cached.components,
+          pageMetadata: cached.pageMetadata
+        })
+        continue
+      }
 
       try {
-        if (name === 'fetch_outline') {
-          logWebToolCall('INPUT', name, args)
-          const normalizedArgs: WebToolArgs = { ...args }
-          if (typeof normalizedArgs.stripScriptsStyles === 'undefined') normalizedArgs.stripScriptsStyles = true
-          if (typeof normalizedArgs.collapseWhitespace === 'undefined') normalizedArgs.collapseWhitespace = true
-          if (typeof normalizedArgs.url !== 'string' || normalizedArgs.url.trim().length === 0) {
-            throw new Error('fetch_outline requires a non-empty url argument')
-          }
-          const fetchArgs = { ...normalizedArgs, url: normalizedArgs.url }
-
-          const result = await params.telemetry.timePhase('fetch', () => params.webTools.fetchOutline(fetchArgs), fetchResult => ({
-            status: fetchResult?.status,
-            contentLength: fetchResult?.contentLength ?? 0,
-            sectionCount: Array.isArray(fetchResult?.sections) ? fetchResult.sections.length : 0,
-            fromCache: Boolean(fetchResult?.fromCache),
-            timeout: Boolean(fetchResult?.timeout),
-            error: Boolean(fetchResult?.error)
-          }))
-          if (result?.handle) {
-            params.handlesUsed.add(result.handle)
-          }
-          logWebToolCall('OUTPUT', name, result)
-          params.messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) })
-
-          // Capture outline for tracking which sections need to be fetched
-          if (result?.handle && Array.isArray(result?.sections)) {
-            outlineResult = { handle: result.handle, sections: result.sections }
-            if (LoggingConfig.logOutput) {
-              console.log(`[SectionTracker] Outline captured: ${result.sections.length} sections available`)
-            }
-          }
-        } else if (name === 'get_section') {
-          logWebToolCall('INPUT', name, args)
-          const result = await params.webTools.getSection(args as { handle: string; key: string })
-          if (result?.handle) {
-            params.handlesUsed.add(result.handle)
-          }
-          logWebToolCall('OUTPUT', name, result)
-          params.messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) })
-
-          // Track which sections have been fetched
-          const sectionKey = (args as { key?: string })?.key
-          if (sectionKey) {
-            fetchedSectionKeys.add(sectionKey)
-            if (LoggingConfig.logOutput) {
-              console.log(`[SectionTracker] Section fetched: ${sectionKey} (${fetchedSectionKeys.size} total)`)
-            }
-          }
-        } else {
-          params.messages.push({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: JSON.stringify({ error: true, message: `Unknown tool: ${name}` })
-          })
-        }
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        logWebToolCall('ERROR', name || 'unknown', { args, error: errorMessage })
-        params.messages.push({
-          role: 'tool',
-          tool_call_id: tc.id,
-          content: JSON.stringify({ error: true, message: errorMessage || 'tool error' })
+        const section = await webTools.getSection({ handle: preFlightFetch.handle, key: task.sectionKey })
+        const sectionTaxonomy = classifySectionIntent({
+          componentType: task.role,
+          content: { section: section.slice },
+          pageUrl: url
         })
-      }
-    }
+        const candidateTypes = new Set(task.candidateTypes)
+        sectionTaxonomy.allowedTypes.forEach(type => candidateTypes.add(type))
+        expandCandidatesFromSectionEvidence(candidateTypes, section.slice)
+        if (task.role === 'header') candidateTypes.add('navbar')
+        if (task.role === 'footer') candidateTypes.add('footer')
 
-    guard++
-    response = await params.withTimeout(params.createRequest(requestJsonMode))
-    requestCount++
-    recordAssistantMessage(response)
-    toolCalls = response.choices[0]?.message?.tool_calls
-  }
-
-  // FORCE-FETCH MISSING SECTIONS: Ensure ALL sections from outline are fetched
-  // This prevents LLM from prematurely stopping and missing page content
-  if (outlineResult && outlineResult.sections.length > 0) {
-    const allSectionKeys = outlineResult.sections.map(s => s.key)
-    const allMissingSections = allSectionKeys.filter(key => !fetchedSectionKeys.has(key))
-    const missingSections = selectForceFetchSections(allSectionKeys, fetchedSectionKeys, MAX_FORCE_FETCH_SECTIONS)
-
-    if (missingSections.length > 0) {
-      console.log(`[SectionTracker] LLM skipped ${allMissingSections.length} sections. Force-fetching ${missingSections.length}/${allMissingSections.length}: ${missingSections.join(', ')}`)
-
-      // Generate unique IDs for fake tool calls
-      let fakeToolCallId = Date.now()
-
-      for (const sectionKey of missingSections) {
-        try {
-          const sectionResult = await params.webTools.getSection({
-            handle: outlineResult.handle,
-            key: sectionKey
-          })
-
-          if (sectionResult) {
-            if (!canAppendToolResultWithinBudget(params.messages, sectionResult, params.forceFetchCompletionReserve)) {
-              console.warn('[SectionTracker] Skipping force-fetched section because it would exceed detection context budget', {
-                key: sectionKey,
-                reserveCompletionTokens: params.forceFetchCompletionReserve,
-                currentTokens: estimateMessageTokens(params.messages),
-                sectionBytes: JSON.stringify(sectionResult).length
-              })
-              continue
-            }
-
-            // Add fake assistant message requesting this section
-            const fakeAssistantMsg: ChatCompletionAssistantMessageParam = {
-              role: 'assistant',
-              content: null,
-              tool_calls: [{
-                id: `force_fetch_${fakeToolCallId++}`,
-                type: 'function' as const,
-                function: {
-                  name: 'get_section',
-                  arguments: JSON.stringify({ handle: outlineResult.handle, key: sectionKey })
-                }
-              }]
-            }
-            params.messages.push(fakeAssistantMsg)
-
-            // Add the tool response
-            params.messages.push({
-              role: 'tool',
-              tool_call_id: fakeAssistantMsg.tool_calls![0].id,
-              content: JSON.stringify(sectionResult)
-            })
-
-            fetchedSectionKeys.add(sectionKey)
-            logWebToolCall('OUTPUT', 'get_section (force-fetched)', { key: sectionKey, stats: sectionResult.stats })
-          }
-        } catch (err) {
-          console.warn(`[SectionTracker] Failed to force-fetch section ${sectionKey}:`, err)
+        const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({
+          telemetry,
+          pageUrl: url,
+          candidateTypes
+        })
+        pageSummaryForAssembly = pageSummary
+        const allowedComponentTypes = components.map(component => component.type).sort()
+        const sectionPayload = {
+          url,
+          finalUrl: preFlightFetch.finalUrl,
+          sectionKey: task.sectionKey,
+          sectionOrder: task.sectionOrder,
+          role: task.role,
+          intent: sectionTaxonomy.intent,
+          intentEvidence: sectionTaxonomy.evidence,
+          stats: section.stats,
+          resourcesSummary: filterResourcesForSection(preFlightFetch.resourcesSummary, section.slice),
+          nodes: section.slice
         }
-      }
+        const messages: ChatCompletionMessageParam[] = [
+          {
+            role: 'system',
+            content: [
+              'You are a section extraction engine.',
+              'Return only valid JSON with fields "sectionKey", "components", and optional "pageMetadata".',
+              'Do not call tools. Do not include markdown, commentary, analysis, or trailing text.',
+              'Extract only the provided section JSON. Keep components in visible DOM order.'
+            ].join('\n')
+          },
+          {
+            role: 'system',
+            content: [
+              catalogPrompt,
+              '=== SECTION HARNESS RULES ===',
+              `The sectionKey field must be exactly: ${task.sectionKey}`,
+              `Allowed component types: ${allowedComponentTypes.join(', ')}`,
+              'The component field must be exactly one allowed component type.',
+              'Never emit generic wrappers such as section, container, wrapper, block, group, layout, or raw DOM/tag names.',
+              'Do not invent copy, URLs, images, dates, categories, or placeholder content.',
+              'If this section contains project/case-study/client-work/latest-project tiles, use card-grid, not content-feed.',
+              'Use content-feed only for real dated news/blog/article/resource teaser listings.',
+              'Every image.src MediaReference object must include mediaId, mediaType: "image", and url.',
+              'card-grid.cards[] links must use href, never link or url.',
+              'If no registered component can truthfully represent the section, return components: [].'
+            ].join('\n\n')
+          },
+          {
+            role: 'user',
+            content: `Extract this single section:\n${JSON.stringify(sectionPayload)}`
+          }
+        ]
 
-      console.log(`[SectionTracker] Force-fetch complete. Total sections now: ${fetchedSectionKeys.size}/${allSectionKeys.length}`)
+        const parseOutcome = (response: ChatCompletion, rawResult: string) => {
+          const completionStatus = detectIncompleteJson(rawResult)
+          const finishReason = response.choices[0]?.finish_reason || ''
+          if (!completionStatus.isComplete || finishReason === 'length') {
+            throw new DetectionFailureError(
+              `Section ${task.sectionKey} exceeded output limit or returned incomplete JSON (${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'})`,
+              {
+                model: endpointModel,
+                stage: 'output_limit',
+                rawResponse: rawResult,
+                rawResponseLength: rawResult.length,
+                finishReason,
+                usage: response.usage ? { ...response.usage } : {},
+                validationPath: completionStatus.reason,
+                requestCount: requestCount + 1,
+                toolCallCount: 0
+              }
+            )
+          }
+          try {
+            return parseSectionDetectionResponse({
+              rawResponse: rawResult,
+              sectionKey: task.sectionKey,
+              availableComponents: components,
+              url,
+              confidenceThreshold
+            })
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            throw new DetectionFailureError(message, {
+              model: endpointModel,
+              stage: message.includes('content is invalid') ? 'validation' : 'parsing',
+              rawResponse: rawResult,
+              rawResponseLength: rawResult.length,
+              finishReason,
+              usage: response.usage ? { ...response.usage } : {},
+              validationPath: extractValidationPath(message),
+              requestCount: requestCount + 1,
+              toolCallCount: 0
+            })
+          }
+        }
 
-      // After force-fetching, we need to ask the LLM to re-analyze with all sections
-      // Add a user message prompting re-analysis
-      params.messages.push({
-        role: 'user',
-        content: 'I have fetched additional page sections that were missed. Analyze all fetched section data that fits within the context budget and extract components from the page. For listing pages, return compact canonical listing components such as blog-list instead of expanding full detail content.'
-      })
+        let response = await runJsonRequest(messages)
+        requestCount++
+        let rawResult = response.choices[0]?.message?.content || ''
+        let parsedSection
+        try {
+          parsedSection = parseOutcome(response, rawResult)
+        } catch (firstError) {
+          if (!(firstError instanceof DetectionFailureError) || firstError.debug.stage === 'output_limit') {
+            throw firstError
+          }
+          messages.push({
+            role: 'user',
+            content: [
+              'Your previous JSON failed strict validation.',
+              `Validation error: ${firstError.message}`,
+              `Validation path: ${firstError.debug.validationPath || 'unknown'}`,
+              `The sectionKey must remain exactly ${task.sectionKey}.`,
+              `Allowed component types: ${allowedComponentTypes.join(', ')}`,
+              'Repair schema shape and component names only. Do not invent content. Return only JSON.',
+              'Previous JSON:',
+              rawResult
+            ].join('\n')
+          })
+          response = await runJsonRequest(messages)
+          requestCount++
+          rawResult = response.choices[0]?.message?.content || ''
+          parsedSection = parseOutcome(response, rawResult)
+        }
 
-      // Make another LLM request with all sections now available
-      response = await params.withTimeout(params.createRequest(true, true)) // JSON mode, no tools
-      requestCount++
-      recordAssistantMessage(response)
-    } else {
-      if (LoggingConfig.logOutput) {
-        console.log(`[SectionTracker] All ${allSectionKeys.length} sections were fetched by LLM`)
+        if (task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0) {
+          throw new DetectionFailureError(
+            `Required section ${task.sectionKey} produced no components`,
+            {
+              model: endpointModel,
+              stage: 'validation',
+              rawResponse: rawResult,
+              rawResponseLength: rawResult.length,
+              finishReason: response.choices[0]?.finish_reason || 'unknown',
+              usage: response.usage ? { ...response.usage } : {},
+              validationPath: `sections.${task.sectionKey}.components`,
+              requestCount,
+              toolCallCount: 0
+            }
+          )
+        }
+
+        const responseUsage: TokenUsage = response.usage ? { ...response.usage } : {}
+        usageTotals.total_tokens = (usageTotals.total_tokens ?? 0) + (responseUsage.total_tokens ?? 0)
+        usageTotals.prompt_tokens = (usageTotals.prompt_tokens ?? 0) + (responseUsage.prompt_tokens ?? 0)
+        usageTotals.completion_tokens = (usageTotals.completion_tokens ?? 0) + (responseUsage.completion_tokens ?? 0)
+        usageTotals.reasoning_tokens = (usageTotals.reasoning_tokens ?? 0) + ((responseUsage as TokenUsage).reasoning_tokens ?? 0)
+        usageTotals.total_cost = (usageTotals.total_cost ?? 0) + ((responseUsage as TokenUsage).total_cost ?? 0)
+
+        const artifact: SectionExtractionArtifact = {
+          sectionKey: task.sectionKey,
+          sectionOrder: task.sectionOrder,
+          components: parsedSection.components,
+          pageMetadata: parsedSection.pageMetadata
+        }
+        artifacts.push(artifact)
+
+        if (checkpointSession && checkpointService) {
+          await checkpointService.saveSectionResult(
+            checkpointSession,
+            url,
+            task.sectionKey,
+            task.sectionOrder,
+            parsedSection.components,
+            Date.now() - sectionStart,
+            parsedSection.pageMetadata,
+            {
+              model: endpointModel,
+              stage: 'llm_call',
+              rawResponseLength: rawResult.length,
+              rawResponse: rawResult,
+              finishReason: response.choices[0]?.finish_reason || 'unknown',
+              usage: responseUsage,
+              requestCount,
+              toolCallCount: 0
+            }
+          )
+        }
+
+        // Build once per first uncached section to keep template catalog available for assembly.
+        void pageSummary
+      } catch (error) {
+        const previousError = checkpointSession && checkpointService
+          ? await checkpointService.loadSectionError(checkpointSession, url, task.sectionKey)
+          : null
+        if (checkpointSession && checkpointService) {
+          await checkpointService.saveSectionError(
+            checkpointSession,
+            url,
+            task.sectionKey,
+            task.sectionOrder,
+            error instanceof Error ? error : new Error(String(error)),
+            (previousError?.attemptCount ?? 0) + 1,
+            error instanceof DetectionFailureError
+              ? (error.debug.stage === 'output_limit' ? 'output_limit' : error.debug.stage === 'llm_call' ? 'llm_call' : error.debug.stage === 'budget' ? 'budget' : 'parsing')
+              : undefined,
+            error instanceof DetectionFailureError ? {
+              model: error.debug.model,
+              stage: error.debug.stage,
+              rawResponseLength: error.debug.rawResponseLength ?? error.debug.rawResponse?.length ?? 0,
+              rawResponse: error.debug.rawResponse,
+              finishReason: error.debug.finishReason,
+              usage: error.debug.usage,
+              validationPath: error.debug.validationPath,
+              requestCount: error.debug.requestCount,
+              toolCallCount: error.debug.toolCallCount,
+              contextBudget: error.debug.contextBudget,
+              minCompletionBudget: error.debug.minCompletionBudget,
+              promptTokensEstimate: error.debug.promptTokensEstimate,
+              effectiveCompletionTokens: error.debug.effectiveCompletionTokens
+            } : undefined
+          )
+        }
+        throw error
       }
     }
+
+    const pageSummary = pageSummaryForAssembly ?? (await buildDetectionPromptFromCatalog({ telemetry, pageUrl: url })).pageSummary
+    const components = aggregateSectionArtifacts(tasks, artifacts)
+    if (components.length === 0) {
+      throw new DetectionFailureError(
+        `Section harness produced no components for ${url}`,
+        {
+          model: endpointModel,
+          stage: 'validation',
+          validationPath: 'sections.components',
+          requestCount,
+          toolCallCount: 0
+        }
+      )
+    }
+    const pageTemplate = this.selectPageTemplate(pageSummary, url, components)
+    const pageMetadata = this.mergePageMetadata(this.buildPageMetadataFromHead(preFlightFetch.headMeta), artifacts)
+    const accuracy = components.length === 0
+      ? 0
+      : Math.min(1, components.filter(component => component.confidence >= ConfidenceConfig.highConfidence).length / Math.min(components.length, 10))
+    const promptTokens = usageTotals.prompt_tokens || 0
+    const completionTokens = usageTotals.completion_tokens || 0
+    const reasoningTokens = usageTotals.reasoning_tokens || 0
+    const tokenUsage = usageTotals.total_tokens || 0
+    const cost = usageTotals.total_cost || (await calculateCost(displayModel, promptTokens, completionTokens, reasoningTokens))
+    const detectionResult: ImportDetectionResult = {
+      components: includeContent
+        ? components
+        : components.map(({ content, ...rest }) => ({ ...rest, content: {} })),
+      pageTemplate,
+      pageMetadata,
+      processingTime: Date.now() - startTime,
+      modelUsed: displayModel,
+      tokenUsage,
+      promptTokens,
+      completionTokens,
+      cost,
+      pageUrl: url,
+      accuracy,
+      resourcesSummary: preFlightFetch.resourcesSummary,
+      outlineSections: preFlightFetch.sections,
+      sourceHttpStatus: preFlightFetch.status,
+      sourceFinalUrl: preFlightFetch.finalUrl
+    }
+
+    if (checkpointSession && checkpointService) {
+      await checkpointService.saveAssembledPage(checkpointSession, url, {
+        url,
+        generatedAt: new Date().toISOString(),
+        sectionCount: tasks.length,
+        componentCount: components.length,
+        detection: detectionResult
+      }).catch(error => {
+        console.warn('[Checkpoint] Failed to save assembled page:', error)
+      })
+    }
+
+    telemetry.flush({
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage,
+      requestCount,
+      toolCallCount: 0,
+      componentCount: detectionResult.components.length,
+      templateKey: detectionResult.pageTemplate?.templateKey,
+      accuracy,
+      cost
+    })
+
+    return detectionResult
   }
 
-  let result = response.choices[0]?.message?.content || ''
-  let finishReason = response.choices[0]?.finish_reason || ''
-
-  const completionStatus = detectIncompleteJson(result)
-  if (!completionStatus.isComplete) {
-    throw new Error(
-      `Detection model returned invalid JSON (${completionStatus.reason || 'parse_error'}; finish_reason=${finishReason || 'unknown'})`
-    )
-  }
-
-  return {
-    rawResult: result,
-    response,
-    usage: response.usage ? { ...response.usage } : {},
-    requestCount,
-    toolCallCount
-  }
-}
-
-function summarizeRegistry(stats?: {
-  before?: DetectionRegistryStats
-  after?: DetectionRegistryStats
-  initialized: boolean
-  skipped?: boolean
-  untracked?: boolean
- }): Record<string, unknown> {
-  if (!stats) return {}
-  const before = stats.before || { componentCount: 0, patternCacheEntries: 0, catalogCached: false, cacheAgeMs: null }
-  const after = stats.after || before
-  const delta = after.componentCount - before.componentCount
-  return {
-    beforeComponentCount: before.componentCount,
-    afterComponentCount: after.componentCount,
-    registryDelta: delta,
-    patternCacheEntries: after.patternCacheEntries,
-    catalogCached: after.catalogCached,
-    cacheAgeMs: after.cacheAgeMs,
-    initialized: stats.initialized,
-    skipped: stats.skipped ?? !stats.initialized,
-    untracked: stats.untracked ?? false
-  }
-}
-
-/**
- * Service for detecting components using web-based LLMs
- */
-export class DetectionService {
   /**
    * Detect components from a URL using web-based analysis (no screenshot needed)
    */
@@ -719,6 +941,9 @@ export class DetectionService {
         // This saves tokens by detecting redirect pages (external redirects, meta refresh, JS redirects)
         const webTools = getWebFetchTools()
         const preFlightFetch = await webTools.fetchOutline({ url, stripScriptsStyles: true, collapseWhitespace: true })
+        if (preFlightFetch.handle) {
+          handlesUsed.add(preFlightFetch.handle)
+        }
 
         if (preFlightFetch.redirectInfo && preFlightFetch.redirectInfo.isExternal) {
           console.log(`[DetectionService] External redirect detected, skipping LLM detection: ${url} → ${preFlightFetch.redirectInfo.targetUrl}`)
@@ -747,9 +972,17 @@ export class DetectionService {
           }
         }
 
-        // Release the preflight handle if we're continuing
-        if (preFlightFetch.handle) {
-          handlesUsed.add(preFlightFetch.handle)
+        if (typeof preFlightFetch.status === 'number' && (preFlightFetch.status < 200 || preFlightFetch.status >= 400)) {
+          throw new DetectionFailureError(
+            `Source returned HTTP ${preFlightFetch.status} for ${url}`,
+            {
+              model: 'preflight',
+              stage: 'validation',
+              validationPath: 'source.status',
+              requestCount: 0,
+              toolCallCount: 0
+            }
+          )
         }
 
         const {
@@ -836,335 +1069,55 @@ export class DetectionService {
             skipped = true
           }
           return { before, after, initialized, skipped }
-        }, stats => summarizeRegistry(stats))
+        }, stats => stats ? summarizeRegistry(stats) : {})
 
         // Progress: registry seeding complete (step 1 of 4)
         onProgress?.({
           subsystemProgress: { id: 'llm_detection', current: 1, total: 4 },
-          message: 'Preparing detection catalog...',
+          message: 'Preparing section detection harness...',
         })
 
-        const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({ telemetry, pageUrl: url })
-
-        // Progress: prompt building complete (step 2 of 4)
-        onProgress?.({
-          subsystemProgress: { id: 'llm_detection', current: 2, total: 4 },
-          message: 'Analyzing page with AI...',
-        })
-
-        const client = createLLMClient({
+        const sectionHarnessClient = createLLMClient({
           apiKey,
           baseURL: baseUrl,
           referer: url,
           title: 'Catalyst Studio Web Detection'
         })
 
-        const systemMsg: ChatCompletionMessageParam = {
-          role: 'system',
-          content: [
-            'You are a component extraction engine that must use the provided tools to fetch and analyze pages.',
-            'Rules:',
-            '1) Use tools to fetch page data; do not browse yourself.',
-            '2) Preserve strict top-to-bottom order of components in output.',
-            '3) For any URL attributes (href/src/etc), extract verbatim as in HTML, including all query params. Do not modify or simplify URLs.',
-            '4) Call fetch_outline first; then fetch header/footer and multiple main slices (not just the first) until all visible sections are covered—news/list blocks often sit mid-page.',
-            '5) Keep token use low, but never stop before you have inspected enough main slices to capture every rendered section.',
-            '6) Apply CONTENT REFERENCE RULES (content[] elements must include a type; single content must include type).',
-            '7) Follow TEMPLATE COMPLIANCE guidance to collapse granular fragments into required canonical components (e.g., blog-post, blog-list) before returning JSON.',
-            '8) Return only a JSON object with fields "components" and "pageMetadata" as specified.',
-            '9) IMPORTANT: DOM nodes may have a "bgImage" field containing a CSS background-image URL. When you see bgImage on a card, section, or container element, use it as the image source (image.src) for that component. This is how decorative images from CSS are exposed.',
-            '10) DOM nodes may also have a "bgColor" field containing a CSS background-color in hex format (e.g., "#008ccc"). Use this for card/section styling - cards with distinct bgColor values are likely category cards or visual sections that should preserve their brand color identity. Map bgColor to a theme or accent color in the component props.',
-            '11) IMPORTANT: Watch for linked-image + text-block patterns. When you see <a><img src="..."></a> immediately followed by a text container (li, div with text, etc.), these form a SINGLE card. The img.src becomes image.src, the img.alt or text block title becomes the card title. Group these as card-grid cards, NOT separate components.',
-            '12) Do not place bookkeeping fields inside component content. Never put region, metadata, body, rawHtml, or arbitrary scraped attributes in content unless the component contract explicitly lists that field. Put placement in the component location field only.',
-            '13) Before finalizing, run this completeness checklist and backfill any gaps:',
-            '   - hero-carousel.slides[] lists every visible slide with full copy, media, and CTAs.',
-            '   - hero-with-image includes heading, copy, image.src + alt, layout/theme, and ctaButtons[] using the "variant" field (default|secondary|outline|ghost|link|destructive) following shadcn/ui button variants.',
-            '   - card-grid.cards[] enumerates each card-item/promo-item with titles, descriptions, media (check for: 1) bgImage field, 2) backgroundColor from bgColor field, 3) sibling/child <img> elements), link/linkText strings, and stable ids (card-item-...). For promo tiles where <a><img></a> precedes a text block, use the img.src as image.src.',
-            '   - feature-grid.features[] contains feature-item entries with icon, title, description, and optional link.',
-            '   - footer columns[].links[], socialLinks[], and legalLinks[] are populated with nav-menu-item/socialLinkItem objects using stable ids (nav-menu-item-..., social-...) and proper platform/external flags.',
-            '   - nav-menu-item entries include id, label, href, external (true/false), and children[] when dropdowns are present; omit summaries that duplicate column copy.',
-            '   - cta-with-form includes heading/subheading, placeholder, buttonText, formAction, emailFieldName, success/error messaging, and privacy text/link.',
-            '   If any checklist item is missing or empty while the UI renders content, call get_section for the relevant DOM and fix it before responding.'
-          ].join('\n')
-        }
-
-        const developerMsg: ChatCompletionMessageParam = {
-          role: 'system',
-          content: [
-            catalogPrompt,
-            buildPageSpecificDetectionInstructions(url),
-            'Use fetch_outline on the URL provided below. Then request get_section for header, footer, and only the main slices needed to capture hero and mid-page content blocks/lists. On listing pages, prioritize slices that contain teaser cards, dates, categories, or repeated article links. Obey URL fidelity rules.',
-            'When forms, feature grids, or footers appear, explicitly fetch the corresponding sections so you can extract every field (CTA form inputs/actions, feature-item lists, footer columns/social/legal links). Continue requesting sections until the contract outputs are complete, especially for news/resource listings.'
-          ].filter(Boolean).join('\n\n')
-        }
-
-        const userMsg: ChatCompletionMessageParam = {
-          role: 'user',
-          content: `Extract components from: ${url}. Do not rely on memory; use the tools to fetch the page. Then return only the required JSON.`
-        }
-
-        const tools: ChatCompletionTool[] = [
-          {
-            type: 'function',
-            function: {
-              name: 'fetch_outline',
-              description: 'Fetch and preprocess an HTML page, returning head meta, sections, and resources summary.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  url: { type: 'string' },
-                  UserAgent: { type: 'string' },
-                  timeoutMs: { type: 'number' },
-                  maxSizeBytes: { type: 'number' },
-                  stripScriptsStyles: { type: 'boolean' },
-                  collapseWhitespace: { type: 'boolean' }
-                },
-                required: ['url']
-              }
-            }
-          },
-          {
-            type: 'function',
-            function: {
-              name: 'get_section',
-              description: 'Return a slice of the preprocessed semantic DOM for a section key.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  handle: { type: 'string' },
-                  key: { type: 'string' }
-                },
-                required: ['handle', 'key']
-              }
-            }
-          }
-        ]
-
-        const messages: ChatCompletionMessageParam[] = [systemMsg, developerMsg, userMsg]
-
-        if (LoggingConfig.logPrompt) {
-          console.log('=== LLM PROMPT (BEGIN) ===')
-          console.log(
-            messages
-              .map(m => `${m.role.toUpperCase()}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
-              .join('\n\n')
-          )
-          console.log('=== LLM PROMPT (END) ===')
-        }
-
-        const createRequest = async (
-          useJsonMode: boolean,
-          disallowTools: boolean = false
-        ): Promise<ChatCompletion> => {
-          const payload: LLMRequestPayload = {
-            model: endpointModel,
-            messages,
-            temperature: TEMPERATURE,
-            max_tokens: clampCompletionTokens(endpointModel, messages, effectiveMaxTokens)
-          }
-          if (!disallowTools) {
-            payload.tools = tools
-          }
-          if (useJsonMode) {
-            payload.response_format = { type: 'json_object' }
-          }
-          applyAllowedProviders(payload)
-
-          // Configure reasoning based on model capabilities
-          // - Mandatory reasoning models (have reasoning_effort): use { effort: 'low' }
-          // - Optional reasoning models: disable with { enabled: false }
-          // - Non-reasoning models: don't send param
-          const reasoningConfig = await getReasoningConfig(endpointModel)
-          if (reasoningConfig) {
-            payload.reasoning = reasoningConfig as Record<string, unknown>
-          }
-
-          // Log message count and any assistant messages with tool_calls for debugging
-          const assistantMsgsWithToolCalls = messages.filter(
-            (m): m is ChatCompletionMessageParam & { role: 'assistant'; tool_calls: unknown[] } =>
-              m.role === 'assistant' && Array.isArray((m as ExtendedAssistantMessage).tool_calls) && (m as ExtendedAssistantMessage).tool_calls!.length > 0
-          )
-          if (LoggingConfig.logPrompt || assistantMsgsWithToolCalls.length > 0) {
-            console.log(`[LLM Request] Sending ${messages.length} messages, ${assistantMsgsWithToolCalls.length} have tool_calls`)
-            assistantMsgsWithToolCalls.forEach((m, i: number) => {
-              console.log(`[LLM Request] Assistant message ${i} tool_calls:`, JSON.stringify((m as ExtendedAssistantMessage).tool_calls, null, 2))
-            })
-          }
-
-          try {
-            return await client.chat.completions.create(payload)
-          } catch (err: unknown) {
-            // Log full error details for debugging
-            const errorObj = err as { error?: unknown; message?: string }
-            if (errorObj?.error) {
-              console.error('[LLM Request Error] Full error object:', JSON.stringify(errorObj.error, null, 2))
-            }
-            if (errorObj?.message) {
-              console.error('[LLM Request Error] Message:', errorObj.message)
-            }
-            throw err
-          }
-        }
-
-        const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
-          let timeout: ReturnType<typeof setTimeout> | null = null
-          try {
-            return await Promise.race([
-              promise,
-              new Promise<T>((_, reject) => {
-                timeout = setTimeout(() => reject(new Error(`web detection timeout after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS)
-              })
-            ])
-          } finally {
-            if (timeout) clearTimeout(timeout)
-          }
-        }
-
-        const normalizedModelId = endpointModel.toLowerCase()
-        const hasTools = tools.length > 0
-        const shouldDelayJsonMode = hasTools || normalizedModelId.includes('gemini') || normalizedModelId.includes('grok')
-        const forceFetchCompletionReserve = Math.min(
+        const sectionHarnessResult = await this.runSectionHarness({
+          url,
+          options,
+          endpointModel,
+          displayModel: model,
           effectiveMaxTokens,
-          Math.max(MIN_COMPLETION_BUDGET, Math.min(16000, USER_MAX_TOKENS))
-        )
-        // Reuse webTools from earlier in function (line 450) - avoid redeclaration
-
-        const conversationOutcome = await telemetry.timePhase(
-          'llm_call',
-          async () =>
-            await runDetectionConversation({
-              createRequest,
-              withTimeout,
-              initialJsonMode: !shouldDelayJsonMode,
-              telemetry,
-              webTools,
-              handlesUsed,
-              url,
-              messages,
-              forceFetchCompletionReserve
-            }),
-          outcome => ({
-            requestCount: outcome?.requestCount ?? 0,
-            toolCallCount: outcome?.toolCallCount ?? 0,
-            totalTokens: outcome?.usage?.total_tokens ?? 0,
-            promptTokens: outcome?.usage?.prompt_tokens ?? 0,
-            completionTokens: outcome?.usage?.completion_tokens ?? 0,
-            handlesTracked: handlesUsed.size
-          })
-        )
-
-        // Progress: LLM call complete (step 3 of 4)
-        onProgress?.({
-          subsystemProgress: { id: 'llm_detection', current: 3, total: 4 },
-          message: 'Parsing detection results...',
+          modelMaxTokens,
+          telemetry,
+          webTools,
+          preFlightFetch,
+          handlesUsed,
+          startTime,
+          client: sectionHarnessClient
         })
 
-        if (LoggingConfig.logOutput) {
-          const totalLen = conversationOutcome.rawResult?.length || 0
-          const finishReason = conversationOutcome.response?.choices?.[0]?.finish_reason || 'unknown'
-          const usage = conversationOutcome.usage || {}
-          console.log(`=== LLM RAW OUTPUT (FULL, length=${totalLen}) ===`)
-          console.log(`    finish_reason: ${finishReason}`)
-          console.log(`    prompt_tokens: ${usage.prompt_tokens || 0}`)
-          console.log(`    completion_tokens: ${usage.completion_tokens || 0}`)
-          console.log(`    total_tokens: ${usage.total_tokens || 0}`)
-          console.log(`    model_max_completion_tokens: ${modelMaxTokens}`)
-          console.log(`    effective_max_tokens: ${effectiveMaxTokens}`)
-
-          if (finishReason === 'length') {
-            console.log(`    ⚠️ WARNING: Output truncated due to max_tokens limit!`)
-            console.log(`    The model stopped because it hit the completion token limit. Strict detection will reject invalid JSON.`)
-          } else if (finishReason === 'stop') {
-            console.log(`    ✓ Output completed normally (model sent stop token)`)
-          }
-
-          console.log(conversationOutcome.rawResult)
-          console.log('=== END LLM RAW OUTPUT ===')
-        }
-
-        const parsed = await telemetry.timePhase('canonicalization', () =>
-          parseDetectionResponse({
-            rawResponse: conversationOutcome.rawResult,
-            availableComponents: components,
-            pageSummary,
-            url,
-            confidenceThreshold
-          }),
-        result => ({
-          componentCount: result?.components.length ?? 0,
-          templateKey: result?.pageTemplate?.templateKey,
-          accuracy: result?.accuracy ?? 0
-        }))
-
-        if (LoggingConfig.memoryTrace) {
-          const cacheStats = webTools.getCacheStats()
-          console.log('[ImportMemory] detect:web-tools-cache', { url, ...cacheStats })
-        }
-
-        const usage: TokenUsage = conversationOutcome.usage || {}
-        const tokenUsage = usage.total_tokens || 0
-        const promptTokens = usage.prompt_tokens || 0
-        const completionTokens = usage.completion_tokens || 0
-        const reasoningTokens = usage.reasoning_tokens || 0
-        const cost =
-          usage.total_cost ||
-          (await calculateCost(model, promptTokens, completionTokens, reasoningTokens))
-
-        if (LoggingConfig.logOutput) {
-          console.log('=== LLM OUTPUT (ORDERED COMPONENTS) ===')
-          parsed.components.forEach((c, i) => {
-            console.log(`${i + 1}. ${c.component} (type: ${c.type}) confidence=${c.confidence}`)
-          })
-          console.log('=== END LLM OUTPUT ===')
-        }
-
-        const lastFetch = webTools.getLastFetchOutline()
-        const detectionResult = {
-          components: includeContent
-            ? parsed.components
-            : parsed.components.map(({ content, ...rest }) => ({ ...rest, content: {} })),
-          pageTemplate: parsed.pageTemplate,
-          pageMetadata: parsed.pageMetadata,
-          processingTime: Date.now() - startTime,
-          modelUsed: model,
-          tokenUsage,
-          promptTokens,
-          completionTokens,
-          cost,
-          pageUrl: url,
-          accuracy: parsed.accuracy,
-          resourcesSummary: lastFetch?.resourcesSummary,
-          outlineSections: lastFetch?.sections,
-          sourceHttpStatus: lastFetch?.status,
-          sourceFinalUrl: lastFetch?.finalUrl
-        }
-
-        telemetry.flush({
-          totalDurationMs: Date.now() - startTime,
-          tokenUsage,
-          requestCount: conversationOutcome.requestCount,
-          toolCallCount: conversationOutcome.toolCallCount,
-          componentCount: detectionResult.components.length,
-          templateKey: detectionResult.pageTemplate?.templateKey,
-          accuracy: detectionResult.accuracy ?? 0,
-          cost
-        })
-
-        // Progress: detection complete (step 4 of 4)
         onProgress?.({
           subsystemComplete: 'llm_detection',
-          message: `Detected ${parsed.components.length} components`,
+          message: `Detected ${sectionHarnessResult.components.length} components`,
         })
 
-        traceMemory('detect:complete', { url, components: parsed.components.length })
-        return detectionResult
+        traceMemory('detect:complete', { url, components: sectionHarnessResult.components.length })
+        return sectionHarnessResult
+
       } catch (error) {
         // Report detection error
         onProgress?.({
           subsystemError: { id: 'llm_detection', error: error instanceof Error ? error.message : 'Unknown error' },
         })
         console.error('Web detection error:', error)
-        throw new Error(`Web detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        const message = `Web detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        if (error instanceof DetectionFailureError) {
+          throw new DetectionFailureError(message, error.debug)
+        }
+        throw new Error(message)
       } finally {
         const webTools = getWebFetchTools()
         handlesUsed.forEach(handle => webTools.release(handle))

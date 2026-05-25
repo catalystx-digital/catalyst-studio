@@ -16,12 +16,16 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       subheading: 'Design, launch, and iterate omnichannel sites in minutes.',
       body: 'Catalyst Studio unifies content, design, and AI workflows so your team ships faster.',
       image: {
-        src: 'https://cdn.example.com/hero/scene.jpg',
+        src: {
+          mediaId: 'detected:hero-scene',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/hero/scene.jpg'
+        },
         alt: 'Team collaborating on a product launch'
       },
       ctaButtons: [
-        { label: 'Book a Demo', href: '/contact', variant: 'default' },
-        { label: 'View Pricing', href: '/pricing', variant: 'outline' }
+        { label: 'Book a Demo', href: { type: 'internal', pageId: 'contact', path: '/contact' }, variant: 'default' },
+        { label: 'View Pricing', href: { type: 'internal', pageId: 'pricing', path: '/pricing' }, variant: 'outline' }
       ]
     }
   },
@@ -37,13 +41,17 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       body: 'Carbon fiber panels keep cards secure while the RFID-blocking design protects your identity.',
       media: {
         type: 'image',
-        src: 'https://cdn.example.com/products/ridge-wallet.jpg',
+        src: {
+          mediaId: 'detected:ridge-wallet',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/products/ridge-wallet.jpg'
+        },
         alt: 'Carbon wallet resting on desk accessories'
       },
       mediaPosition: 'right',
       ctaButtons: [
-        { label: 'Shop Now', href: '/products/ridge-carbon', variant: 'default' },
-        { label: 'Compare Wallets', href: '/products#compare', variant: 'outline' }
+        { label: 'Shop Now', href: { type: 'internal', pageId: 'products-ridge-carbon', path: '/products/ridge-carbon' }, variant: 'default' },
+        { label: 'Compare Wallets', href: { type: 'internal', pageId: 'products', path: '/products#compare' }, variant: 'outline' }
       ]
     }
   },
@@ -59,19 +67,27 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
           heading: 'Spring Collection Drop',
           subheading: 'Limited-edition styles inspired by city skylines.',
           image: {
-            src: 'https://cdn.example.com/hero/spring-drop.jpg',
+            src: {
+              mediaId: 'detected:spring-drop',
+              mediaType: 'image',
+              url: 'https://cdn.example.com/hero/spring-drop.jpg'
+            },
             alt: 'Model wearing spring fashion'
           },
-          cta: { label: 'Explore Collection', href: '/collections/spring' }
+          cta: { label: 'Explore Collection', href: { type: 'internal', pageId: 'collections-spring', path: '/collections/spring' } }
         },
         {
           heading: 'Members Save 20%',
           subheading: 'Unlock early access and exclusive drops.',
           image: {
-            src: 'https://cdn.example.com/hero/members.jpg',
+            src: {
+              mediaId: 'detected:members',
+              mediaType: 'image',
+              url: 'https://cdn.example.com/hero/members.jpg'
+            },
             alt: 'Close-up of loyalty card'
           },
-          cta: { label: 'Join Loyalty', href: '/loyalty' }
+          cta: { label: 'Join Loyalty', href: { type: 'internal', pageId: 'loyalty', path: '/loyalty' } }
         }
       ],
       autoplay: true,
@@ -93,7 +109,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
         poster: 'https://cdn.example.com/video/poster.jpg',
         autoplay: false
       },
-      ctaButtons: [{ label: 'Start Free Trial', href: '/signup', variant: 'default' }]
+      ctaButtons: [{ label: 'Start Free Trial', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'default' }]
     }
   },
   {
@@ -108,7 +124,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       body: 'Secure, composable infrastructure with prebuilt workflows for governance.',
       backgroundImage: 'https://cdn.example.com/hero/banner-bg.jpg',
       ctaButtons: [
-        { label: 'Request Access', href: '/request-access', variant: 'default' }
+        { label: 'Request Access', href: { type: 'internal', pageId: 'request-access', path: '/request-access' }, variant: 'default' }
       ]
     }
   },
@@ -123,7 +139,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       subheading: 'Use our AI-assisted editor to launch campaigns faster with built-in guardrails.',
       body: 'Catalyst Studio pairs structured components with best-practice templates so every team can move quickly.',
       ctaButtons: [
-        { label: 'Start building', href: '/signup', variant: 'default' }
+        { label: 'Start building', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'default' }
       ]
     }
   },
@@ -138,8 +154,8 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       heading: 'Catalyst 3.0 is here',
       subheading: 'New modular APIs and guardrails for global teams.',
       supportingLinks: [
-        { label: 'View release notes', href: '/release-notes' },
-        { label: 'Join the webinar', href: '/events/launch-webinar' }
+        { label: 'View release notes', href: { type: 'internal', pageId: 'release-notes', path: '/release-notes' } },
+        { label: 'Join the webinar', href: { type: 'internal', pageId: 'events-launch-webinar', path: '/events/launch-webinar' } }
       ]
     }
   }
@@ -156,4 +172,3 @@ export function registerHeroCanonicalComponents(): void {
 
   registered = true
 }
-

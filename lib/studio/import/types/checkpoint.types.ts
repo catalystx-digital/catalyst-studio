@@ -7,7 +7,7 @@
  * @module checkpoint.types
  */
 
-import type { ImportDetectionResult } from '../web-detection'
+import type { DetectedComponent, ImportDetectionResult, PageMetadata } from '../detection/types'
 
 // =============================================================================
 // Pipeline Stage Types
@@ -176,13 +176,33 @@ export interface CheckpointSitemap {
  */
 export interface LLMDebugInfo {
   /** Number of API requests made */
-  requestCount: number
+  requestCount?: number
   /** Number of tool calls */
-  toolCallCount: number
+  toolCallCount?: number
   /** Length of raw response */
-  rawResponseLength: number
+  rawResponseLength?: number
+  /** LLM model used for this attempt */
+  model?: string
+  /** Provider/model finish reason */
+  finishReason?: string
+  /** Token usage returned by provider */
+  usage?: unknown
+  /** Parser/validation stage that failed */
+  stage?: string
+  /** First validation path or parser detail, if available */
+  validationPath?: string
   /** Raw response (only if IMPORT_CHECKPOINT_RAW_RESPONSE=true) */
   rawResponse?: string
+  /** Context window budget used for this detection attempt */
+  contextBudget?: number
+  /** Minimum completion reserve used for this detection attempt */
+  minCompletionBudget?: number
+  /** Estimated prompt tokens at failure/request time */
+  promptTokensEstimate?: number
+  /** Effective completion tokens left at failure/request time */
+  effectiveCompletionTokens?: number
+  /** Sections omitted because they could not fit within the completion reserve */
+  skippedSectionsDueToBudget?: string[]
 }
 
 /**
@@ -212,7 +232,7 @@ export interface CheckpointPageResult {
 /**
  * Error stage classification
  */
-export type ErrorStage = 'fetch' | 'llm_call' | 'parsing' | 'unknown'
+export type ErrorStage = 'fetch' | 'llm_call' | 'budget' | 'parsing' | 'output_limit' | 'unknown'
 
 /**
  * Checkpoint page error stored at errors/{url-hash}.json
@@ -241,6 +261,47 @@ export interface CheckpointPageError {
 
   /** Partial detection result (if available) */
   partialDetection?: Partial<ImportDetectionResult>
+
+  /** Optional LLM debug information for failed attempts */
+  llmDebug?: LLMDebugInfo
+}
+
+// =============================================================================
+// Section Result Types
+// =============================================================================
+
+/**
+ * Checkpoint section result stored at sections/{url-hash}/{section-key}.json
+ */
+export interface CheckpointSectionResult {
+  url: string
+  urlHash: string
+  sectionKey: string
+  sectionOrder: number
+  processedAt: string
+  durationMs: number
+  components: DetectedComponent[]
+  pageMetadata?: PageMetadata
+  llmDebug?: LLMDebugInfo
+}
+
+/**
+ * Checkpoint section error stored at section-errors/{url-hash}/{section-key}.json
+ */
+export interface CheckpointSectionError {
+  url: string
+  urlHash: string
+  sectionKey: string
+  sectionOrder: number
+  attemptedAt: string
+  attemptCount: number
+  error: {
+    message: string
+    code?: string
+    stage: ErrorStage
+    retryable: boolean
+  }
+  llmDebug?: LLMDebugInfo
 }
 
 // =============================================================================
@@ -342,8 +403,54 @@ export interface IImportCheckpointService {
     url: string,
     error: Error,
     attemptCount: number,
-    stage?: ErrorStage
+    stage?: ErrorStage,
+    debug?: LLMDebugInfo
   ): Promise<void>
+
+  saveSectionResult(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string,
+    sectionOrder: number,
+    components: DetectedComponent[],
+    durationMs: number,
+    pageMetadata?: PageMetadata,
+    debug?: LLMDebugInfo
+  ): Promise<void>
+
+  loadSectionResult(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string
+  ): Promise<CheckpointSectionResult | null>
+
+  saveSectionError(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string,
+    sectionOrder: number,
+    error: Error,
+    attemptCount: number,
+    stage?: ErrorStage,
+    debug?: LLMDebugInfo
+  ): Promise<void>
+
+  loadSectionError(
+    session: CheckpointSession,
+    url: string,
+    sectionKey: string
+  ): Promise<CheckpointSectionError | null>
+
+  getCompletedSections(session: CheckpointSession, url: string): Promise<Set<string>>
+
+  streamSectionResults(
+    session: CheckpointSession,
+    url: string
+  ): AsyncIterable<CheckpointSectionResult>
+
+  savePagePlan(session: CheckpointSession, url: string, data: unknown): Promise<void>
+
+  saveAssembledPage(session: CheckpointSession, url: string, data: unknown): Promise<void>
 
   /**
    * Get URLs that need processing (pending + retryable failed)

@@ -354,17 +354,6 @@ export interface DeduplicationRules {
 }
 
 /**
- * Rules for content feed promotion.
- * Used by content-feed-processor to promote listing components to content feeds.
- */
-export interface ContentFeedPromotionRules {
-  /** Whether to enable content feed promotion for this component */
-  enabled?: boolean
-  /** Patterns that indicate this component should be promoted to content feed */
-  promotionPatterns?: string[]
-}
-
-/**
  * Component processing rules (declarative metadata for post-processors).
  * Replaces hardcoded logic in detection-post-processor modules.
  */
@@ -375,8 +364,6 @@ export interface ComponentProcessingRules {
   backgroundPromotion?: BackgroundPromotionRules
   /** Deduplication rules */
   deduplication?: DeduplicationRules
-  /** Content feed promotion rules */
-  contentFeedPromotion?: ContentFeedPromotionRules
 }
 
 /**

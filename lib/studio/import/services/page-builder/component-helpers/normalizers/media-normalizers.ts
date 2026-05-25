@@ -17,6 +17,37 @@ import {
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
 
+function inferVideoProvider(url: string): 'youtube' | 'vimeo' | 'loom' | 'wistia' | 'iframe' {
+  let hostname = ''
+  try {
+    hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '')
+  } catch {
+    return 'iframe'
+  }
+
+  if (hostname === 'youtube.com' || hostname.endsWith('.youtube.com') || hostname === 'youtu.be') return 'youtube'
+  if (hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com')) return 'vimeo'
+  if (hostname === 'loom.com' || hostname.endsWith('.loom.com')) return 'loom'
+  if (
+    hostname === 'wistia.com' ||
+    hostname.endsWith('.wistia.com') ||
+    hostname === 'wistia.net' ||
+    hostname.endsWith('.wistia.net')
+  ) return 'wistia'
+  return 'iframe'
+}
+
+function normalizeVideoProvider(provider: unknown): 'youtube' | 'vimeo' | 'loom' | 'wistia' | 'iframe' | undefined {
+  const normalized = normalizeString(provider)?.toLowerCase().replace(/[^a-z]/g, '')
+  if (!normalized) return undefined
+  if (normalized === 'youtube' || normalized === 'youtu') return 'youtube'
+  if (normalized === 'vimeo') return 'vimeo'
+  if (normalized === 'loom') return 'loom'
+  if (normalized === 'wistia') return 'wistia'
+  if (normalized === 'iframe' || normalized === 'embed') return 'iframe'
+  return undefined
+}
+
 /**
  * Normalizes video-embed component content.
  * Handles URL resolution and boolean property normalization.
@@ -45,6 +76,11 @@ export const normalizeVideoEmbedContent: ComponentContentNormalizer = (
 
   if (urlCandidate) {
     normalized.url = urlCandidate
+    delete normalized.embedUrl
+    delete normalized.source
+    delete normalized.src
+    delete normalized.videoUrl
+    normalized.provider = normalizeVideoProvider(normalized.provider) ?? inferVideoProvider(urlCandidate)
   } else if (normalized.url && typeof normalized.url !== 'string') {
     delete normalized.url
   }

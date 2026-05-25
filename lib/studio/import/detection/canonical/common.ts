@@ -13,20 +13,24 @@ export const commonCanonicalDefinitions: CanonicalComponentDefinition[] = [
     cues: ['navigation', 'menu', 'site header', 'global nav'],
     sampleContent: {
       logo: {
-        src: 'https://cdn.example.com/brand/logo-light.svg',
+        src: {
+          mediaId: 'detected:brand-logo',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/brand/logo-light.svg'
+        },
         alt: 'Catalyst Studio',
         href: '/'
       },
       menuItems: [
-        { label: 'Solutions', href: '/solutions' },
-        { label: 'Pricing', href: '/pricing' },
-        { label: 'Resources', href: '/resources' },
-        { label: 'Company', href: '/company' }
+        { label: 'Solutions', href: { type: 'internal', pageId: 'solutions', path: '/solutions' } },
+        { label: 'Pricing', href: { type: 'internal', pageId: 'pricing', path: '/pricing' } },
+        { label: 'Resources', href: { type: 'internal', pageId: 'resources', path: '/resources' } },
+        { label: 'Company', href: { type: 'internal', pageId: 'company', path: '/company' } }
       ],
       cta: {
-        text: 'Get Started',
-        href: '/contact',
-        variant: 'default'
+        label: 'Get Started',
+        href: { type: 'internal', pageId: 'contact', path: '/contact' },
+        variant: 'primary'
       },
       sticky: true
     }
@@ -42,17 +46,17 @@ export const commonCanonicalDefinitions: CanonicalComponentDefinition[] = [
         {
           title: 'Company',
           links: [
-            { label: 'About', href: '/company' },
-            { label: 'Careers', href: '/careers' },
-            { label: 'Press', href: '/press' }
+            { label: 'About', href: { type: 'internal', pageId: 'company', path: '/company' } },
+            { label: 'Careers', href: { type: 'internal', pageId: 'careers', path: '/careers' } },
+            { label: 'Press', href: { type: 'internal', pageId: 'press', path: '/press' } }
           ]
         },
         {
           title: 'Resources',
           links: [
-            { label: 'Blog', href: '/resources/blog' },
-            { label: 'Docs', href: '/docs' },
-            { label: 'Support', href: '/support' }
+            { label: 'Blog', href: { type: 'internal', pageId: 'resources-blog', path: '/resources/blog' } },
+            { label: 'Docs', href: { type: 'internal', pageId: 'docs', path: '/docs' } },
+            { label: 'Support', href: { type: 'internal', pageId: 'support', path: '/support' } }
           ]
         }
       ],
@@ -62,8 +66,8 @@ export const commonCanonicalDefinitions: CanonicalComponentDefinition[] = [
       ],
       copyright: 'Copyright 2024 Catalyst Studio. All rights reserved.',
       legalLinks: [
-        { label: 'Privacy Policy', href: '/legal/privacy' },
-        { label: 'Terms of Service', href: '/legal/terms' }
+        { label: 'Privacy Policy', href: { type: 'internal', pageId: 'legal-privacy', path: '/legal/privacy' } },
+        { label: 'Terms of Service', href: { type: 'internal', pageId: 'legal-terms', path: '/legal/terms' } }
       ]
     }
   }

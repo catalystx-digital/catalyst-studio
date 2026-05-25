@@ -21,7 +21,7 @@ export const aboutCanonicalDefinitions: CanonicalComponentDefinition[] = [
             title: 'CEO & Co-founder',
             bio: 'Previously led platform strategy at Atlassian.',
             image: {
-              src: 'https://cdn.example.com/team/jonah.jpg',
+              src: { mediaId: 'detected:jonah-patel', mediaType: 'image', url: 'https://cdn.example.com/team/jonah.jpg' },
               alt: 'Jonah Patel'
             },
             socialLinks: [
@@ -36,7 +36,7 @@ export const aboutCanonicalDefinitions: CanonicalComponentDefinition[] = [
             title: 'VP of Product',
             bio: 'Drives roadmap for collaboration and AI-assisted workflows.',
             image: {
-              src: 'https://cdn.example.com/team/linh.jpg',
+              src: { mediaId: 'detected:linh-tran', mediaType: 'image', url: 'https://cdn.example.com/team/linh.jpg' },
               alt: 'Linh Tran'
             }
           }

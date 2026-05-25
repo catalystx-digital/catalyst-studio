@@ -108,10 +108,18 @@ describe('ImportCheckpointService', () => {
       // Verify directory structure
       const pagesDir = path.join(session.cacheDir, 'pages')
       const errorsDir = path.join(session.cacheDir, 'errors')
+      const sectionsDir = path.join(session.cacheDir, 'sections')
+      const sectionErrorsDir = path.join(session.cacheDir, 'section-errors')
+      const pagePlansDir = path.join(session.cacheDir, 'page-plans')
+      const assembledDir = path.join(session.cacheDir, 'assembled')
       const aggregatedDir = path.join(session.cacheDir, 'aggregated')
 
       expect(await stat(pagesDir).then(() => true).catch(() => false)).toBe(true)
       expect(await stat(errorsDir).then(() => true).catch(() => false)).toBe(true)
+      expect(await stat(sectionsDir).then(() => true).catch(() => false)).toBe(true)
+      expect(await stat(sectionErrorsDir).then(() => true).catch(() => false)).toBe(true)
+      expect(await stat(pagePlansDir).then(() => true).catch(() => false)).toBe(true)
+      expect(await stat(assembledDir).then(() => true).catch(() => false)).toBe(true)
       expect(await stat(aggregatedDir).then(() => true).catch(() => false)).toBe(true)
     })
 
@@ -180,6 +188,86 @@ describe('ImportCheckpointService', () => {
     })
   })
 
+  describe('section checkpoints', () => {
+    it('should save, load, and stream section results by original section key', async () => {
+      const session = await service.initializeSession(
+        'job-section-result',
+        'website-456',
+        'https://example.com'
+      )
+      const url = 'https://example.com/about'
+      const components = [
+        {
+          type: 'text-block',
+          component: 'text-block',
+          content: { text: 'About us' },
+          confidence: 0.9,
+          location: 'main'
+        }
+      ] as any
+
+      await service.saveSectionResult(
+        session,
+        url,
+        'main:0-99',
+        1,
+        components,
+        123,
+        { title: 'About Example', description: 'About page' },
+        {
+          model: 'test-model',
+          rawResponseLength: 42
+        }
+      )
+
+      const loaded = await service.loadSectionResult(session, url, 'main:0-99')
+      expect(loaded?.sectionKey).toBe('main:0-99')
+      expect(loaded?.components).toHaveLength(1)
+      expect(loaded?.pageMetadata?.title).toBe('About Example')
+      expect(loaded?.llmDebug?.rawResponseLength).toBe(42)
+
+      const completed = await service.getCompletedSections(session, url)
+      expect(completed.has('main:0-99')).toBe(true)
+
+      const streamed = []
+      for await (const result of service.streamSectionResults(session, url)) {
+        streamed.push(result.sectionKey)
+      }
+      expect(streamed).toEqual(['main:0-99'])
+    })
+
+    it('should save section errors with output limit stage', async () => {
+      const session = await service.initializeSession(
+        'job-section-error',
+        'website-456',
+        'https://example.com'
+      )
+      const url = 'https://example.com/about'
+
+      await service.saveSectionError(session, url, 'main:0-99', 1, new Error('too long'), 1, 'output_limit')
+
+      const loaded = await service.loadSectionError(session, url, 'main:0-99')
+      expect(loaded?.error.stage).toBe('output_limit')
+      expect(loaded?.error.message).toBe('too long')
+    })
+
+    it('should clear stale section errors when a section result succeeds', async () => {
+      const session = await service.initializeSession(
+        'job-section-error-clear',
+        'website-456',
+        'https://example.com'
+      )
+      const url = 'https://example.com/about'
+
+      await service.saveSectionError(session, url, 'main:0-99', 1, new Error('first failure'), 1, 'parsing')
+      expect(await service.loadSectionError(session, url, 'main:0-99')).not.toBeNull()
+
+      await service.saveSectionResult(session, url, 'main:0-99', 1, [], 50)
+
+      expect(await service.loadSectionError(session, url, 'main:0-99')).toBeNull()
+    })
+  })
+
   describe('savePageResult', () => {
     it('should save a successful page result', async () => {
       const session = await service.initializeSession(
@@ -200,9 +288,8 @@ describe('ImportCheckpointService', () => {
       expect(result!.detection.components).toHaveLength(2)
       expect(result!.detection.pageMetadata?.title).toBe('Test Page')
 
-      // Manifest should be updated
-      const manifest = await service.loadManifest(session)
-      expect(manifest.progress.completedUrls).toBe(1)
+      // In-memory counters are updated; persisted progress is reconstructed from page files on resume.
+      expect(session.manifest.progress.completedUrls).toBe(1)
     })
 
     it('should include LLM debug info when provided', async () => {
@@ -250,9 +337,45 @@ describe('ImportCheckpointService', () => {
       expect(result!.error.stage).toBe('llm_call')
       expect(result!.attemptCount).toBe(1)
 
-      // Manifest should be updated
-      const manifest = await service.loadManifest(session)
-      expect(manifest.progress.failedUrls).toBe(1)
+      // In-memory counters are updated; persisted progress is reconstructed from error files on resume.
+      expect(session.manifest.progress.failedUrls).toBe(1)
+    })
+
+    it('saves failed LLM debug metadata without raw output by default', async () => {
+      const session = await service.initializeSession(
+        'job-page-error-debug',
+        'website-456',
+        'https://example.com'
+      )
+
+      const url = 'https://example.com/broken-debug'
+      const error = new Error('Detection response components[0].content is invalid')
+
+      await service.savePageError(session, url, error, 1, 'parsing', {
+        model: 'openai/gpt-4.1-nano',
+        stage: 'validation',
+        finishReason: 'stop',
+        rawResponseLength: 42,
+        rawResponse: '{"components":[]}',
+        validationPath: 'components.0.content',
+        requestCount: 2,
+        toolCallCount: 1,
+        usage: { total_tokens: 123 }
+      })
+
+      const result = await service.loadPageError(session, url)
+
+      expect(result?.llmDebug).toEqual(expect.objectContaining({
+        model: 'openai/gpt-4.1-nano',
+        stage: 'validation',
+        finishReason: 'stop',
+        rawResponseLength: 42,
+        validationPath: 'components.0.content',
+        requestCount: 2,
+        toolCallCount: 1
+      }))
+      expect(result?.llmDebug?.rawResponse).toBeUndefined()
+      expect(result?.error.retryable).toBe(false)
     })
   })
 

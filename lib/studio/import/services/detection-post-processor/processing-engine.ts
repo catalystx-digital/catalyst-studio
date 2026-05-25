@@ -15,8 +15,7 @@ import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type {
   MultiRowDetectionRules,
   BackgroundPromotionRules,
-  DeduplicationRules,
-  ContentFeedPromotionRules
+  DeduplicationRules
 } from '@/lib/studio/components/cms/_core/types'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 import type { ComponentDefinition } from '@/lib/studio/components/cms/_core/component-definition'
@@ -517,113 +516,4 @@ function isInlineDuplicate(content: unknown, button: { text: string; url: string
   const textMatch = Boolean(button.text && serialized.includes(button.text.toLowerCase()))
   const urlMatch = Boolean(button.url && serialized.includes(button.url.toLowerCase()))
   return textMatch || urlMatch
-}
-
-// ============================================================================
-// Content Feed Promotion
-// ============================================================================
-
-/**
- * Executes content feed promotion based on declarative rules.
- *
- * Promotes card-grid/blog-list → content-feed when:
- * 1. Rules are enabled in ComponentDefinition
- * 2. Component matches promotion patterns (e.g., href patterns like '/news/', '/blog/')
- * 3. Sufficient items (3+) with matching patterns
- *
- * @param components - Array of detected components to process
- * @param rules - Content feed promotion rules from ComponentDefinition
- * @param pageUrl - Optional page URL for href resolution
- *
- * @example
- * ```typescript
- * const rules = {
- *   enabled: true,
- *   promotionPatterns: ['/news/', '/blog/', '/articles/']
- * }
- * executeContentFeedPromotion(components, rules, pageUrl)
- * // Promotes card-grid → content-feed when hrefs match /news/ patterns
- * ```
- */
-export function executeContentFeedPromotion(
-  components: DetectedComponent[],
-  rules: ContentFeedPromotionRules,
-  pageUrl?: string
-): void {
-  if (!rules.enabled) {
-    return
-  }
-
-  const promotionPatterns = rules.promotionPatterns ?? []
-  if (promotionPatterns.length === 0) {
-    return
-  }
-
-  for (const component of components) {
-    const canonical = canonicalizeComponentType(String(component.type))
-    const isCardGrid = canonical === ComponentType.CardGrid
-    const isBlogList = canonical === ComponentType.BlogList
-    const isFeatureGrid = canonical === ComponentType.FeatureGrid
-
-    if (!isCardGrid && !isBlogList && !isFeatureGrid) {
-      continue
-    }
-
-    if (!isPlainObject(component.content)) {
-      continue
-    }
-
-    const content = component.content as Record<string, any>
-    const items = Array.isArray(content.items) ? content.items : []
-
-    if (items.length < 3) {
-      continue
-    }
-
-    // Extract hrefs from items
-    const hrefs = items
-      .map(item => {
-        if (!isPlainObject(item)) {
-          return null
-        }
-        const record = item as Record<string, any>
-        return normalizeString(
-          record.link ?? record.href ?? record.url ?? record.cta?.url ?? record.cta?.href
-        )
-      })
-      .filter((href): href is string => Boolean(href))
-
-    if (hrefs.length < 3) {
-      continue
-    }
-
-    // Check if hrefs match promotion patterns
-    const matchingHrefs = hrefs.filter(href =>
-      promotionPatterns.some(pattern =>
-        href.toLowerCase().includes(pattern.toLowerCase())
-      )
-    )
-
-    const matchRatio = matchingHrefs.length / hrefs.length
-    if (matchRatio < 0.6) {
-      // Less than 60% match - don't promote
-      continue
-    }
-
-    // Promote to content-feed
-    component.type = ComponentType.ContentFeed as DetectedComponent['type']
-    component.component = ComponentType.ContentFeed
-    component.confidence = Math.max(component.confidence ?? 0.5, 0.7)
-
-    // Transform content structure
-    const existingMeta = (component.metadata ?? {}) as Record<string, unknown>
-    component.metadata = {
-      ...existingMeta,
-      source: 'content-feed-promotion-engine',
-      promotionPattern: promotionPatterns.find(pattern =>
-        matchingHrefs[0]?.toLowerCase().includes(pattern.toLowerCase())
-      ),
-      matchRatio
-    } as unknown as typeof component.metadata
-  }
 }

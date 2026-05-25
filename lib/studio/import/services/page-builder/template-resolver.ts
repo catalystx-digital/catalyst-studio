@@ -200,6 +200,37 @@ export function ensureHomeEligible(
 }
 
 /**
+ * Checks whether a concrete template is valid for a requested URL path.
+ */
+export function isTemplateRouteEligible(
+  template: PageCatalogTemplateSummary,
+  path: string
+): boolean {
+  const normalizedPath = normalizePath(path)
+  if (!template.isHomeEligible) {
+    return true
+  }
+  const hints = template.aiMetadata.routeHints || []
+  if (isHomePath(normalizedPath)) {
+    return true
+  }
+  for (const hint of hints) {
+    const trimmed = (hint || '').trim()
+    if (!trimmed) continue
+    const preferPrefix = trimmed.endsWith('/') && trimmed !== '/'
+    const normalizedHint = normalizePathname(trimmed)
+    if (preferPrefix) {
+      if (normalizedHint !== '/' && (normalizedPath === normalizedHint || normalizedPath.startsWith(`${normalizedHint}/`))) {
+        return true
+      }
+    } else if (normalizedPath === normalizedHint) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
  * Sanitizes a reason string for storage.
  */
 export function sanitizeReason(value?: string): string | undefined {
@@ -242,6 +273,10 @@ export class TemplateResolver {
         source = 'fallback'
         const note = `Template ${requestedKey} is not registered; applying fallback.`
         reason = reason ? `${reason} | ${note}` : note
+      }
+
+      if (requestedKey && template && !isTemplateRouteEligible(template, path)) {
+        throw new Error(`Template ${requestedKey} is not route-eligible for path ${path}`)
       }
 
       if (!template) {
@@ -309,7 +344,7 @@ export class TemplateResolver {
       }
     } catch (error) {
       console.warn('Failed to resolve page template metadata:', error)
-      return undefined
+      throw error
     }
   }
 

@@ -70,15 +70,16 @@ export const HeroCarouselDef = defineComponent({
 
   // LLM extraction directives
   directives: [
-    'Data requirements: "slides[]" must include each hero slide in order. For every slide capture eyebrow/kicker, heading, subheading, body/summary, image (src + alt or video URL), overlay details, analyticsId, and CTA buttons with href + label/text.',
+    'Data requirements: "slides[]" must include each hero slide in order. For every slide capture eyebrow/kicker, heading, subheading, body/summary, image ({ "src": { "mediaId": "detected:<stable-kebab-id>", "mediaType": "image", "url": "https://..." }, "alt": "..." }), overlay details, analyticsId, and CTA buttons with structured href + label/text.',
+    'Never emit slide images with media fields flattened onto image, such as image.mediaId, image.mediaType, or image.url. The MediaReference belongs under image.src and mediaType must be exactly "image".',
     'Do not emit an empty slides array when slides are shown. Populate every field defined in the props contract when present on the page.',
     'Example hero payload:',
     '  "slides": [',
     '    {',
     '      "heading": "Coffee With a Cop",',
     '      "body": "Meet local police and enjoy free coffee at Bathurst City Centre.",',
-    '      "image": { "src": "https://...", "alt": "Community coffee event" },',
-    '      "ctaButtons": [{ "href": "/events/coffee-with-a-cop", "label": "Learn more" }]',
+    '      "image": { "src": { "mediaId": "detected:coffee-with-a-cop", "mediaType": "image", "url": "https://..." }, "alt": "Community coffee event" },',
+    '      "ctaButtons": [{ "href": { "type": "internal", "pageId": "events-coffee-with-a-cop", "path": "/events/coffee-with-a-cop" }, "label": "Learn more" }]',
     '    }',
     '  ]',
     'If you cannot extract slide content, revisit the hero markup and do not return hero-carousel until slides[] is populated.',

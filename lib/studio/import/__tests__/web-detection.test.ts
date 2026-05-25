@@ -50,8 +50,52 @@ const mockComponents: ComponentPattern[] = [
       description: 'Grid of content cards',
       keywords: ['card', 'grid']
     }
+  },
+  {
+    type: 'video-embed',
+    category: 'content',
+    keywords: ['video', 'youtube', 'embed'],
+    patterns: ['video', 'iframe', 'youtube'],
+    confidence: 0.86,
+    metadata: {
+      category: 'content',
+      properties: ['provider', 'url', 'title'],
+      description: 'External video embed',
+      keywords: ['video', 'youtube']
+    }
   }
 ]
+
+const mockOutline = {
+  handle: 'handle-1',
+  finalUrl: 'https://example.com',
+  status: 200,
+  headMeta: { title: 'Example', meta: [{ name: 'description', content: 'Example page' }] },
+  sections: [{ key: 'main:0-99', approxBytes: 500, hash: 'abc', nodeCount: 6 }],
+  resourcesSummary: { anchors: [], images: [], videos: [], forms: [], links: [] }
+}
+
+const mockWebTools = {
+  fetchOutline: jest.fn(async () => mockOutline),
+  getSection: jest.fn(async () => ({
+    handle: 'handle-1',
+    key: 'main:0-99',
+    slice: [
+      { tag: 'nav', pathId: 'n000001', text: 'Home' },
+      { tag: 'h1', pathId: 'n000002', text: 'Welcome to Our Site' },
+      { tag: 'img', pathId: 'n000003', attrs: { src: '/images/hero-bg.jpg', alt: 'Hero background' } },
+      { tag: 'h2', pathId: 'n000004', text: 'Features' }
+    ],
+    stats: { nodeCount: 4, approxBytes: 500 }
+  })),
+  release: jest.fn(),
+  getCacheStats: jest.fn(() => ({ entries: 1 })),
+  getLastFetchOutline: jest.fn(() => mockOutline)
+}
+
+jest.mock('../services/web-tools', () => ({
+  getWebFetchTools: jest.fn(() => mockWebTools)
+}))
 
 jest.mock('@/lib/studio/ai/component-catalog', () => ({
   getComponentCatalogSummary: jest.fn(async () => ({
@@ -81,8 +125,11 @@ jest.mock('@/lib/studio/ai/page-catalog', () => ({
         category: 'core',
         isHomeEligible: false,
         description: 'Generic fallback template',
-        requiredRegions: [{ region: 'main', allowedComponents: ['text-block'] as any[] }],
-        optionalRegions: [],
+        requiredRegions: [{ region: 'main', allowedComponents: ['text-block', 'navbar', 'hero-with-image', 'card-grid'] as any[] }],
+        optionalRegions: [
+          { region: 'header', allowedComponents: ['navbar'] as any[] },
+          { region: 'hero', allowedComponents: ['hero-with-image'] as any[] }
+        ],
         propsMeta: undefined,
         aiMetadata: {
           keywords: ['generic'],
@@ -239,15 +286,21 @@ jest.mock('@/lib/studio/components/cms/_factory/initialize', () => ({
 }))
 
 const mockWebResponse = JSON.stringify({
-  pageTemplate: {
-    templateKey: 'marketing/home-default',
-    confidence: 0.92,
-    reason: 'Hero with marketing content and footer detected'
-  },
+  sectionKey: 'main:0-99',
   components: [
-    { component: 'navbar', confidence: 0.95, content: { logo: 'Company Logo', links: [{ label: 'Home', url: '/' }] } },
-    { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Welcome to Our Site', image: { src: '/images/hero-bg.jpg', alt: 'Hero background' } } },
-    { component: 'card-grid', confidence: 0.85, content: { cards: [{ type: 'card-item', id: 'card-item-feature-1', title: 'Feature 1', description: 'Feature description' }] } }
+    { component: 'navbar', confidence: 0.95, content: { menuItems: [{ label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } }] } },
+    {
+      component: 'hero-with-image',
+      confidence: 0.9,
+      content: {
+        heading: 'Welcome to Our Site',
+        image: {
+          src: { mediaId: 'detected:hero-bg', mediaType: 'image', url: 'https://example.com/images/hero-bg.jpg' },
+          alt: 'Hero background'
+        }
+      }
+    },
+    { component: 'card-grid', confidence: 0.85, content: { cards: [{ type: 'card-item', title: 'Feature 1', description: 'Feature description' }] } }
   ],
   pageMetadata: { title: 'Example' }
 })
@@ -259,6 +312,19 @@ describe('DetectionService (web-based)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockWebTools.fetchOutline.mockResolvedValue(mockOutline)
+    mockWebTools.getLastFetchOutline.mockReturnValue(mockOutline)
+    mockWebTools.getSection.mockResolvedValue({
+      handle: 'handle-1',
+      key: 'main:0-99',
+      slice: [
+        { tag: 'nav', pathId: 'n000001', text: 'Home' },
+        { tag: 'h1', pathId: 'n000002', text: 'Welcome to Our Site' },
+        { tag: 'img', pathId: 'n000003', attrs: { src: '/images/hero-bg.jpg', alt: 'Hero background' } },
+        { tag: 'h2', pathId: 'n000004', text: 'Features' }
+      ],
+      stats: { nodeCount: 4, approxBytes: 500 }
+    })
 
     mockDetectionAPI = detectionApiMockInstance as jest.Mocked<DetectionAPI>
     mockDetectionAPI.detectComponentPatterns.mockReturnValue(mockComponents)
@@ -345,10 +411,10 @@ describe('DetectionService (web-based)', () => {
         choices: [{
           message: {
             content: JSON.stringify({
-              pageTemplate: { templateKey: 'marketing/home-default' },
+              sectionKey: 'main:0-99',
               components: [
-                { component: 'navbar', confidence: 0.8, content: {} },
-                { component: 'hero-with-image', confidence: 0.2, content: {} }
+                { component: 'navbar', confidence: 0.8, content: { menuItems: [] } },
+                { component: 'hero-with-image', confidence: 0.2, content: { heading: 'Low confidence' } }
               ]
             })
           }
@@ -376,15 +442,14 @@ describe('DetectionService (web-based)', () => {
       await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Web detection failed')
     })
 
-    it('rejects unknown page template keys', async () => {
+    it('rejects unknown component keys', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
         choices: [{
           message: {
             content: JSON.stringify({
-              pageTemplate: { templateKey: 'unknown-template', confidence: 0.6 },
+              sectionKey: 'main:0-99',
               components: [
-                { component: 'navbar', confidence: 0.95, content: { logo: 'Company Logo' } },
-                { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Example' } }
+                { component: 'unknown-component', confidence: 0.95, content: {} }
               ],
               pageMetadata: {}
             })
@@ -394,6 +459,82 @@ describe('DetectionService (web-based)', () => {
       })
 
       await expect(service.detectComponentsFromUrl('https://example.com/blog/how-to-scale')).rejects.toThrow('is not registered')
+    })
+
+    it('fails non-success source responses before LLM detection', async () => {
+      mockWebTools.fetchOutline.mockResolvedValue({
+        ...mockOutline,
+        status: 404,
+        finalUrl: 'https://example.com/missing'
+      })
+
+      await expect(service.detectComponentsFromUrl('https://example.com/missing')).rejects.toThrow(
+        'Source returned HTTP 404 for https://example.com/missing'
+      )
+      expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled()
+    })
+
+    it('adds video-embed when section evidence contains an embedded video', async () => {
+      mockWebTools.getSection.mockResolvedValue({
+        handle: 'handle-1',
+        key: 'main:0-99',
+        slice: [
+          { tag: 'section', pathId: 'n000001', class: 'video-section' },
+          {
+            tag: 'iframe',
+            pathId: 'n000002',
+            attrs: { src: 'https://www.youtube.com/embed/wGxC3_9GZJ4', title: 'YouTube video player' }
+          }
+        ],
+        stats: { nodeCount: 2, approxBytes: 300 }
+      })
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              sectionKey: 'main:0-99',
+              components: [
+                {
+                  component: 'video-embed',
+                  confidence: 0.95,
+                  content: {
+                    provider: 'youtube',
+                    url: 'https://www.youtube.com/embed/wGxC3_9GZJ4',
+                    title: 'YouTube video player'
+                  }
+                }
+              ]
+            })
+          }
+        }],
+        usage: { total_tokens: 1000 }
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components).toHaveLength(1)
+      expect(result.components[0].type).toBe('video-embed')
+    })
+
+    it('fails pages when all optional content sections return no components', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ sectionKey: 'main:0-99', components: [] }) } }],
+        usage: { total_tokens: 100 }
+      })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Section harness produced no components')
+    })
+
+    it('selects a route-matched template for non-home pages', async () => {
+      const result = await service.detectComponentsFromUrl('https://example.com/blog/how-to-scale')
+
+      expect(result.pageTemplate.templateKey).toBe('blog/post-standard')
+    })
+
+    it('does not select a home-eligible template for non-home landing pages', async () => {
+      const result = await service.detectComponentsFromUrl('https://example.com/a-guide-to-digital-product-design-lp')
+
+      expect(result.pageTemplate.templateKey).toBe('core/generic-default')
     })
 
     it('emits detection telemetry summary', async () => {

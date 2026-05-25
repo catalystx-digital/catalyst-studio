@@ -110,8 +110,11 @@ export const TokenConfig = {
   /** Context window budget for prompt + completion */
   contextBudget: parseEnvInt('IMPORT_DETECT_CONTEXT_BUDGET', 120000),
 
-  /** Minimum tokens reserved for completion */
-  minCompletionBudget: 512,
+  /**
+   * Minimum tokens reserved for completion.
+   * Detection fails before generation when this reserve cannot be met.
+   */
+  minCompletionBudget: parseEnvInt('IMPORT_DETECT_MIN_COMPLETION_TOKENS', 4096),
 
   /** Max tokens for component type extraction */
   typeExtraction: 1000,
@@ -309,7 +312,7 @@ export const SitemapConfig = {
  */
 export const WebToolsConfig = {
   /** Maximum bytes per section */
-  sectionMaxBytes: parseEnvInt('IMPORT_SECTION_MAX_BYTES', 50000),
+  sectionMaxBytes: parseEnvInt('IMPORT_SECTION_MAX_BYTES', 12000),
 
   /** Maximum missed DOM sections to force-fetch after tool use */
   maxForceFetchSections: parseEnvInt('IMPORT_MAX_FORCE_FETCH_SECTIONS', 10),

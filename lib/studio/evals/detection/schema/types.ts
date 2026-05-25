@@ -7,6 +7,7 @@ export type SchemaFieldType =
   | 'url'
   | 'richText'
   | 'media'
+  | 'json'
   | 'select'
   | 'reference'
   | 'array'
@@ -86,4 +87,3 @@ export interface BuildSchemaOptions {
 }
 
 export type FieldTransform = (field: ComponentField) => SchemaField
-

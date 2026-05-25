@@ -17,6 +17,6 @@ export const CardItemSchema = z.object({
   image: ImageSchema.optional().describe('Card image with alt text and metadata'),
   href: SmartLinkSchema.optional().describe('Card link destination (internal page or external URL)'),
   icon: z.string().optional().describe('Card icon identifier'),
-})
+}).strict()
 
 export type CardItem = z.infer<typeof CardItemSchema>

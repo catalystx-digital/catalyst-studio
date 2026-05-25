@@ -8,7 +8,6 @@
  * - Promote hero backgrounds from DOM
  * - Remove duplicate inline CTAs
  * - Tag components with content types
- * - Promote listing components to content feeds
  * - Transform URLs from source site to relative paths
  *
  * @module detection-post-processor
@@ -27,7 +26,6 @@ import { promoteHeroBackground } from './detection-post-processor/hero-processor
 import { removeInlineCtas } from './detection-post-processor/cta-processor'
 import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-merger'
 import { tagPageComponents, tagListingComponents } from './detection-post-processor/content-tagging-processor'
-import { promoteContentFeeds, ensureContentFeedFromAnchors } from './detection-post-processor/content-feed-processor'
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
 import { enrichHeroContent } from './detection-post-processor/hero-content-enrichment'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
@@ -60,9 +58,7 @@ interface PostProcessorOptions {
  * 10. Merge hero + simple CTA banner into single hero with subheading
  * 11. Tag page components (blog posts, articles) with content type
  * 12. Tag listing components (card grids, blog lists) with content type
- * 13. Promote listing components to content feeds
- * 14. Ensure content feed from anchors if none detected
- * 15. Transform URLs from source site to relative/target format
+ * 13. Transform URLs from source site to relative/target format
  *
  * @param components - Array of detected components
  * @param options - Processing options
@@ -125,13 +121,6 @@ export function adjustDetectedComponents(
     pageUrl: options.pageUrl,
     pageMetadata: options.pageMetadata
   }))
-
-  // Content feed promotion (type-changing - check confidence first)
-  withConfidenceCheck('contentFeedPromotion', cloned, (c) => promoteContentFeeds(c, options.pageUrl, options.pageMetadata), checkProcessorSkip)
-  withConfidenceCheck('contentFeedFromAnchors', cloned, (c) => ensureContentFeedFromAnchors(c, {
-    pageUrl: options.pageUrl,
-    resourcesSummary: options.resourcesSummary
-  }), checkProcessorSkip)
 
   // Transform URLs from source site to relative/target format
   const transformed = transformSourceUrls(cloned, options.pageUrl)

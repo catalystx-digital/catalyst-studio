@@ -359,6 +359,8 @@ describe('catalog detection prompt candidate filtering', () => {
     const ourWork = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/our-work' })
 
     expect(new Set(getInTouch.components.map(component => component.type))).toContain('contact-form')
-    expect(new Set(ourWork.components.map(component => component.type))).toContain('blog-post')
+    const ourWorkTypes = new Set(ourWork.components.map(component => component.type))
+    expect(ourWorkTypes).toContain('card-grid')
+    expect(ourWorkTypes).not.toContain('content-feed')
   })
 })

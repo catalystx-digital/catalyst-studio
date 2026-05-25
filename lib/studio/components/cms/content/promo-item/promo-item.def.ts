@@ -85,11 +85,11 @@ export const PromoItemDef = defineComponent({
     'Extract: ribbon from "Sale", "New", "Limited Time" badges',
     'Extract: price from price display or discount information',
     'Extract: tag from category or promotional tag',
-    'NEVER use as standalone - should be nested within card-grid or promo section',
+    'Use promo-item only where the selected component contract explicitly accepts promo-item content. Do not assume card-grid.cards[] accepts promo-item fields.',
     'Ideal for sales promotions, featured products, special offers',
-    'Data requirements: Provide id, headline, body, ribbon/tag, price (if visible), image (src + alt), metadata (category/date/tags), and CTA captured under actions[] with label/url/variant.',
-    'Generate ids using kebab-case of headline prefixed with "promo-item-".',
-    'Flatten CTA hyperlinks into actions[]. Avoid legacy fields like ctaUrl/ctaLabel—emit the canonical structure directly.',
+    'Data requirements: Provide headline, body, ribbon/tag, price (if visible), image (src MediaReference object + alt), imageAlt, and cta with label/href SmartLink/variant when a CTA is visible.',
+    'Do not emit id, metadata, actions, ctaUrl, ctaLabel, link, or url fields on promo-item content. These fields are not in the PromoItem contract.',
+    'Flatten the primary CTA hyperlink into cta. Avoid legacy fields like ctaUrl/ctaLabel—emit the canonical structure directly.',
   ],
 
   // Sample content for AI tools and testing

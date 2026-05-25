@@ -236,7 +236,7 @@ export const normalizeTimelineContent: ComponentContentNormalizer = (
 
 /**
  * Normalizes text-block component content.
- * Handles body/bodyHtml conversion and HTML detection.
+ * Normalizes body-like aliases into the current text-block body contract.
  */
 export const normalizeTextBlockContent: ComponentContentNormalizer = (
   content: Record<string, any>,
@@ -254,31 +254,20 @@ export const normalizeTextBlockContent: ComponentContentNormalizer = (
   const normalized: Record<string, any> = { ...flattened }
   const bodyCandidate =
     normalizeString(flattened.body) ??
+    normalizeString(flattened.bodyHtml) ??
     normalizeString(flattened.bodyText) ??
     normalizeString(flattened.text) ??
     normalizeString(flattened.copy) ??
     normalizeString(flattened.html)
 
-  let resolvedBodyHtml = normalizeString(flattened.bodyHtml)
-  if (!resolvedBodyHtml && bodyCandidate && containsHtmlTags(bodyCandidate)) {
-    resolvedBodyHtml = bodyCandidate
-  }
-  if (!resolvedBodyHtml && bodyCandidate) {
-    resolvedBodyHtml = convertPlainTextToHtml(bodyCandidate)
-  }
-
-  if (!normalized.body && bodyCandidate) {
+  if (bodyCandidate) {
     normalized.body = bodyCandidate
   }
-  if (!normalized.body && normalized.bodyHtml) {
-    const plain = stripHtmlToText(normalized.bodyHtml)
-    if (plain) {
-      normalized.body = plain
-    }
-  }
-  if (resolvedBodyHtml) {
-    normalized.bodyHtml = resolvedBodyHtml
-  }
+  delete normalized.bodyHtml
+  delete normalized.bodyText
+  delete normalized.text
+  delete normalized.copy
+  delete normalized.html
 
   return { content: normalized, warnings }
 }
@@ -286,6 +275,68 @@ export const normalizeTextBlockContent: ComponentContentNormalizer = (
 // ============================================================================
 // Content Feed Normalizer
 // ============================================================================
+
+function isStructuredSmartLink(value: unknown): value is Record<string, any> {
+  return isRecord(value) && typeof value.type === 'string'
+}
+
+function normalizeFeedHref(record: Record<string, any>): unknown {
+  if (isStructuredSmartLink(record.href)) {
+    return record.href
+  }
+  if (record.href == null) {
+    return undefined
+  }
+  return extractLinkUrl(record.href)
+}
+
+function normalizeFeedImage(imageSource: unknown, warnings: LocalNormalizationWarning[]): Record<string, any> | undefined {
+  if (typeof imageSource === 'string') {
+    const trimmed = imageSource.trim()
+    if (!trimmed || isDefinitelyPageUrl(trimmed)) {
+      return undefined
+    }
+    if (isLikelyImageUrl(trimmed)) {
+      return { src: trimmed }
+    }
+    warnings.push({
+      issue: 'invalid_structure',
+      message: `Dropped suspicious feed image URL that doesn't look like an image: "${trimmed.substring(0, 100)}"`,
+      field: 'image',
+      childType: 'content-feed'
+    })
+    return undefined
+  }
+
+  if (!isRecord(imageSource)) {
+    return undefined
+  }
+
+  if (isRecord(imageSource.src)) {
+    return imageSource
+  }
+
+  const src = normalizeString(imageSource.src ?? imageSource.url ?? imageSource.href)
+  const alt = normalizeString(
+    imageSource.alt ?? imageSource.title ?? imageSource.caption ?? imageSource.description
+  )
+  if (!src || isDefinitelyPageUrl(src)) {
+    return undefined
+  }
+  if (isLikelyImageUrl(src)) {
+    return { src, ...(alt ? { alt } : {}) }
+  }
+  warnings.push({
+    issue: 'invalid_structure',
+    message: `Dropped suspicious feed image URL that doesn't look like an image: "${src.substring(0, 100)}"`,
+    field: 'image',
+    childType: 'content-feed'
+  })
+  return undefined
+}
+
+const CONTENT_FEED_PINNED_FIELDS = new Set(['title', 'excerpt', 'date', 'href', 'image', 'category'])
+const STATIC_PROJECT_FEED_HEADING_PATTERN = /\b(projects?|latest work|client work|case stud(?:y|ies)|portfolio)\b/i
 
 /**
  * Normalizes content-feed component content.
@@ -306,6 +357,19 @@ export const normalizeContentFeedContent: ComponentContentNormalizer = (
 
   const normalized: Record<string, any> = { ...flattened }
 
+  const headingText = [normalizeString(normalized.heading), normalizeString(normalized.subheading)]
+    .filter(Boolean)
+    .join(' ')
+  if (STATIC_PROJECT_FEED_HEADING_PATTERN.test(headingText)) {
+    warnings.push({
+      issue: 'invalid-value',
+      message: 'Project, client-work, portfolio, and case-study sections must use card-grid, not content-feed.',
+      field: 'heading',
+      childType: 'content-feed',
+      details: { heading: normalizeString(normalized.heading), subheading: normalizeString(normalized.subheading) }
+    })
+  }
+
   const layout = normalizeString(normalized.layout)
   if (layout !== 'list' && layout !== 'card-grid') {
     normalized.layout = 'card-grid'
@@ -316,91 +380,50 @@ export const normalizeContentFeedContent: ComponentContentNormalizer = (
   if (pinnedSource != null && !Array.isArray(pinnedSource)) {
     warnings.push({
       issue: 'invalid-subcomponent',
-      message: 'Expected pinned entries to be an array; coercing to empty list.',
+      message: 'Expected pinned entries to be an array.',
       field: 'pinned',
-      childType: 'card-item'
+      childType: 'content-feed'
     })
   }
 
   const pinned: Record<string, any>[] = []
   pinnedArray.forEach((entry, index) => {
-    const record: Record<string, any> = isRecord(entry) ? { ...entry } : { title: normalizeString(entry as any) }
-
-    const title =
-      normalizeString(record.title) ??
-      normalizeString(record.heading) ??
-      normalizeString(record.label) ??
-      normalizeString(record.text) ??
-      `Pinned item ${index + 1}`
-    const summary =
-      normalizeString(record.summary) ??
-      normalizeString(record.description) ??
-      normalizeString(record.excerpt) ??
-      normalizeString(record.body) ??
-      undefined
-    const href = extractLinkUrl(record.href ?? record.url ?? record.link)
-
-    const imageSource = record.image ?? record.thumbnail ?? record.media
-    let image: Record<string, any> | undefined
-    if (typeof imageSource === 'string') {
-      const trimmed = imageSource.trim()
-      // Validate that the URL looks like an image, not a page URL
-      // LLM sometimes confuses link hrefs (e.g., "/info/") with image sources
-      if (trimmed && !isDefinitelyPageUrl(trimmed)) {
-        // Only use URLs that look like actual images
-        if (isLikelyImageUrl(trimmed)) {
-          image = { src: trimmed }
-        } else {
-          // Log warning for suspicious image URL that's not clearly a page
-          // but also doesn't look like an image
-          warnings.push({
-            issue: 'invalid_structure',
-            message: `Dropped suspicious card image URL that doesn't look like an image: "${trimmed.substring(0, 100)}"`,
-            field: 'image',
-            childType: 'card-item'
-          })
-        }
-      }
-    } else if (isRecord(imageSource)) {
-      const src = normalizeString(imageSource.src ?? imageSource.url ?? imageSource.href)
-      const alt = normalizeString(
-        imageSource.alt ?? imageSource.title ?? imageSource.caption ?? imageSource.description
-      )
-      // Apply the same validation for object-style image sources
-      if (src && !isDefinitelyPageUrl(src)) {
-        if (isLikelyImageUrl(src)) {
-          image = { src, ...(alt ? { alt } : {}) }
-        } else {
-          warnings.push({
-            issue: 'invalid_structure',
-            message: `Dropped suspicious card image URL that doesn't look like an image: "${src.substring(0, 100)}"`,
-            field: 'image',
-            childType: 'card-item'
-          })
-        }
-      }
+    if (!isRecord(entry)) {
+      warnings.push({
+        issue: 'invalid-subcomponent',
+        message: 'Expected pinned feed entry to be an object.',
+        field: 'pinned',
+        childType: 'content-feed',
+        details: { index }
+      })
+      return
     }
 
-    // Also extract bgColor for cards without images (color cards)
-    const bgColor = normalizeString(record.bgColor ?? record.backgroundColor ?? record.color)
+    const record: Record<string, any> = { ...entry }
+    const unsupportedFields = Object.keys(record).filter(field => !CONTENT_FEED_PINNED_FIELDS.has(field))
+    if (unsupportedFields.length > 0) {
+      warnings.push({
+        issue: 'unknown-field',
+        message: `Unsupported fields on content-feed pinned entry: ${unsupportedFields.join(', ')}`,
+        field: 'pinned',
+        childType: 'content-feed',
+        details: { index, unsupportedFields }
+      })
+      return
+    }
 
-    const rawId = normalizeString(record.id ?? record.key)
-    const idSeed = normalizeString(rawId ?? href ?? title)
-    const fallbackId = idSeed
-      ? `pinned-${idSeed
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '') || index + 1}`
-      : `pinned-${index + 1}`
+    const title = normalizeString(record.title)
+    const excerpt = normalizeString(record.excerpt)
+    const href = normalizeFeedHref(record)
+
+    const image = normalizeFeedImage(record.image, warnings)
     const pinnedItem: Record<string, any> = {
-      type: canonicalizeComponentType((record.type ?? record.component ?? record.kind) as string) ?? 'card-item',
-      id: rawId || fallbackId,
       title,
-      ...(summary ? { summary } : {}),
+      ...(excerpt ? { excerpt } : {}),
       ...(href ? { href } : {}),
       ...(image ? { image } : {}),
-      // Include bgColor for color cards (cards with background color but no image)
-      ...(bgColor && !image ? { bgColor } : {})
+      ...(normalizeString(record.date) ? { date: normalizeString(record.date) } : {}),
+      ...(normalizeString(record.category) ? { category: normalizeString(record.category) } : {})
     }
     pinned.push(pinnedItem)
   })

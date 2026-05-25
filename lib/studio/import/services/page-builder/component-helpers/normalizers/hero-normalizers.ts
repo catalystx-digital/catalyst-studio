@@ -42,6 +42,43 @@ function createMalformedImageWarning(params: {
   }
 }
 
+function isMediaReferenceLike(value: unknown): value is Record<string, any> {
+  return isRecord(value) &&
+    typeof value.mediaId === 'string' &&
+    typeof value.mediaType === 'string' &&
+    (value.url == null || typeof value.url === 'string')
+}
+
+function extractStructuredImage(
+  value: Record<string, any>,
+  fallbackAlt: string | undefined
+): Record<string, any> | undefined {
+  const srcCandidate = isMediaReferenceLike(value.src)
+    ? value.src
+    : isMediaReferenceLike(value)
+      ? value
+      : undefined
+  if (!srcCandidate) {
+    return undefined
+  }
+
+  const alt = normalizeString(value.alt) ?? normalizeString(srcCandidate.alt) ?? fallbackAlt
+  return {
+    src: {
+      mediaId: srcCandidate.mediaId,
+      mediaType: srcCandidate.mediaType,
+      ...(typeof srcCandidate.url === 'string' ? { url: srcCandidate.url } : {}),
+      ...(alt ? { alt } : {})
+    },
+    ...(alt ? { alt } : {}),
+    ...(typeof value.originalUrl === 'string'
+      ? { originalUrl: value.originalUrl }
+      : typeof srcCandidate.url === 'string'
+        ? { originalUrl: srcCandidate.url }
+        : {})
+  }
+}
+
 /**
  * Collects and normalizes CTA button payloads from hero components.
  */
@@ -569,6 +606,10 @@ function normalizeHeroWithImageImageCandidate(
     normalizeString(expanded.title) ??
     normalizeString(expanded.name) ??
     normalizeString(expanded.description)
+  const structuredImage = extractStructuredImage(expanded, fallbackAlt)
+  if (structuredImage) {
+    return { image: structuredImage }
+  }
   const normalizedAsset: NormalizedImageValue | undefined = normalizeImage(expanded, fallbackAlt)
   const src =
     normalizedAsset?.src ??

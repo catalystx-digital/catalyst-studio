@@ -8,7 +8,6 @@
 
 import { canonicalizeComponentType } from '../page-builder/component-helpers'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
-import { isPlainObject } from './utils'
 import { getHeroComponentTypes, getHeaderEligibleComponentTypes } from '@/lib/studio/components/cms/_core/definition-loader'
 
 /**
@@ -28,6 +27,8 @@ export function assignHeaderRegions(components: DetectedComponent[]): void {
   if (navbarIndex === -1) {
     return
   }
+
+  applyRegion(components[navbarIndex], 'header')
 
   const headerEligible = getHeaderEligibleComponentTypes()
   for (let index = 0; index < components.length && index < navbarIndex; index += 1) {
@@ -67,7 +68,7 @@ export function assignHeroRegions(components: DetectedComponent[]): void {
 }
 
 /**
- * Applies a region to a component and its content/metadata.
+ * Applies a region to component placement metadata.
  *
  * @param component - Component to update
  * @param region - Region to apply
@@ -75,16 +76,6 @@ export function assignHeroRegions(components: DetectedComponent[]): void {
 export function applyRegion(component: DetectedComponent, region: ComponentRegion): void {
   ;(component as any).location = region
   component.metadata = { ...(component.metadata ?? {}), region }
-
-  if (isPlainObject(component.content)) {
-    const content = component.content as Record<string, any>
-    content.region = region
-    if (isPlainObject(content.metadata)) {
-      (content.metadata as Record<string, any>).region = region
-    } else {
-      content.metadata = { region }
-    }
-  }
 }
 
 /**

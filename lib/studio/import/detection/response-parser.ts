@@ -6,12 +6,14 @@ import { normalizePath } from '../utils/path-utils'
 import {
   clampConfidence,
   sanitizeReason,
-  ensureHomeEligible
+  ensureHomeEligible,
+  isTemplateRouteEligible
 } from '../services/page-builder/template-resolver'
 import { normalizeComponentContent } from '../services/page-builder/component-helpers'
 import { isFatalNormalizationWarning } from '../services/page-builder/normalization-telemetry'
 import { getComponentContractByCanonicalType } from '@/lib/studio/components/catalog/component-contracts'
 import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
+import { classifySectionIntent } from './section-taxonomy'
 
 // Use centralized confidence threshold
 const HIGH_CONFIDENCE = ConfidenceConfig.highConfidence
@@ -29,6 +31,20 @@ interface ParseDetectionOutput {
   pageTemplate: DetectedPageTemplate
   pageMetadata?: PageMetadata
   accuracy: number
+}
+
+interface ParseSectionDetectionInput {
+  rawResponse: string
+  sectionKey: string
+  availableComponents: ComponentPattern[]
+  url: string
+  confidenceThreshold: number
+}
+
+interface ParseSectionDetectionOutput {
+  sectionKey: string
+  components: DetectedComponent[]
+  pageMetadata?: PageMetadata
 }
 
 type RawTemplateCandidate = {
@@ -100,6 +116,45 @@ export function parseDetectionResponse({
     pageTemplate: resolvedTemplate,
     pageMetadata,
     accuracy
+  }
+}
+
+export function parseSectionDetectionResponse({
+  rawResponse,
+  sectionKey,
+  availableComponents,
+  url,
+  confidenceThreshold
+}: ParseSectionDetectionInput): ParseSectionDetectionOutput {
+  const raw = JSON.parse(rawResponse)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Section detection response must be a JSON object')
+  }
+
+  const responseObject = raw as Record<string, unknown>
+  if (
+    responseObject.sectionKey !== sectionKey
+  ) {
+    throw new Error(`Section detection response sectionKey must be "${sectionKey}"`)
+  }
+  if (!Array.isArray(responseObject.components)) {
+    throw new Error('Section detection response components must be an array')
+  }
+
+  const pageMetadata =
+    responseObject.pageMetadata && typeof responseObject.pageMetadata === 'object' && !Array.isArray(responseObject.pageMetadata)
+      ? responseObject.pageMetadata as PageMetadata
+      : undefined
+
+  return {
+    sectionKey,
+    components: parseComponentsArray(
+      responseObject.components as RawParsedItem[],
+      availableComponents,
+      confidenceThreshold,
+      url
+    ),
+    pageMetadata
   }
 }
 
@@ -190,6 +245,16 @@ function parseComponentsArray(
       throw new Error(`Detection response components[${index}].component "${componentName}" is not registered`)
     }
 
+    const taxonomy = classifySectionIntent({
+      componentType: pattern.type,
+      content,
+      pageUrl
+    })
+    if (taxonomy.deniedTypes.includes(pattern.type)) {
+      throw new Error(
+        `Detection response components[${index}].component "${componentName}" conflicts with section taxonomy: intent=${taxonomy.intent}; denied=${taxonomy.deniedTypes.join(',')}; evidence=${taxonomy.evidence.join('|') || 'none'}`
+      )
+    }
     const validatedContent = validateDetectedComponentContent({
       index,
       componentName,
@@ -204,7 +269,11 @@ function parseComponentsArray(
       confidence,
       content: validatedContent,
       location: inferLocationFromType(pattern.type),
-      metadata: pattern.metadata as DetectedComponent['metadata']
+      metadata: {
+        ...(pattern.metadata as DetectedComponent['metadata']),
+        sectionIntent: taxonomy.intent,
+        sectionIntentEvidence: taxonomy.evidence
+      } as DetectedComponent['metadata']
     })
   }
   return validComponents
@@ -224,18 +293,6 @@ function validateDetectedComponentContent({
   pageUrl?: string
 }): Record<string, unknown> {
   const contract = getComponentContractByCanonicalType(canonicalType)
-  const allowedKeys = contract?.propsMeta ? new Set(Object.keys(contract.propsMeta)) : undefined
-  const unsupportedFields = allowedKeys
-    ? Object.keys(content).filter(field => !allowedKeys.has(field))
-    : []
-  if (unsupportedFields.length > 0) {
-    throw new Error(
-      `Detection response components[${index}].content is invalid for component "${componentName}" (${canonicalType}): ${unsupportedFields
-        .map(field => `${field}:unknown-field`)
-        .join('; ')}`
-    )
-  }
-
   const { content: normalizedContent, warnings } = normalizeComponentContent(content, {
     parentCanonicalType: canonicalType,
     pageUrl
@@ -249,6 +306,18 @@ function validateDetectedComponentContent({
     const remainder = fatalWarnings.length > rendered.length ? `; ... ${fatalWarnings.length - rendered.length} more` : ''
     throw new Error(
       `Detection response components[${index}].content is invalid for component "${componentName}" (${canonicalType}): ${rendered.join('; ')}${remainder}`
+    )
+  }
+
+  const allowedKeys = contract?.propsMeta ? new Set(Object.keys(contract.propsMeta)) : undefined
+  const unsupportedFields = allowedKeys
+    ? Object.keys(normalizedContent).filter(field => !allowedKeys.has(field))
+    : []
+  if (unsupportedFields.length > 0) {
+    throw new Error(
+      `Detection response components[${index}].content is invalid for component "${componentName}" (${canonicalType}): ${unsupportedFields
+        .map(field => `${field}:unknown-field`)
+        .join('; ')}`
     )
   }
 
@@ -311,9 +380,13 @@ function resolvePageTemplate(
   }
 
   if (key && registry.has(key)) {
+    const template = registry.get(key)!
     const adjustedKey = ensureHomeEligible(key, path, pageSummary)
     if (adjustedKey !== key) {
       throw new Error(`Detection response pageTemplate.templateKey "${key}" is not eligible for home path ${path}`)
+    }
+    if (!isTemplateRouteEligible(template, path)) {
+      throw new Error(`Detection response pageTemplate.templateKey "${key}" is not route-eligible for path ${path}`)
     }
     key = adjustedKey
   } else {
@@ -337,6 +410,7 @@ function resolvePageTemplate(
 export const detectionParserInternals = {
   parseCombinedDetectionResponse,
   parseComponentsArray,
+  parseSectionDetectionResponse,
   resolvePageTemplate,
   validateDetectedComponentContent,
   calculateAccuracy

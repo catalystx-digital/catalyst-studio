@@ -86,7 +86,13 @@ const ERROR_PATTERNS = {
     'invalid input',
     'bad request',
     '400',
-    'schema validation'
+    'schema validation',
+    'detection response',
+    'detection model returned invalid json',
+    'detection context budget exceeded',
+    'context_budget_exceeded',
+    'pagetemplate.templatekey is required',
+    'content is invalid for component'
   ],
 
   prismaConnection: [

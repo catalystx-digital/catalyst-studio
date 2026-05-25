@@ -16,6 +16,7 @@ import {
   getFieldSchema,
   LogoSchema,
   CTAButtonSchema,
+  FAQSchema,
 } from '../registry'
 
 describe('ValueObjectRegistry', () => {
@@ -398,6 +399,39 @@ describe('ValueObjectRegistry', () => {
 
         const result = CTAButtonSchema.safeParse(button)
         expect(result.success).toBe(true)
+      })
+    })
+
+    describe('FAQ schema', () => {
+      it('validates FAQ items with question and answer content', () => {
+        const result = FAQSchema.safeParse({
+          question: 'What services do you offer?',
+          answer: 'Strategy, design, and engineering.',
+        })
+
+        expect(result.success).toBe(true)
+      })
+
+      it('rejects empty or whitespace-only question and answer text', () => {
+        const emptyAnswer = FAQSchema.safeParse({
+          question: 'Technology',
+          answer: '',
+        })
+        const whitespaceQuestion = FAQSchema.safeParse({
+          question: '   ',
+          answer: 'A real answer',
+        })
+
+        expect(emptyAnswer.success).toBe(false)
+        expect(whitespaceQuestion.success).toBe(false)
+        if (!emptyAnswer.success) {
+          expect(emptyAnswer.error.issues[0]).toEqual(
+            expect.objectContaining({
+              path: ['answer'],
+              message: 'FAQ answer must be non-empty',
+            }),
+          )
+        }
       })
     })
 

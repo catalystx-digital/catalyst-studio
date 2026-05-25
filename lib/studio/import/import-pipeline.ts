@@ -4,7 +4,7 @@
  * Orchestrates web-based detection of page components with no screenshots.
  */
 
-import { getDetectionService, DetectionService, ImportDetectionResult } from './web-detection'
+import { DetectionFailureError, getDetectionService, DetectionService, ImportDetectionResult } from './web-detection'
 import { performanceMonitor } from '@/lib/studio/components/cms/_import/performance'
 import { NavigationHierarchy, Template, DesignTokens } from './types'
 import { TemplateGenerator, CMSTemplate } from './template-generator'
@@ -183,14 +183,20 @@ export class ImportPipeline {
       const pageSummary = await getPageCatalogSummary()
 
       // Post-process and validate both fresh and checkpoint-resumed detections.
-      detectionResults = detectionResults.map(result => ({
-        ...result,
-        components: adjustDetectedComponents(result.components, {
-          pageUrl: result.pageUrl,
-          resourcesSummary: result.resourcesSummary,
-          pageMetadata: result.pageMetadata
-        })
-      }))
+      detectionResults = detectionResults.map(result => {
+        if (result.postProcessed) {
+          return result
+        }
+        return {
+          ...result,
+          postProcessed: true,
+          components: adjustDetectedComponents(result.components, {
+            pageUrl: result.pageUrl,
+            resourcesSummary: result.resourcesSummary,
+            pageMetadata: result.pageMetadata
+          })
+        }
+      })
       detectionResults = detectionResults.map(result => {
         if (result.isRedirectPage || result.detectionError) {
           return result
@@ -244,6 +250,18 @@ export class ImportPipeline {
       }
 
       const detectionFailures = detectionResults.filter(result => this.isFailedDetectionResult(result))
+      if (completedDetectionThisRun && session && checkpointService) {
+        for (const result of detectionResults) {
+          if (this.isFailedDetectionResult(result)) {
+            continue
+          }
+          await checkpointService.savePageResult(session, result.pageUrl, result)
+          if (LoggingConfig.observe) {
+            console.log(JSON.stringify({ event: 'checkpoint.saved.validated', url: result.pageUrl }))
+          }
+        }
+      }
+
       if (detectionFailures.length > 0) {
         throw new Error(
           `Detection failed for ${detectionFailures.length}/${detectionResults.length} page(s): ` +
@@ -734,6 +752,8 @@ export class ImportPipeline {
             apiKey: options.apiKey,
             includeContent: true,
             onProgress: options.progressCallback,
+            checkpointSession: session ?? undefined,
+            checkpointService: checkpointService ?? undefined,
           })
         )
       }
@@ -768,14 +788,6 @@ export class ImportPipeline {
             results[current] = result
             failCountsByHost.set(host, 0)
             setPageState(url, 'ready')
-
-            // Checkpoint: Save successful result immediately
-            if (session && checkpointService) {
-              await checkpointService.savePageResult(session, url, result)
-              if (LoggingConfig.observe) {
-                console.log(JSON.stringify({ event: 'checkpoint.saved', url, index: current + 1, total }))
-              }
-            }
 
             this.reportProgress(onProgress, {
               message: 'Completed detection for ' + url,
@@ -816,7 +828,26 @@ export class ImportPipeline {
             session,
             url,
             error instanceof Error ? error : new Error(failureReason),
-            attemptCount
+            attemptCount,
+            error instanceof DetectionFailureError
+              ? (error.debug.stage === 'llm_call' ? 'llm_call' : error.debug.stage === 'budget' ? 'budget' : error.debug.stage === 'output_limit' ? 'output_limit' : 'parsing')
+              : undefined,
+            error instanceof DetectionFailureError ? {
+              model: error.debug.model,
+              stage: error.debug.stage,
+              rawResponseLength: error.debug.rawResponseLength ?? error.debug.rawResponse?.length ?? 0,
+              rawResponse: error.debug.rawResponse,
+              finishReason: error.debug.finishReason,
+              usage: error.debug.usage,
+              validationPath: error.debug.validationPath,
+              requestCount: error.debug.requestCount,
+              toolCallCount: error.debug.toolCallCount,
+              contextBudget: error.debug.contextBudget,
+              minCompletionBudget: error.debug.minCompletionBudget,
+              promptTokensEstimate: error.debug.promptTokensEstimate,
+              effectiveCompletionTokens: error.debug.effectiveCompletionTokens,
+              skippedSectionsDueToBudget: error.debug.skippedSectionsDueToBudget
+            } : undefined
           )
           if (LoggingConfig.observe) {
             console.log(JSON.stringify({ event: 'checkpoint.error', url, index: current + 1, total, attemptCount }))

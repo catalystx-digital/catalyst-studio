@@ -151,32 +151,13 @@ export class ComponentBuilder {
 
         if (region) {
           const existingRegion = normalizeRegionValue((props as any).region)
-          const existingContentRegion =
-            isRecord(content) && 'region' in (content as Record<string, any>)
-              ? normalizeRegionValue((content as Record<string, any>).region)
-              : undefined
-          if (!existingRegion || (existingContentRegion && existingContentRegion !== region)) {
+          if (!existingRegion) {
             ;(props as any).region = region
             if (props.metadata && typeof props.metadata === 'object') {
               props.metadata = { ...props.metadata, region }
             } else {
               props.metadata = { region }
             }
-          }
-        }
-
-        const contentRegion =
-          isRecord(content) && 'region' in (content as Record<string, any>)
-            ? normalizeRegionValue((content as Record<string, any>).region)
-            : undefined
-        const assignedRegion = normalizeRegionValue((props as any).region)
-        const metadataRegion = normalizeRegionValue((props as any).metadata?.region)
-        if (contentRegion && !assignedRegion && !metadataRegion) {
-          ;(props as any).region = contentRegion
-          if (props.metadata && typeof props.metadata === 'object') {
-            props.metadata = { ...props.metadata, region: contentRegion }
-          } else {
-            props.metadata = { region: contentRegion }
           }
         }
         ;(props as any).placementBucket = placementBucket

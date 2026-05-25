@@ -1,5 +1,6 @@
 import type { DetectionPromptPayload } from './types'
 import type { DetectionTelemetry } from '../telemetry/detection-telemetry'
+import { classifyRouteIntent } from './section-taxonomy'
 
 type ComponentCatalogModule = typeof import('@/lib/studio/ai/component-catalog')
 type PageCatalogModule = typeof import('@/lib/studio/ai/page-catalog')
@@ -22,6 +23,7 @@ type SummariesResult = {
 interface BuildDetectionPromptOptions {
   telemetry?: DetectionTelemetry
   pageUrl?: string
+  candidateTypes?: Iterable<string>
 }
 
 const PROMPT_CACHE_TTL_MS = 60_000
@@ -76,11 +78,31 @@ const BASE_COMPONENT_TYPES = new Set([
   'image-gallery'
 ])
 
+const HOME_COMPONENT_TYPES = new Set([
+  'navbar',
+  'footer',
+  'hero-carousel',
+  'hero-with-image',
+  'hero-simple',
+  'text-block',
+  'two-column',
+  'card-grid',
+  'card-item',
+  'cta-banner',
+  'cta-with-form',
+  'feature-grid',
+  'feature-list',
+  'statistics',
+  'testimonials',
+  'logo-cloud',
+  'content-feed'
+])
+
 const ROUTE_COMPONENT_HINTS: Array<{ pattern: RegExp; types: string[] }> = [
   { pattern: /(?:^|[-/\s])(?:about|company|team|people|who[-\s]?we[-\s]?are)(?:$|[-/\s])/, types: ['about-section', 'team-grid', 'statistics', 'timeline', 'logo-cloud', 'testimonials'] },
   { pattern: /(?:^|[-/\s])(?:contact|locations?|find[-\s]?us|get[-\s]?in[-\s]?touch)(?:$|[-/\s])/, types: ['contact-form', 'contact-info', 'location-map', 'simple-form', 'cta-with-form'] },
   { pattern: /(?:^|[-/\s])(?:services?|solutions?|capabilities|what[-\s]?we[-\s]?do)(?:$|[-/\s])/, types: ['feature-grid', 'feature-list', 'feature-showcase', 'feature-comparison', 'statistics', 'accordion'] },
-  { pattern: /(?:^|[-/\s])(?:portfolio|work|our[-\s]?work|case[-\s]?stud(?:y|ies)|clients?)(?:$|[-/\s])/, types: ['card-grid', 'card-item', 'blog-post', 'logo-cloud', 'testimonials', 'reviews', 'content-feed'] },
+  { pattern: /(?:^|[-/\s])(?:portfolio|work|our[-\s]?work|case[-\s]?stud(?:y|ies)|clients?)(?:$|[-/\s])/, types: ['card-grid', 'card-item', 'logo-cloud', 'testimonials', 'reviews'] },
   { pattern: /(?:^|[-/\s])(?:blog|news|insights?|articles?|posts?)(?:$|[-/\s])/, types: ['blog-list', 'blog-post', 'article-header', 'author-bio', 'related-posts', 'content-feed'] },
   { pattern: /(?:^|[-/\s])(?:pricing|plans?|packages?)(?:$|[-/\s])/, types: ['pricing-table', 'pricing-card', 'feature-comparison', 'faq', 'accordion'] }
 ]
@@ -93,13 +115,24 @@ function normalizeCandidateText(value: string): string {
     .trim()
 }
 
+function isRootUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    const path = parsed.pathname.replace(/\/+$/, '')
+    return path === ''
+  } catch {
+    const normalized = value.trim().replace(/[?#].*$/, '').replace(/\/+$/, '')
+    return normalized === '' || normalized === '/'
+  }
+}
+
 function collectCandidateTypes(pageUrl: string | undefined, componentSummary: SummariesResult['componentSummary']): Set<string> | null {
   if (!pageUrl) {
     return null
   }
 
   const text = normalizeCandidateText(pageUrl)
-  const selected = new Set(BASE_COMPONENT_TYPES)
+  const selected = new Set(isRootUrl(pageUrl) ? HOME_COMPONENT_TYPES : BASE_COMPONENT_TYPES)
 
   for (const hint of ROUTE_COMPONENT_HINTS) {
     if (hint.pattern.test(text)) {
@@ -121,6 +154,10 @@ function collectCandidateTypes(pageUrl: string | undefined, componentSummary: Su
       selected.add(component.type)
     }
   }
+
+  const routeTaxonomy = classifyRouteIntent(pageUrl)
+  routeTaxonomy.allowedTypes.forEach(type => selected.add(type))
+  routeTaxonomy.deniedTypes.forEach(type => selected.delete(type))
 
   return selected
 }
@@ -258,7 +295,7 @@ async function resolveSummaries(telemetry?: DetectionTelemetry): Promise<Summari
 export async function buildDetectionPromptFromCatalog(
   options: BuildDetectionPromptOptions = {}
 ): Promise<DetectionPromptPayload> {
-  const { telemetry, pageUrl } = options
+  const { telemetry, pageUrl, candidateTypes } = options
   const {
     componentCatalog,
     pageCatalog,
@@ -274,7 +311,7 @@ export async function buildDetectionPromptFromCatalog(
     fullComponentSummary,
     fullSchemaSummary,
     fullContractBundle,
-    collectCandidateTypes(pageUrl, fullComponentSummary)
+    candidateTypes ? new Set(candidateTypes) : collectCandidateTypes(pageUrl, fullComponentSummary)
   )
   const { componentSummary, schemaSummary, contractBundle, selectedTypes } = filtered
   const promptCacheKey = selectedTypes

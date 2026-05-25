@@ -23,8 +23,6 @@ export const ImageSchema = z.object({
   height: z.number().optional().describe('Image height'),
   /** Original source URL before CDN rewriting */
   originalUrl: z.string().optional().describe('Original URL before CDN processing'),
-  /** Media library ID reference */
-  mediaId: z.string().optional().describe('Reference to media library item'),
   /** Generated rendition variants */
   renditions: z.array(z.object({
     src: z.string().optional(),
@@ -43,7 +41,7 @@ export const ImageSchema = z.object({
   credit: z.string().optional().describe('Photo credit'),
   /** Dominant color for placeholders */
   dominantColor: z.string().optional().describe('Dominant color hex code'),
-})
+}).strict()
 
 // Derived TypeScript type
 export type Image = z.infer<typeof ImageSchema>

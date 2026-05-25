@@ -14,12 +14,14 @@ import {
   PROMPT_NEWLINE,
   PROMPT_SECTION_SEPARATOR,
   createStaticSection,
+  compactPromptText,
   trimTrailingEmptyLines,
   formatList,
   renderSchemaFieldNode,
   renderPropertyNode,
   ORDERING_RULES_SECTION,
   CONTENT_EXTRACTION_SECTION,
+  VALUE_OBJECT_OUTPUT_SECTION,
   CONTENT_REFERENCE_RULES_SECTION,
   FULL_PAGE_COVERAGE_SECTION,
   CRITICAL_COMPLETENESS_SECTION,
@@ -116,58 +118,22 @@ export function buildTemplateComplianceSection(pageSummary: PageCatalogSummary |
   lines.push('Always emit the canonical components required by the selected template before validation.')
   lines.push('Collapse granular detections (article-header, text-block, teaser cards, etc.) into the canonical type allowed for each region.')
   lines.push('Do not emit a "region" field; the importer assigns regions automatically. Keep the component order identical to the page.')
+  lines.push('Component field contracts are listed in COMPONENT CONTRACTS; this section only maps templates to allowed canonical component types.')
   lines.push('')
 
   const prioritized = templates.slice(0, 6)
   for (const entry of prioritized) {
     lines.push(`Template: ${entry.templateKey} (${entry.templateName})`)
     for (const region of entry.regions) {
-      lines.push(`  Region "${region.region}" canonical types:`)
-      for (const definition of region.definitions) {
-        lines.push(`    - ${definition.canonicalType} - ${definition.summary}`)
-        if (definition.fragments.length > 0) {
-          lines.push(`      Collapse fragments: ${definition.fragments.join(', ')}`)
-        }
-        if (definition.cues.length > 0) {
-          lines.push(`      Typical cues: ${definition.cues.join(', ')}`)
-        }
-      }
+      lines.push(`  ${region.region}: ${region.definitions.map(definition => definition.canonicalType).join(', ')}`)
     }
     if (entry.guidance && entry.guidance.length > 0) {
-      lines.push('  Additional guidance:')
-      for (const note of entry.guidance) {
+      lines.push('  Guidance:')
+      for (const note of entry.guidance.slice(0, 2)) {
         lines.push(`    - ${note}`)
       }
     }
     lines.push('')
-  }
-
-  const exampleTemplate = prioritized.find(entry =>
-    entry.regions.some(region =>
-      region.definitions.some(def => def.canonicalType === 'blog-post')
-    )
-  ) ?? prioritized[0]
-  const exampleRegion = exampleTemplate?.regions[0]
-  const exampleDefinition = exampleRegion?.definitions[0]
-
-  if (exampleDefinition) {
-    const sampleContent = exampleDefinition.sampleContent
-    const examplePayload = {
-      components: [{
-        component: exampleDefinition.canonicalType,
-        confidence: 0.93,
-        content: sampleContent
-      }],
-      pageMetadata: {
-        title: sampleContent.title ?? 'Imported page',
-        description: sampleContent.excerpt ?? 'Generated automatically to satisfy template requirements.'
-      }
-    }
-    const exampleJson = JSON.stringify(examplePayload, null, 2)
-    lines.push('Example canonical response:')
-    for (const line of exampleJson.split('\n')) {
-      lines.push(`  ${line}`)
-    }
   }
 
   return lines.join(PROMPT_NEWLINE)
@@ -229,6 +195,7 @@ function buildRequiredReturnSection(pageSummary: PageCatalogSummary | undefined)
   descriptorLines.push('  "pageMetadata": { /* metadata fields as specified */ }')
   descriptorLines.push('}')
   descriptorLines.push('Every item in the primary content array MUST be an object with exactly this shape: { "component": "<registered-component-type>", "confidence": 0.0-1.0, "content": { ... } }.')
+  descriptorLines.push('The "component" value MUST exactly match a registered top-level component type from COMPONENT CONTRACTS. Never use generic names such as "section", "container", "group", "block", "content", "layout", or DOM tag names.')
   descriptorLines.push('Never return tuple arrays such as ["type", 0.9, {...}], bare strings, or component names without content objects.')
   descriptorLines.push('IMPORTANT: Return ONLY JSON (no prose, no code fences). Maximum of 40 components. All string values MUST be valid JSON strings with escaped quotes and backslashes.')
 
@@ -275,12 +242,12 @@ function buildContractComponentSection(
     lines.push(`${headerParts.join(' ')} — ${summary}`)
 
     const fields = mapContractFields(component.fields)
-    if (fields && fields.length > 0) {
-      lines.push('  Fields:')
-      fields.forEach(field => renderPropertyNode(field, 2, lines))
-    } else if (schemaComponent && schemaComponent.fields.length > 0) {
+    if (schemaComponent && schemaComponent.fields.length > 0) {
       lines.push('  Fields:')
       schemaComponent.fields.forEach(field => renderSchemaFieldNode(field, 2, lines))
+    } else if (fields && fields.length > 0) {
+      lines.push('  Fields:')
+      fields.forEach(field => renderPropertyNode(field, 2, lines))
     } else {
       lines.push('  Fields: none declared.')
     }
@@ -302,10 +269,10 @@ function buildContractComponentSection(
       }
     }
 
-    const directives = getDirectives(component.type)
+    const directives = stripDirectiveExamples(getDirectives(component.type))
     if (directives.length > 0) {
       for (const directive of directives) {
-        lines.push(`  ${directive}`)
+        lines.push(`  ${compactPromptText(directive, 260)}`)
       }
     }
 
@@ -317,6 +284,41 @@ function buildContractComponentSection(
 
   trimTrailingEmptyLines(lines)
   return lines.join(PROMPT_NEWLINE)
+}
+
+function stripDirectiveExamples(directives: string[]): string[] {
+  const kept: string[] = []
+  let skippingExampleBlock = false
+
+  for (const directive of directives) {
+    const trimmed = directive.trim()
+    const startsExampleBlock =
+      /^example\b/i.test(trimmed) ||
+      /^example payload\b/i.test(trimmed) ||
+      /^image extraction examples\b/i.test(trimmed) ||
+      /^common html patterns\b/i.test(trimmed)
+
+    if (startsExampleBlock) {
+      skippingExampleBlock = true
+      continue
+    }
+
+    if (skippingExampleBlock) {
+      const looksLikeExampleContinuation =
+        directive.startsWith('  ') ||
+        /^[{}\]"']/.test(trimmed) ||
+        /^-?\s*<[^>]+>/.test(trimmed)
+
+      if (looksLikeExampleContinuation) {
+        continue
+      }
+      skippingExampleBlock = false
+    }
+
+    kept.push(directive)
+  }
+
+  return kept
 }
 
 function buildContractSubcomponentSection(
@@ -348,12 +350,12 @@ function buildContractSubcomponentSection(
     }
 
     const fields = mapContractFields(component.fields)
-    if (fields && fields.length > 0) {
-      lines.push('  Fields:')
-      fields.forEach(field => renderPropertyNode(field, 2, lines))
-    } else if (schemaComponent && schemaComponent.fields.length > 0) {
+    if (schemaComponent && schemaComponent.fields.length > 0) {
       lines.push('  Fields:')
       schemaComponent.fields.forEach(field => renderSchemaFieldNode(field, 2, lines))
+    } else if (fields && fields.length > 0) {
+      lines.push('  Fields:')
+      fields.forEach(field => renderPropertyNode(field, 2, lines))
     } else {
       lines.push('  Fields: none declared.')
     }
@@ -441,6 +443,7 @@ export function buildDetectionPrompt(
   }
   sections.push(ORDERING_RULES_SECTION)
   sections.push(CONTENT_EXTRACTION_SECTION)
+  sections.push(VALUE_OBJECT_OUTPUT_SECTION)
   sections.push(CONTENT_REFERENCE_RULES_SECTION)
   sections.push(FULL_PAGE_COVERAGE_SECTION)
   sections.push(CRITICAL_COMPLETENESS_SECTION)

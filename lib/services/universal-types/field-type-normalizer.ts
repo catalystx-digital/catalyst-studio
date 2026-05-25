@@ -117,6 +117,10 @@ export function normalizeFieldType(
     return { type: 'select', options }
   }
 
+  if (lower === 'json') {
+    return { type: 'json' }
+  }
+
   // Additional simple types for UI layer compatibility
   if (layer === 'ui') {
     const uiSpecificTypes: Record<string, string> = {
@@ -130,7 +134,6 @@ export function normalizeFieldType(
       'email': 'email',
       'phone': 'phone',
       'icon': 'icon',
-      'json': 'json',
     }
     const uiType = uiSpecificTypes[lower]
     if (uiType) {

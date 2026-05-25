@@ -103,7 +103,7 @@ export const CTADefExample = defineComponent({
 })
 
 /**
- * Example: Card Grid with content feed promotion
+ * Example: Card Grid
  */
 export const CardGridDefExample = defineComponent({
   type: ComponentType.CardGrid,
@@ -116,14 +116,7 @@ export const CardGridDefExample = defineComponent({
     }))
   }),
 
-  aliases: ['card-grid', 'cards', 'card-list'],
-
-  processing: {
-    contentFeedPromotion: {
-      enabled: true,
-      promotionPatterns: ['blog', 'article', 'news', 'post', 'listing']
-    }
-  }
+  aliases: ['card-grid', 'cards', 'card-list']
 })
 
 /**
