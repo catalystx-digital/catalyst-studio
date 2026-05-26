@@ -5,7 +5,7 @@
 
 import { DetectionService } from '../web-detection'
 import { DetectionAPI } from '@/lib/studio/components/cms/_import/detection-api'
-import { ModelConfig } from '../config'
+import { DetectionConfig, ModelConfig } from '../config'
 import { GlobalSectionArtifactCache } from '../detection/global-section-cache'
 import OpenAI from 'openai'
 import type { ComponentPattern } from '@/lib/studio/components/cms/_import/types'
@@ -439,6 +439,67 @@ describe('DetectionService (web-based)', () => {
       expect(second.components).toHaveLength(1)
       expect(second.components[0]?.type).toBe('navbar')
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('processes sections concurrently while preserving component order', async () => {
+      const originalConcurrency = DetectionConfig.sectionConcurrency
+      ;(DetectionConfig as any).sectionConcurrency = 2
+      mockWebTools.fetchOutline.mockResolvedValue({
+        ...mockOutline,
+        sections: [
+          { key: 'main:0-50', approxBytes: 300, hash: 'one', nodeCount: 2 },
+          { key: 'main:51-99', approxBytes: 300, hash: 'two', nodeCount: 2 }
+        ]
+      })
+      mockWebTools.getSection.mockImplementation(async ({ key }: { key: string }) => ({
+        handle: 'handle-1',
+        key,
+        slice: [{ tag: 'section', text: key }],
+        stats: { nodeCount: 1, approxBytes: 300 }
+      }))
+
+      let inFlight = 0
+      let maxInFlight = 0
+      mockOpenAI.chat.completions.create = jest.fn(async (payload: any) => {
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        const content = payload.messages[payload.messages.length - 1].content as string
+        const sectionKey = content.includes('main:0-50') ? 'main:0-50' : 'main:51-99'
+        await new Promise(resolve => setTimeout(resolve, sectionKey === 'main:0-50' ? 20 : 1))
+        inFlight--
+        return {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sectionKey,
+                components: [
+                  {
+                    component: sectionKey === 'main:0-50' ? 'hero-with-image' : 'card-grid',
+                    confidence: 0.9,
+                    content: sectionKey === 'main:0-50'
+                      ? { heading: 'First' }
+                      : { cards: [{ type: 'card-item', title: 'Second' }] }
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 10, prompt_tokens: 6, completion_tokens: 4 }
+        } as any
+      })
+
+      try {
+        const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+        expect(maxInFlight).toBe(2)
+        expect(result.components.map(component => component.type)).toEqual(['hero-with-image', 'card-grid'])
+        expect(result.tokenUsage).toBe(20)
+        expect(result.promptTokens).toBe(12)
+        expect(result.completionTokens).toBe(8)
+      } finally {
+        ;(DetectionConfig as any).sectionConcurrency = originalConcurrency
+      }
     })
 
     it('attaches provider filter when IMPORT_MODEL_ALLOWED_PROVIDER is set', async () => {

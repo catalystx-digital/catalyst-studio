@@ -7,6 +7,7 @@ type Logger = Pick<typeof console, 'log' | 'warn'>
 export type DetectionPhase =
   | 'fetch'
   | 'prompt_build'
+  | 'section_extract'
   | 'llm_call'
   | 'canonicalization'
   | 'contract_loading'
@@ -19,6 +20,7 @@ const WARN_MULTIPLIER = parseInt(process.env.IMPORT_WARN_MULTIPLIER || '2', 10)
 const PHASE_BASELINES_MS: Record<DetectionPhase, number> = {
   fetch: 1500,
   prompt_build: 500,
+  section_extract: LLM_BASELINE_MS,
   llm_call: LLM_BASELINE_MS,
   canonicalization: 400,
   contract_loading: 800,

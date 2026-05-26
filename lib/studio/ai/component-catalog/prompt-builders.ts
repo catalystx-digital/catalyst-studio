@@ -202,6 +202,29 @@ function buildRequiredReturnSection(pageSummary: PageCatalogSummary | undefined)
   return createStaticSection(descriptorLines)
 }
 
+function buildRequiredSectionReturnSection(): string {
+  return createStaticSection([
+    '=== REQUIRED SECTION RETURN FORMAT ===',
+    'Return exactly one JSON object with this shape:',
+    '{',
+    '  "sectionKey": "<provided-section-key>",',
+    '  "components": [',
+    '    {',
+    '      "component": "<registered-component-type>",',
+    '      "confidence": 0.0-1.0,',
+    '      "content": { /* fields from the matching component contract only */ }',
+    '    }',
+    '  ],',
+    '  "pageMetadata": { /* optional metadata fields only when present in this section */ }',
+    '}',
+    'Every component item MUST include component, confidence, and content.',
+    'Place all component-specific fields inside content. Never put logo, menuItems, cards, heading, image, or similar component fields beside component/confidence/content.',
+    'The component value MUST exactly match a registered top-level component type from COMPONENT CONTRACTS.',
+    'Never return tuple arrays, bare strings, component names without content objects, or unregistered wrapper names.',
+    'Return ONLY JSON: no prose, no markdown, no code fences.'
+  ])
+}
+
 function mapContractFields(fields: any[] | undefined): ComponentPropertyInfo[] | undefined {
   if (!fields || fields.length === 0) {
     return undefined
@@ -421,6 +444,7 @@ export function buildDetectionPrompt(
   options: BuildDetectionPromptOptions
 ): string {
   const sections: string[] = []
+  const mode = options.mode ?? 'full'
   const pagePrompt = options.pagePrompt?.trim()
   const complianceSection = buildTemplateComplianceSection(options.pageSummary)
   const componentSection = options.contractBundle
@@ -430,10 +454,10 @@ export function buildDetectionPrompt(
     ? buildContractSubcomponentSection(options.contractBundle, options.schemaSummary)
     : buildSchemaSubcomponentSection(options.schemaSummary)
 
-  if (pagePrompt) {
+  if (mode === 'full' && pagePrompt) {
     sections.push(pagePrompt)
   }
-  if (complianceSection) {
+  if (mode === 'full' && complianceSection) {
     sections.push(complianceSection)
   }
 
@@ -445,11 +469,17 @@ export function buildDetectionPrompt(
   sections.push(CONTENT_EXTRACTION_SECTION)
   sections.push(VALUE_OBJECT_OUTPUT_SECTION)
   sections.push(CONTENT_REFERENCE_RULES_SECTION)
-  sections.push(FULL_PAGE_COVERAGE_SECTION)
-  sections.push(CRITICAL_COMPLETENESS_SECTION)
+  if (mode === 'full') {
+    sections.push(FULL_PAGE_COVERAGE_SECTION)
+    sections.push(CRITICAL_COMPLETENESS_SECTION)
+  }
   sections.push(FORBIDDEN_FIELDS_SECTION)
   sections.push(PAGE_METADATA_SECTION)
-  sections.push(buildRequiredReturnSection(options.pageSummary))
+  if (mode === 'full') {
+    sections.push(buildRequiredReturnSection(options.pageSummary))
+  } else {
+    sections.push(buildRequiredSectionReturnSection())
+  }
 
   return sections.filter(Boolean).join(PROMPT_SECTION_SEPARATOR)
 }

@@ -56,6 +56,7 @@ export interface BuildDetectionPromptOptions {
   contractBundle?: any
   pagePrompt?: string
   pageSummary?: any
+  mode?: 'full' | 'section'
 }
 
 export interface BuildChatPromptOptions {

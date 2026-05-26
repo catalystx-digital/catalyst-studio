@@ -365,8 +365,14 @@ export const DetectionConfig = {
   /** Enable same-import reuse of validated global header/footer section artifacts */
   globalSectionReuse: parseEnvBool('IMPORT_GLOBAL_SECTION_REUSE', true),
 
-  /** Reserved for Phase 2; keep section extraction serial by default */
-  sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 1)
+  /** Maximum LLM section extraction requests to run concurrently within a page */
+  sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 2),
+
+  /** Use the shorter section extraction prompt that omits full-page template instructions */
+  sectionPromptMode: parseEnvString('IMPORT_SECTION_PROMPT_MODE', 'section') as 'section' | 'full',
+
+  /** Enable deterministic source payload summarization before section extraction */
+  sectionSummaryEnabled: parseEnvBool('IMPORT_SECTION_SUMMARY_ENABLED', false)
 } as const
 
 // =============================================================================

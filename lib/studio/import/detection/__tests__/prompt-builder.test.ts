@@ -315,6 +315,50 @@ describe('detection prompt sub-component coverage', () => {
     expect(prompt).toContain('Never return tuple arrays')
     expect(prompt).not.toContain('[["<component-type>", confidence')
   })
+
+  it('omits full-page guidance in section mode while preserving strict contract rules', () => {
+    const summary: ComponentCatalogSummary = {
+      total: 0,
+      generatedAt: new Date().toISOString(),
+      components: [],
+      categories: [],
+      topLevelTypes: [],
+      subComponentTypes: [],
+      subComponents: [],
+      warnings: []
+    }
+    const schemaSummary: PromptSchemaSummary = {
+      schemaHash: 'hash',
+      generatedAt: new Date().toISOString(),
+      components: [],
+      subcomponents: [],
+      warnings: []
+    }
+    const contractBundle: PromptContractBundle = {
+      hash: 'hash',
+      generatedAt: new Date().toISOString(),
+      components: [],
+      subcomponents: [],
+      subcomponentUsage: {}
+    }
+
+    const prompt = buildDetectionPrompt(summary, {
+      schemaSummary,
+      contractBundle,
+      pagePrompt: 'PAGE TEMPLATE PROMPT',
+      pageSummary: { templates: [] },
+      mode: 'section'
+    })
+
+    expect(prompt).not.toContain('PAGE TEMPLATE PROMPT')
+    expect(prompt).not.toContain('FULL PAGE COVERAGE')
+    expect(prompt).not.toContain('CRITICAL CONTENT COMPLETENESS')
+    expect(prompt).toContain('REQUIRED SECTION RETURN FORMAT')
+    expect(prompt).toContain('Every component item MUST include component, confidence, and content.')
+    expect(prompt).toContain('Place all component-specific fields inside content.')
+    expect(prompt).toContain('VALUE OBJECT OUTPUT SHAPES')
+    expect(prompt).toContain('FORBIDDEN FIELDS')
+  })
 })
 
 describe('catalog detection prompt candidate filtering', () => {

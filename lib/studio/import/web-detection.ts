@@ -21,6 +21,7 @@ import { parseDetectionResponse, parseSectionDetectionResponse } from './detecti
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
 import type { GlobalSectionReuseProvenance } from './detection/global-section-cache'
+import { summarizeSectionNodes } from './detection/section-summarizer'
 import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
@@ -47,6 +48,25 @@ const MIN_COMPLETION_BUDGET = TokenConfig.minCompletionBudget
 const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max (from env)
 const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
 const REPAIR_PREVIOUS_JSON_CHAR_LIMIT = 6_000
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  const limit = Math.max(1, Math.floor(concurrency))
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      results[index] = await worker(items[index])
+    }
+  })
+  await Promise.all(runners)
+  return results
+}
 
 let registryInitialization: Promise<void> | null = null
 
@@ -117,6 +137,10 @@ export interface DetectionFailureDebug {
   sectionKey?: string
   sectionOrder?: number
   sectionApproxBytes?: number
+  sectionSummaryEnabled?: boolean
+  sectionOriginalBytes?: number
+  sectionSummarizedBytes?: number
+  sectionSummaryReductionRatio?: number
   parserRepair?: 'missing_section_key_injected'
   missingSectionKey?: boolean
   repairPromptCapped?: boolean
@@ -648,22 +672,41 @@ export class DetectionService {
       )
     }
 
-    for (const task of tasks) {
+    type SectionProcessingResult = {
+      artifact: SectionExtractionArtifact
+      pageSummary?: DetectionPromptPayload['pageSummary']
+      usage: TokenUsage
+      requestCount: number
+      reuse: typeof sectionReuseStats
+    }
+
+    const processSectionTask = async (task: DetectionSectionTask): Promise<SectionProcessingResult> => {
       const sectionStart = Date.now()
+      let localRequestCount = 0
+      const sectionUsage: TokenUsage = {}
       const cached = checkpointSession && checkpointService
         ? await checkpointService.loadSectionResult(checkpointSession, url, task.sectionKey)
         : null
       if (cached) {
-        artifacts.push({
-          sectionKey: cached.sectionKey,
-          sectionOrder: cached.sectionOrder,
-          durationMs: cached.durationMs,
-          components: cached.components,
-          pageMetadata: cached.pageMetadata,
-          requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
-          satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
-        })
-        continue
+        return {
+          artifact: {
+            sectionKey: cached.sectionKey,
+            sectionOrder: cached.sectionOrder,
+            durationMs: cached.durationMs,
+            components: cached.components,
+            pageMetadata: cached.pageMetadata,
+            requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
+            satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
+          },
+          usage: {},
+          requestCount: 0,
+          reuse: {
+            freshSections: 0,
+            reusedSections: 0,
+            cacheHits: 0,
+            cacheMisses: 0
+          }
+        }
       }
 
       try {
@@ -688,10 +731,13 @@ export class DetectionService {
         const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({
           telemetry,
           pageUrl: url,
-          candidateTypes
+          candidateTypes,
+          mode: DetectionConfig.sectionPromptMode,
+          model: endpointModel,
+          provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
         })
-        pageSummaryForAssembly = pageSummary
         const allowedComponentTypes = components.map(component => component.type).sort()
+        const summarizedSection = summarizeSectionNodes(section.slice, DetectionConfig.sectionSummaryEnabled)
         const sectionPayload = {
           url,
           finalUrl: preFlightFetch.finalUrl,
@@ -702,7 +748,7 @@ export class DetectionService {
           intentEvidence: sectionTaxonomy.evidence,
           stats: section.stats,
           resourcesSummary: filterResourcesForSection(preFlightFetch.resourcesSummary, section.slice),
-          nodes: section.slice
+          nodes: summarizedSection.nodes
         }
         const messages: ChatCompletionMessageParam[] = [
           {
@@ -741,6 +787,12 @@ export class DetectionService {
           typeof section.stats?.approxBytes === 'number'
             ? section.stats.approxBytes
             : JSON.stringify(section.slice).length
+        const sectionPayloadDebug = {
+          sectionSummaryEnabled: summarizedSection.enabled,
+          sectionOriginalBytes: summarizedSection.originalBytes,
+          sectionSummarizedBytes: summarizedSection.summarizedBytes,
+          sectionSummaryReductionRatio: summarizedSection.reductionRatio
+        }
 
         const parseOutcome = (
           response: ChatCompletion,
@@ -761,13 +813,14 @@ export class DetectionService {
                 finishReason,
                 usage: response.usage ? { ...response.usage } : {},
                 validationPath: completionStatus.reason,
-                requestCount: requestCount + 1,
+                requestCount: localRequestCount + 1,
                 toolCallCount: 0,
                 promptTokensEstimate: sectionPromptTokensEstimate,
                 effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
                 sectionKey: task.sectionKey,
                 sectionOrder: task.sectionOrder,
                 sectionApproxBytes,
+                ...sectionPayloadDebug,
                 ...extraDebug
               }
             )
@@ -792,13 +845,14 @@ export class DetectionService {
               finishReason,
               usage: response.usage ? { ...response.usage } : {},
               validationPath: extractValidationPath(message),
-              requestCount: requestCount + 1,
+              requestCount: localRequestCount + 1,
               toolCallCount: 0,
               promptTokensEstimate: sectionPromptTokensEstimate,
               effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
               sectionKey: task.sectionKey,
               sectionOrder: task.sectionOrder,
               sectionApproxBytes,
+              ...sectionPayloadDebug,
               ...(responseMissingSectionKey(rawResult)
                 ? {
                     parserRepair: 'missing_section_key_injected' as const,
@@ -821,7 +875,7 @@ export class DetectionService {
         let freshRun: FreshSectionRun | null = null
         const extractFreshSection = async (): Promise<SectionExtractionArtifact> => {
           let response = await runJsonRequest(messages)
-          requestCount++
+          localRequestCount++
           let rawResult = response.choices[0]?.message?.content || ''
           let parsedSection
           let repairDebug: Partial<DetectionFailureDebug> = {}
@@ -861,7 +915,7 @@ export class DetectionService {
               ].join('\n')
             })
             response = await runJsonRequest(messages)
-            requestCount++
+            localRequestCount++
             rawResult = response.choices[0]?.message?.content || ''
             parserDebug = responseMissingSectionKey(rawResult)
               ? {
@@ -887,13 +941,14 @@ export class DetectionService {
                 finishReason: response.choices[0]?.finish_reason || 'unknown',
                 usage: response.usage ? { ...response.usage } : {},
                 validationPath: `sections.${task.sectionKey}.components`,
-                requestCount,
+                requestCount: localRequestCount,
                 toolCallCount: 0,
                 promptTokensEstimate: sectionPromptTokensEstimate,
                 effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
                 sectionKey: task.sectionKey,
                 sectionOrder: task.sectionOrder,
                 sectionApproxBytes,
+                ...sectionPayloadDebug,
                 invalidComponents: parsedSection.invalidComponents,
                 invalidComponentCount: parsedSection.invalidComponents?.length,
                 requiredSectionEmpty,
@@ -955,15 +1010,11 @@ export class DetectionService {
             }))
 
         const provenance: GlobalSectionReuseProvenance = cacheResult.provenance
-        if (provenance.extractionMode === 'reused') {
-          sectionReuseStats.reusedSections++
-        } else {
-          sectionReuseStats.freshSections++
-        }
-        if (provenance.cacheHit) {
-          sectionReuseStats.cacheHits++
-        } else {
-          sectionReuseStats.cacheMisses++
+        const reuseStats = {
+          freshSections: provenance.extractionMode === 'reused' ? 0 : 1,
+          reusedSections: provenance.extractionMode === 'reused' ? 1 : 0,
+          cacheHits: provenance.cacheHit ? 1 : 0,
+          cacheMisses: provenance.cacheHit ? 0 : 1
         }
         const completedFreshRun = freshRun as FreshSectionRun | null
         const artifact: SectionExtractionArtifact = {
@@ -975,13 +1026,12 @@ export class DetectionService {
         }
         if (completedFreshRun && provenance.extractionMode === 'fresh') {
           const responseUsage = completedFreshRun.responseUsage
-          usageTotals.total_tokens = (usageTotals.total_tokens ?? 0) + (responseUsage.total_tokens ?? 0)
-          usageTotals.prompt_tokens = (usageTotals.prompt_tokens ?? 0) + (responseUsage.prompt_tokens ?? 0)
-          usageTotals.completion_tokens = (usageTotals.completion_tokens ?? 0) + (responseUsage.completion_tokens ?? 0)
-          usageTotals.reasoning_tokens = (usageTotals.reasoning_tokens ?? 0) + ((responseUsage as TokenUsage).reasoning_tokens ?? 0)
-          usageTotals.total_cost = (usageTotals.total_cost ?? 0) + ((responseUsage as TokenUsage).total_cost ?? 0)
+          sectionUsage.total_tokens = responseUsage.total_tokens ?? 0
+          sectionUsage.prompt_tokens = responseUsage.prompt_tokens ?? 0
+          sectionUsage.completion_tokens = responseUsage.completion_tokens ?? 0
+          sectionUsage.reasoning_tokens = (responseUsage as TokenUsage).reasoning_tokens ?? 0
+          sectionUsage.total_cost = (responseUsage as TokenUsage).total_cost ?? 0
         }
-        artifacts.push(artifact)
 
         if (checkpointSession && checkpointService) {
           await checkpointService.saveSectionResult(
@@ -999,13 +1049,17 @@ export class DetectionService {
               rawResponse: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.rawResult : undefined,
               finishReason: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.finishReason : 'cache_reuse',
               usage: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.responseUsage : {},
-              requestCount,
+              requestCount: localRequestCount,
               toolCallCount: 0,
               promptTokensEstimate: sectionPromptTokensEstimate,
               effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
               sectionKey: task.sectionKey,
               sectionOrder: task.sectionOrder,
               sectionApproxBytes,
+              sectionSummaryEnabled: summarizedSection.enabled,
+              sectionOriginalBytes: summarizedSection.originalBytes,
+              sectionSummarizedBytes: summarizedSection.summarizedBytes,
+              sectionSummaryReductionRatio: summarizedSection.reductionRatio,
               invalidComponents: artifact.invalidComponents,
               invalidComponentCount: artifact.invalidComponents?.length,
               requiredSectionEmpty: artifact.requiredSectionEmpty,
@@ -1024,7 +1078,29 @@ export class DetectionService {
         }
 
         // Build once per first uncached section to keep template catalog available for assembly.
-        void pageSummary
+        telemetry.recordPhase('section_extract', Date.now() - sectionStart, {
+          sectionKey: task.sectionKey,
+          sectionOrder: task.sectionOrder,
+          role: task.role,
+          extractionMode: provenance.extractionMode,
+          cacheHit: provenance.cacheHit,
+          requestCount: localRequestCount,
+          promptTokensEstimate: sectionPromptTokensEstimate,
+          sectionApproxBytes,
+          summarizerEnabled: summarizedSection.enabled,
+          originalBytes: summarizedSection.originalBytes,
+          summarizedBytes: summarizedSection.summarizedBytes,
+          summaryReductionRatio: summarizedSection.reductionRatio,
+          componentCount: artifact.components.length
+        })
+
+        return {
+          artifact,
+          pageSummary,
+          usage: sectionUsage,
+          requestCount: localRequestCount,
+          reuse: reuseStats
+        }
       } catch (error) {
         const previousError = checkpointSession && checkpointService
           ? await checkpointService.loadSectionError(checkpointSession, url, task.sectionKey)
@@ -1057,6 +1133,10 @@ export class DetectionService {
               sectionKey: error.debug.sectionKey,
               sectionOrder: error.debug.sectionOrder,
               sectionApproxBytes: error.debug.sectionApproxBytes,
+              sectionSummaryEnabled: error.debug.sectionSummaryEnabled,
+              sectionOriginalBytes: error.debug.sectionOriginalBytes,
+              sectionSummarizedBytes: error.debug.sectionSummarizedBytes,
+              sectionSummaryReductionRatio: error.debug.sectionSummaryReductionRatio,
               invalidComponents: error.debug.invalidComponents,
               invalidComponentCount: error.debug.invalidComponentCount,
               requiredSectionEmpty: error.debug.requiredSectionEmpty,
@@ -1079,7 +1159,32 @@ export class DetectionService {
       }
     }
 
-    const pageSummary = pageSummaryForAssembly ?? (await buildDetectionPromptFromCatalog({ telemetry, pageUrl: url })).pageSummary
+    const sectionConcurrency = Math.max(1, DetectionConfig.sectionConcurrency)
+    const sectionResults = await mapWithConcurrency(tasks, sectionConcurrency, processSectionTask)
+    for (const result of sectionResults) {
+      artifacts.push(result.artifact)
+      if (!pageSummaryForAssembly && result.pageSummary) {
+        pageSummaryForAssembly = result.pageSummary
+      }
+      requestCount += result.requestCount
+      usageTotals.total_tokens = (usageTotals.total_tokens ?? 0) + (result.usage.total_tokens ?? 0)
+      usageTotals.prompt_tokens = (usageTotals.prompt_tokens ?? 0) + (result.usage.prompt_tokens ?? 0)
+      usageTotals.completion_tokens = (usageTotals.completion_tokens ?? 0) + (result.usage.completion_tokens ?? 0)
+      usageTotals.reasoning_tokens = (usageTotals.reasoning_tokens ?? 0) + ((result.usage as TokenUsage).reasoning_tokens ?? 0)
+      usageTotals.total_cost = (usageTotals.total_cost ?? 0) + ((result.usage as TokenUsage).total_cost ?? 0)
+      sectionReuseStats.freshSections += result.reuse.freshSections
+      sectionReuseStats.reusedSections += result.reuse.reusedSections
+      sectionReuseStats.cacheHits += result.reuse.cacheHits
+      sectionReuseStats.cacheMisses += result.reuse.cacheMisses
+    }
+
+    const pageSummary = pageSummaryForAssembly ?? (await buildDetectionPromptFromCatalog({
+      telemetry,
+      pageUrl: url,
+      mode: DetectionConfig.sectionPromptMode,
+      model: endpointModel,
+      provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
+    })).pageSummary
     const components = aggregateSectionArtifacts(tasks, artifacts)
     if (checkpointSession && checkpointService) {
       for (const artifact of artifacts) {

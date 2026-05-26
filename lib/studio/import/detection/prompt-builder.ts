@@ -24,16 +24,24 @@ interface BuildDetectionPromptOptions {
   telemetry?: DetectionTelemetry
   pageUrl?: string
   candidateTypes?: Iterable<string>
+  mode?: 'full' | 'section'
+  model?: string
+  provider?: string
 }
 
 const PROMPT_CACHE_TTL_MS = 60_000
+const PROMPT_CACHE_MAX_ENTRIES = 100
 
-let cachedPrompt: {
+let cachedSummaries: {
   key: string
+  timestamp: number
+} | null = null
+
+const promptCache = new Map<string, {
   payload: DetectionPromptPayload
   pagePromptLength: number
   timestamp: number
-} | null = null
+}>()
 
 function buildCacheKey(
   componentSummary: SummariesResult['componentSummary'],
@@ -261,10 +269,14 @@ async function resolveSummaries(telemetry?: DetectionTelemetry): Promise<Summari
 
     const cacheKey = buildCacheKey(componentSummary, pageSummary, schemaSummary, contractBundle)
     const cacheHit = Boolean(
-      cachedPrompt &&
-      cachedPrompt.key === cacheKey &&
-      Date.now() - cachedPrompt.timestamp < PROMPT_CACHE_TTL_MS
+      cachedSummaries &&
+      cachedSummaries.key === cacheKey &&
+      Date.now() - cachedSummaries.timestamp < PROMPT_CACHE_TTL_MS
     )
+    cachedSummaries = {
+      key: cacheKey,
+      timestamp: Date.now()
+    }
 
     return {
       componentCatalog,
@@ -295,7 +307,7 @@ async function resolveSummaries(telemetry?: DetectionTelemetry): Promise<Summari
 export async function buildDetectionPromptFromCatalog(
   options: BuildDetectionPromptOptions = {}
 ): Promise<DetectionPromptPayload> {
-  const { telemetry, pageUrl, candidateTypes } = options
+  const { telemetry, pageUrl, candidateTypes, mode = 'full', model = 'default', provider = 'default' } = options
   const {
     componentCatalog,
     pageCatalog,
@@ -315,20 +327,19 @@ export async function buildDetectionPromptFromCatalog(
   )
   const { componentSummary, schemaSummary, contractBundle, selectedTypes } = filtered
   const promptCacheKey = selectedTypes
-    ? `${cacheKey}|candidates:${Array.from(selectedTypes).sort().join(',')}`
-    : cacheKey
-  const promptCacheHit = Boolean(
-    cachedPrompt &&
-    cachedPrompt.key === promptCacheKey &&
-    Date.now() - cachedPrompt.timestamp < PROMPT_CACHE_TTL_MS
-  )
+    ? `${cacheKey}|mode:${mode}|model:${model}|provider:${provider}|candidates:${Array.from(selectedTypes).sort().join(',')}`
+    : `${cacheKey}|mode:${mode}|model:${model}|provider:${provider}`
+  const cachedPrompt = promptCache.get(promptCacheKey)
+  const promptCacheHit = Boolean(cachedPrompt && Date.now() - cachedPrompt.timestamp < PROMPT_CACHE_TTL_MS)
 
   if (promptCacheHit && cachedPrompt) {
     if (telemetry) {
       telemetry.recordPhase('prompt_build', 0, {
         promptLength: cachedPrompt.payload.prompt.length,
+        pagePromptLength: cachedPrompt.pagePromptLength,
         componentCount: componentSummary.components.length,
         templateCount: pageSummary.templates.length,
+        mode,
         fromCache: true
       })
     }
@@ -340,12 +351,13 @@ export async function buildDetectionPromptFromCatalog(
   }
 
   const buildPrompt = async () => {
-    const pagePrompt = pageCatalog.buildPageTemplatePrompt(pageSummary)
+    const pagePrompt = mode === 'section' ? '' : pageCatalog.buildPageTemplatePrompt(pageSummary)
     const prompt = componentCatalog.buildDetectionPrompt(componentSummary, {
       schemaSummary,
       contractBundle,
       pagePrompt,
-      pageSummary
+      pageSummary,
+      mode
     })
     return { prompt, pagePromptLength: pagePrompt.length }
   }
@@ -360,12 +372,12 @@ export async function buildDetectionPromptFromCatalog(
         schemaHash: schemaSummary.schemaHash,
         contractHash: contractBundle.hash,
         candidateTypes: selectedTypes ? Array.from(selectedTypes).sort() : undefined,
+        mode,
         fromCache: false
       }))
     : await buildPrompt()
 
-  cachedPrompt = {
-    key: promptCacheKey,
+  promptCache.set(promptCacheKey, {
     payload: {
       prompt: promptResult.prompt,
       components: componentSummary.components as DetectionPromptPayload['components'],
@@ -373,6 +385,11 @@ export async function buildDetectionPromptFromCatalog(
     },
     pagePromptLength: promptResult.pagePromptLength,
     timestamp: Date.now()
+  })
+  while (promptCache.size > PROMPT_CACHE_MAX_ENTRIES) {
+    const oldestKey = promptCache.keys().next().value
+    if (!oldestKey) break
+    promptCache.delete(oldestKey)
   }
 
   return {

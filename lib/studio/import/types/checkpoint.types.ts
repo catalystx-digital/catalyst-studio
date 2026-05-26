@@ -209,6 +209,14 @@ export interface LLMDebugInfo {
   sectionOrder?: number
   /** Approximate serialized section size */
   sectionApproxBytes?: number
+  /** Whether deterministic section source summarization was enabled */
+  sectionSummaryEnabled?: boolean
+  /** Original serialized section byte estimate before summarization */
+  sectionOriginalBytes?: number
+  /** Serialized section byte estimate after summarization */
+  sectionSummarizedBytes?: number
+  /** Fractional source payload reduction from summarization */
+  sectionSummaryReductionRatio?: number
   /** Parser-side repair/normalization applied without another LLM call */
   parserRepair?: 'missing_section_key_injected'
   /** Whether the section response omitted the expected section key */
