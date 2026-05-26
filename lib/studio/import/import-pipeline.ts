@@ -616,6 +616,9 @@ export class ImportPipeline {
 
     // Use centralized error classification
     const classifyError = (err: unknown): 'timeout' | 'transient' | 'fatal' => {
+      if (err instanceof DetectionFailureError && err.debug.stage === 'validation') {
+        return 'fatal'
+      }
       const classification = classifyErrorUtil(err)
       if (classification.class === 'timeout') return 'timeout'
       if (classification.class === 'auth' || classification.class === 'validation') return 'fatal'

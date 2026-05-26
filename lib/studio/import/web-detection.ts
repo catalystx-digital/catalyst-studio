@@ -21,6 +21,15 @@ import { parseDetectionResponse, parseSectionDetectionResponse } from './detecti
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
 import type { GlobalSectionReuseProvenance } from './detection/global-section-cache'
+import {
+  buildFillBatches,
+  buildPageMap,
+  parseComponentPlanResponse,
+  parseFillBatchResponse,
+  type ComponentPlan,
+  type FillBatch,
+  type PageMap
+} from './detection/page-map-harness'
 import { summarizeSectionNodes } from './detection/section-summarizer'
 import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
@@ -269,6 +278,53 @@ function buildTimingBreakdown(records: DetectionPhaseRecord[], totalDurationMs: 
     phaseTotals: Array.from(phaseMap.values()).sort((a, b) => b.totalMs - a.totalMs),
     sectionTimings: sectionTimings.sort((a, b) => (a.sectionOrder ?? 0) - (b.sectionOrder ?? 0))
   }
+}
+
+function checkpointArtifactKey(prefix: string, url: string): string {
+  return `${prefix}-${Buffer.from(url).toString('base64url').slice(0, 80)}`
+}
+
+function isDedicatedEditorialListingUrl(url: string): boolean {
+  try {
+    const path = new URL(url).pathname
+    return /\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/|$)/i.test(path)
+  } catch {
+    return false
+  }
+}
+
+function addTokenUsage(target: TokenUsage, source: TokenUsage | undefined): void {
+  if (!source) return
+  target.total_tokens = (target.total_tokens ?? 0) + (source.total_tokens ?? 0)
+  target.prompt_tokens = (target.prompt_tokens ?? 0) + (source.prompt_tokens ?? 0)
+  target.completion_tokens = (target.completion_tokens ?? 0) + (source.completion_tokens ?? 0)
+  target.reasoning_tokens = (target.reasoning_tokens ?? 0) + ((source as TokenUsage).reasoning_tokens ?? 0)
+  target.total_cost = (target.total_cost ?? 0) + ((source as TokenUsage).total_cost ?? 0)
+}
+
+function hasAccordionEvidence(value: unknown): boolean {
+  const visit = (node: unknown): boolean => {
+    if (!node || typeof node !== 'object') return false
+    const record = node as Record<string, unknown>
+    const tag = typeof record.tag === 'string' ? record.tag.toLowerCase() : ''
+    if (tag === 'details' || tag === 'summary') return true
+    const text = typeof record.text === 'string' ? record.text.toLowerCase() : ''
+    if (/\b(?:faq|frequently asked questions|q&a|accordion|collapsible|expandable)\b/i.test(text)) return true
+    const role = typeof record.role === 'string' ? record.role.toLowerCase() : ''
+    if (role.includes('button') && text.includes('question')) return true
+    const attrs = record.attrs
+    if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+      for (const [key, rawValue] of Object.entries(attrs as Record<string, unknown>)) {
+        const attrKey = key.toLowerCase()
+        const attrValue = typeof rawValue === 'string' ? rawValue.toLowerCase() : ''
+        if (attrKey === 'aria-expanded' || attrKey.includes('accordion') || attrValue.includes('accordion') || attrValue.includes('collapse')) {
+          return true
+        }
+      }
+    }
+    return Array.isArray(record.children) && record.children.some(visit)
+  }
+  return Array.isArray(value) ? value.some(visit) : visit(value)
 }
 
 /**
@@ -882,7 +938,7 @@ export class DetectionService {
               availableComponents: components,
               url,
               confidenceThreshold,
-              allowMissingSectionKey: true,
+              allowMissingSectionKey: false,
               isolateInvalidComponents
             })
           } catch (error) {
@@ -903,12 +959,7 @@ export class DetectionService {
               sectionOrder: task.sectionOrder,
               sectionApproxBytes,
               ...sectionPayloadDebug,
-              ...(responseMissingSectionKey(rawResult)
-                ? {
-                    parserRepair: 'missing_section_key_injected' as const,
-                    missingSectionKey: true
-                  }
-                : {}),
+              ...(responseMissingSectionKey(rawResult) ? { missingSectionKey: true } : {}),
               ...extraDebug
             })
           }
@@ -940,10 +991,7 @@ export class DetectionService {
           let parsedSection
           let repairDebug: Partial<DetectionFailureDebug> = {}
           let parserDebug: Partial<DetectionFailureDebug> = responseMissingSectionKey(rawResult)
-            ? {
-                parserRepair: 'missing_section_key_injected' as const,
-                missingSectionKey: true
-              }
+            ? { missingSectionKey: true }
             : {}
           try {
             parsedSection = parseOutcome(response, rawResult)
@@ -988,13 +1036,32 @@ export class DetectionService {
             })
             localRequestCount++
             rawResult = response.choices[0]?.message?.content || ''
-            parserDebug = responseMissingSectionKey(rawResult)
-              ? {
-                  parserRepair: 'missing_section_key_injected' as const,
-                  missingSectionKey: true
-                }
-              : {}
             parsedSection = parseOutcome(response, rawResult, repairDebug, true)
+            if (parsedSection.invalidComponents?.length) {
+              throw new DetectionFailureError(
+                `Section ${task.sectionKey} produced ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} after repair`,
+                {
+                  model: endpointModel,
+                  stage: 'validation',
+                  rawResponse: rawResult,
+                  rawResponseLength: rawResult.length,
+                  finishReason: response.choices[0]?.finish_reason || 'unknown',
+                  usage: response.usage ? { ...response.usage } : {},
+                  validationPath: `sections.${task.sectionKey}.components`,
+                  requestCount: localRequestCount,
+                  toolCallCount: 0,
+                  promptTokensEstimate: sectionPromptTokensEstimate,
+                  effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+                  sectionKey: task.sectionKey,
+                  sectionOrder: task.sectionOrder,
+                  sectionApproxBytes,
+                  ...sectionPayloadDebug,
+                  invalidComponents: parsedSection.invalidComponents,
+                  invalidComponentCount: parsedSection.invalidComponents.length,
+                  ...repairDebug
+                }
+              )
+            }
           }
 
           const requiredSectionEmpty = task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0
@@ -1231,7 +1298,514 @@ export class DetectionService {
     }
 
     const sectionConcurrency = Math.max(1, DetectionConfig.sectionConcurrency)
-    const sectionResults = await mapWithConcurrency(tasks, sectionConcurrency, processSectionTask)
+    const sectionResults = DetectionConfig.detectionHarness === 'page-map'
+      ? await (async (): Promise<SectionProcessingResult[]> => {
+          const globalTasks = tasks.filter(task => task.role === 'header' || task.role === 'footer')
+          const fillTasks = tasks.filter(task => task.role !== 'header' && task.role !== 'footer')
+          const results: SectionProcessingResult[] = []
+
+          if (globalTasks.length > 0) {
+            results.push(...await mapWithConcurrency(globalTasks, sectionConcurrency, processSectionTask))
+          }
+          const pendingFillTasks: DetectionSectionTask[] = []
+          for (const task of fillTasks) {
+            const cached = checkpointSession && checkpointService
+              ? await checkpointService.loadSectionResult(checkpointSession, url, task.sectionKey)
+              : null
+            if (cached) {
+              results.push({
+                artifact: {
+                  sectionKey: cached.sectionKey,
+                  sectionOrder: cached.sectionOrder,
+                  durationMs: cached.durationMs,
+                  components: cached.components,
+                  pageMetadata: cached.pageMetadata,
+                  requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
+                  satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
+                },
+                pageSummary: pageSummaryForAssembly,
+                usage: {},
+                requestCount: 0,
+                reuse: { freshSections: 0, reusedSections: 0, cacheHits: 1, cacheMisses: 0 }
+              })
+            } else {
+              pendingFillTasks.push(task)
+            }
+          }
+          if (pendingFillTasks.length === 0) {
+            return results.sort((a, b) => a.artifact.sectionOrder - b.artifact.sectionOrder)
+          }
+
+          const pageMap = await telemetry.timePhase(
+            'page_map',
+            async () => await buildPageMap({
+              url,
+              finalUrl: preFlightFetch.finalUrl,
+              tasks: pendingFillTasks,
+              getSection: async task => await webTools.getSection({ handle: preFlightFetch.handle, key: task.sectionKey })
+            }),
+            map => ({
+              sectionCount: map?.sections.length ?? 0,
+              originalBytes: map?.originalBytes ?? 0,
+              packetBytes: map?.packetBytes ?? 0,
+              sourceHash: map?.sourceHash,
+              pageMapVersion: map?.version
+            })
+          )
+          const dedicatedEditorialListing = isDedicatedEditorialListingUrl(url)
+          for (const section of pageMap.sections) {
+            const candidateTypes = new Set(section.candidateTypes)
+            const taxonomy = classifySectionIntent({
+              componentType: section.role,
+              content: { section: section.packets },
+              pageUrl: url
+            })
+            taxonomy.allowedTypes.forEach(type => candidateTypes.add(type))
+            expandCandidatesFromSectionEvidence(candidateTypes, section.packets)
+            if (!dedicatedEditorialListing && candidateTypes.has('card-grid')) {
+              candidateTypes.delete('content-feed')
+            }
+            if (candidateTypes.has('accordion') && !hasAccordionEvidence(section.packets)) {
+              candidateTypes.delete('accordion')
+            }
+            section.candidateTypes = Array.from(candidateTypes).sort()
+          }
+          if (checkpointSession && checkpointService) {
+            await checkpointService.saveAggregated(
+              checkpointSession,
+              checkpointArtifactKey('page-map', url),
+              pageMap
+            ).catch(error => {
+              console.warn('[Checkpoint] Failed to save page-map artifact:', error)
+            })
+          }
+
+          const planCandidateTypes = new Set<string>()
+          for (const section of pageMap.sections) {
+            section.candidateTypes.forEach(type => planCandidateTypes.add(type))
+          }
+          const { components: planComponents, pageSummary } = await buildDetectionPromptFromCatalog({
+            telemetry,
+            pageUrl: url,
+            candidateTypes: planCandidateTypes,
+            mode: DetectionConfig.sectionPromptMode,
+            model: endpointModel,
+            provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
+          })
+          pageSummaryForAssembly = pageSummary
+
+          const planSectionKeys = pageMap.sections.map(section => section.sectionKey)
+          const planPayload = {
+            url,
+            finalUrl: preFlightFetch.finalUrl,
+            schemaVersion: DetectionConfig.planSchemaVersion,
+            promptVersion: DetectionConfig.stagedPromptVersion,
+            sections: pageMap.sections.map(section => ({
+              sectionKey: section.sectionKey,
+              sectionOrder: section.sectionOrder,
+              role: section.role,
+              required: section.required,
+              candidateTypes: section.candidateTypes,
+              stats: section.stats,
+              packets: section.packets
+            }))
+          }
+          const planMessages: ChatCompletionMessageParam[] = [
+            {
+              role: 'system',
+              content: [
+                'You are a high-recall component planning engine.',
+                'Return only valid JSON with a "sections" array.',
+                'Do not return final component content. Plan only component types and source evidence.',
+                'Every returned sectionKey must exactly match a provided sectionKey.',
+                'For each section, component must be one of that section candidateTypes values. candidateTypes are exclusive, not suggestions.',
+                'If content-feed is not listed in that section candidateTypes, content-feed is invalid and must not be returned.',
+                'For each planned component, return plannedComponentId, component, confidence, and evidenceRefs.',
+                'plannedComponentId must be unique and stable, for example "<sectionKey>:0".',
+                'evidenceRefs must reference provided source packet ids or pathId values.',
+                'For visible static lists of articles, links, resources, services, or news cards, prefer card-grid.',
+                'Use accordion only for real collapsible FAQ/Q&A/details content with non-empty answer/body text for each item; never use accordion for ordinary navigation or "In this section" link lists.',
+                'Use content-feed only when the source shows an explicit dynamic feed surface such as filters, categories, pagination, dates-as-feed metadata, or a latest-news module that cannot be represented as static cards.',
+                'If a non-required section has no importable component, return plannedComponents: [] and emptyReason: duplicate, decorative, unsupported, or no_visible_content.',
+                'Do not invent sections, components, or evidence references.'
+              ].join('\n')
+            },
+            {
+              role: 'user',
+              content: `Plan components for this PageMap:\n${JSON.stringify(planPayload)}`
+            }
+          ]
+          const planPromptTokensEstimate = estimateMessageTokens(planMessages)
+          let planRequestCount = 0
+          let planUsage: TokenUsage = {}
+          const componentPlan = await telemetry.timePhase('component_plan', async (): Promise<ComponentPlan> => {
+            const parsePlan = (response: ChatCompletion, rawResult: string, requestCountForError: number): ComponentPlan => {
+              const completionStatus = detectIncompleteJson(rawResult)
+              const finishReason = response.choices[0]?.finish_reason || ''
+              if (!completionStatus.isComplete || finishReason === 'length') {
+                throw new DetectionFailureError(
+                  `ComponentPlan exceeded output limit or returned incomplete JSON (${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'})`,
+                  {
+                    model: endpointModel,
+                    stage: 'output_limit',
+                    rawResponse: rawResult,
+                    rawResponseLength: rawResult.length,
+                    finishReason,
+                    usage: response.usage ? { ...response.usage } : {},
+                    validationPath: completionStatus.reason,
+                    requestCount: requestCountForError,
+                    promptTokensEstimate: planPromptTokensEstimate,
+                    effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - planPromptTokensEstimate)
+                  }
+                )
+              }
+              try {
+                return parseComponentPlanResponse({
+                  rawResponse: rawResult,
+                  pageMap,
+                  plannedSectionKeys: planSectionKeys,
+                  availableComponents: planComponents
+                })
+              } catch (error) {
+                throw new DetectionFailureError(error instanceof Error ? error.message : String(error), {
+                  model: endpointModel,
+                  stage: 'validation',
+                  rawResponse: rawResult,
+                  rawResponseLength: rawResult.length,
+                  finishReason,
+                  usage: response.usage ? { ...response.usage } : {},
+                  validationPath: extractValidationPath(error instanceof Error ? error.message : String(error)),
+                  requestCount: requestCountForError,
+                  promptTokensEstimate: planPromptTokensEstimate,
+                  effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - planPromptTokensEstimate)
+                })
+              }
+            }
+
+            let response = await runJsonRequest(planMessages, {
+              stage: 'component_plan',
+              sectionCount: pageMap.sections.length,
+              promptTokensEstimate: planPromptTokensEstimate
+            })
+            planRequestCount++
+            planUsage = response.usage ? { ...response.usage } : {}
+            let rawResult = response.choices[0]?.message?.content || ''
+            try {
+              return parsePlan(response, rawResult, planRequestCount)
+            } catch (firstError) {
+              if (firstError instanceof DetectionFailureError && firstError.debug.stage === 'output_limit') {
+                throw firstError
+              }
+              const cappedPreviousJson = capRepairPreviousJson(rawResult)
+              planMessages.push({
+                role: 'user',
+                content: [
+                  'Your previous ComponentPlan JSON failed strict validation.',
+                  `Validation error: ${firstError instanceof Error ? firstError.message : String(firstError)}`,
+                  `Allowed section component types: ${JSON.stringify(planPayload.sections.map(section => ({ sectionKey: section.sectionKey, candidateTypes: section.candidateTypes })))}`,
+                  'Repair schema shape only. Do not add sections, change section keys, invent evidence refs, or change source facts.',
+                  'Replace any component not listed for its section with the best listed candidate type supported by the same evidence.',
+                  cappedPreviousJson.capped
+                    ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
+                    : 'Previous JSON:',
+                  cappedPreviousJson.text
+                ].join('\n')
+              })
+              response = await runJsonRequest(planMessages, {
+                stage: 'component_plan',
+                repair: true,
+                sectionCount: pageMap.sections.length,
+                promptTokensEstimate: estimateMessageTokens(planMessages)
+              })
+              planRequestCount++
+              planUsage = response.usage ? { ...response.usage } : {}
+              rawResult = response.choices[0]?.message?.content || ''
+              return parsePlan(response, rawResult, planRequestCount)
+            }
+          }, plan => ({
+            requestCount: planRequestCount,
+            plannedSectionCount: plan?.sections.length ?? 0,
+            plannedComponentCount: plan?.sections.reduce((sum, section) => sum + section.plannedComponents.length, 0) ?? 0,
+            promptTokensEstimate: planPromptTokensEstimate,
+            planSchemaVersion: DetectionConfig.planSchemaVersion
+          }))
+          addTokenUsage(usageTotals, planUsage)
+          requestCount += planRequestCount
+          if (componentPlan.pageMetadata) {
+            results.push({
+              artifact: {
+                sectionKey: '__page_plan_metadata__',
+                sectionOrder: Number.MAX_SAFE_INTEGER,
+                components: [],
+                pageMetadata: componentPlan.pageMetadata
+              },
+              pageSummary,
+              usage: {},
+              requestCount: 0,
+              reuse: { freshSections: 0, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
+            })
+          }
+          if (checkpointSession && checkpointService) {
+            await checkpointService.saveAggregated(
+              checkpointSession,
+              checkpointArtifactKey('component-plan', url),
+              componentPlan
+            ).catch(error => {
+              console.warn('[Checkpoint] Failed to save component-plan artifact:', error)
+            })
+          }
+
+          const emptyArtifacts = componentPlan.sections
+            .filter(section => section.plannedComponents.length === 0)
+            .map(section => {
+              const mapSection = pageMap.sections.find(candidate => candidate.sectionKey === section.sectionKey)
+              return {
+                artifact: {
+                  sectionKey: section.sectionKey,
+                  sectionOrder: mapSection?.sectionOrder ?? 0,
+                  components: []
+                },
+                pageSummary,
+                usage: {},
+                requestCount: 0,
+                reuse: { freshSections: 0, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
+              } satisfies SectionProcessingResult
+            })
+          results.push(...emptyArtifacts)
+
+          const batches = buildFillBatches({
+            pageMap,
+            plan: componentPlan,
+            maxPromptTokens: DetectionConfig.fillBatchMaxPromptTokens,
+            maxSections: DetectionConfig.fillBatchMaxSections,
+            estimateTokens: value => estimateTextTokens(JSON.stringify(value))
+          })
+          for (const batch of batches) {
+            const { prompt: catalogPrompt, components: fillComponents } = await buildDetectionPromptFromCatalog({
+              telemetry,
+              pageUrl: url,
+              candidateTypes: new Set(batch.candidateTypes),
+              mode: DetectionConfig.sectionPromptMode,
+              model: endpointModel,
+              provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
+            })
+            const fillPayload = {
+              url,
+              finalUrl: preFlightFetch.finalUrl,
+              groupKey: batch.groupKey,
+              schemaVersion: DetectionConfig.fillSchemaVersion,
+              sourceSectionKeys: batch.sectionKeys,
+              componentContract: batch.plannedComponents.map(component => ({
+                plannedComponentId: component.plannedComponentId,
+                component: component.component
+              })),
+              plannedComponents: batch.plannedComponents,
+              sourcePackets: batch.sourcePackets
+            }
+            const fillMessages: ChatCompletionMessageParam[] = [
+              {
+                role: 'system',
+                content: [
+                  'You are a component content fill engine.',
+                  'Return only valid JSON with a "sections" array.',
+                  'Return one section object for each sourceSectionKeys value. sectionKey must be one of sourceSectionKeys, never groupKey.',
+                  'The componentContract list is authoritative. For each plannedComponentId, copy the exact component value from componentContract.',
+                  'Use only the provided plannedComponentId values. Do not add, remove, rename, or change component types.',
+                  'Extract content only from the provided sourcePackets. Do not invent copy, URLs, images, dates, categories, or placeholder content.',
+                  'Each output component must include plannedComponentId, component, confidence, and content.',
+                  'Every MediaReference image src must include mediaId, mediaType: "image", and url.',
+                  'card-grid.cards[] links must use href, never link or url.'
+                ].join('\n')
+              },
+              {
+                role: 'system',
+                content: catalogPrompt
+              },
+              {
+                role: 'user',
+                content: `Fill this planned component batch:\n${JSON.stringify(fillPayload)}`
+              }
+            ]
+            const fillPromptTokensEstimate = estimateMessageTokens(fillMessages)
+            let fillRequestCount = 0
+            let fillUsage: TokenUsage = {}
+            const fillResult = await telemetry.timePhase('fill_batch', async () => {
+              const parseFill = (response: ChatCompletion, rawResult: string, requestCountForError: number) => {
+                const completionStatus = detectIncompleteJson(rawResult)
+                const finishReason = response.choices[0]?.finish_reason || ''
+                if (!completionStatus.isComplete || finishReason === 'length') {
+                  throw new DetectionFailureError(
+                    `FillBatch ${batch.groupKey} exceeded output limit or returned incomplete JSON (${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'})`,
+                    {
+                      model: endpointModel,
+                      stage: 'output_limit',
+                      rawResponse: rawResult,
+                      rawResponseLength: rawResult.length,
+                      finishReason,
+                      usage: response.usage ? { ...response.usage } : {},
+                      validationPath: completionStatus.reason,
+                      requestCount: requestCountForError,
+                      promptTokensEstimate: fillPromptTokensEstimate,
+                      effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - fillPromptTokensEstimate)
+                    }
+                  )
+                }
+                try {
+                  return parseFillBatchResponse({
+                    rawResponse: rawResult,
+                    batch,
+                    plan: componentPlan,
+                    pageMap,
+                    availableComponents: fillComponents,
+                    url,
+                    confidenceThreshold
+                  })
+                } catch (error) {
+                  throw new DetectionFailureError(error instanceof Error ? error.message : String(error), {
+                    model: endpointModel,
+                    stage: 'validation',
+                    rawResponse: rawResult,
+                    rawResponseLength: rawResult.length,
+                    finishReason,
+                    usage: response.usage ? { ...response.usage } : {},
+                    validationPath: extractValidationPath(error instanceof Error ? error.message : String(error)),
+                    requestCount: requestCountForError,
+                    promptTokensEstimate: fillPromptTokensEstimate,
+                    effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - fillPromptTokensEstimate)
+                  })
+                }
+              }
+
+              let response = await runJsonRequest(fillMessages, {
+                stage: 'fill_batch',
+                groupKey: batch.groupKey,
+                sourceSectionKeys: batch.sectionKeys,
+                plannedComponentCount: batch.plannedComponents.length,
+                promptTokensEstimate: fillPromptTokensEstimate
+              })
+              fillRequestCount++
+              fillUsage = response.usage ? { ...response.usage } : {}
+              let rawResult = response.choices[0]?.message?.content || ''
+              try {
+                return parseFill(response, rawResult, fillRequestCount)
+              } catch (firstError) {
+                if (firstError instanceof DetectionFailureError && firstError.debug.stage === 'output_limit') {
+                  throw firstError
+                }
+                const cappedPreviousJson = capRepairPreviousJson(rawResult)
+                fillMessages.push({
+                  role: 'user',
+                  content: [
+                    'Your previous FillBatch JSON failed strict validation.',
+                    `Validation error: ${firstError instanceof Error ? firstError.message : String(firstError)}`,
+                    `Authoritative componentContract: ${JSON.stringify(fillPayload.componentContract)}`,
+                    'Repair schema shape only. Do not add planned IDs, remove planned IDs, change section keys, change component types, or invent content.',
+                    cappedPreviousJson.capped
+                      ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
+                      : 'Previous JSON:',
+                    cappedPreviousJson.text
+                  ].join('\n')
+                })
+                response = await runJsonRequest(fillMessages, {
+                  stage: 'fill_batch',
+                  groupKey: batch.groupKey,
+                  repair: true,
+                  sourceSectionKeys: batch.sectionKeys,
+                  plannedComponentCount: batch.plannedComponents.length,
+                  promptTokensEstimate: estimateMessageTokens(fillMessages)
+                })
+                fillRequestCount++
+                fillUsage = response.usage ? { ...response.usage } : {}
+                rawResult = response.choices[0]?.message?.content || ''
+                return parseFill(response, rawResult, fillRequestCount)
+              }
+            }, result => ({
+              groupKey: batch.groupKey,
+              sourceSectionKeys: batch.sectionKeys,
+              requestCount: fillRequestCount,
+              plannedComponentCount: batch.plannedComponents.length,
+              componentCount: result?.artifacts.reduce((sum, artifact) => sum + artifact.components.length, 0) ?? 0,
+              promptTokensEstimate: fillPromptTokensEstimate,
+              fillSchemaVersion: DetectionConfig.fillSchemaVersion
+            }))
+            addTokenUsage(usageTotals, fillUsage)
+            requestCount += fillRequestCount
+            for (const artifact of fillResult.artifacts) {
+              telemetry.recordPhase('section_extract', 0, {
+                sectionKey: artifact.sectionKey,
+                sectionOrder: artifact.sectionOrder,
+                role: pageMap.sections.find(section => section.sectionKey === artifact.sectionKey)?.role,
+                extractionMode: 'page-map-fill',
+                cacheHit: false,
+                requestCount: fillRequestCount,
+                promptTokensEstimate: fillPromptTokensEstimate,
+                groupKey: batch.groupKey,
+                componentCount: artifact.components.length
+              })
+              results.push({
+                artifact,
+                pageSummary,
+                usage: {},
+                requestCount: 0,
+                reuse: { freshSections: 1, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
+              })
+              if (checkpointSession && checkpointService) {
+                await checkpointService.saveSectionResult(
+                  checkpointSession,
+                  url,
+                  artifact.sectionKey,
+                  artifact.sectionOrder,
+                  artifact.components,
+                  artifact.durationMs ?? 0,
+                  artifact.pageMetadata,
+                  {
+                    model: endpointModel,
+                    stage: 'llm_call',
+                    finishReason: 'page_map_fill',
+                    usage: fillUsage,
+                    requestCount: fillRequestCount,
+                    toolCallCount: 0,
+                    promptTokensEstimate: fillPromptTokensEstimate,
+                    effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - fillPromptTokensEstimate),
+                    sectionKey: artifact.sectionKey,
+                    sectionOrder: artifact.sectionOrder,
+                    extractionMode: 'fresh',
+                    invalidComponents: artifact.invalidComponents,
+                    invalidComponentCount: artifact.invalidComponents?.length
+                  }
+                ).catch(error => {
+                  console.warn('[Checkpoint] Failed to save page-map fill section result:', error)
+                })
+              }
+            }
+            if (fillResult.pageMetadata) {
+              results.push({
+                artifact: {
+                  sectionKey: `${batch.groupKey}:metadata`,
+                  sectionOrder: Number.MAX_SAFE_INTEGER,
+                  components: [],
+                  pageMetadata: fillResult.pageMetadata
+                },
+                pageSummary,
+                usage: {},
+                requestCount: 0,
+                reuse: { freshSections: 0, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
+              })
+            }
+            if (checkpointSession && checkpointService) {
+              await checkpointService.saveAggregated(
+                checkpointSession,
+                checkpointArtifactKey(`fill-batch-${batch.groupKey.replace(/[^a-z0-9_-]/gi, '-')}`, url),
+                { batch, result: fillResult }
+              ).catch(error => {
+                console.warn('[Checkpoint] Failed to save fill-batch artifact:', error)
+              })
+            }
+          }
+
+          return results.sort((a, b) => a.artifact.sectionOrder - b.artifact.sectionOrder)
+        })()
+      : await mapWithConcurrency(tasks, sectionConcurrency, processSectionTask)
     for (const result of sectionResults) {
       artifacts.push(result.artifact)
       if (!pageSummaryForAssembly && result.pageSummary) {

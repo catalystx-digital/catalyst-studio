@@ -8,6 +8,10 @@ export type DetectionPhase =
   | 'fetch'
   | 'prompt_build'
   | 'section_extract'
+  | 'page_map'
+  | 'component_plan'
+  | 'fill_batch'
+  | 'assembly'
   | 'llm_call'
   | 'canonicalization'
   | 'contract_loading'
@@ -21,6 +25,10 @@ const PHASE_BASELINES_MS: Record<DetectionPhase, number> = {
   fetch: 1500,
   prompt_build: 500,
   section_extract: LLM_BASELINE_MS,
+  page_map: 800,
+  component_plan: LLM_BASELINE_MS,
+  fill_batch: LLM_BASELINE_MS,
+  assembly: 400,
   llm_call: LLM_BASELINE_MS,
   canonicalization: 400,
   contract_loading: 800,

@@ -326,6 +326,7 @@ describe('DetectionService (web-based)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(DetectionConfig as any).detectionHarness = 'section'
     mockWebTools.fetchOutline.mockResolvedValue(mockOutline)
     mockWebTools.getLastFetchOutline.mockReturnValue(mockOutline)
     mockWebTools.getSection.mockResolvedValue({
@@ -526,6 +527,69 @@ describe('DetectionService (web-based)', () => {
       }
     })
 
+    it('uses the page-map plan/fill harness when explicitly enabled', async () => {
+      ;(DetectionConfig as any).detectionHarness = 'page-map'
+      mockOpenAI.chat.completions.create = jest.fn()
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    plannedComponents: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'hero-with-image',
+                        confidence: 0.9,
+                        evidenceRefs: ['s0#1']
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 100, prompt_tokens: 80, completion_tokens: 20 }
+        })
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    components: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'hero-with-image',
+                        confidence: 0.9,
+                        content: { heading: 'Welcome to Our Site' }
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 120, prompt_tokens: 90, completion_tokens: 30 }
+        })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components).toHaveLength(1)
+      expect(result.components[0].type).toBe('hero-with-image')
+      expect(result.tokenUsage).toBe(220)
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
+      expect(result.timingBreakdown?.phaseTotals).toEqual(expect.arrayContaining([
+        expect.objectContaining({ phase: 'page_map' }),
+        expect.objectContaining({ phase: 'component_plan' }),
+        expect.objectContaining({ phase: 'fill_batch' })
+      ]))
+    })
+
     it('attaches provider filter when IMPORT_MODEL_ALLOWED_PROVIDER is set', async () => {
       const original = process.env.IMPORT_MODEL_ALLOWED_PROVIDER
       const originalModelConfigProvider = ModelConfig.allowedProvider
@@ -571,7 +635,7 @@ describe('DetectionService (web-based)', () => {
       expect(nav).toBeDefined()
     })
 
-    it('accepts missing sectionKey in section harness without a repair call', async () => {
+    it('rejects missing sectionKey in section harness without parser injection', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
         choices: [{
           message: {
@@ -586,10 +650,7 @@ describe('DetectionService (web-based)', () => {
         usage: { total_tokens: 1000 }
       })
 
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components).toHaveLength(1)
-      expect(result.components[0].type).toBe('navbar')
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('sectionKey must be "main:0-99"')
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
     })
 
@@ -613,7 +674,7 @@ describe('DetectionService (web-based)', () => {
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
     })
 
-    it('isolates invalid component content without dropping valid section siblings', async () => {
+    it('rejects invalid component content after repair without dropping it silently', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
         choices: [{
           message: {
@@ -630,11 +691,9 @@ describe('DetectionService (web-based)', () => {
         usage: { total_tokens: 1000 }
       })
 
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components).toHaveLength(1)
-      expect(result.components[0].type).toBe('navbar')
-      expect(result.timingBreakdown?.sectionTimings[0]).toEqual(expect.objectContaining({ requestCount: 2 }))
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
+        'Section main:0-99 produced 1 invalid component after repair'
+      )
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
     })
 
@@ -655,7 +714,7 @@ describe('DetectionService (web-based)', () => {
       })
 
       await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
-        'Section harness produced no components for https://example.com; 1 invalid component isolated'
+        'Section main:0-99 produced 1 invalid component after repair'
       )
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
     })

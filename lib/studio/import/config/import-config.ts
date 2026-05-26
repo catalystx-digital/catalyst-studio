@@ -365,6 +365,9 @@ export const DetectionConfig = {
   /** Enable same-import reuse of validated global header/footer section artifacts */
   globalSectionReuse: parseEnvBool('IMPORT_GLOBAL_SECTION_REUSE', true),
 
+  /** Detection harness implementation. "page-map" uses plan/fill batches; "section" uses one extraction per section. */
+  detectionHarness: parseEnvString('IMPORT_DETECTION_HARNESS', 'section') as 'page-map' | 'section',
+
   /** Maximum LLM section extraction requests to run concurrently within a page */
   sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 2),
 
@@ -372,7 +375,19 @@ export const DetectionConfig = {
   sectionPromptMode: parseEnvString('IMPORT_SECTION_PROMPT_MODE', 'section') as 'section' | 'full',
 
   /** Enable deterministic source payload summarization before section extraction */
-  sectionSummaryEnabled: parseEnvBool('IMPORT_SECTION_SUMMARY_ENABLED', false)
+  sectionSummaryEnabled: parseEnvBool('IMPORT_SECTION_SUMMARY_ENABLED', false),
+
+  /** Maximum estimated prompt tokens for each page-map fill batch */
+  fillBatchMaxPromptTokens: parseEnvInt('IMPORT_FILL_BATCH_MAX_PROMPT_TOKENS', 45000),
+
+  /** Maximum original source sections in a single page-map fill batch */
+  fillBatchMaxSections: parseEnvInt('IMPORT_FILL_BATCH_MAX_SECTIONS', 4),
+
+  /** Schema/prompt versions for checkpoint invalidation and diagnostics */
+  pageMapVersion: parseEnvString('IMPORT_PAGE_MAP_VERSION', 'page-map-v1'),
+  planSchemaVersion: parseEnvString('IMPORT_PLAN_SCHEMA_VERSION', 'component-plan-v1'),
+  fillSchemaVersion: parseEnvString('IMPORT_FILL_SCHEMA_VERSION', 'component-fill-v1'),
+  stagedPromptVersion: parseEnvString('IMPORT_STAGED_PROMPT_VERSION', 'staged-harness-v1')
 } as const
 
 // =============================================================================
