@@ -387,7 +387,7 @@ export const DetectionConfig = {
   fillBatchMaxComponents: parseEnvInt('IMPORT_FILL_BATCH_MAX_COMPONENTS', 6),
 
   /** Maximum page-map fill batches to run concurrently */
-  fillBatchConcurrency: parseEnvInt('IMPORT_FILL_BATCH_CONCURRENCY', 1),
+  fillBatchConcurrency: parseEnvInt('IMPORT_FILL_BATCH_CONCURRENCY', 2),
 
   /** Number of sibling packets to include before/after referenced fill evidence */
   fillEvidenceSiblingWindow: parseEnvInt('IMPORT_FILL_EVIDENCE_SIBLING_WINDOW', 1),

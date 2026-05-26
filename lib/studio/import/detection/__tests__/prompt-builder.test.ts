@@ -421,6 +421,7 @@ describe('catalog detection prompt candidate filtering', () => {
     expect(fill.prompt).toContain('logo-cloud.logos[] items extend Image and must include id')
     expect(fill.prompt).toContain('Optional CTA/button fields such as secondaryButton must be omitted entirely')
     expect(fill.prompt).toContain('Never emit placeholder CTA/button values')
+    expect(fill.prompt).toContain('card-grid.cards[].href is a SmartLink directly')
     expect(fill.prompt).toContain('Nested sub-components')
     expect(fill.prompt).not.toContain('headingLevel:')
     expect(fill.prompt).not.toContain('FULL PAGE COVERAGE')

@@ -1667,7 +1667,7 @@ export class DetectionService {
                   'All same-site or relative SmartLink values must include type: "internal", pageId, and path.',
                   'Never emit placeholder CTA/button values. Omit optional CTA/button fields when label or href is missing.',
                   'cta-simple secondaryButton is optional. Include it only when the source shows a second visible CTA with non-empty label and valid href.',
-                  'card-grid.cards[] links must use href SmartLink, never link or url.',
+                  'card-grid.cards[].href must be a SmartLink directly, never { text, href }, link, or url.',
                   'Feature item link objects must use { text, href: SmartLink }, never link.url.',
                   'logo-cloud.logos[] items must include id plus Image fields src, alt, and originalUrl when available.',
                   'headingLevel must be a number 1, 2, 3, 4, 5, or 6; never return strings like "h2".'

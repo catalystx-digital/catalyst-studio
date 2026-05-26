@@ -452,6 +452,7 @@ function buildMinimalFillContract(
     '- href/link fields use SmartLink shape, never a string: internal { "type": "internal", "pageId": "<stable-id>", "path": "/path" }, external { "type": "external", "url": "https://..." }, anchor { "type": "anchor", "href": "#id" }.',
     '- For same-site or relative URLs beginning with "/", use internal SmartLink and always include pageId as the stable path slug without slashes. Example "/services/digital-strategy" -> { "type": "internal", "pageId": "services-digital-strategy", "path": "/services/digital-strategy" }.',
     '- When a field is named link and contains link text, use { "text": "...", "href": <SmartLink> }; never emit link.url.',
+    '- card-grid.cards[].href is a SmartLink directly. Never wrap it as { "text": "...", "href": <SmartLink> }; put visible card text in title/description instead.',
     '- CTA buttons use { "label": "...", "href": <SmartLink>, "variant": "primary|secondary|outline" }.',
     '- Optional CTA/button fields such as secondaryButton must be omitted entirely unless the source shows a second real CTA with non-empty label and valid href.',
     '- Never emit placeholder CTA/button values: no empty label, empty pageId, empty path, empty url, "#", or copied skeleton-only href.',
