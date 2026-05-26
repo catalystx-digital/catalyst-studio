@@ -281,12 +281,12 @@ export function parseComponentPlanResponse(input: {
       if (!Array.isArray(component.evidenceRefs) || component.evidenceRefs.length === 0) {
         throw new Error(`ComponentPlan plannedComponentId "${component.plannedComponentId}" evidenceRefs must be a non-empty array`)
       }
-      const evidenceRefs = component.evidenceRefs.map(ref => {
-        if (typeof ref !== 'string' || !validEvidenceRefs.has(ref)) {
-          throw new Error(`ComponentPlan plannedComponentId "${component.plannedComponentId}" has unsupported evidence ref "${String(ref)}"`)
-        }
-        return ref
-      })
+      const evidenceRefs = component.evidenceRefs.filter((ref): ref is string =>
+        typeof ref === 'string' && validEvidenceRefs.has(ref)
+      )
+      if (evidenceRefs.length === 0) {
+        throw new Error(`ComponentPlan plannedComponentId "${component.plannedComponentId}" has no supported evidence refs`)
+      }
       plannedComponents.push({
         plannedComponentId: component.plannedComponentId,
         component: component.component,
@@ -332,6 +332,7 @@ export function buildFillBatches(input: {
   plan: ComponentPlan
   maxPromptTokens: number
   maxSections: number
+  maxComponents: number
   estimateTokens: (value: unknown) => number
 }): FillBatch[] {
   const sectionsByKey = new Map(input.pageMap.sections.map(section => [section.sectionKey, section]))
@@ -368,7 +369,11 @@ export function buildFillBatches(input: {
     const projectedTokens = input.estimateTokens({ sections: projectedSections, plannedComponents: projectedPlanned, sourcePackets: projectedPackets })
     if (
       currentSections.length > 0 &&
-      (projectedSections.length > Math.max(1, input.maxSections) || projectedTokens > input.maxPromptTokens)
+      (
+        projectedSections.length > Math.max(1, input.maxSections) ||
+        projectedPlanned.length > Math.max(1, input.maxComponents) ||
+        projectedTokens > input.maxPromptTokens
+      )
     ) {
       flush()
     }
@@ -401,10 +406,12 @@ export function parseFillBatchResponse(input: {
   const expectedSectionKeys = new Set(input.batch.sectionKeys)
   const plannedById = new Map(input.batch.plannedComponents.map(component => [component.plannedComponentId, component]))
   const plannedSectionById = new Map<string, string>()
+  const plannedBySection = new Map<string, PlannedComponent[]>()
   for (const plannedSection of input.plan.sections) {
     for (const plannedComponent of plannedSection.plannedComponents) {
       plannedSectionById.set(plannedComponent.plannedComponentId, plannedSection.sectionKey)
     }
+    plannedBySection.set(plannedSection.sectionKey, plannedSection.plannedComponents.filter(component => plannedById.has(component.plannedComponentId)))
   }
   const seenIds = new Set<string>()
   const componentsBySection = new Map<string, Array<{ component: unknown; confidence: unknown; content: unknown }>>()
@@ -429,23 +436,31 @@ export function parseFillBatchResponse(input: {
         throw new Error(`FillBatch ${section.sectionKey}.components[${componentIndex}] must be an object`)
       }
       const component = rawComponent as Record<string, unknown>
-      if (typeof component.plannedComponentId !== 'string' || !plannedById.has(component.plannedComponentId)) {
+      const sectionPlanned = plannedBySection.get(section.sectionKey) ?? []
+      const positionPlanned = sectionPlanned[componentIndex]
+      const plannedComponentId = typeof component.plannedComponentId === 'string' && component.plannedComponentId
+        ? component.plannedComponentId
+        : positionPlanned?.plannedComponentId
+      if (!plannedComponentId || !plannedById.has(plannedComponentId)) {
         throw new Error(`FillBatch ${section.sectionKey}.components[${componentIndex}].plannedComponentId is not planned`)
       }
-      if (seenIds.has(component.plannedComponentId)) {
-        throw new Error(`FillBatch plannedComponentId "${component.plannedComponentId}" is duplicated`)
+      if (component.plannedComponentId && component.plannedComponentId !== plannedComponentId) {
+        throw new Error(`FillBatch ${section.sectionKey}.components[${componentIndex}].plannedComponentId does not match output skeleton order`)
       }
-      seenIds.add(component.plannedComponentId)
-      const planned = plannedById.get(component.plannedComponentId)!
+      if (seenIds.has(plannedComponentId)) {
+        throw new Error(`FillBatch plannedComponentId "${plannedComponentId}" is duplicated`)
+      }
+      seenIds.add(plannedComponentId)
+      const planned = plannedById.get(plannedComponentId)!
       if (component.component !== planned.component) {
-        throw new Error(`FillBatch plannedComponentId "${component.plannedComponentId}" changed component type`)
+        throw new Error(`FillBatch plannedComponentId "${plannedComponentId}" changed component type`)
       }
-      const plannedSectionKey = plannedSectionById.get(component.plannedComponentId)
+      const plannedSectionKey = plannedSectionById.get(plannedComponentId)
       if (!plannedSectionKey || !expectedSectionKeys.has(plannedSectionKey)) {
-        throw new Error(`FillBatch plannedComponentId "${component.plannedComponentId}" section is not planned for this batch`)
+        throw new Error(`FillBatch plannedComponentId "${plannedComponentId}" section is not planned for this batch`)
       }
       if (section.sectionKey !== plannedSectionKey) {
-        throw new Error(`FillBatch section "${section.sectionKey}" does not match plannedComponentId "${component.plannedComponentId}" section "${plannedSectionKey}"`)
+        throw new Error(`FillBatch section "${section.sectionKey}" does not match plannedComponentId "${plannedComponentId}" section "${plannedSectionKey}"`)
       }
       const rawComponents = componentsBySection.get(plannedSectionKey) ?? []
       rawComponents.push({

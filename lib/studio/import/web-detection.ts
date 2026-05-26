@@ -17,6 +17,7 @@ import type {
 import { getWebFetchTools, type HeadMeta, type ResourcesSummary } from './services/web-tools'
 import { isAssetUrl } from './services/sitemap-discovery.service'
 import { buildDetectionPromptFromCatalog } from './detection/prompt-builder'
+import { filterPageContentCandidateTypes } from './detection/candidate-types'
 import { parseDetectionResponse, parseSectionDetectionResponse } from './detection/response-parser'
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
@@ -834,10 +835,12 @@ export class DetectionService {
           candidateTypes.add('footer')
         }
 
+        const filteredCandidateTypes = filterPageContentCandidateTypes(candidateTypes)
+
         const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({
           telemetry,
           pageUrl: url,
-          candidateTypes,
+          candidateTypes: filteredCandidateTypes,
           mode: DetectionConfig.sectionPromptMode,
           model: endpointModel,
           provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
@@ -1368,7 +1371,7 @@ export class DetectionService {
             if (candidateTypes.has('accordion') && !hasAccordionEvidence(section.packets)) {
               candidateTypes.delete('accordion')
             }
-            section.candidateTypes = Array.from(candidateTypes).sort()
+            section.candidateTypes = filterPageContentCandidateTypes(candidateTypes)
           }
           if (checkpointSession && checkpointService) {
             await checkpointService.saveAggregated(
@@ -1578,6 +1581,7 @@ export class DetectionService {
             plan: componentPlan,
             maxPromptTokens: DetectionConfig.fillBatchMaxPromptTokens,
             maxSections: DetectionConfig.fillBatchMaxSections,
+            maxComponents: DetectionConfig.fillBatchMaxComponents,
             estimateTokens: value => estimateTextTokens(JSON.stringify(value))
           })
           for (const batch of batches) {
@@ -1599,6 +1603,20 @@ export class DetectionService {
                 plannedComponentId: component.plannedComponentId,
                 component: component.component
               })),
+              outputSkeleton: batch.sectionKeys.map(sectionKey => ({
+                sectionKey,
+                components: batch.plannedComponents
+                  .filter(component => componentPlan.sections.some(section =>
+                    section.sectionKey === sectionKey &&
+                    section.plannedComponents.some(planned => planned.plannedComponentId === component.plannedComponentId)
+                  ))
+                  .map(component => ({
+                    plannedComponentId: component.plannedComponentId,
+                    component: component.component,
+                    confidence: component.confidence,
+                    content: {}
+                  }))
+              })),
               plannedComponents: batch.plannedComponents,
               sourcePackets: batch.sourcePackets
             }
@@ -1609,6 +1627,8 @@ export class DetectionService {
                   'You are a component content fill engine.',
                   'Return only valid JSON with a "sections" array.',
                   'Return one section object for each sourceSectionKeys value. sectionKey must be one of sourceSectionKeys, never groupKey.',
+                  'Use outputSkeleton as the exact output shape. Copy every sectionKey, plannedComponentId, and component from outputSkeleton.',
+                  'If plannedComponentId cannot be preserved by the model, keep components in the exact outputSkeleton order so deterministic assembly can attach IDs.',
                   'The componentContract list is authoritative. For each plannedComponentId, copy the exact component value from componentContract.',
                   'Use only the provided plannedComponentId values. Do not add, remove, rename, or change component types.',
                   'Extract content only from the provided sourcePackets. Do not invent copy, URLs, images, dates, categories, or placeholder content.',
@@ -1699,7 +1719,8 @@ export class DetectionService {
                     'Your previous FillBatch JSON failed strict validation.',
                     `Validation error: ${firstError instanceof Error ? firstError.message : String(firstError)}`,
                     `Authoritative componentContract: ${JSON.stringify(fillPayload.componentContract)}`,
-                    'Repair schema shape only. Do not add planned IDs, remove planned IDs, change section keys, change component types, or invent content.',
+                    `Exact outputSkeleton to copy before filling content: ${JSON.stringify(fillPayload.outputSkeleton)}`,
+                    'Repair schema shape only. Copy every plannedComponentId and component from outputSkeleton. Do not add planned IDs, remove planned IDs, change section keys, change component types, or invent content.',
                     cappedPreviousJson.capped
                       ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
                       : 'Previous JSON:',

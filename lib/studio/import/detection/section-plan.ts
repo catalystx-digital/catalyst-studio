@@ -1,4 +1,5 @@
 import type { SectionInfo } from '../services/web-tools'
+import { filterPageContentCandidateTypes } from './candidate-types'
 import { classifyRouteIntent } from './section-taxonomy'
 
 export type DetectionSectionRole = 'header' | 'hero' | 'main' | 'footer'
@@ -67,7 +68,7 @@ function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[
       hint.types.forEach(type => candidates.add(type))
     }
   }
-  return Array.from(candidates)
+  return filterPageContentCandidateTypes(candidates)
 }
 
 export function buildDetectionSectionPlan({

@@ -1,5 +1,6 @@
 import type { DetectionPromptPayload } from './types'
 import type { DetectionTelemetry } from '../telemetry/detection-telemetry'
+import { filterPageContentCandidateTypes } from './candidate-types'
 import { classifyRouteIntent } from './section-taxonomy'
 
 type ComponentCatalogModule = typeof import('@/lib/studio/ai/component-catalog')
@@ -72,7 +73,6 @@ const BASE_COMPONENT_TYPES = new Set([
   'html-block',
   'two-column',
   'card-grid',
-  'card-item',
   'cta-simple',
   'cta-banner',
   'cta-with-form',
@@ -95,7 +95,6 @@ const HOME_COMPONENT_TYPES = new Set([
   'text-block',
   'two-column',
   'card-grid',
-  'card-item',
   'cta-banner',
   'cta-with-form',
   'feature-grid',
@@ -110,7 +109,7 @@ const ROUTE_COMPONENT_HINTS: Array<{ pattern: RegExp; types: string[] }> = [
   { pattern: /(?:^|[-/\s])(?:about|company|team|people|who[-\s]?we[-\s]?are)(?:$|[-/\s])/, types: ['about-section', 'team-grid', 'statistics', 'timeline', 'logo-cloud', 'testimonials'] },
   { pattern: /(?:^|[-/\s])(?:contact|locations?|find[-\s]?us|get[-\s]?in[-\s]?touch)(?:$|[-/\s])/, types: ['contact-form', 'contact-info', 'location-map', 'simple-form', 'cta-with-form'] },
   { pattern: /(?:^|[-/\s])(?:services?|solutions?|capabilities|what[-\s]?we[-\s]?do)(?:$|[-/\s])/, types: ['feature-grid', 'feature-list', 'feature-showcase', 'feature-comparison', 'statistics', 'accordion'] },
-  { pattern: /(?:^|[-/\s])(?:portfolio|work|our[-\s]?work|case[-\s]?stud(?:y|ies)|clients?)(?:$|[-/\s])/, types: ['card-grid', 'card-item', 'logo-cloud', 'testimonials', 'reviews'] },
+  { pattern: /(?:^|[-/\s])(?:portfolio|work|our[-\s]?work|case[-\s]?stud(?:y|ies)|clients?)(?:$|[-/\s])/, types: ['card-grid', 'logo-cloud', 'testimonials', 'reviews'] },
   { pattern: /(?:^|[-/\s])(?:blog|news|insights?|articles?|posts?)(?:$|[-/\s])/, types: ['blog-list', 'blog-post', 'article-header', 'author-bio', 'related-posts', 'content-feed'] },
   { pattern: /(?:^|[-/\s])(?:pricing|plans?|packages?)(?:$|[-/\s])/, types: ['pricing-table', 'pricing-card', 'feature-comparison', 'faq', 'accordion'] }
 ]
@@ -186,7 +185,7 @@ function filterPromptInputs(
   }
 
   const available = new Set(componentSummary.components.map(component => component.type))
-  const selectedAvailable = new Set(Array.from(selectedTypes).filter(type => available.has(type)))
+  const selectedAvailable = new Set(filterPageContentCandidateTypes(selectedTypes).filter(type => available.has(type)))
   if (selectedAvailable.size === 0) {
     throw new Error('Detection candidate selection produced no registered component types')
   }

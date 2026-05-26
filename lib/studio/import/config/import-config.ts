@@ -383,6 +383,9 @@ export const DetectionConfig = {
   /** Maximum original source sections in a single page-map fill batch */
   fillBatchMaxSections: parseEnvInt('IMPORT_FILL_BATCH_MAX_SECTIONS', 4),
 
+  /** Maximum planned components in a single page-map fill batch */
+  fillBatchMaxComponents: parseEnvInt('IMPORT_FILL_BATCH_MAX_COMPONENTS', 6),
+
   /** Schema/prompt versions for checkpoint invalidation and diagnostics */
   pageMapVersion: parseEnvString('IMPORT_PAGE_MAP_VERSION', 'page-map-v1'),
   planSchemaVersion: parseEnvString('IMPORT_PLAN_SCHEMA_VERSION', 'component-plan-v1'),

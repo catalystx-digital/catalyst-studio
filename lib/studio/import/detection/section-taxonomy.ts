@@ -110,7 +110,7 @@ export function classifySectionIntent(input: {
     return {
       intent: 'project_grid',
       evidence,
-      allowedTypes: ['card-grid', 'card-item', 'logo-cloud', 'testimonials', 'reviews'],
+      allowedTypes: ['card-grid', 'logo-cloud', 'testimonials', 'reviews'],
       deniedTypes: ['content-feed']
     }
   }
@@ -119,7 +119,7 @@ export function classifySectionIntent(input: {
     return {
       intent: 'service_grid',
       evidence,
-      allowedTypes: ['card-grid', 'card-item', 'feature-grid', 'feature-list', 'feature-showcase'],
+      allowedTypes: ['card-grid', 'feature-grid', 'feature-list', 'feature-showcase'],
       deniedTypes: ['content-feed']
     }
   }

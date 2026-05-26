@@ -17,6 +17,7 @@ describe('buildDetectionSectionPlan', () => {
     expect(tasks[2].required).toBe(true)
     expect(tasks[0].candidateTypes).toContain('navbar')
     expect(tasks[1].candidateTypes).toContain('card-grid')
+    expect(tasks[1].candidateTypes).not.toContain('card-item')
     expect(tasks[1].candidateTypes).not.toContain('content-feed')
     expect(tasks[2].candidateTypes).toContain('footer')
   })

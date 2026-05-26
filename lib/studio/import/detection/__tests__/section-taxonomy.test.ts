@@ -20,6 +20,7 @@ describe('section taxonomy', () => {
 
     expect(result.intent).toBe('project_grid')
     expect(result.allowedTypes).toContain('card-grid')
+    expect(result.allowedTypes).not.toContain('card-item')
     expect(result.deniedTypes).toContain('content-feed')
   })
 
@@ -52,6 +53,7 @@ describe('section taxonomy', () => {
 
     expect(result.intent).toBe('service_grid')
     expect(result.allowedTypes).toEqual(expect.arrayContaining(['card-grid', 'feature-grid']))
+    expect(result.allowedTypes).not.toContain('card-item')
     expect(result.deniedTypes).toContain('content-feed')
   })
 
@@ -60,6 +62,7 @@ describe('section taxonomy', () => {
 
     expect(result.intent).toBe('project_grid')
     expect(result.allowedTypes).toContain('card-grid')
+    expect(result.allowedTypes).not.toContain('card-item')
     expect(result.deniedTypes).toContain('content-feed')
   })
 

@@ -107,6 +107,28 @@ describe('page-map harness', () => {
     })
 
     expect(plan.sections[0].plannedComponents[0].plannedComponentId).toBe('main:0-99:0')
+    const planWithExtraEvidence = parseComponentPlanResponse({
+      rawResponse: JSON.stringify({
+        sections: [
+          {
+            sectionKey: 'main:0-99',
+            plannedComponents: [
+              {
+                plannedComponentId: 'main:0-99:0',
+                component: 'hero-with-image',
+                confidence: 0.9,
+                evidenceRefs: ['s0#0', 's1#0']
+              }
+            ]
+          }
+        ]
+      }),
+      pageMap,
+      plannedSectionKeys: ['main:0-99'],
+      availableComponents: components
+    })
+
+    expect(planWithExtraEvidence.sections[0].plannedComponents[0].evidenceRefs).toEqual(['s0#0'])
     expect(() =>
       parseComponentPlanResponse({
         rawResponse: JSON.stringify({
@@ -128,7 +150,7 @@ describe('page-map harness', () => {
         plannedSectionKeys: ['main:0-99'],
         availableComponents: components
       })
-    ).toThrow('unsupported evidence ref')
+    ).toThrow('no supported evidence refs')
   })
 
   it('plans fill batches by order, section count, and token budget', async () => {
@@ -165,6 +187,54 @@ describe('page-map harness', () => {
       plan,
       maxPromptTokens: 100000,
       maxSections: 1,
+      maxComponents: 10,
+      estimateTokens: () => 1
+    })
+
+    expect(batches.map(batch => batch.sectionKeys)).toEqual([['main:0-99'], ['main:100-199']])
+  })
+
+  it('splits fill batches by planned component count', async () => {
+    const pageMap = await buildPageMap({
+      url: 'https://example.com',
+      tasks,
+      getSection: async task => ({
+        handle: 'h',
+        key: task.sectionKey,
+        slice: [{ tag: 'p', pathId: task.sectionKey, text: task.sectionKey }],
+        stats: { nodeCount: 1, approxBytes: 100 }
+      })
+    })
+    const plan = parseComponentPlanResponse({
+      rawResponse: JSON.stringify({
+        sections: [
+          {
+            sectionKey: 'main:0-99',
+            plannedComponents: [
+              { plannedComponentId: 'a', component: 'hero-with-image', confidence: 0.9, evidenceRefs: ['s0#0'] },
+              { plannedComponentId: 'b', component: 'text-block', confidence: 0.9, evidenceRefs: ['s0#0'] }
+            ]
+          },
+          {
+            sectionKey: 'main:100-199',
+            plannedComponents: [
+              { plannedComponentId: 'c', component: 'card-grid', confidence: 0.9, evidenceRefs: ['s1#0'] },
+              { plannedComponentId: 'd', component: 'text-block', confidence: 0.9, evidenceRefs: ['s1#0'] }
+            ]
+          }
+        ]
+      }),
+      pageMap,
+      plannedSectionKeys: ['main:0-99', 'main:100-199'],
+      availableComponents: components
+    })
+
+    const batches = buildFillBatches({
+      pageMap,
+      plan,
+      maxPromptTokens: 100000,
+      maxSections: 4,
+      maxComponents: 3,
       estimateTokens: () => 1
     })
 
@@ -200,6 +270,7 @@ describe('page-map harness', () => {
       plan,
       maxPromptTokens: 100000,
       maxSections: 4,
+      maxComponents: 10,
       estimateTokens: () => 1
     })[0]
 
@@ -223,6 +294,26 @@ describe('page-map harness', () => {
     })
 
     expect(parsed.artifacts[0].components[0].type).toBe('hero-with-image')
+    const withoutIds = parseFillBatchResponse({
+      rawResponse: JSON.stringify({
+        sections: [
+          {
+            sectionKey: 'main:0-99',
+            components: [
+              { component: 'hero-with-image', confidence: 0.9, content: { heading: 'Hero' } }
+            ]
+          }
+        ]
+      }),
+      batch,
+      plan,
+      pageMap,
+      availableComponents: components,
+      url: 'https://example.com',
+      confidenceThreshold: 0.1
+    })
+
+    expect(withoutIds.artifacts[0].components[0].type).toBe('hero-with-image')
     expect(() =>
       parseFillBatchResponse({
         rawResponse: JSON.stringify({
