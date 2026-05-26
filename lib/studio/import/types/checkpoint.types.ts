@@ -203,6 +203,20 @@ export interface LLMDebugInfo {
   effectiveCompletionTokens?: number
   /** Sections omitted because they could not fit within the completion reserve */
   skippedSectionsDueToBudget?: string[]
+  /** Section key associated with this model request */
+  sectionKey?: string
+  /** Section order associated with this model request */
+  sectionOrder?: number
+  /** Approximate serialized section size */
+  sectionApproxBytes?: number
+  /** Parser-side repair/normalization applied without another LLM call */
+  parserRepair?: 'missing_section_key_injected'
+  /** Whether the section response omitted the expected section key */
+  missingSectionKey?: boolean
+  /** Whether the repair prompt included a capped previous response */
+  repairPromptCapped?: boolean
+  /** Number of characters from the previous response included in repair prompt */
+  repairPromptPreviousJsonChars?: number
 }
 
 /**

@@ -556,13 +556,16 @@ export class ImportRunService {
     const run = await this.findByJobId(jobId)
     if (!run) return null
 
-    const [committedPages, failedPages, skippedPages, redirectPages, totalPages] = await Promise.all([
-      importDb.importPageStage.count({ where: { runId: run.id, status: 'committed' } }),
+    const [committedAudit, failedPages, skippedPages, redirectPages, totalPages] = await Promise.all([
+      auditCommittedPages(run.id),
       importDb.importPageStage.count({ where: { runId: run.id, status: { in: ['failed_retryable', 'failed_terminal'] } } }),
       importDb.importPageStage.count({ where: { runId: run.id, status: { in: ['skipped_existing'] } } }),
       importDb.importPageStage.count({ where: { runId: run.id, status: 'redirect_created' } }),
       importDb.importPageStage.count({ where: { runId: run.id } }),
     ])
+    const committedPages = committedAudit.valid
+    const invalidCommittedPages = committedAudit.invalid
+    const effectiveFailedPages = failedPages + skippedPages + invalidCommittedPages
 
     if (String(run.status).toLowerCase() === 'cancelled') {
       return {
@@ -570,17 +573,17 @@ export class ImportRunService {
         message: committedPages > 0 ? 'Import cancelled; committed pages were preserved' : 'Import cancelled',
         totalPages,
         committedPages,
-        failedPages: failedPages + skippedPages,
+        failedPages: effectiveFailedPages,
       }
     }
 
-    if (committedPages > 0 && failedPages + skippedPages > 0) {
+    if (committedPages > 0 && effectiveFailedPages > 0) {
       return {
         status: 'completed_with_warnings',
-        message: `Import completed with ${failedPages + skippedPages} page warning${failedPages + skippedPages === 1 ? '' : 's'}`,
+        message: `Import completed with ${effectiveFailedPages} page warning${effectiveFailedPages === 1 ? '' : 's'}`,
         totalPages,
         committedPages,
-        failedPages: failedPages + skippedPages,
+        failedPages: effectiveFailedPages,
       }
     }
 
@@ -594,7 +597,7 @@ export class ImportRunService {
       }
     }
 
-    if (redirectPages > 0 && failedPages + skippedPages === 0) {
+    if (redirectPages > 0 && effectiveFailedPages === 0) {
       return {
         status: 'completed_with_redirects',
         message: 'Import completed with redirects only',
@@ -605,11 +608,11 @@ export class ImportRunService {
     }
 
     return {
-      status: failedPages > 0 ? 'failed_retryable' : 'failed_terminal',
+      status: effectiveFailedPages > 0 ? 'failed_retryable' : 'failed_terminal',
       message: 'Import failed before any pages were committed',
       totalPages,
       committedPages: 0,
-      failedPages: failedPages + skippedPages,
+      failedPages: effectiveFailedPages,
     }
   }
 
@@ -756,4 +759,40 @@ function hasImportPageComponents(pageContent: Prisma.InputJsonValue | undefined)
   }
   const components = (pageContent as Record<string, unknown>).components
   return Array.isArray(components) && components.length > 0
+}
+
+async function auditCommittedPages(runId: string): Promise<{ valid: number; invalid: number }> {
+  const stages = await importDb.importPageStage.findMany({
+    where: { runId, status: 'committed' },
+    select: { committedPageId: true },
+  })
+  if (stages.length === 0) {
+    return { valid: 0, invalid: 0 }
+  }
+
+  const committedPageIds = stages
+    .map((stage: { committedPageId: string | null }) => stage.committedPageId)
+    .filter((id: string | null): id is string => typeof id === 'string' && id.length > 0)
+  const pages = committedPageIds.length > 0 && typeof importDb.websitePage?.findMany === 'function'
+    ? await importDb.websitePage.findMany({
+        where: { id: { in: committedPageIds } },
+        select: { id: true, content: true },
+      })
+    : []
+  const pageContentById = new Map<string, Prisma.InputJsonValue>(
+    pages.map((page: { id: string; content: Prisma.InputJsonValue }) => [page.id, page.content])
+  )
+
+  let valid = 0
+  let invalid = 0
+  for (const stage of stages as Array<{ committedPageId: string | null }>) {
+    const pageContent = stage.committedPageId ? pageContentById.get(stage.committedPageId) : undefined
+    if (stage.committedPageId && hasImportPageComponents(pageContent)) {
+      valid += 1
+    } else {
+      invalid += 1
+    }
+  }
+
+  return { valid, invalid }
 }

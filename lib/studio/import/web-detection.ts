@@ -44,6 +44,7 @@ const CONTEXT_BUDGET = TokenConfig.contextBudget
 const MIN_COMPLETION_BUDGET = TokenConfig.minCompletionBudget
 const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max (from env)
 const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
+const REPAIR_PREVIOUS_JSON_CHAR_LIMIT = 6_000
 
 let registryInitialization: Promise<void> | null = null
 
@@ -111,6 +112,13 @@ export interface DetectionFailureDebug {
   promptTokensEstimate?: number
   effectiveCompletionTokens?: number
   skippedSectionsDueToBudget?: string[]
+  sectionKey?: string
+  sectionOrder?: number
+  sectionApproxBytes?: number
+  parserRepair?: 'missing_section_key_injected'
+  missingSectionKey?: boolean
+  repairPromptCapped?: boolean
+  repairPromptPreviousJsonChars?: number
 }
 
 export class DetectionFailureError extends Error {
@@ -149,6 +157,36 @@ function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
 
 function estimateTextTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4))
+}
+
+function hasOwnProperty(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key)
+}
+
+function responseMissingSectionKey(rawResult: string): boolean {
+  try {
+    const parsed = JSON.parse(rawResult)
+    return Boolean(parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !hasOwnProperty(parsed as Record<string, unknown>, 'sectionKey'))
+  } catch {
+    return false
+  }
+}
+
+function capRepairPreviousJson(rawResult: string): { text: string; capped: boolean; chars: number } {
+  if (rawResult.length <= REPAIR_PREVIOUS_JSON_CHAR_LIMIT) {
+    return { text: rawResult, capped: false, chars: rawResult.length }
+  }
+  const headLength = Math.floor(REPAIR_PREVIOUS_JSON_CHAR_LIMIT / 2)
+  const tailLength = REPAIR_PREVIOUS_JSON_CHAR_LIMIT - headLength
+  return {
+    text: [
+      rawResult.slice(0, headLength),
+      `\n... previous JSON truncated (${rawResult.length - REPAIR_PREVIOUS_JSON_CHAR_LIMIT} chars omitted) ...\n`,
+      rawResult.slice(-tailLength)
+    ].join(''),
+    capped: true,
+    chars: REPAIR_PREVIOUS_JSON_CHAR_LIMIT
+  }
 }
 
 /**
@@ -669,8 +707,17 @@ export class DetectionService {
             content: `Extract this single section:\n${JSON.stringify(sectionPayload)}`
           }
         ]
+        const sectionPromptTokensEstimate = estimateMessageTokens(messages)
+        const sectionApproxBytes =
+          typeof section.stats?.approxBytes === 'number'
+            ? section.stats.approxBytes
+            : JSON.stringify(section.slice).length
 
-        const parseOutcome = (response: ChatCompletion, rawResult: string) => {
+        const parseOutcome = (
+          response: ChatCompletion,
+          rawResult: string,
+          extraDebug: Partial<DetectionFailureDebug> = {}
+        ) => {
           const completionStatus = detectIncompleteJson(rawResult)
           const finishReason = response.choices[0]?.finish_reason || ''
           if (!completionStatus.isComplete || finishReason === 'length') {
@@ -685,7 +732,13 @@ export class DetectionService {
                 usage: response.usage ? { ...response.usage } : {},
                 validationPath: completionStatus.reason,
                 requestCount: requestCount + 1,
-                toolCallCount: 0
+                toolCallCount: 0,
+                promptTokensEstimate: sectionPromptTokensEstimate,
+                effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+                sectionKey: task.sectionKey,
+                sectionOrder: task.sectionOrder,
+                sectionApproxBytes,
+                ...extraDebug
               }
             )
           }
@@ -695,7 +748,8 @@ export class DetectionService {
               sectionKey: task.sectionKey,
               availableComponents: components,
               url,
-              confidenceThreshold
+              confidenceThreshold,
+              allowMissingSectionKey: true
             })
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
@@ -708,7 +762,19 @@ export class DetectionService {
               usage: response.usage ? { ...response.usage } : {},
               validationPath: extractValidationPath(message),
               requestCount: requestCount + 1,
-              toolCallCount: 0
+              toolCallCount: 0,
+              promptTokensEstimate: sectionPromptTokensEstimate,
+              effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+              sectionKey: task.sectionKey,
+              sectionOrder: task.sectionOrder,
+              sectionApproxBytes,
+              ...(responseMissingSectionKey(rawResult)
+                ? {
+                    parserRepair: 'missing_section_key_injected' as const,
+                    missingSectionKey: true
+                  }
+                : {}),
+              ...extraDebug
             })
           }
         }
@@ -717,11 +783,20 @@ export class DetectionService {
         requestCount++
         let rawResult = response.choices[0]?.message?.content || ''
         let parsedSection
+        let repairDebug: Partial<DetectionFailureDebug> = {}
         try {
           parsedSection = parseOutcome(response, rawResult)
         } catch (firstError) {
           if (!(firstError instanceof DetectionFailureError) || firstError.debug.stage === 'output_limit') {
             throw firstError
+          }
+          if (firstError.message.includes(`sectionKey must be "${task.sectionKey}"`)) {
+            throw firstError
+          }
+          const cappedPreviousJson = capRepairPreviousJson(rawResult)
+          repairDebug = {
+            repairPromptCapped: cappedPreviousJson.capped,
+            repairPromptPreviousJsonChars: cappedPreviousJson.chars
           }
           messages.push({
             role: 'user',
@@ -732,14 +807,16 @@ export class DetectionService {
               `The sectionKey must remain exactly ${task.sectionKey}.`,
               `Allowed component types: ${allowedComponentTypes.join(', ')}`,
               'Repair schema shape and component names only. Do not invent content. Return only JSON.',
-              'Previous JSON:',
-              rawResult
+              cappedPreviousJson.capped
+                ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
+                : 'Previous JSON:',
+              cappedPreviousJson.text
             ].join('\n')
           })
           response = await runJsonRequest(messages)
           requestCount++
           rawResult = response.choices[0]?.message?.content || ''
-          parsedSection = parseOutcome(response, rawResult)
+          parsedSection = parseOutcome(response, rawResult, repairDebug)
         }
 
         if (task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0) {
@@ -754,7 +831,13 @@ export class DetectionService {
               usage: response.usage ? { ...response.usage } : {},
               validationPath: `sections.${task.sectionKey}.components`,
               requestCount,
-              toolCallCount: 0
+              toolCallCount: 0,
+              promptTokensEstimate: sectionPromptTokensEstimate,
+              effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+              sectionKey: task.sectionKey,
+              sectionOrder: task.sectionOrder,
+              sectionApproxBytes,
+              ...repairDebug
             }
           )
         }
@@ -791,7 +874,19 @@ export class DetectionService {
               finishReason: response.choices[0]?.finish_reason || 'unknown',
               usage: responseUsage,
               requestCount,
-              toolCallCount: 0
+              toolCallCount: 0,
+              promptTokensEstimate: sectionPromptTokensEstimate,
+              effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+              sectionKey: task.sectionKey,
+              sectionOrder: task.sectionOrder,
+              sectionApproxBytes,
+              ...(responseMissingSectionKey(rawResult)
+                ? {
+                    parserRepair: 'missing_section_key_injected' as const,
+                    missingSectionKey: true
+                  }
+                : {}),
+              ...repairDebug
             }
           )
         }
@@ -826,7 +921,14 @@ export class DetectionService {
               contextBudget: error.debug.contextBudget,
               minCompletionBudget: error.debug.minCompletionBudget,
               promptTokensEstimate: error.debug.promptTokensEstimate,
-              effectiveCompletionTokens: error.debug.effectiveCompletionTokens
+              effectiveCompletionTokens: error.debug.effectiveCompletionTokens,
+              sectionKey: error.debug.sectionKey,
+              sectionOrder: error.debug.sectionOrder,
+              sectionApproxBytes: error.debug.sectionApproxBytes,
+              parserRepair: error.debug.parserRepair,
+              missingSectionKey: error.debug.missingSectionKey,
+              repairPromptCapped: error.debug.repairPromptCapped,
+              repairPromptPreviousJsonChars: error.debug.repairPromptPreviousJsonChars
             } : undefined
           )
         }

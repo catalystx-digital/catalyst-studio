@@ -429,6 +429,48 @@ describe('DetectionService (web-based)', () => {
       expect(nav).toBeDefined()
     })
 
+    it('accepts missing sectionKey in section harness without a repair call', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              components: [
+                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
+              ]
+            })
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { total_tokens: 1000 }
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components).toHaveLength(1)
+      expect(result.components[0].type).toBe('navbar')
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('still rejects explicitly wrong section keys in section harness', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              sectionKey: 'footer',
+              components: [
+                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
+              ]
+            })
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { total_tokens: 1000 }
+      })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('sectionKey must be "main:0-99"')
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
+    })
+
     it('handles API errors gracefully', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockRejectedValue(new Error('API error'))
       await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Web detection failed: API error')

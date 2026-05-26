@@ -39,6 +39,7 @@ interface ParseSectionDetectionInput {
   availableComponents: ComponentPattern[]
   url: string
   confidenceThreshold: number
+  allowMissingSectionKey?: boolean
 }
 
 interface ParseSectionDetectionOutput {
@@ -124,7 +125,8 @@ export function parseSectionDetectionResponse({
   sectionKey,
   availableComponents,
   url,
-  confidenceThreshold
+  confidenceThreshold,
+  allowMissingSectionKey = false
 }: ParseSectionDetectionInput): ParseSectionDetectionOutput {
   const raw = JSON.parse(rawResponse)
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -132,9 +134,8 @@ export function parseSectionDetectionResponse({
   }
 
   const responseObject = raw as Record<string, unknown>
-  if (
-    responseObject.sectionKey !== sectionKey
-  ) {
+  const hasSectionKey = Object.prototype.hasOwnProperty.call(responseObject, 'sectionKey')
+  if ((!hasSectionKey && !allowMissingSectionKey) || (hasSectionKey && responseObject.sectionKey !== sectionKey)) {
     throw new Error(`Section detection response sectionKey must be "${sectionKey}"`)
   }
   if (!Array.isArray(responseObject.components)) {

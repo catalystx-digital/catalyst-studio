@@ -968,6 +968,19 @@ describe('parseSectionDetectionResponse', () => {
     ).toThrow('sectionKey must be "main:0-99"')
   })
 
+  it('accepts missing section keys only when the section harness opts in', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({ components: [] }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com',
+      confidenceThreshold: 0.25,
+      allowMissingSectionKey: true
+    })
+
+    expect(parsed).toEqual({ sectionKey: 'main:0-99', components: [] })
+  })
+
   it('rejects explicitly wrong section keys', () => {
     expect(() =>
       parseSectionDetectionResponse({
@@ -975,7 +988,8 @@ describe('parseSectionDetectionResponse', () => {
         sectionKey: 'main:0-99',
         availableComponents: patterns,
         url: 'https://example.com',
-        confidenceThreshold: 0.25
+        confidenceThreshold: 0.25,
+        allowMissingSectionKey: true
       })
     ).toThrow('sectionKey must be "main:0-99"')
   })
