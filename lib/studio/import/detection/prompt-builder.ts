@@ -30,6 +30,10 @@ interface BuildDetectionPromptOptions {
   provider?: string
 }
 
+interface BuildFillPromptOptions extends Omit<BuildDetectionPromptOptions, 'mode'> {
+  mode?: 'fill'
+}
+
 const PROMPT_CACHE_TTL_MS = 60_000
 const PROMPT_CACHE_MAX_ENTRIES = 100
 
@@ -196,6 +200,17 @@ function filterPromptInputs(
     for (const field of component.fields) {
       field.allowedTypes?.forEach(type => allowedSubcomponents.add(type))
     }
+  }
+  for (const [subcomponentType, usage] of Object.entries(contractBundle.subcomponentUsage)) {
+    if (usage.some(entry => selectedAvailable.has(entry.component))) {
+      allowedSubcomponents.add(subcomponentType)
+    }
+  }
+  if (
+    allowedSubcomponents.size === 0 &&
+    selectedContracts.some(component => component.fields.some(field => /content|array/i.test(field.type)))
+  ) {
+    contractBundle.subcomponents.forEach(component => allowedSubcomponents.add(component.type))
   }
 
   const selectedSubcomponents = new Set(
@@ -396,4 +411,151 @@ export async function buildDetectionPromptFromCatalog(
     components: componentSummary.components as DetectionPromptPayload['components'],
     pageSummary
   }
+}
+
+function formatFillContractComponent(component: SummariesResult['componentSummary']['components'][0]): string[] {
+  const lines: string[] = []
+  lines.push(`- ${component.type}: ${component.description || component.summary || 'No description provided'}`)
+  const properties = (component.properties ?? []).filter(property => property.name !== 'headingLevel')
+  if (properties.length > 0) {
+    lines.push(`  fields: ${properties.map(property => {
+      const required = property.required ? 'required' : 'optional'
+      const allowed = property.allowedTypes?.length ? ` allowedTypes=${property.allowedTypes.join('|')}` : ''
+      const description = property.description ? ` - ${property.description}` : ''
+      return `${property.name}:${property.type}:${required}${allowed}${description}`
+    }).join(', ')}`)
+  }
+  if (component.directives?.length) {
+    for (const directive of component.directives.slice(0, 14)) {
+      lines.push(`  directive: ${directive}`)
+    }
+  }
+  return lines
+}
+
+function buildMinimalFillContract(
+  componentSummary: SummariesResult['componentSummary'],
+  schemaHash: string,
+  contractHash: string
+): string {
+  const lines: string[] = [
+    'FILL COMPONENT CONTRACT',
+    `schemaHash: ${schemaHash}`,
+    `contractHash: ${contractHash}`,
+    `topLevelTypes: ${componentSummary.topLevelTypes.join(', ')}`,
+    'Rules:',
+    '- Emit only the requested planned top-level component types.',
+    '- For content[] fields, nested item type must be one of the field allowedTypes.',
+    '- Never place sub-component-only types directly in the returned section components array.',
+    '- Image fields use Image shape: { "src": { "mediaId": "detected:<id>", "mediaType": "image", "url": "https://..." }, "alt": "...", "originalUrl": "https://..." }.',
+    '- Never flatten mediaId/mediaType/url directly onto image; they belong under image.src.',
+    '- href/link fields use SmartLink shape, never a string: internal { "type": "internal", "pageId": "<stable-id>", "path": "/path" }, external { "type": "external", "url": "https://..." }, anchor { "type": "anchor", "href": "#id" }.',
+    '- For same-site or relative URLs beginning with "/", use internal SmartLink and always include pageId as the stable path slug without slashes. Example "/services/digital-strategy" -> { "type": "internal", "pageId": "services-digital-strategy", "path": "/services/digital-strategy" }.',
+    '- When a field is named link and contains link text, use { "text": "...", "href": <SmartLink> }; never emit link.url.',
+    '- CTA buttons use { "label": "...", "href": <SmartLink>, "variant": "primary|secondary|outline" }.',
+    '- Optional CTA/button fields such as secondaryButton must be omitted entirely unless the source shows a second real CTA with non-empty label and valid href.',
+    '- Never emit placeholder CTA/button values: no empty label, empty pageId, empty path, empty url, "#", or copied skeleton-only href.',
+    '- cta-simple requires primaryButton with a non-empty label and valid href. secondaryButton is optional; include it only for a second visible CTA.',
+    '- Numeric semantic fields must stay numeric. Example: headingLevel is 1, 2, 3, 4, 5, or 6, never "h1", "h2", "h3", "h4", "h5", or "h6".',
+    '- logo-cloud.logos[] items extend Image and must include id plus Image fields: { "id": "<stable-logo-id>", "src": { "mediaId": "detected:<id>", "mediaType": "image", "url": "https://..." }, "alt": "...", "originalUrl": "https://...", "href": <SmartLink optional>, "caption": "..." optional }.',
+    '',
+    'Top-level components:'
+  ]
+
+  for (const component of componentSummary.components) {
+    lines.push(...formatFillContractComponent(component))
+  }
+
+  if (componentSummary.subComponents.length > 0) {
+    lines.push('', 'Nested sub-components:')
+    for (const component of componentSummary.subComponents) {
+      lines.push(...formatFillContractComponent({
+        ...component,
+        category: 'subcomponent',
+        keywords: [],
+        patterns: [],
+        confidence: 1
+      }))
+    }
+  }
+
+  return lines.join('\n')
+}
+
+export async function buildFillPromptFromCatalog(
+  options: BuildFillPromptOptions = {}
+): Promise<DetectionPromptPayload> {
+  const { telemetry, pageUrl, candidateTypes, model = 'default', provider = 'default' } = options
+  const {
+    componentSummary: fullComponentSummary,
+    pageSummary,
+    schemaSummary: fullSchemaSummary,
+    contractBundle: fullContractBundle,
+    cacheKey
+  } = await resolveSummaries(telemetry)
+
+  const filtered = filterPromptInputs(
+    fullComponentSummary,
+    fullSchemaSummary,
+    fullContractBundle,
+    candidateTypes ? new Set(candidateTypes) : collectCandidateTypes(pageUrl, fullComponentSummary)
+  )
+  const { componentSummary, schemaSummary, contractBundle, selectedTypes } = filtered
+  const promptCacheKey = selectedTypes
+    ? `${cacheKey}|mode:fill|minimal|model:${model}|provider:${provider}|candidates:${Array.from(selectedTypes).sort().join(',')}`
+    : `${cacheKey}|mode:fill|minimal|model:${model}|provider:${provider}`
+  const cachedPrompt = promptCache.get(promptCacheKey)
+  const promptCacheHit = Boolean(cachedPrompt && Date.now() - cachedPrompt.timestamp < PROMPT_CACHE_TTL_MS)
+
+  if (promptCacheHit && cachedPrompt) {
+    telemetry?.recordPhase('prompt_build', 0, {
+      promptLength: cachedPrompt.payload.prompt.length,
+      pagePromptLength: 0,
+      componentCount: componentSummary.components.length,
+      templateCount: pageSummary.templates.length,
+      mode: 'fill',
+      minimalFillContract: true,
+      fromCache: true
+    })
+    return cachedPrompt.payload
+  }
+
+  const buildPrompt = async () => ({
+    prompt: buildMinimalFillContract(componentSummary, schemaSummary.schemaHash, contractBundle.hash),
+    pagePromptLength: 0
+  })
+
+  const promptResult = telemetry
+    ? await telemetry.timePhase('prompt_build', buildPrompt, result => ({
+        promptLength: result?.prompt.length ?? 0,
+        pagePromptLength: 0,
+        componentCount: componentSummary.components.length,
+        fullComponentCount: fullComponentSummary.components.length,
+        templateCount: pageSummary.templates.length,
+        schemaHash: schemaSummary.schemaHash,
+        contractHash: contractBundle.hash,
+        candidateTypes: selectedTypes ? Array.from(selectedTypes).sort() : undefined,
+        mode: 'fill',
+        minimalFillContract: true,
+        fromCache: false
+      }))
+    : await buildPrompt()
+
+  const payload = {
+    prompt: promptResult.prompt,
+    components: componentSummary.components as DetectionPromptPayload['components'],
+    pageSummary
+  }
+  promptCache.set(promptCacheKey, {
+    payload,
+    pagePromptLength: 0,
+    timestamp: Date.now()
+  })
+  while (promptCache.size > PROMPT_CACHE_MAX_ENTRIES) {
+    const oldestKey = promptCache.keys().next().value
+    if (!oldestKey) break
+    promptCache.delete(oldestKey)
+  }
+
+  return payload
 }

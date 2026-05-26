@@ -1,5 +1,5 @@
 import { buildDetectionPrompt } from '@/lib/studio/ai/component-catalog'
-import { buildDetectionPromptFromCatalog } from '../prompt-builder'
+import { buildDetectionPromptFromCatalog, buildFillPromptFromCatalog } from '../prompt-builder'
 import type { ComponentCatalogSummary } from '@/lib/studio/ai/component-catalog'
 import type { PromptSchemaSummary } from '@/lib/studio/ai/prompt-schema-builder'
 import type { PromptContractBundle } from '@/lib/studio/ai/prompt-contract-builder'
@@ -406,5 +406,25 @@ describe('catalog detection prompt candidate filtering', () => {
     const ourWorkTypes = new Set(ourWork.components.map(component => component.type))
     expect(ourWorkTypes).toContain('card-grid')
     expect(ourWorkTypes).not.toContain('content-feed')
+  })
+
+  it('builds a minimal fill contract for only selected batch component types', async () => {
+    const fill = await buildFillPromptFromCatalog({
+      pageUrl: 'https://example.com/',
+      candidateTypes: new Set(['card-grid', 'text-block'])
+    })
+
+    expect(fill.prompt).toContain('FILL COMPONENT CONTRACT')
+    expect(fill.prompt).toContain('card-grid')
+    expect(fill.prompt).toContain('text-block')
+    expect(fill.prompt).toContain('cards')
+    expect(fill.prompt).toContain('logo-cloud.logos[] items extend Image and must include id')
+    expect(fill.prompt).toContain('Optional CTA/button fields such as secondaryButton must be omitted entirely')
+    expect(fill.prompt).toContain('Never emit placeholder CTA/button values')
+    expect(fill.prompt).toContain('Nested sub-components')
+    expect(fill.prompt).not.toContain('headingLevel:')
+    expect(fill.prompt).not.toContain('FULL PAGE COVERAGE')
+    expect(fill.prompt).not.toContain('REQUIRED SECTION RETURN FORMAT')
+    expect(new Set(fill.components.map(component => component.type))).toEqual(new Set(['card-grid', 'text-block']))
   })
 })

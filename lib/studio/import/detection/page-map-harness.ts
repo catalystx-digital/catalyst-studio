@@ -69,6 +69,10 @@ export interface FillBatch {
   plannedComponents: PlannedComponent[]
   sourcePackets: SourcePacket[]
   candidateTypes: string[]
+  splitReason: FillBatchSplitReason
+  originalPacketBytes: number
+  scopedPacketBytes: number
+  sourcePacketCount: number
   promptTokensEstimate: number
 }
 
@@ -77,6 +81,8 @@ export interface FillBatchResult {
   artifacts: SectionExtractionArtifact[]
   pageMetadata?: PageMetadata
 }
+
+export type FillBatchSplitReason = 'section_limit' | 'component_limit' | 'token_limit' | 'end'
 
 const EMPTY_REASONS = new Set<EmptySectionReason>(['duplicate', 'decorative', 'unsupported', 'no_visible_content'])
 const PRESERVED_ATTRS = new Set([
@@ -215,6 +221,104 @@ function collectEvidenceRefs(section: PageMapSection): Set<string> {
   return refs
 }
 
+interface PacketIndexEntry {
+  packet: SourcePacket
+  parent?: PacketIndexEntry
+  siblings: SourcePacket[]
+  index: number
+}
+
+function indexPackets(packets: SourcePacket[]): Map<string, PacketIndexEntry> {
+  const index = new Map<string, PacketIndexEntry>()
+  const visit = (packet: SourcePacket, siblings: SourcePacket[], packetIndex: number, parent?: PacketIndexEntry): void => {
+    const entry: PacketIndexEntry = { packet, siblings, index: packetIndex, parent }
+    index.set(packet.id, entry)
+    if (packet.pathId) {
+      index.set(packet.pathId, entry)
+    }
+    packet.children?.forEach((child, childIndex) => visit(child, packet.children ?? [], childIndex, entry))
+  }
+  packets.forEach((packet, packetIndex) => visit(packet, packets, packetIndex))
+  return index
+}
+
+function cloneScopedPacket(packet: SourcePacket, selected: Set<SourcePacket>, selectedSubtrees: Set<SourcePacket>, forceSubtree: boolean): SourcePacket | null {
+  const children = packet.children
+    ?.map(child => cloneScopedPacket(child, selected, selectedSubtrees, forceSubtree || selectedSubtrees.has(packet)))
+    .filter((child): child is SourcePacket => Boolean(child))
+
+  if (!forceSubtree && !selected.has(packet) && (!children || children.length === 0)) {
+    return null
+  }
+
+  return {
+    ...packet,
+    ...(children && children.length > 0 ? { children } : { children: undefined })
+  }
+}
+
+function isCollectionPlannedComponent(component: string): boolean {
+  return /(?:grid|list|gallery|feed|cards?|posts?|projects?|resources?|testimonials?|reviews?|logos?)/i.test(component)
+}
+
+export function buildScopedSourcePackets(input: {
+  section: PageMapSection
+  plannedComponents: PlannedComponent[]
+  siblingWindow: number
+}): SourcePacket[] {
+  const packetIndex = indexPackets(input.section.packets)
+  const selected = new Set<SourcePacket>()
+  const selectedSubtrees = new Set<SourcePacket>()
+  const markAncestors = (entry: PacketIndexEntry, siblingWindow: number): void => {
+    let current: PacketIndexEntry | undefined = entry
+    while (current) {
+      selected.add(current.packet)
+      const start = Math.max(0, current.index - siblingWindow)
+      const end = Math.min(current.siblings.length - 1, current.index + siblingWindow)
+      for (let index = start; index <= end; index++) {
+        const sibling = current.siblings[index]
+        if (sibling === current.packet) {
+          selected.add(sibling)
+        } else {
+          markSubtree(sibling)
+        }
+      }
+      current = current.parent
+    }
+  }
+  const markSubtree = (packet: SourcePacket): void => {
+    selected.add(packet)
+    selectedSubtrees.add(packet)
+    packet.children?.forEach(markSubtree)
+  }
+
+  for (const plannedComponent of input.plannedComponents) {
+    let matchedEvidenceCount = 0
+    for (const ref of plannedComponent.evidenceRefs) {
+      const entry = packetIndex.get(ref)
+      if (!entry) continue
+      matchedEvidenceCount++
+      const siblingWindow = Math.max(0, Math.floor(input.siblingWindow))
+      markAncestors(entry, siblingWindow)
+      markSubtree(entry.packet)
+      if (isCollectionPlannedComponent(plannedComponent.component) && entry.parent) {
+        entry.siblings.forEach(markSubtree)
+      }
+    }
+    if (matchedEvidenceCount === 0) {
+      throw new Error(`FillBatch plannedComponentId "${plannedComponent.plannedComponentId}" has no usable scoped evidence`)
+    }
+  }
+
+  const scopedPackets = input.section.packets
+    .map(packet => cloneScopedPacket(packet, selected, selectedSubtrees, false))
+    .filter((packet): packet is SourcePacket => Boolean(packet))
+  if (scopedPackets.length === 0 && input.plannedComponents.length > 0) {
+    throw new Error(`FillBatch section "${input.section.sectionKey}" has no usable scoped source packets`)
+  }
+  return scopedPackets
+}
+
 export function parseComponentPlanResponse(input: {
   rawResponse: string
   pageMap: PageMap
@@ -333,6 +437,7 @@ export function buildFillBatches(input: {
   maxPromptTokens: number
   maxSections: number
   maxComponents: number
+  evidenceSiblingWindow: number
   estimateTokens: (value: unknown) => number
 }): FillBatch[] {
   const sectionsByKey = new Map(input.pageMap.sections.map(section => [section.sectionKey, section]))
@@ -340,21 +445,30 @@ export function buildFillBatches(input: {
   let currentSections: string[] = []
   let currentPlanned: PlannedComponent[] = []
   let currentPackets: SourcePacket[] = []
+  let currentOriginalPacketBytes = 0
+  const maxSections = Math.max(1, input.maxSections)
+  const maxComponents = Math.max(1, input.maxComponents)
 
-  const flush = () => {
+  const flush = (reason: FillBatchSplitReason) => {
     if (currentSections.length === 0) return
     const candidateTypes = Array.from(new Set(currentPlanned.map(component => component.component))).sort()
+    const scopedPacketBytes = byteLength(currentPackets)
     batches.push({
       groupKey: `fill:${batches.length}`,
       sectionKeys: currentSections,
       plannedComponents: currentPlanned,
       sourcePackets: currentPackets,
       candidateTypes,
+      splitReason: reason,
+      originalPacketBytes: currentOriginalPacketBytes,
+      scopedPacketBytes,
+      sourcePacketCount: currentPackets.length,
       promptTokensEstimate: input.estimateTokens({ sections: currentSections, plannedComponents: currentPlanned, sourcePackets: currentPackets })
     })
     currentSections = []
     currentPlanned = []
     currentPackets = []
+    currentOriginalPacketBytes = 0
   }
 
   for (const plannedSection of input.plan.sections) {
@@ -362,26 +476,43 @@ export function buildFillBatches(input: {
     if (!section || section.role === 'header' || section.role === 'footer' || plannedSection.plannedComponents.length === 0) {
       continue
     }
-    const nextPackets = section.packets
+    const nextPackets = buildScopedSourcePackets({
+      section,
+      plannedComponents: plannedSection.plannedComponents,
+      siblingWindow: input.evidenceSiblingWindow
+    })
+    const nextTokens = input.estimateTokens({
+      sections: [section.sectionKey],
+      plannedComponents: plannedSection.plannedComponents,
+      sourcePackets: nextPackets
+    })
+    if (plannedSection.plannedComponents.length > maxComponents) {
+      throw new Error(`FillBatch section "${section.sectionKey}" has ${plannedSection.plannedComponents.length} planned components, exceeding maxComponents ${maxComponents}`)
+    }
+    if (nextTokens > input.maxPromptTokens) {
+      throw new Error(`FillBatch section "${section.sectionKey}" estimated ${nextTokens} prompt tokens, exceeding maxPromptTokens ${input.maxPromptTokens}`)
+    }
     const projectedSections = [...currentSections, section.sectionKey]
     const projectedPlanned = [...currentPlanned, ...plannedSection.plannedComponents]
     const projectedPackets = [...currentPackets, ...nextPackets]
     const projectedTokens = input.estimateTokens({ sections: projectedSections, plannedComponents: projectedPlanned, sourcePackets: projectedPackets })
-    if (
-      currentSections.length > 0 &&
-      (
-        projectedSections.length > Math.max(1, input.maxSections) ||
-        projectedPlanned.length > Math.max(1, input.maxComponents) ||
-        projectedTokens > input.maxPromptTokens
-      )
-    ) {
-      flush()
+    const splitReason =
+      projectedSections.length > maxSections
+        ? 'section_limit'
+        : projectedPlanned.length > maxComponents
+          ? 'component_limit'
+          : projectedTokens > input.maxPromptTokens
+            ? 'token_limit'
+            : null
+    if (currentSections.length > 0 && splitReason) {
+      flush(splitReason)
     }
     currentSections.push(section.sectionKey)
     currentPlanned.push(...plannedSection.plannedComponents)
     currentPackets.push(...nextPackets)
+    currentOriginalPacketBytes += byteLength(section.packets)
   }
-  flush()
+  flush('end')
   return batches
 }
 
@@ -414,6 +545,7 @@ export function parseFillBatchResponse(input: {
     plannedBySection.set(plannedSection.sectionKey, plannedSection.plannedComponents.filter(component => plannedById.has(component.plannedComponentId)))
   }
   const seenIds = new Set<string>()
+  const seenSectionKeys = new Set<string>()
   const componentsBySection = new Map<string, Array<{ component: unknown; confidence: unknown; content: unknown }>>()
   const pageMapSectionByKey = new Map(input.pageMap.sections.map(section => [section.sectionKey, section]))
 
@@ -428,6 +560,10 @@ export function parseFillBatchResponse(input: {
     if (!expectedSectionKeys.has(section.sectionKey)) {
       throw new Error(`FillBatch section "${section.sectionKey}" is not planned for this batch`)
     }
+    if (seenSectionKeys.has(section.sectionKey)) {
+      throw new Error(`FillBatch section "${section.sectionKey}" is duplicated`)
+    }
+    seenSectionKeys.add(section.sectionKey)
     if (!Array.isArray(section.components)) {
       throw new Error(`FillBatch section "${section.sectionKey}" components must be an array`)
     }
@@ -436,16 +572,11 @@ export function parseFillBatchResponse(input: {
         throw new Error(`FillBatch ${section.sectionKey}.components[${componentIndex}] must be an object`)
       }
       const component = rawComponent as Record<string, unknown>
-      const sectionPlanned = plannedBySection.get(section.sectionKey) ?? []
-      const positionPlanned = sectionPlanned[componentIndex]
       const plannedComponentId = typeof component.plannedComponentId === 'string' && component.plannedComponentId
         ? component.plannedComponentId
-        : positionPlanned?.plannedComponentId
+        : undefined
       if (!plannedComponentId || !plannedById.has(plannedComponentId)) {
         throw new Error(`FillBatch ${section.sectionKey}.components[${componentIndex}].plannedComponentId is not planned`)
-      }
-      if (component.plannedComponentId && component.plannedComponentId !== plannedComponentId) {
-        throw new Error(`FillBatch ${section.sectionKey}.components[${componentIndex}].plannedComponentId does not match output skeleton order`)
       }
       if (seenIds.has(plannedComponentId)) {
         throw new Error(`FillBatch plannedComponentId "${plannedComponentId}" is duplicated`)
@@ -486,7 +617,12 @@ export function parseFillBatchResponse(input: {
     })
     const invalidComponents = parsed.invalidComponents ?? []
     if (invalidComponents.length > 0) {
-      throw new Error(`FillBatch section "${sectionKey}" produced ${invalidComponents.length} invalid planned component${invalidComponents.length === 1 ? '' : 's'}`)
+      const reasons = invalidComponents
+        .slice(0, 5)
+        .map(component => `${component.type}:${component.reason}`)
+        .join('; ')
+      const remainder = invalidComponents.length > 5 ? `; ... ${invalidComponents.length - 5} more` : ''
+      throw new Error(`FillBatch section "${sectionKey}" produced ${invalidComponents.length} invalid planned component${invalidComponents.length === 1 ? '' : 's'}: ${reasons}${remainder}`)
     }
     const pageMapSection = pageMapSectionByKey.get(sectionKey)
     artifacts.push({

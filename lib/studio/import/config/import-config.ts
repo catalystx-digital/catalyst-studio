@@ -381,10 +381,16 @@ export const DetectionConfig = {
   fillBatchMaxPromptTokens: parseEnvInt('IMPORT_FILL_BATCH_MAX_PROMPT_TOKENS', 45000),
 
   /** Maximum original source sections in a single page-map fill batch */
-  fillBatchMaxSections: parseEnvInt('IMPORT_FILL_BATCH_MAX_SECTIONS', 4),
+  fillBatchMaxSections: parseEnvInt('IMPORT_FILL_BATCH_MAX_SECTIONS', 1),
 
   /** Maximum planned components in a single page-map fill batch */
   fillBatchMaxComponents: parseEnvInt('IMPORT_FILL_BATCH_MAX_COMPONENTS', 6),
+
+  /** Maximum page-map fill batches to run concurrently */
+  fillBatchConcurrency: parseEnvInt('IMPORT_FILL_BATCH_CONCURRENCY', 1),
+
+  /** Number of sibling packets to include before/after referenced fill evidence */
+  fillEvidenceSiblingWindow: parseEnvInt('IMPORT_FILL_EVIDENCE_SIBLING_WINDOW', 1),
 
   /** Schema/prompt versions for checkpoint invalidation and diagnostics */
   pageMapVersion: parseEnvString('IMPORT_PAGE_MAP_VERSION', 'page-map-v1'),

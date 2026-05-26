@@ -327,6 +327,7 @@ describe('DetectionService (web-based)', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(DetectionConfig as any).detectionHarness = 'section'
+    ;(DetectionConfig as any).fillBatchConcurrency = 1
     mockWebTools.fetchOutline.mockResolvedValue(mockOutline)
     mockWebTools.getLastFetchOutline.mockReturnValue(mockOutline)
     mockWebTools.getSection.mockResolvedValue({
@@ -588,6 +589,160 @@ describe('DetectionService (web-based)', () => {
         expect.objectContaining({ phase: 'component_plan' }),
         expect.objectContaining({ phase: 'fill_batch' })
       ]))
+    })
+
+    it('sums page-map fill repair token usage and records fill telemetry metadata', async () => {
+      ;(DetectionConfig as any).detectionHarness = 'page-map'
+      const fillMetadata: Record<string, unknown>[] = []
+      performanceMonitorMocks.endTimer.mockImplementation((operation: string, metadata?: Record<string, unknown>) => {
+        if (operation === 'web.detect.fill_batch' && metadata) {
+          fillMetadata.push(metadata)
+        }
+        return 12
+      })
+      mockOpenAI.chat.completions.create = jest.fn()
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    plannedComponents: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'hero-with-image',
+                        confidence: 0.9,
+                        evidenceRefs: ['s0#1']
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 100, prompt_tokens: 80, completion_tokens: 20 }
+        })
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    components: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'card-grid',
+                        confidence: 0.9,
+                        content: { cards: [] }
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 120, prompt_tokens: 90, completion_tokens: 30 }
+        })
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    components: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'hero-with-image',
+                        confidence: 0.9,
+                        content: { heading: 'Welcome to Our Site' }
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 130, prompt_tokens: 100, completion_tokens: 30 }
+        })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components).toHaveLength(1)
+      expect(result.tokenUsage).toBe(350)
+      expect(result.promptTokens).toBe(270)
+      expect(result.completionTokens).toBe(80)
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(3)
+      expect(fillMetadata).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          groupKey: 'fill:0',
+          requestCount: 2,
+          repairCount: 1,
+          totalTokens: 250,
+          promptTokens: 190,
+          completionTokens: 60,
+          fillBatchConcurrency: 1,
+          candidateTypeCount: 1
+        })
+      ]))
+    })
+
+    it('reports page-map fill failures with the failed batch key', async () => {
+      ;(DetectionConfig as any).detectionHarness = 'page-map'
+      mockOpenAI.chat.completions.create = jest.fn()
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    plannedComponents: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'hero-with-image',
+                        confidence: 0.9,
+                        evidenceRefs: ['s0#1']
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 100, prompt_tokens: 80, completion_tokens: 20 }
+        })
+        .mockResolvedValue({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    sectionKey: 'main:0-99',
+                    components: [
+                      {
+                        plannedComponentId: 'main:0-99:0',
+                        component: 'card-grid',
+                        confidence: 0.9,
+                        content: { cards: [] }
+                      }
+                    ]
+                  }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 120, prompt_tokens: 90, completion_tokens: 30 }
+        })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Page-map fill failed for fill:0')
     })
 
     it('attaches provider filter when IMPORT_MODEL_ALLOWED_PROVIDER is set', async () => {

@@ -16,7 +16,7 @@ import type {
 } from 'openai/resources/chat/completions'
 import { getWebFetchTools, type HeadMeta, type ResourcesSummary } from './services/web-tools'
 import { isAssetUrl } from './services/sitemap-discovery.service'
-import { buildDetectionPromptFromCatalog } from './detection/prompt-builder'
+import { buildDetectionPromptFromCatalog, buildFillPromptFromCatalog } from './detection/prompt-builder'
 import { filterPageContentCandidateTypes } from './detection/candidate-types'
 import { parseDetectionResponse, parseSectionDetectionResponse } from './detection/response-parser'
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
@@ -76,6 +76,24 @@ async function mapWithConcurrency<T, R>(
   })
   await Promise.all(runners)
   return results
+}
+
+type SettledMapResult<T, R> =
+  | { ok: true; item: T; result: R }
+  | { ok: false; item: T; error: unknown }
+
+async function mapSettledWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>
+): Promise<Array<SettledMapResult<T, R>>> {
+  return mapWithConcurrency(items, concurrency, async item => {
+    try {
+      return { ok: true, item, result: await worker(item) } as const
+    } catch (error) {
+      return { ok: false, item, error } as const
+    }
+  })
 }
 
 let registryInitialization: Promise<void> | null = null
@@ -146,6 +164,7 @@ export interface DetectionFailureDebug {
   skippedSectionsDueToBudget?: string[]
   sectionKey?: string
   sectionOrder?: number
+  groupKey?: string
   sectionApproxBytes?: number
   sectionSummaryEnabled?: boolean
   sectionOriginalBytes?: number
@@ -1488,7 +1507,11 @@ export class DetectionService {
             let response = await runJsonRequest(planMessages, {
               stage: 'component_plan',
               sectionCount: pageMap.sections.length,
-              promptTokensEstimate: planPromptTokensEstimate
+              promptTokensEstimate: planPromptTokensEstimate,
+              candidateTypeCount: planCandidateTypes.size,
+              candidateTypes: Array.from(planCandidateTypes).sort(),
+              pageMapBytes: JSON.stringify(planPayload).length,
+              fillBatchConcurrency: DetectionConfig.fillBatchConcurrency
             })
             planRequestCount++
             planUsage = response.usage ? { ...response.usage } : {}
@@ -1518,7 +1541,11 @@ export class DetectionService {
                 stage: 'component_plan',
                 repair: true,
                 sectionCount: pageMap.sections.length,
-                promptTokensEstimate: estimateMessageTokens(planMessages)
+                promptTokensEstimate: estimateMessageTokens(planMessages),
+                candidateTypeCount: planCandidateTypes.size,
+                candidateTypes: Array.from(planCandidateTypes).sort(),
+                pageMapBytes: JSON.stringify(planPayload).length,
+                fillBatchConcurrency: DetectionConfig.fillBatchConcurrency
               })
               planRequestCount++
               planUsage = response.usage ? { ...response.usage } : {}
@@ -1530,6 +1557,9 @@ export class DetectionService {
             plannedSectionCount: plan?.sections.length ?? 0,
             plannedComponentCount: plan?.sections.reduce((sum, section) => sum + section.plannedComponents.length, 0) ?? 0,
             promptTokensEstimate: planPromptTokensEstimate,
+            candidateTypeCount: planCandidateTypes.size,
+            pageMapBytes: JSON.stringify(planPayload).length,
+            fillBatchConcurrency: DetectionConfig.fillBatchConcurrency,
             planSchemaVersion: DetectionConfig.planSchemaVersion
           }))
           addTokenUsage(usageTotals, planUsage)
@@ -1582,14 +1612,15 @@ export class DetectionService {
             maxPromptTokens: DetectionConfig.fillBatchMaxPromptTokens,
             maxSections: DetectionConfig.fillBatchMaxSections,
             maxComponents: DetectionConfig.fillBatchMaxComponents,
+            evidenceSiblingWindow: DetectionConfig.fillEvidenceSiblingWindow,
             estimateTokens: value => estimateTextTokens(JSON.stringify(value))
           })
-          for (const batch of batches) {
-            const { prompt: catalogPrompt, components: fillComponents } = await buildDetectionPromptFromCatalog({
+          const fillBatchOutcomes = await mapSettledWithConcurrency(batches, DetectionConfig.fillBatchConcurrency, async batch => {
+            const queueStartedAt = performance.now()
+            const { prompt: catalogPrompt, components: fillComponents } = await buildFillPromptFromCatalog({
               telemetry,
               pageUrl: url,
               candidateTypes: new Set(batch.candidateTypes),
-              mode: DetectionConfig.sectionPromptMode,
               model: endpointModel,
               provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
             })
@@ -1628,13 +1659,18 @@ export class DetectionService {
                   'Return only valid JSON with a "sections" array.',
                   'Return one section object for each sourceSectionKeys value. sectionKey must be one of sourceSectionKeys, never groupKey.',
                   'Use outputSkeleton as the exact output shape. Copy every sectionKey, plannedComponentId, and component from outputSkeleton.',
-                  'If plannedComponentId cannot be preserved by the model, keep components in the exact outputSkeleton order so deterministic assembly can attach IDs.',
                   'The componentContract list is authoritative. For each plannedComponentId, copy the exact component value from componentContract.',
                   'Use only the provided plannedComponentId values. Do not add, remove, rename, or change component types.',
                   'Extract content only from the provided sourcePackets. Do not invent copy, URLs, images, dates, categories, or placeholder content.',
                   'Each output component must include plannedComponentId, component, confidence, and content.',
                   'Every MediaReference image src must include mediaId, mediaType: "image", and url.',
-                  'card-grid.cards[] links must use href, never link or url.'
+                  'All same-site or relative SmartLink values must include type: "internal", pageId, and path.',
+                  'Never emit placeholder CTA/button values. Omit optional CTA/button fields when label or href is missing.',
+                  'cta-simple secondaryButton is optional. Include it only when the source shows a second visible CTA with non-empty label and valid href.',
+                  'card-grid.cards[] links must use href SmartLink, never link or url.',
+                  'Feature item link objects must use { text, href: SmartLink }, never link.url.',
+                  'logo-cloud.logos[] items must include id plus Image fields src, alt, and originalUrl when available.',
+                  'headingLevel must be a number 1, 2, 3, 4, 5, or 6; never return strings like "h2".'
                 ].join('\n')
               },
               {
@@ -1649,6 +1685,8 @@ export class DetectionService {
             const fillPromptTokensEstimate = estimateMessageTokens(fillMessages)
             let fillRequestCount = 0
             let fillUsage: TokenUsage = {}
+            let fillRepairCount = 0
+            const fillPayloadBytes = JSON.stringify(fillPayload).length
             const fillResult = await telemetry.timePhase('fill_batch', async () => {
               const parseFill = (response: ChatCompletion, rawResult: string, requestCountForError: number) => {
                 const completionStatus = detectIncompleteJson(rawResult)
@@ -1666,6 +1704,8 @@ export class DetectionService {
                       validationPath: completionStatus.reason,
                       requestCount: requestCountForError,
                       promptTokensEstimate: fillPromptTokensEstimate,
+                      groupKey: batch.groupKey,
+                      sectionKey: batch.sectionKeys.join(','),
                       effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - fillPromptTokensEstimate)
                     }
                   )
@@ -1691,6 +1731,8 @@ export class DetectionService {
                     validationPath: extractValidationPath(error instanceof Error ? error.message : String(error)),
                     requestCount: requestCountForError,
                     promptTokensEstimate: fillPromptTokensEstimate,
+                    groupKey: batch.groupKey,
+                    sectionKey: batch.sectionKeys.join(','),
                     effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - fillPromptTokensEstimate)
                   })
                 }
@@ -1701,10 +1743,19 @@ export class DetectionService {
                 groupKey: batch.groupKey,
                 sourceSectionKeys: batch.sectionKeys,
                 plannedComponentCount: batch.plannedComponents.length,
-                promptTokensEstimate: fillPromptTokensEstimate
+                promptTokensEstimate: fillPromptTokensEstimate,
+                sourcePacketCount: batch.sourcePacketCount,
+                originalPacketBytes: batch.originalPacketBytes,
+                scopedPacketBytes: batch.scopedPacketBytes,
+                contractPromptBytes: catalogPrompt.length,
+                fillPayloadBytes,
+                splitReason: batch.splitReason,
+                candidateTypeCount: batch.candidateTypes.length,
+                candidateTypes: batch.candidateTypes,
+                fillBatchConcurrency: DetectionConfig.fillBatchConcurrency
               })
               fillRequestCount++
-              fillUsage = response.usage ? { ...response.usage } : {}
+              addTokenUsage(fillUsage, response.usage ? { ...response.usage } : {})
               let rawResult = response.choices[0]?.message?.content || ''
               try {
                 return parseFill(response, rawResult, fillRequestCount)
@@ -1733,10 +1784,20 @@ export class DetectionService {
                   repair: true,
                   sourceSectionKeys: batch.sectionKeys,
                   plannedComponentCount: batch.plannedComponents.length,
-                  promptTokensEstimate: estimateMessageTokens(fillMessages)
+                  promptTokensEstimate: estimateMessageTokens(fillMessages),
+                  sourcePacketCount: batch.sourcePacketCount,
+                  originalPacketBytes: batch.originalPacketBytes,
+                  scopedPacketBytes: batch.scopedPacketBytes,
+                  contractPromptBytes: catalogPrompt.length,
+                  fillPayloadBytes,
+                  splitReason: batch.splitReason,
+                  candidateTypeCount: batch.candidateTypes.length,
+                  candidateTypes: batch.candidateTypes,
+                  fillBatchConcurrency: DetectionConfig.fillBatchConcurrency
                 })
                 fillRequestCount++
-                fillUsage = response.usage ? { ...response.usage } : {}
+                fillRepairCount++
+                addTokenUsage(fillUsage, response.usage ? { ...response.usage } : {})
                 rawResult = response.choices[0]?.message?.content || ''
                 return parseFill(response, rawResult, fillRequestCount)
               }
@@ -1744,11 +1805,32 @@ export class DetectionService {
               groupKey: batch.groupKey,
               sourceSectionKeys: batch.sectionKeys,
               requestCount: fillRequestCount,
+              repairCount: fillRepairCount,
               plannedComponentCount: batch.plannedComponents.length,
               componentCount: result?.artifacts.reduce((sum, artifact) => sum + artifact.components.length, 0) ?? 0,
               promptTokensEstimate: fillPromptTokensEstimate,
+              sourcePacketCount: batch.sourcePacketCount,
+              originalPacketBytes: batch.originalPacketBytes,
+              scopedPacketBytes: batch.scopedPacketBytes,
+              contractPromptBytes: catalogPrompt.length,
+              fillPayloadBytes,
+              splitReason: batch.splitReason,
+              candidateTypeCount: batch.candidateTypes.length,
+              candidateTypes: batch.candidateTypes,
+              fillBatchConcurrency: DetectionConfig.fillBatchConcurrency,
+              totalTokens: fillUsage.total_tokens ?? 0,
+              promptTokens: fillUsage.prompt_tokens ?? 0,
+              completionTokens: fillUsage.completion_tokens ?? 0,
+              totalCost: fillUsage.total_cost ?? 0,
+              batchWorkerElapsedMs: Math.round(performance.now() - queueStartedAt),
               fillSchemaVersion: DetectionConfig.fillSchemaVersion
             }))
+            return { batch, fillResult, fillUsage, fillRequestCount, fillPromptTokensEstimate, fillRepairCount }
+          })
+
+          for (const outcome of fillBatchOutcomes) {
+            if (!outcome.ok) continue
+            const { batch, fillResult, fillUsage, fillRequestCount, fillPromptTokensEstimate } = outcome.result
             addTokenUsage(usageTotals, fillUsage)
             requestCount += fillRequestCount
             for (const artifact of fillResult.artifacts) {
@@ -1822,6 +1904,28 @@ export class DetectionService {
                 console.warn('[Checkpoint] Failed to save fill-batch artifact:', error)
               })
             }
+          }
+
+          const failedFillBatches = fillBatchOutcomes.filter((outcome): outcome is Extract<typeof outcome, { ok: false }> => !outcome.ok)
+          if (failedFillBatches.length > 0) {
+            const firstFailure = failedFillBatches[0]
+            const message = firstFailure.error instanceof Error ? firstFailure.error.message : String(firstFailure.error)
+            const debug = firstFailure.error instanceof DetectionFailureError
+              ? firstFailure.error.debug
+              : {
+                  model: endpointModel,
+                  stage: 'validation' as const
+                }
+            throw new DetectionFailureError(
+              `Page-map fill failed for ${firstFailure.item.groupKey} (${firstFailure.item.sectionKeys.join(', ')}): ${message}${failedFillBatches.length > 1 ? `; ${failedFillBatches.length - 1} additional fill batch failure(s)` : ''}`,
+              {
+                ...debug,
+                model: debug.model ?? endpointModel,
+                groupKey: firstFailure.item.groupKey,
+                sectionKey: firstFailure.item.sectionKeys.join(','),
+                promptTokensEstimate: debug.promptTokensEstimate ?? firstFailure.item.promptTokensEstimate
+              }
+            )
           }
 
           return results.sort((a, b) => a.artifact.sectionOrder - b.artifact.sectionOrder)
