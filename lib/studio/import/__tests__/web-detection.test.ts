@@ -6,6 +6,7 @@
 import { DetectionService } from '../web-detection'
 import { DetectionAPI } from '@/lib/studio/components/cms/_import/detection-api'
 import { ModelConfig } from '../config'
+import { GlobalSectionArtifactCache } from '../detection/global-section-cache'
 import OpenAI from 'openai'
 import type { ComponentPattern } from '@/lib/studio/components/cms/_import/types'
 
@@ -395,6 +396,49 @@ describe('DetectionService (web-based)', () => {
       summaryMock.mockClear()
       await service.detectComponentsFromUrl(mockPageUrl)
       expect(summaryMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('reuses validated same-origin global header sections across pages', async () => {
+      const globalSectionCache = new GlobalSectionArtifactCache()
+      const headerOutline = {
+        ...mockOutline,
+        sections: [{ key: 'header:0-10', approxBytes: 300, hash: 'header-hash', nodeCount: 2 }]
+      }
+      mockWebTools.fetchOutline
+        .mockResolvedValueOnce({ ...headerOutline, finalUrl: 'https://example.com/' })
+        .mockResolvedValueOnce({ ...headerOutline, finalUrl: 'https://example.com/about' })
+      mockWebTools.getSection.mockResolvedValue({
+        handle: 'handle-1',
+        key: 'header:0-10',
+        slice: [
+          { tag: 'nav', className: 'site-nav active', text: 'Home About' },
+          { tag: 'a', attrs: { href: '/', 'aria-current': 'page' }, text: 'Home' },
+          { tag: 'a', attrs: { href: '/about' }, text: 'About' }
+        ],
+        stats: { nodeCount: 3, approxBytes: 300 }
+      })
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              sectionKey: 'header:0-10',
+              components: [
+                { component: 'navbar', confidence: 0.95, content: { menuItems: [{ label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } }] } }
+              ]
+            })
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { total_tokens: 800, prompt_tokens: 500, completion_tokens: 300, total_cost: 0.01 }
+      })
+
+      const first = await service.detectComponentsFromUrl('https://example.com/', { globalSectionCache })
+      const second = await service.detectComponentsFromUrl('https://example.com/about', { globalSectionCache })
+
+      expect(first.components).toHaveLength(1)
+      expect(second.components).toHaveLength(1)
+      expect(second.components[0]?.type).toBe('navbar')
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
     })
 
     it('attaches provider filter when IMPORT_MODEL_ALLOWED_PROVIDER is set', async () => {

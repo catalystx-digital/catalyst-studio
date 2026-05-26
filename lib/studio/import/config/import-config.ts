@@ -360,7 +360,13 @@ export const DetectionConfig = {
   canonicalSeedingChunkSize: 50,
 
   /** Component types to skip during canonical seeding */
-  skippedCanonicalTypes: new Set(['page', 'page-container', 'generic'])
+  skippedCanonicalTypes: new Set(['page', 'page-container', 'generic']),
+
+  /** Enable same-import reuse of validated global header/footer section artifacts */
+  globalSectionReuse: parseEnvBool('IMPORT_GLOBAL_SECTION_REUSE', true),
+
+  /** Reserved for Phase 2; keep section extraction serial by default */
+  sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 1)
 } as const
 
 // =============================================================================

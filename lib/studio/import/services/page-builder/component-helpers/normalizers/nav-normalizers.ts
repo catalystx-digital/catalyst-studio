@@ -68,6 +68,9 @@ const STRONG_LOGO_IMAGE_SHAPE_KEYS = new Set([
   'logoMedia',
   'brandLogo'
 ])
+const MENU_ITEM_COLLECTION_KEYS = new Set(['menuItems', 'utilityNav'])
+const MENU_ITEM_CHILD_KEYS = new Set(['children'])
+const MENU_ITEM_IMAGE_KEYS = new Set(['image', 'imageUrl', 'imageSrc', 'thumbnail', 'media', 'picture', 'photo'])
 
 function isLogoImageShaped(value: unknown): boolean {
   if (typeof value === 'string') {
@@ -131,6 +134,116 @@ function extractStructuredLogoImage(
   }
 }
 
+function hasMenuItemSubstance(item: Record<string, any>): boolean {
+  return Boolean(
+    extractLinkUrl(item.href) ||
+    normalizeString(item.description) ||
+    normalizeString(item.icon) ||
+    (Array.isArray(item.children) && item.children.length > 0) ||
+    (Array.isArray(item.groups) && item.groups.length > 0)
+  )
+}
+
+function imagePayloadHasSemanticHint(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return !/^https?:\/\//i.test(value.trim()) && value.trim().length > 0
+  }
+  if (!isRecord(value)) {
+    return false
+  }
+  return Boolean(
+    normalizeString(value.icon) ??
+    normalizeString(value.iconName) ??
+    normalizeString(value.name) ??
+    normalizeString(value.title) ??
+    normalizeString(value.alt) ??
+    normalizeString(value.label)
+  )
+}
+
+function normalizeMenuItemArray(
+  value: unknown,
+  warnings: LocalNormalizationWarning[],
+  fieldPath: string
+): unknown {
+  if (!Array.isArray(value)) {
+    return value
+  }
+  return value.map((item, index) => normalizeMenuItem(item, warnings, `${fieldPath}.${index}`))
+}
+
+function normalizeMenuItemGroups(
+  value: unknown,
+  warnings: LocalNormalizationWarning[],
+  fieldPath: string
+): unknown {
+  if (!Array.isArray(value)) {
+    return value
+  }
+  return value.map((group, index) => {
+    if (!isRecord(group)) {
+      return group
+    }
+    const normalizedGroup: Record<string, any> = { ...group }
+    if (Array.isArray(normalizedGroup.items)) {
+      normalizedGroup.items = normalizeMenuItemArray(normalizedGroup.items, warnings, `${fieldPath}.${index}.items`)
+    }
+    return normalizedGroup
+  })
+}
+
+function normalizeMenuItem(
+  value: unknown,
+  warnings: LocalNormalizationWarning[],
+  fieldPath: string
+): unknown {
+  if (!isRecord(value)) {
+    return value
+  }
+
+  const item: Record<string, any> = { ...value }
+  for (const childKey of MENU_ITEM_CHILD_KEYS) {
+    if (Array.isArray(item[childKey])) {
+      item[childKey] = normalizeMenuItemArray(item[childKey], warnings, `${fieldPath}.${childKey}`)
+    }
+  }
+  if (Array.isArray(item.groups)) {
+    item.groups = normalizeMenuItemGroups(item.groups, warnings, `${fieldPath}.groups`)
+  }
+
+  for (const imageKey of MENU_ITEM_IMAGE_KEYS) {
+    if (!(imageKey in item)) {
+      continue
+    }
+    if (!hasMenuItemSubstance(item)) {
+      continue
+    }
+    const imageValue = item[imageKey]
+    const semanticIcon =
+      !normalizeString(item.icon) && imagePayloadHasSemanticHint(imageValue)
+        ? normalizeString((imageValue as Record<string, unknown>)?.icon) ??
+          normalizeString((imageValue as Record<string, unknown>)?.iconName) ??
+          normalizeString((imageValue as Record<string, unknown>)?.name) ??
+          normalizeString((imageValue as Record<string, unknown>)?.title) ??
+          normalizeString((imageValue as Record<string, unknown>)?.alt) ??
+          normalizeString((imageValue as Record<string, unknown>)?.label)
+        : undefined
+    if (semanticIcon && !/^https?:\/\//i.test(semanticIcon)) {
+      item.icon = semanticIcon
+    }
+    delete item[imageKey]
+    warnings.push({
+      issue: 'suspicious-value',
+      message: `Dropped unsupported navbar menu item image field "${imageKey}" after preserving supported menu item data.`,
+      field: `${fieldPath}.${imageKey}`,
+      childType: 'navbar-menu-item',
+      details: { field: imageKey }
+    })
+  }
+
+  return item
+}
+
 function extractTextLogo(
   value: Record<string, any>,
   fallbackAlt: string | undefined,
@@ -172,6 +285,11 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   })
 
   const normalized: Record<string, any> = { ...flattened }
+  for (const collectionKey of MENU_ITEM_COLLECTION_KEYS) {
+    if (Array.isArray(normalized[collectionKey])) {
+      normalized[collectionKey] = normalizeMenuItemArray(normalized[collectionKey], warnings, collectionKey)
+    }
+  }
   const baseLogo: Record<string, any> =
     isRecord(flattened.logo) && !Array.isArray(flattened.logo)
       ? { ...(flattened.logo as Record<string, any>) }

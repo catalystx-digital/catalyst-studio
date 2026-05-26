@@ -1023,6 +1023,82 @@ describe('parseSectionDetectionResponse', () => {
     ])
   })
 
+  it('normalizes unsupported nested navbar menu teaser images before schema validation', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'header',
+        components: [
+          {
+            component: 'navbar',
+            confidence: 0.95,
+            content: {
+              menuItems: [
+                {
+                  label: 'Services',
+                  children: [
+                    {
+                      label: 'Explore. Build. Grow',
+                      href: { type: 'internal', pageId: 'explore-build-grow', path: '/explore-build-grow' },
+                      description: 'Framework overview',
+                      image: {
+                        src: { mediaId: 'detected:ebg', mediaType: 'image', url: 'https://cdn.example.com/ebg.png' },
+                        alt: 'Explore Build Grow'
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      sectionKey: 'header',
+      availableComponents: patterns,
+      url: 'https://www.luminary.com/acoustic',
+      confidenceThreshold: 0.25
+    })
+
+    expect(parsed.components).toHaveLength(1)
+    expect(parsed.components[0].type).toBe('navbar')
+    expect(parsed.components[0].content.menuItems[0].children[0]).toEqual({
+      label: 'Explore. Build. Grow',
+      href: { type: 'internal', pageId: 'explore-build-grow', path: '/explore-build-grow' },
+      description: 'Framework overview',
+      icon: 'Explore Build Grow'
+    })
+  })
+
+  it('does not hide image-only navbar menu teaser items', () => {
+    expect(() =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({
+          sectionKey: 'header',
+          components: [
+            {
+              component: 'navbar',
+              confidence: 0.95,
+              content: {
+                menuItems: [
+                  {
+                    label: 'Teaser',
+                    image: {
+                      src: { mediaId: 'detected:teaser', mediaType: 'image', url: 'https://cdn.example.com/teaser.png' },
+                      alt: 'Teaser image'
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }),
+        sectionKey: 'header',
+        availableComponents: patterns,
+        url: 'https://www.luminary.com/acoustic',
+        confidenceThreshold: 0.25
+      })
+    ).toThrow('menuItems.0:unrecognized_keys')
+  })
+
   it('keeps invalid component content strict unless isolation is explicitly enabled', () => {
     expect(() =>
       parseSectionDetectionResponse({

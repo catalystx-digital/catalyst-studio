@@ -27,6 +27,7 @@ import {
 import { importDesignSystemFromUrl } from '@/lib/studio/design-system/import-design-system'
 import { adjustDetectedComponents } from './services/detection-post-processor'
 import { validateTemplateCanonicalRequirements } from './detection/canonicalization'
+import { GlobalSectionArtifactCache } from './detection/global-section-cache'
 import { getPageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import {
   ModelConfig,
@@ -627,6 +628,7 @@ export class ImportPipeline {
     const modelCandidates = modelChain.split('|').map(value => value.trim()).filter(Boolean)
     const detectionModels = modelCandidates.length > 0 ? modelCandidates : DEFAULT_MODEL_CHAIN.split('|')
     const primaryModel = detectionModels[0]
+    const globalSectionCache = new GlobalSectionArtifactCache()
 
     let index = 0
     let completed = 0
@@ -754,6 +756,7 @@ export class ImportPipeline {
             onProgress: options.progressCallback,
             checkpointSession: session ?? undefined,
             checkpointService: checkpointService ?? undefined,
+            globalSectionCache,
           })
         )
       }

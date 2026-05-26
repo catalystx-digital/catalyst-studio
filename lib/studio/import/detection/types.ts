@@ -3,6 +3,7 @@ import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import type { ResourcesSummary, SectionInfo, RedirectInfo } from '../services/web-tools'
 import type { ProgressCallback } from '../types/progress.types'
 import type { CheckpointSession, IImportCheckpointService } from '../types/checkpoint.types'
+import type { GlobalSectionArtifactCache } from './global-section-cache'
 
 export {} // ensure this file is treated as a module
 
@@ -134,6 +135,8 @@ export interface ImportDetectionOptions {
   checkpointSession?: CheckpointSession
   /** Optional checkpoint service used by the section-level detection harness */
   checkpointService?: IImportCheckpointService
+  /** Optional same-import cache for validated global header/footer section artifacts */
+  globalSectionCache?: GlobalSectionArtifactCache
 }
 
 export interface DetectionPromptPayload {

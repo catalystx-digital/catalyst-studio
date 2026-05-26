@@ -221,6 +221,26 @@ export interface LLMDebugInfo {
   invalidComponents?: InvalidDetectedComponent[]
   /** Count of components omitted from a section because their content failed strict validation */
   invalidComponentCount?: number
+  /** Whether a required nonempty section returned no valid components */
+  requiredSectionEmpty?: boolean
+  /** Section key that already satisfied a required empty global section */
+  satisfiedBySectionKey?: string
+  /** How this section artifact was obtained */
+  extractionMode?: 'fresh' | 'reused' | 'checkpoint'
+  /** Source URL for a reused section artifact */
+  reusedFromUrl?: string
+  /** Source section key for a reused section artifact */
+  reusedFromSectionKey?: string
+  /** Stable content hash used for global section reuse */
+  sectionContentHash?: string
+  /** Full reuse cache key */
+  reuseKey?: string
+  /** Version string for reuse eligibility/invalidation */
+  reuseVersion?: string
+  /** Whether the section cache was hit */
+  cacheHit?: boolean
+  /** Reason a section cache lookup missed or was not eligible */
+  cacheMissReason?: string
 }
 
 /**

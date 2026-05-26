@@ -20,6 +20,7 @@ import { buildDetectionPromptFromCatalog } from './detection/prompt-builder'
 import { parseDetectionResponse, parseSectionDetectionResponse } from './detection/response-parser'
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
+import type { GlobalSectionReuseProvenance } from './detection/global-section-cache'
 import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
@@ -33,7 +34,8 @@ import {
   TimeoutConfig,
   ConfidenceConfig,
   LoggingConfig,
-  OpenRouterConfig
+  OpenRouterConfig,
+  DetectionConfig
 } from './config'
 
 // Use centralized configuration
@@ -121,6 +123,15 @@ export interface DetectionFailureDebug {
   repairPromptPreviousJsonChars?: number
   invalidComponents?: InvalidDetectedComponent[]
   invalidComponentCount?: number
+  requiredSectionEmpty?: boolean
+  extractionMode?: 'fresh' | 'reused' | 'checkpoint'
+  reusedFromUrl?: string
+  reusedFromSectionKey?: string
+  sectionContentHash?: string
+  reuseKey?: string
+  reuseVersion?: string
+  cacheHit?: boolean
+  cacheMissReason?: string
 }
 
 export class DetectionFailureError extends Error {
@@ -561,7 +572,8 @@ export class DetectionService {
       includeContent = true,
       confidenceThreshold = CONFIDENCE_THRESHOLD,
       checkpointSession,
-      checkpointService
+      checkpointService,
+      globalSectionCache
     } = options
 
     const tasks = buildDetectionSectionPlan({
@@ -588,6 +600,12 @@ export class DetectionService {
 
     const usageTotals: TokenUsage = {}
     let requestCount = 0
+    const sectionReuseStats = {
+      freshSections: 0,
+      reusedSections: 0,
+      cacheHits: 0,
+      cacheMisses: 0
+    }
     const artifacts: SectionExtractionArtifact[] = []
     let pageSummaryForAssembly: DetectionPromptPayload['pageSummary'] | undefined
 
@@ -639,8 +657,11 @@ export class DetectionService {
         artifacts.push({
           sectionKey: cached.sectionKey,
           sectionOrder: cached.sectionOrder,
+          durationMs: cached.durationMs,
           components: cached.components,
-          pageMetadata: cached.pageMetadata
+          pageMetadata: cached.pageMetadata,
+          requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
+          satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
         })
         continue
       }
@@ -655,8 +676,14 @@ export class DetectionService {
         const candidateTypes = new Set(task.candidateTypes)
         sectionTaxonomy.allowedTypes.forEach(type => candidateTypes.add(type))
         expandCandidatesFromSectionEvidence(candidateTypes, section.slice)
-        if (task.role === 'header') candidateTypes.add('navbar')
-        if (task.role === 'footer') candidateTypes.add('footer')
+        if (task.role === 'header') {
+          candidateTypes.clear()
+          candidateTypes.add('navbar')
+        }
+        if (task.role === 'footer') {
+          candidateTypes.clear()
+          candidateTypes.add('footer')
+        }
 
         const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({
           telemetry,
@@ -783,87 +810,176 @@ export class DetectionService {
           }
         }
 
-        let response = await runJsonRequest(messages)
-        requestCount++
-        let rawResult = response.choices[0]?.message?.content || ''
-        let parsedSection
-        let repairDebug: Partial<DetectionFailureDebug> = {}
-        try {
-          parsedSection = parseOutcome(response, rawResult)
-        } catch (firstError) {
-          if (!(firstError instanceof DetectionFailureError) || firstError.debug.stage === 'output_limit') {
-            throw firstError
-          }
-          if (firstError.message.includes(`sectionKey must be "${task.sectionKey}"`)) {
-            throw firstError
-          }
-          const cappedPreviousJson = capRepairPreviousJson(rawResult)
-          repairDebug = {
-            repairPromptCapped: cappedPreviousJson.capped,
-            repairPromptPreviousJsonChars: cappedPreviousJson.chars
-          }
-          messages.push({
-            role: 'user',
-            content: [
-              'Your previous JSON failed strict validation.',
-              `Validation error: ${firstError.message}`,
-              `Validation path: ${firstError.debug.validationPath || 'unknown'}`,
-              `The sectionKey must remain exactly ${task.sectionKey}.`,
-              `Allowed component types: ${allowedComponentTypes.join(', ')}`,
-              'Repair schema shape and component names only. Do not invent content. Return only JSON.',
-              cappedPreviousJson.capped
-                ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
-                : 'Previous JSON:',
-              cappedPreviousJson.text
-            ].join('\n')
-          })
-          response = await runJsonRequest(messages)
-          requestCount++
-          rawResult = response.choices[0]?.message?.content || ''
-          parsedSection = parseOutcome(response, rawResult, repairDebug, true)
+        type FreshSectionRun = {
+          artifact: SectionExtractionArtifact
+          rawResult: string
+          responseUsage: TokenUsage
+          finishReason: string
+          repairDebug: Partial<DetectionFailureDebug>
+          parserDebug: Partial<DetectionFailureDebug>
         }
+        let freshRun: FreshSectionRun | null = null
+        const extractFreshSection = async (): Promise<SectionExtractionArtifact> => {
+          let response = await runJsonRequest(messages)
+          requestCount++
+          let rawResult = response.choices[0]?.message?.content || ''
+          let parsedSection
+          let repairDebug: Partial<DetectionFailureDebug> = {}
+          let parserDebug: Partial<DetectionFailureDebug> = responseMissingSectionKey(rawResult)
+            ? {
+                parserRepair: 'missing_section_key_injected' as const,
+                missingSectionKey: true
+              }
+            : {}
+          try {
+            parsedSection = parseOutcome(response, rawResult)
+          } catch (firstError) {
+            if (!(firstError instanceof DetectionFailureError) || firstError.debug.stage === 'output_limit') {
+              throw firstError
+            }
+            if (firstError.message.includes(`sectionKey must be "${task.sectionKey}"`)) {
+              throw firstError
+            }
+            const cappedPreviousJson = capRepairPreviousJson(rawResult)
+            repairDebug = {
+              repairPromptCapped: cappedPreviousJson.capped,
+              repairPromptPreviousJsonChars: cappedPreviousJson.chars
+            }
+            messages.push({
+              role: 'user',
+              content: [
+                'Your previous JSON failed strict validation.',
+                `Validation error: ${firstError.message}`,
+                `Validation path: ${firstError.debug.validationPath || 'unknown'}`,
+                `The sectionKey must remain exactly ${task.sectionKey}.`,
+                `Allowed component types: ${allowedComponentTypes.join(', ')}`,
+                'Repair schema shape and component names only. Do not invent content. Return only JSON.',
+                cappedPreviousJson.capped
+                  ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
+                  : 'Previous JSON:',
+                cappedPreviousJson.text
+              ].join('\n')
+            })
+            response = await runJsonRequest(messages)
+            requestCount++
+            rawResult = response.choices[0]?.message?.content || ''
+            parserDebug = responseMissingSectionKey(rawResult)
+              ? {
+                  parserRepair: 'missing_section_key_injected' as const,
+                  missingSectionKey: true
+                }
+              : {}
+            parsedSection = parseOutcome(response, rawResult, repairDebug, true)
+          }
 
-        if (task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0) {
-          const invalidSummary = parsedSection.invalidComponents?.length
-            ? `; ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} isolated`
-            : ''
-          throw new DetectionFailureError(
-            `Required section ${task.sectionKey} produced no components${invalidSummary}`,
-            {
-              model: endpointModel,
-              stage: 'validation',
-              rawResponse: rawResult,
-              rawResponseLength: rawResult.length,
-              finishReason: response.choices[0]?.finish_reason || 'unknown',
-              usage: response.usage ? { ...response.usage } : {},
-              validationPath: `sections.${task.sectionKey}.components`,
-              requestCount,
-              toolCallCount: 0,
-              promptTokensEstimate: sectionPromptTokensEstimate,
-              effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+          const requiredSectionEmpty = task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0
+          if (requiredSectionEmpty && parsedSection.invalidComponents?.length) {
+            const invalidSummary = parsedSection.invalidComponents?.length
+              ? `; ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} isolated`
+              : ''
+            throw new DetectionFailureError(
+              `Required section ${task.sectionKey} produced no components${invalidSummary}`,
+              {
+                model: endpointModel,
+                stage: 'validation',
+                rawResponse: rawResult,
+                rawResponseLength: rawResult.length,
+                finishReason: response.choices[0]?.finish_reason || 'unknown',
+                usage: response.usage ? { ...response.usage } : {},
+                validationPath: `sections.${task.sectionKey}.components`,
+                requestCount,
+                toolCallCount: 0,
+                promptTokensEstimate: sectionPromptTokensEstimate,
+                effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
+                sectionKey: task.sectionKey,
+                sectionOrder: task.sectionOrder,
+                sectionApproxBytes,
+                invalidComponents: parsedSection.invalidComponents,
+                invalidComponentCount: parsedSection.invalidComponents?.length,
+                requiredSectionEmpty,
+                ...parserDebug,
+                ...repairDebug
+              }
+            )
+          }
+
+          const responseUsage: TokenUsage = response.usage ? { ...response.usage } : {}
+          freshRun = {
+            artifact: {
               sectionKey: task.sectionKey,
               sectionOrder: task.sectionOrder,
-              sectionApproxBytes,
+              durationMs: Date.now() - sectionStart,
+              components: parsedSection.components,
+              pageMetadata: parsedSection.pageMetadata,
               invalidComponents: parsedSection.invalidComponents,
-              invalidComponentCount: parsedSection.invalidComponents?.length,
-              ...repairDebug
-            }
-          )
+              requiredSectionEmpty
+            },
+            rawResult,
+            responseUsage,
+            finishReason: response.choices[0]?.finish_reason || 'unknown',
+            repairDebug,
+            parserDebug
+          }
+          return freshRun.artifact
         }
 
-        const responseUsage: TokenUsage = response.usage ? { ...response.usage } : {}
-        usageTotals.total_tokens = (usageTotals.total_tokens ?? 0) + (responseUsage.total_tokens ?? 0)
-        usageTotals.prompt_tokens = (usageTotals.prompt_tokens ?? 0) + (responseUsage.prompt_tokens ?? 0)
-        usageTotals.completion_tokens = (usageTotals.completion_tokens ?? 0) + (responseUsage.completion_tokens ?? 0)
-        usageTotals.reasoning_tokens = (usageTotals.reasoning_tokens ?? 0) + ((responseUsage as TokenUsage).reasoning_tokens ?? 0)
-        usageTotals.total_cost = (usageTotals.total_cost ?? 0) + ((responseUsage as TokenUsage).total_cost ?? 0)
+        const origin = (() => {
+          try {
+            return new URL(preFlightFetch.finalUrl || url).origin
+          } catch {
+            return 'unknown'
+          }
+        })()
+        const reuseKey = DetectionConfig.globalSectionReuse && globalSectionCache
+          ? globalSectionCache.createKey({
+              role: task.role,
+              origin,
+              sectionSlice: section.slice,
+              candidateTypes,
+              model: endpointModel
+            })
+          : null
+        const cacheResult = await (DetectionConfig.globalSectionReuse && globalSectionCache
+          ? globalSectionCache.getOrCreate(
+              reuseKey,
+              { url, sectionKey: task.sectionKey },
+              extractFreshSection
+            )
+          : Promise.resolve({
+              artifact: await extractFreshSection(),
+              provenance: {
+                extractionMode: 'fresh' as const,
+                cacheHit: false,
+                cacheMissReason: DetectionConfig.globalSectionReuse ? 'cache_unavailable' : 'reuse_disabled'
+              }
+            }))
 
+        const provenance: GlobalSectionReuseProvenance = cacheResult.provenance
+        if (provenance.extractionMode === 'reused') {
+          sectionReuseStats.reusedSections++
+        } else {
+          sectionReuseStats.freshSections++
+        }
+        if (provenance.cacheHit) {
+          sectionReuseStats.cacheHits++
+        } else {
+          sectionReuseStats.cacheMisses++
+        }
+        const completedFreshRun = freshRun as FreshSectionRun | null
         const artifact: SectionExtractionArtifact = {
+          ...cacheResult.artifact,
           sectionKey: task.sectionKey,
           sectionOrder: task.sectionOrder,
-          components: parsedSection.components,
-          pageMetadata: parsedSection.pageMetadata,
-          invalidComponents: parsedSection.invalidComponents
+          durationMs: Date.now() - sectionStart,
+          pageMetadata: provenance.extractionMode === 'reused' ? undefined : cacheResult.artifact.pageMetadata
+        }
+        if (completedFreshRun && provenance.extractionMode === 'fresh') {
+          const responseUsage = completedFreshRun.responseUsage
+          usageTotals.total_tokens = (usageTotals.total_tokens ?? 0) + (responseUsage.total_tokens ?? 0)
+          usageTotals.prompt_tokens = (usageTotals.prompt_tokens ?? 0) + (responseUsage.prompt_tokens ?? 0)
+          usageTotals.completion_tokens = (usageTotals.completion_tokens ?? 0) + (responseUsage.completion_tokens ?? 0)
+          usageTotals.reasoning_tokens = (usageTotals.reasoning_tokens ?? 0) + ((responseUsage as TokenUsage).reasoning_tokens ?? 0)
+          usageTotals.total_cost = (usageTotals.total_cost ?? 0) + ((responseUsage as TokenUsage).total_cost ?? 0)
         }
         artifacts.push(artifact)
 
@@ -873,16 +989,16 @@ export class DetectionService {
             url,
             task.sectionKey,
             task.sectionOrder,
-            parsedSection.components,
+            artifact.components,
             Date.now() - sectionStart,
-            parsedSection.pageMetadata,
+            artifact.pageMetadata,
             {
               model: endpointModel,
               stage: 'llm_call',
-              rawResponseLength: rawResult.length,
-              rawResponse: rawResult,
-              finishReason: response.choices[0]?.finish_reason || 'unknown',
-              usage: responseUsage,
+              rawResponseLength: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.rawResult.length : 0,
+              rawResponse: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.rawResult : undefined,
+              finishReason: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.finishReason : 'cache_reuse',
+              usage: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.responseUsage : {},
               requestCount,
               toolCallCount: 0,
               promptTokensEstimate: sectionPromptTokensEstimate,
@@ -890,15 +1006,19 @@ export class DetectionService {
               sectionKey: task.sectionKey,
               sectionOrder: task.sectionOrder,
               sectionApproxBytes,
-              invalidComponents: parsedSection.invalidComponents,
-              invalidComponentCount: parsedSection.invalidComponents?.length,
-              ...(responseMissingSectionKey(rawResult)
-                ? {
-                    parserRepair: 'missing_section_key_injected' as const,
-                    missingSectionKey: true
-                  }
-                : {}),
-              ...repairDebug
+              invalidComponents: artifact.invalidComponents,
+              invalidComponentCount: artifact.invalidComponents?.length,
+              requiredSectionEmpty: artifact.requiredSectionEmpty,
+              extractionMode: provenance.extractionMode,
+              reusedFromUrl: provenance.reusedFromUrl,
+              reusedFromSectionKey: provenance.reusedFromSectionKey,
+              sectionContentHash: provenance.sectionContentHash,
+              reuseKey: provenance.reuseKey,
+              reuseVersion: provenance.reuseVersion,
+              cacheHit: provenance.cacheHit,
+              cacheMissReason: provenance.cacheMissReason,
+              ...(completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.parserDebug : {}),
+              ...(completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.repairDebug : {})
             }
           )
         }
@@ -939,10 +1059,19 @@ export class DetectionService {
               sectionApproxBytes: error.debug.sectionApproxBytes,
               invalidComponents: error.debug.invalidComponents,
               invalidComponentCount: error.debug.invalidComponentCount,
+              requiredSectionEmpty: error.debug.requiredSectionEmpty,
               parserRepair: error.debug.parserRepair,
               missingSectionKey: error.debug.missingSectionKey,
               repairPromptCapped: error.debug.repairPromptCapped,
-              repairPromptPreviousJsonChars: error.debug.repairPromptPreviousJsonChars
+              repairPromptPreviousJsonChars: error.debug.repairPromptPreviousJsonChars,
+              extractionMode: error.debug.extractionMode,
+              reusedFromUrl: error.debug.reusedFromUrl,
+              reusedFromSectionKey: error.debug.reusedFromSectionKey,
+              sectionContentHash: error.debug.sectionContentHash,
+              reuseKey: error.debug.reuseKey,
+              reuseVersion: error.debug.reuseVersion,
+              cacheHit: error.debug.cacheHit,
+              cacheMissReason: error.debug.cacheMissReason
             } : undefined
           )
         }
@@ -952,6 +1081,33 @@ export class DetectionService {
 
     const pageSummary = pageSummaryForAssembly ?? (await buildDetectionPromptFromCatalog({ telemetry, pageUrl: url })).pageSummary
     const components = aggregateSectionArtifacts(tasks, artifacts)
+    if (checkpointSession && checkpointService) {
+      for (const artifact of artifacts) {
+        if (!artifact.requiredSectionEmpty || !artifact.satisfiedBySectionKey) {
+          continue
+        }
+        const existing = await checkpointService.loadSectionResult(checkpointSession, url, artifact.sectionKey)
+        await checkpointService.saveSectionResult(
+          checkpointSession,
+          url,
+          artifact.sectionKey,
+          artifact.sectionOrder,
+          artifact.components,
+          artifact.durationMs ?? existing?.durationMs ?? 0,
+          artifact.pageMetadata,
+          {
+            ...(existing?.llmDebug ?? {}),
+            stage: existing?.llmDebug?.stage ?? 'validation',
+            sectionKey: artifact.sectionKey,
+            sectionOrder: artifact.sectionOrder,
+            requiredSectionEmpty: true,
+            satisfiedBySectionKey: artifact.satisfiedBySectionKey
+          }
+        ).catch(error => {
+          console.warn('[Checkpoint] Failed to save section satisfaction metadata:', error)
+        })
+      }
+    }
     if (components.length === 0) {
       const invalidComponents = artifacts.flatMap(artifact => artifact.invalidComponents ?? [])
       const invalidSummary = invalidComponents.length
@@ -1020,7 +1176,8 @@ export class DetectionService {
       componentCount: detectionResult.components.length,
       templateKey: detectionResult.pageTemplate?.templateKey,
       accuracy,
-      cost
+      cost,
+      sectionReuse: sectionReuseStats
     })
 
     return detectionResult
