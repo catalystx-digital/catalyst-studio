@@ -58,6 +58,7 @@ const patterns: ComponentPattern[] = [
   { type: 'statistics', category: 'data', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'footer', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'team-grid', category: 'about', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'logo-cloud', category: 'social-proof', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'hero-banner', category: 'hero', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'hero-carousel', category: 'hero', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'hero-simple', category: 'hero', confidence: 0.9, keywords: [], patterns: [] },
@@ -992,6 +993,70 @@ describe('parseSectionDetectionResponse', () => {
         allowMissingSectionKey: true
       })
     ).toThrow('sectionKey must be "main:0-99"')
+  })
+
+  it('isolates invalid component content when the section harness opts in', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          { component: 'text-block', confidence: 0.9, content: { text: 'Valid section copy' } },
+          { component: 'logo-cloud', confidence: 0.9, content: { '': null } }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/about',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components).toHaveLength(1)
+    expect(parsed.components[0].type).toBe('text-block')
+    expect(parsed.invalidComponents).toEqual([
+      expect.objectContaining({
+        index: 1,
+        component: 'logo-cloud',
+        type: 'logo-cloud',
+        reason: expect.stringContaining('content is invalid')
+      })
+    ])
+  })
+
+  it('keeps invalid component content strict unless isolation is explicitly enabled', () => {
+    expect(() =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({
+          sectionKey: 'main:0-99',
+          components: [
+            { component: 'text-block', confidence: 0.9, content: { text: 'Valid section copy' } },
+            { component: 'logo-cloud', confidence: 0.9, content: { '': null } }
+          ]
+        }),
+        sectionKey: 'main:0-99',
+        availableComponents: patterns,
+        url: 'https://example.com/about',
+        confidenceThreshold: 0.25
+      })
+    ).toThrow('content is invalid for component "logo-cloud"')
+  })
+
+  it('keeps unregistered components strict even when invalid-content isolation is enabled', () => {
+    expect(() =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({
+          sectionKey: 'main:0-99',
+          components: [
+            { component: 'not-registered', confidence: 0.9, content: null }
+          ]
+        }),
+        sectionKey: 'main:0-99',
+        availableComponents: patterns,
+        url: 'https://example.com/about',
+        confidenceThreshold: 0.25,
+        isolateInvalidComponents: true
+      })
+    ).toThrow('component "not-registered" is not registered')
   })
 })
 

@@ -21,7 +21,7 @@ import { parseDetectionResponse, parseSectionDetectionResponse } from './detecti
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
 import { classifySectionIntent } from './detection/section-taxonomy'
-import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, PageMetadata } from './detection/types'
+import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
 import { createDetectionTelemetry } from './telemetry/detection-telemetry'
 import type { DetectionTelemetry } from './telemetry/detection-telemetry'
@@ -119,6 +119,8 @@ export interface DetectionFailureDebug {
   missingSectionKey?: boolean
   repairPromptCapped?: boolean
   repairPromptPreviousJsonChars?: number
+  invalidComponents?: InvalidDetectedComponent[]
+  invalidComponentCount?: number
 }
 
 export class DetectionFailureError extends Error {
@@ -716,7 +718,8 @@ export class DetectionService {
         const parseOutcome = (
           response: ChatCompletion,
           rawResult: string,
-          extraDebug: Partial<DetectionFailureDebug> = {}
+          extraDebug: Partial<DetectionFailureDebug> = {},
+          isolateInvalidComponents = false
         ) => {
           const completionStatus = detectIncompleteJson(rawResult)
           const finishReason = response.choices[0]?.finish_reason || ''
@@ -749,7 +752,8 @@ export class DetectionService {
               availableComponents: components,
               url,
               confidenceThreshold,
-              allowMissingSectionKey: true
+              allowMissingSectionKey: true,
+              isolateInvalidComponents
             })
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
@@ -816,12 +820,15 @@ export class DetectionService {
           response = await runJsonRequest(messages)
           requestCount++
           rawResult = response.choices[0]?.message?.content || ''
-          parsedSection = parseOutcome(response, rawResult, repairDebug)
+          parsedSection = parseOutcome(response, rawResult, repairDebug, true)
         }
 
         if (task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0) {
+          const invalidSummary = parsedSection.invalidComponents?.length
+            ? `; ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} isolated`
+            : ''
           throw new DetectionFailureError(
-            `Required section ${task.sectionKey} produced no components`,
+            `Required section ${task.sectionKey} produced no components${invalidSummary}`,
             {
               model: endpointModel,
               stage: 'validation',
@@ -837,6 +844,8 @@ export class DetectionService {
               sectionKey: task.sectionKey,
               sectionOrder: task.sectionOrder,
               sectionApproxBytes,
+              invalidComponents: parsedSection.invalidComponents,
+              invalidComponentCount: parsedSection.invalidComponents?.length,
               ...repairDebug
             }
           )
@@ -853,7 +862,8 @@ export class DetectionService {
           sectionKey: task.sectionKey,
           sectionOrder: task.sectionOrder,
           components: parsedSection.components,
-          pageMetadata: parsedSection.pageMetadata
+          pageMetadata: parsedSection.pageMetadata,
+          invalidComponents: parsedSection.invalidComponents
         }
         artifacts.push(artifact)
 
@@ -880,6 +890,8 @@ export class DetectionService {
               sectionKey: task.sectionKey,
               sectionOrder: task.sectionOrder,
               sectionApproxBytes,
+              invalidComponents: parsedSection.invalidComponents,
+              invalidComponentCount: parsedSection.invalidComponents?.length,
               ...(responseMissingSectionKey(rawResult)
                 ? {
                     parserRepair: 'missing_section_key_injected' as const,
@@ -925,6 +937,8 @@ export class DetectionService {
               sectionKey: error.debug.sectionKey,
               sectionOrder: error.debug.sectionOrder,
               sectionApproxBytes: error.debug.sectionApproxBytes,
+              invalidComponents: error.debug.invalidComponents,
+              invalidComponentCount: error.debug.invalidComponentCount,
               parserRepair: error.debug.parserRepair,
               missingSectionKey: error.debug.missingSectionKey,
               repairPromptCapped: error.debug.repairPromptCapped,
@@ -939,14 +953,20 @@ export class DetectionService {
     const pageSummary = pageSummaryForAssembly ?? (await buildDetectionPromptFromCatalog({ telemetry, pageUrl: url })).pageSummary
     const components = aggregateSectionArtifacts(tasks, artifacts)
     if (components.length === 0) {
+      const invalidComponents = artifacts.flatMap(artifact => artifact.invalidComponents ?? [])
+      const invalidSummary = invalidComponents.length
+        ? `; ${invalidComponents.length} invalid component${invalidComponents.length === 1 ? '' : 's'} isolated`
+        : ''
       throw new DetectionFailureError(
-        `Section harness produced no components for ${url}`,
+        `Section harness produced no components for ${url}${invalidSummary}`,
         {
           model: endpointModel,
           stage: 'validation',
           validationPath: 'sections.components',
           requestCount,
-          toolCallCount: 0
+          toolCallCount: 0,
+          invalidComponents,
+          invalidComponentCount: invalidComponents.length || undefined
         }
       )
     }

@@ -1,5 +1,5 @@
 import { applyTemplateCanonicalization } from './canonicalization'
-import type { ComponentPattern, DetectedComponent, DetectedPageTemplate, PageMetadata } from './types'
+import type { ComponentPattern, DetectedComponent, DetectedPageTemplate, InvalidDetectedComponent, PageMetadata } from './types'
 import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import { ConfidenceConfig } from '../config'
 import { normalizePath } from '../utils/path-utils'
@@ -40,12 +40,14 @@ interface ParseSectionDetectionInput {
   url: string
   confidenceThreshold: number
   allowMissingSectionKey?: boolean
+  isolateInvalidComponents?: boolean
 }
 
 interface ParseSectionDetectionOutput {
   sectionKey: string
   components: DetectedComponent[]
   pageMetadata?: PageMetadata
+  invalidComponents?: InvalidDetectedComponent[]
 }
 
 type RawTemplateCandidate = {
@@ -126,7 +128,8 @@ export function parseSectionDetectionResponse({
   availableComponents,
   url,
   confidenceThreshold,
-  allowMissingSectionKey = false
+  allowMissingSectionKey = false,
+  isolateInvalidComponents = false
 }: ParseSectionDetectionInput): ParseSectionDetectionOutput {
   const raw = JSON.parse(rawResponse)
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -147,15 +150,19 @@ export function parseSectionDetectionResponse({
       ? responseObject.pageMetadata as PageMetadata
       : undefined
 
+  const parsedComponents = parseComponentsArrayDetailed(
+    responseObject.components as RawParsedItem[],
+    availableComponents,
+    confidenceThreshold,
+    url,
+    { isolateInvalidContent: isolateInvalidComponents }
+  )
+
   return {
     sectionKey,
-    components: parseComponentsArray(
-      responseObject.components as RawParsedItem[],
-      availableComponents,
-      confidenceThreshold,
-      url
-    ),
-    pageMetadata
+    components: parsedComponents.components,
+    pageMetadata,
+    ...(parsedComponents.invalidComponents.length > 0 ? { invalidComponents: parsedComponents.invalidComponents } : {})
   }
 }
 
@@ -215,7 +222,18 @@ function parseComponentsArray(
   confidenceThreshold: number,
   pageUrl?: string
 ): DetectedComponent[] {
+  return parseComponentsArrayDetailed(parsed, availableComponents, confidenceThreshold, pageUrl).components
+}
+
+function parseComponentsArrayDetailed(
+  parsed: RawParsedItem[],
+  availableComponents: ComponentPattern[],
+  confidenceThreshold: number,
+  pageUrl?: string,
+  options: { isolateInvalidContent?: boolean } = {}
+): { components: DetectedComponent[]; invalidComponents: InvalidDetectedComponent[] } {
   const validComponents: DetectedComponent[] = []
+  const invalidComponents: InvalidDetectedComponent[] = []
   const componentMap = new Map(availableComponents.map(c => [c.type, c]))
   for (let index = 0; index < parsed.length; index++) {
     const item = parsed[index]
@@ -237,13 +255,22 @@ function parseComponentsArray(
     if (confidence < confidenceThreshold) {
       continue
     }
-    if (!content || typeof content !== 'object' || Array.isArray(content)) {
-      throw new Error(`Detection response components[${index}].content must be an object`)
-    }
     let pattern = componentMap.get(componentName) ||
       availableComponents.find(c => c.type.toLowerCase() === String(componentName).toLowerCase())
     if (!pattern) {
       throw new Error(`Detection response components[${index}].component "${componentName}" is not registered`)
+    }
+    if (!content || typeof content !== 'object' || Array.isArray(content)) {
+      if (options.isolateInvalidContent) {
+        invalidComponents.push({
+          index,
+          component: componentName,
+          type: pattern.type,
+          reason: `Detection response components[${index}].content must be an object`
+        })
+        continue
+      }
+      throw new Error(`Detection response components[${index}].content must be an object`)
     }
 
     const taxonomy = classifySectionIntent({
@@ -256,13 +283,27 @@ function parseComponentsArray(
         `Detection response components[${index}].component "${componentName}" conflicts with section taxonomy: intent=${taxonomy.intent}; denied=${taxonomy.deniedTypes.join(',')}; evidence=${taxonomy.evidence.join('|') || 'none'}`
       )
     }
-    const validatedContent = validateDetectedComponentContent({
-      index,
-      componentName,
-      canonicalType: pattern.type,
-      content,
-      pageUrl
-    })
+    let validatedContent: Record<string, unknown>
+    try {
+      validatedContent = validateDetectedComponentContent({
+        index,
+        componentName,
+        canonicalType: pattern.type,
+        content,
+        pageUrl
+      })
+    } catch (error) {
+      if (options.isolateInvalidContent) {
+        invalidComponents.push({
+          index,
+          component: componentName,
+          type: pattern.type,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+        continue
+      }
+      throw error
+    }
 
     validComponents.push({
       component: componentName,
@@ -277,7 +318,7 @@ function parseComponentsArray(
       } as DetectedComponent['metadata']
     })
   }
-  return validComponents
+  return { components: validComponents, invalidComponents }
 }
 
 function validateDetectedComponentContent({
@@ -411,6 +452,7 @@ function resolvePageTemplate(
 export const detectionParserInternals = {
   parseCombinedDetectionResponse,
   parseComponentsArray,
+  parseComponentsArrayDetailed,
   parseSectionDetectionResponse,
   resolvePageTemplate,
   validateDetectedComponentContent,

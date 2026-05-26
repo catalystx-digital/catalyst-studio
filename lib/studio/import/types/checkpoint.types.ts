@@ -7,7 +7,7 @@
  * @module checkpoint.types
  */
 
-import type { DetectedComponent, ImportDetectionResult, PageMetadata } from '../detection/types'
+import type { DetectedComponent, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from '../detection/types'
 
 // =============================================================================
 // Pipeline Stage Types
@@ -217,6 +217,10 @@ export interface LLMDebugInfo {
   repairPromptCapped?: boolean
   /** Number of characters from the previous response included in repair prompt */
   repairPromptPreviousJsonChars?: number
+  /** Components omitted from a section because their content failed strict validation */
+  invalidComponents?: InvalidDetectedComponent[]
+  /** Count of components omitted from a section because their content failed strict validation */
+  invalidComponentCount?: number
 }
 
 /**

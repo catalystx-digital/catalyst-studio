@@ -1,4 +1,4 @@
-import type { DetectedComponent, PageMetadata } from './types'
+import type { DetectedComponent, InvalidDetectedComponent, PageMetadata } from './types'
 import type { DetectionSectionTask } from './section-plan'
 
 export interface SectionExtractionArtifact {
@@ -6,6 +6,7 @@ export interface SectionExtractionArtifact {
   sectionOrder: number
   components: DetectedComponent[]
   pageMetadata?: PageMetadata
+  invalidComponents?: InvalidDetectedComponent[]
 }
 
 export function aggregateSectionArtifacts(

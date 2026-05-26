@@ -49,6 +49,13 @@ export interface DetectedComponent {
   metadata?: AIComponentMetadata
 }
 
+export interface InvalidDetectedComponent {
+  index: number
+  component: string
+  type: string
+  reason: string
+}
+
 export interface DetectedPageTemplate {
   templateKey: string
   confidence?: number

@@ -63,6 +63,19 @@ const mockComponents: ComponentPattern[] = [
       description: 'External video embed',
       keywords: ['video', 'youtube']
     }
+  },
+  {
+    type: 'logo-cloud',
+    category: 'social-proof',
+    keywords: ['logos', 'clients', 'partners'],
+    patterns: ['logos', 'clients', 'partners'],
+    confidence: 0.82,
+    metadata: {
+      category: 'social-proof',
+      properties: ['logos', 'title'],
+      description: 'Logo cloud',
+      keywords: ['logos', 'clients']
+    }
   }
 ]
 
@@ -469,6 +482,52 @@ describe('DetectionService (web-based)', () => {
 
       await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('sectionKey must be "main:0-99"')
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('isolates invalid component content without dropping valid section siblings', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              sectionKey: 'main:0-99',
+              components: [
+                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } },
+                { component: 'logo-cloud', confidence: 0.95, content: null }
+              ]
+            })
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { total_tokens: 1000 }
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components).toHaveLength(1)
+      expect(result.components[0].type).toBe('navbar')
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
+    })
+
+    it('fails required nonempty sections when all repaired components are invalid', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              sectionKey: 'main:0-99',
+              components: [
+                { component: 'logo-cloud', confidence: 0.95, content: null }
+              ]
+            })
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { total_tokens: 1000 }
+      })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
+        'Section harness produced no components for https://example.com; 1 invalid component isolated'
+      )
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
     })
 
     it('handles API errors gracefully', async () => {
