@@ -373,6 +373,55 @@ function getStatusIcon(status: string): string {
   }
 }
 
+function printDetectionTimingSummary(detections: any[]): void {
+  const timingResults = detections
+    .map((detection) => detection?.timingBreakdown)
+    .filter(Boolean);
+
+  if (timingResults.length === 0) {
+    return;
+  }
+
+  const phaseTotals = new Map<string, { count: number; totalMs: number; maxMs: number; warningCount: number }>();
+  let sectionCount = 0;
+  let sectionDurationMs = 0;
+  let sectionMaxMs = 0;
+  let llmRequestCount = 0;
+  let promptTokenEstimate = 0;
+
+  for (const timing of timingResults) {
+    for (const phase of timing.phaseTotals || []) {
+      const current = phaseTotals.get(phase.phase) || { count: 0, totalMs: 0, maxMs: 0, warningCount: 0 };
+      current.count += phase.count || 0;
+      current.totalMs += phase.totalMs || 0;
+      current.maxMs = Math.max(current.maxMs, phase.maxMs || 0);
+      current.warningCount += phase.warningCount || 0;
+      phaseTotals.set(phase.phase, current);
+    }
+    for (const section of timing.sectionTimings || []) {
+      sectionCount += 1;
+      sectionDurationMs += section.durationMs || 0;
+      sectionMaxMs = Math.max(sectionMaxMs, section.durationMs || 0);
+      llmRequestCount += section.requestCount || 0;
+      promptTokenEstimate += section.promptTokensEstimate || 0;
+    }
+  }
+
+  const sortedPhases = Array.from(phaseTotals.entries())
+    .sort(([, a], [, b]) => b.totalMs - a.totalMs);
+
+  console.log('\n[Timing Breakdown]');
+  console.log(`  Pages with timing: ${timingResults.length}`);
+  console.log(`  Sections: ${sectionCount}`);
+  console.log(`  Section avg/max: ${sectionCount > 0 ? (sectionDurationMs / sectionCount / 1000).toFixed(1) : '0.0'}s / ${(sectionMaxMs / 1000).toFixed(1)}s`);
+  console.log(`  LLM section requests: ${llmRequestCount}`);
+  console.log(`  Prompt token estimate: ${promptTokenEstimate}`);
+  console.log('  Summed phase durations (nested/concurrent work, not wall time):');
+  for (const [phase, stats] of sortedPhases) {
+    console.log(`    - ${phase}: ${(stats.totalMs / 1000).toFixed(1)}s total, ${stats.count} event(s), max ${(stats.maxMs / 1000).toFixed(1)}s, warnings ${stats.warningCount}`);
+  }
+}
+
 // =============================================================================
 // Step 2: Main function with dynamic imports
 // All application modules are imported HERE, after dotenv has loaded
@@ -715,6 +764,7 @@ async function main(args: ScriptArgs) {
     const componentTypeCount = await prisma.websiteComponentType.count({ where: { websiteId: website.id } });
     console.log(`  WebsitePages created: ${pageCount}`);
     console.log(`  ComponentTypes created: ${componentTypeCount}`);
+    printDetectionTimingSummary(result.data?.detectedComponents || []);
 
     await prisma.$disconnect();
     console.log('\n[Cleanup] Prisma client disconnected');

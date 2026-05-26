@@ -389,6 +389,21 @@ describe('DetectionService (web-based)', () => {
       expect(result.modelUsed).toBeDefined()
       expect(result.tokenUsage).toBe(1500)
       expect(result.cost).toBe(0.02)
+      expect(result.timingBreakdown).toEqual(expect.objectContaining({
+        totalDurationMs: expect.any(Number),
+        phaseTotals: expect.arrayContaining([
+          expect.objectContaining({ phase: 'fetch', count: 1 }),
+          expect.objectContaining({ phase: 'section_extract', count: 1 })
+        ]),
+        sectionTimings: [
+          expect.objectContaining({
+            sectionKey: 'main:0-99',
+            sectionOrder: 0,
+            requestCount: 1,
+            componentCount: 3
+          })
+        ]
+      }))
     })
 
     it('loads catalog summary for detection', async () => {
@@ -438,6 +453,14 @@ describe('DetectionService (web-based)', () => {
       expect(first.components).toHaveLength(1)
       expect(second.components).toHaveLength(1)
       expect(second.components[0]?.type).toBe('navbar')
+      expect(second.timingBreakdown?.sectionTimings).toEqual([
+        expect.objectContaining({
+          sectionKey: 'header:0-10',
+          extractionMode: 'reused',
+          cacheHit: true,
+          requestCount: 0
+        })
+      ])
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
     })
 
@@ -494,6 +517,7 @@ describe('DetectionService (web-based)', () => {
 
         expect(maxInFlight).toBe(2)
         expect(result.components.map(component => component.type)).toEqual(['hero-with-image', 'card-grid'])
+        expect(result.timingBreakdown?.sectionTimings.map(section => section.sectionKey)).toEqual(['main:0-50', 'main:51-99'])
         expect(result.tokenUsage).toBe(20)
         expect(result.promptTokens).toBe(12)
         expect(result.completionTokens).toBe(8)
@@ -610,6 +634,7 @@ describe('DetectionService (web-based)', () => {
 
       expect(result.components).toHaveLength(1)
       expect(result.components[0].type).toBe('navbar')
+      expect(result.timingBreakdown?.sectionTimings[0]).toEqual(expect.objectContaining({ requestCount: 2 }))
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
     })
 

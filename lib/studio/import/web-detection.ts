@@ -26,7 +26,7 @@ import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
 import { createDetectionTelemetry } from './telemetry/detection-telemetry'
-import type { DetectionTelemetry } from './telemetry/detection-telemetry'
+import type { DetectionPhaseRecord, DetectionTelemetry } from './telemetry/detection-telemetry'
 import { applyAllowedProviders, createLLMClient, validateLLMApiKey } from './services/llm-client'
 import { getReasoningConfig, calculateCost, getModelMaxCompletionTokens } from './openrouter-models'
 import {
@@ -223,6 +223,51 @@ function capRepairPreviousJson(rawResult: string): { text: string; capped: boole
     ].join(''),
     capped: true,
     chars: REPAIR_PREVIOUS_JSON_CHAR_LIMIT
+  }
+}
+
+function buildTimingBreakdown(records: DetectionPhaseRecord[], totalDurationMs: number): ImportDetectionResult['timingBreakdown'] {
+  const phaseMap = new Map<string, { phase: string; count: number; totalMs: number; maxMs: number; warningCount: number }>()
+  const sectionTimings: NonNullable<ImportDetectionResult['timingBreakdown']>['sectionTimings'] = []
+
+  for (const record of records) {
+    const existing = phaseMap.get(record.phase) ?? {
+      phase: record.phase,
+      count: 0,
+      totalMs: 0,
+      maxMs: 0,
+      warningCount: 0
+    }
+    existing.count += 1
+    existing.totalMs += record.durationMs
+    existing.maxMs = Math.max(existing.maxMs, record.durationMs)
+    if (record.status === 'warning') {
+      existing.warningCount += 1
+    }
+    phaseMap.set(record.phase, existing)
+
+    if (record.phase === 'section_extract') {
+      const metadata = record.metadata ?? {}
+      sectionTimings.push({
+        sectionKey: String(metadata.sectionKey ?? ''),
+        sectionOrder: typeof metadata.sectionOrder === 'number' ? metadata.sectionOrder : undefined,
+        role: typeof metadata.role === 'string' ? metadata.role : undefined,
+        durationMs: record.durationMs,
+        extractionMode: typeof metadata.extractionMode === 'string' ? metadata.extractionMode : undefined,
+        cacheHit: typeof metadata.cacheHit === 'boolean' ? metadata.cacheHit : undefined,
+        requestCount: typeof metadata.requestCount === 'number' ? metadata.requestCount : undefined,
+        promptTokensEstimate: typeof metadata.promptTokensEstimate === 'number' ? metadata.promptTokensEstimate : undefined,
+        componentCount: typeof metadata.componentCount === 'number' ? metadata.componentCount : undefined,
+        originalBytes: typeof metadata.originalBytes === 'number' ? metadata.originalBytes : undefined,
+        summarizedBytes: typeof metadata.summarizedBytes === 'number' ? metadata.summarizedBytes : undefined
+      })
+    }
+  }
+
+  return {
+    totalDurationMs,
+    phaseTotals: Array.from(phaseMap.values()).sort((a, b) => b.totalMs - a.totalMs),
+    sectionTimings: sectionTimings.sort((a, b) => (a.sectionOrder ?? 0) - (b.sectionOrder ?? 0))
   }
 }
 
@@ -647,7 +692,10 @@ export class DetectionService {
       }
     }
 
-    const runJsonRequest = async (messages: ChatCompletionMessageParam[]): Promise<ChatCompletion> => {
+    const runJsonRequest = async (
+      messages: ChatCompletionMessageParam[],
+      metadata: Record<string, unknown> = {}
+    ): Promise<ChatCompletion> => {
       const maxTokens = clampCompletionTokens(endpointModel, messages, effectiveMaxTokens)
       const payload: LLMRequestPayload = {
         model: endpointModel,
@@ -665,6 +713,8 @@ export class DetectionService {
         'llm_call',
         async () => await withTimeout(client.chat.completions.create(payload)),
         response => ({
+          ...metadata,
+          maxTokens,
           totalTokens: response?.usage?.total_tokens ?? 0,
           promptTokens: response?.usage?.prompt_tokens ?? 0,
           completionTokens: response?.usage?.completion_tokens ?? 0
@@ -874,7 +924,17 @@ export class DetectionService {
         }
         let freshRun: FreshSectionRun | null = null
         const extractFreshSection = async (): Promise<SectionExtractionArtifact> => {
-          let response = await runJsonRequest(messages)
+          let response = await runJsonRequest(messages, {
+            sectionKey: task.sectionKey,
+            sectionOrder: task.sectionOrder,
+            role: task.role,
+            attempt: 1,
+            promptTokensEstimate: sectionPromptTokensEstimate,
+            sectionApproxBytes,
+            summarizerEnabled: summarizedSection.enabled,
+            originalBytes: summarizedSection.originalBytes,
+            summarizedBytes: summarizedSection.summarizedBytes
+          })
           localRequestCount++
           let rawResult = response.choices[0]?.message?.content || ''
           let parsedSection
@@ -914,7 +974,18 @@ export class DetectionService {
                 cappedPreviousJson.text
               ].join('\n')
             })
-            response = await runJsonRequest(messages)
+            response = await runJsonRequest(messages, {
+              sectionKey: task.sectionKey,
+              sectionOrder: task.sectionOrder,
+              role: task.role,
+              attempt: 2,
+              repair: true,
+              promptTokensEstimate: estimateMessageTokens(messages),
+              sectionApproxBytes,
+              summarizerEnabled: summarizedSection.enabled,
+              originalBytes: summarizedSection.originalBytes,
+              summarizedBytes: summarizedSection.summarizedBytes
+            })
             localRequestCount++
             rawResult = response.choices[0]?.message?.content || ''
             parserDebug = responseMissingSectionKey(rawResult)
@@ -1257,6 +1328,7 @@ export class DetectionService {
       accuracy,
       resourcesSummary: preFlightFetch.resourcesSummary,
       outlineSections: preFlightFetch.sections,
+      timingBreakdown: buildTimingBreakdown(telemetry.getPhaseRecords(), Date.now() - startTime),
       sourceHttpStatus: preFlightFetch.status,
       sourceFinalUrl: preFlightFetch.finalUrl
     }
@@ -1321,10 +1393,27 @@ export class DetectionService {
           }
         }
 
+        const {
+          model: providedModel,
+          apiKey: providedApiKey,
+          baseUrl = OpenRouterConfig.baseUrl  // TKT-065: Use config (supports xAI direct)
+        } = options
+        const model = providedModel || ModelConfig.primary
+        const telemetry = createDetectionTelemetry({ url, model })
+
         // Early redirect detection: Check for redirects before expensive LLM detection
         // This saves tokens by detecting redirect pages (external redirects, meta refresh, JS redirects)
         const webTools = getWebFetchTools()
-        const preFlightFetch = await webTools.fetchOutline({ url, stripScriptsStyles: true, collapseWhitespace: true })
+        const preFlightFetch = await telemetry.timePhase(
+          'fetch',
+          async () => await webTools.fetchOutline({ url, stripScriptsStyles: true, collapseWhitespace: true }),
+          result => ({
+            status: result?.status,
+            finalUrl: result?.finalUrl,
+            sectionCount: result?.sections?.length ?? 0,
+            handle: result?.handle
+          })
+        )
         if (preFlightFetch.handle) {
           handlesUsed.add(preFlightFetch.handle)
         }
@@ -1351,6 +1440,7 @@ export class DetectionService {
             cost: 0,
             pageUrl: url,
             accuracy: 1.0,
+            timingBreakdown: buildTimingBreakdown(telemetry.getPhaseRecords(), Date.now() - startTime),
             redirectInfo: preFlightFetch.redirectInfo,
             isRedirectPage: true
           }
@@ -1368,15 +1458,6 @@ export class DetectionService {
             }
           )
         }
-
-        const {
-          model: providedModel,
-          apiKey: providedApiKey,
-          baseUrl = OpenRouterConfig.baseUrl,  // TKT-065: Use config (supports xAI direct)
-          includeContent = true,
-          confidenceThreshold = CONFIDENCE_THRESHOLD
-        } = options
-        const model = providedModel || ModelConfig.primary
 
         // Report detection start
         onProgress?.({
@@ -1406,8 +1487,6 @@ export class DetectionService {
         if (LoggingConfig.logOutput) {
           console.log(`[Detection] Model ${model}: user_max=${USER_MAX_TOKENS}, model_max=${modelMaxTokens}, effective=${effectiveMaxTokens}`)
         }
-
-        const telemetry = createDetectionTelemetry({ url, model })
 
         const apiKey = validateLLMApiKey(
           providedApiKey || (process.env.NODE_ENV === 'test' ? 'test-key' : process.env.OPENROUTER_API_KEY),

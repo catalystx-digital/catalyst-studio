@@ -106,6 +106,7 @@ export interface ImportDetectionResult {
   accuracy?: number
   resourcesSummary?: ResourcesSummary
   outlineSections?: SectionInfo[]
+  timingBreakdown?: ImportDetectionTimingBreakdown
   /** HTTP status returned by the source fetch, when known */
   sourceHttpStatus?: number
   /** Final URL after source fetch redirects, when known */
@@ -121,6 +122,30 @@ export interface ImportDetectionResult {
     stage: 'detection'
     message: string
   }
+}
+
+export interface ImportDetectionTimingBreakdown {
+  totalDurationMs: number
+  phaseTotals: Array<{
+    phase: string
+    count: number
+    totalMs: number
+    maxMs: number
+    warningCount: number
+  }>
+  sectionTimings: Array<{
+    sectionKey: string
+    sectionOrder?: number
+    role?: string
+    durationMs: number
+    extractionMode?: string
+    cacheHit?: boolean
+    requestCount?: number
+    promptTokensEstimate?: number
+    componentCount?: number
+    originalBytes?: number
+    summarizedBytes?: number
+  }>
 }
 
 export interface ImportDetectionOptions {
