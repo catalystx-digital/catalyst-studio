@@ -1,11 +1,21 @@
 import type { NextRequest } from 'next/server'
 
+function isLocalHostHeader(host: string): boolean {
+  const normalized = host.trim().toLowerCase()
+  if (normalized === '::1') return true
+  const hostname = normalized.startsWith('[')
+    ? normalized.slice(1, normalized.indexOf(']'))
+    : normalized.split(':')[0]
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
 export function isAuthorizedInternalWorkflowRequest(request: NextRequest): boolean {
   const host = request.headers.get('host') ?? ''
-  const isLocalHost = host.includes('localhost') || host.includes('127.0.0.1')
+  const isLocalHost = isLocalHostHeader(host)
   const isLocalEnv = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
+  const isVercelRuntime = Boolean(process.env.VERCEL_URL)
 
-  if (isLocalEnv && isLocalHost) {
+  if (isLocalHost && (isLocalEnv || !isVercelRuntime)) {
     return true
   }
 
