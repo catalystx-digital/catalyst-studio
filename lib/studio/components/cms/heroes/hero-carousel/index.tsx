@@ -102,10 +102,10 @@ function extractImageSource(image: unknown): {
       typeof img.src === 'string' ? img.src : undefined,
       // Handle nested media object: image.src = { src: "url", mediaId, ... }
       typeof img?.src?.src === 'string' ? img.src.src : undefined,
-      typeof img.originalUrl === 'string' ? img.originalUrl : undefined,
       typeof img.url === 'string' ? img.url : undefined,
-      typeof img?.src?.originalUrl === 'string' ? img.src.originalUrl : undefined,
       typeof img?.src?.url === 'string' ? img.src.url : undefined,
+      typeof img?.src?.originalUrl === 'string' ? img.src.originalUrl : undefined,
+      typeof img.originalUrl === 'string' ? img.originalUrl : undefined,
     ];
 
     const rawSource = candidateStrings.find(

@@ -155,6 +155,100 @@ describe('collapseDuplicateListingSurfaces', () => {
     expect(collapseDuplicateListingSurfaces(components)).toEqual([components[0]])
   })
 
+  it('drops no-image card grids that repeat prior hero-carousel slide titles', () => {
+    const components = [
+      component('hero-carousel', {
+        slides: [
+          { heading: 'Appointment notifications now straight to your phone' },
+          { heading: 'Nicotine use among teens' },
+          { heading: 'Introducing AI Ambient Scribes to the RCH!' },
+          { heading: 'Do you have a clinic appointment?' },
+          { heading: 'Teen Health Info fact sheets now live' },
+          { heading: 'My RCH Portal: Your record at your fingertips' },
+        ],
+      }),
+      component('hero-with-image', { heading: 'Travel a long way to get to the RCH?' }),
+      component('card-grid', {
+        cards: [
+          { title: 'Appointment notifications now straight to your phone' },
+          { title: 'Teens and food' },
+          { title: 'Nicotine use among teens' },
+          { title: 'Introducing AI Ambient Scribes to the RCH!' },
+          { title: 'Do you have a clinic appointment?' },
+          { title: 'Teen Health Info fact sheets now live' },
+        ],
+      }),
+      component('card-grid', {
+        cards: [
+          { title: 'Your guide to the RCH' },
+          { title: 'Kids Health Info' },
+          { title: 'Clinical Practice Guidelines' },
+          { title: 'My RCH Portal' },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([
+      components[0],
+      components[1],
+      components[3],
+    ])
+  })
+
+  it('keeps no-image card grids that do not mostly repeat hero-carousel slides', () => {
+    const components = [
+      component('hero-carousel', {
+        slides: [
+          { heading: 'Featured story one' },
+          { heading: 'Featured story two' },
+          { heading: 'Featured story three' },
+        ],
+      }),
+      component('card-grid', {
+        cards: [
+          { title: 'Program one' },
+          { title: 'Program two' },
+          { title: 'Program three' },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
+  })
+
+  it('drops no-image grids that recap a recent sequence of extracted hero slides', () => {
+    const components = [
+      component('hero-with-image', { heading: 'Appointment notifications now straight to your phone' }),
+      component('hero-with-image', { heading: 'Nicotine use among teens' }),
+      component('hero-with-image', { heading: 'Introducing AI Ambient Scribes to the RCH!' }),
+      component('card-grid', {
+        cards: [
+          { title: 'Appointment notifications now straight to your phone' },
+          { title: 'Teens and food' },
+          { title: 'Nicotine use among teens' },
+          { title: 'Introducing AI Ambient Scribes to the RCH!' },
+          { title: 'Do you have a clinic appointment?' },
+          { title: 'Teen Health Info fact sheets now live' },
+        ],
+      }),
+      component('card-grid', {
+        cards: [
+          { title: 'Your guide to the RCH' },
+          { title: 'Kids Health Info' },
+          { title: 'Clinical Practice Guidelines' },
+          { title: 'My RCH Portal' },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([
+      components[0],
+      components[1],
+      components[2],
+      components[4],
+    ])
+  })
+
   it('collapses RCH home repeated news cluster while preserving unrelated sections', () => {
     const components = [
       component('hero-carousel', { slides: [{ heading: 'Hero' }] }),

@@ -38,17 +38,22 @@ export function resolveImageSource(value: unknown): string | undefined {
     return directUrl;
   }
 
-  const originalUrl = normalizeString(value.originalUrl);
-  if (originalUrl) {
-    return validateImageUrl(originalUrl) || undefined;
-  }
-
   const src = value.src;
   if (typeof src === 'string') {
     return validateImageUrl(src) || undefined;
   }
 
-  return resolveImageSource(src);
+  const nestedSrc = resolveImageSource(src);
+  if (nestedSrc) {
+    return nestedSrc;
+  }
+
+  const originalUrl = normalizeString(value.originalUrl);
+  if (originalUrl) {
+    return validateImageUrl(originalUrl) || undefined;
+  }
+
+  return undefined;
 }
 
 function normalizeRenditions(value: unknown): NormalizedCmsImage['renditions'] | undefined {

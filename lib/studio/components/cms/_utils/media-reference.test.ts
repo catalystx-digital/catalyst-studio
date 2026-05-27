@@ -67,4 +67,28 @@ describe('CMS media reference normalization', () => {
       originalUrl: 'https://example.com/original.jpg',
     })
   })
+
+  it('prefers resolved nested media URL over stale relative originalUrl', () => {
+    const image = {
+      src: {
+        mediaId: 'detected:hero',
+        mediaType: 'image',
+        url: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+        originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      },
+      alt: 'Hero',
+      originalUrl: '/uploadedImages/Main/hero.jpg',
+    }
+
+    expect(normalizeCmsImage(image)).toEqual({
+      src: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      alt: 'Hero',
+      originalUrl: '/uploadedImages/Main/hero.jpg',
+    })
+    expect(normalizeImage(image)).toMatchObject({
+      src: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      alt: 'Hero',
+      originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+    })
+  })
 })

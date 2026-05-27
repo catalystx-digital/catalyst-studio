@@ -192,4 +192,39 @@ describe('HeroCarousel component', () => {
       screen.getByRole('heading', { name: 'Community Cleanup' }),
     ).toBeVisible();
   });
+
+  it('uses resolved nested media URLs before relative original URLs', () => {
+    render(
+      <HeroCarousel
+        {...defaultProps}
+        content={{
+          ...defaultProps.content,
+          slides: [
+            {
+              id: 'resolved-media',
+              content: {
+                heading: 'Resolved media',
+                image: {
+                  src: {
+                    mediaId: 'detected:hero',
+                    mediaType: 'image',
+                    url: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+                    originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+                  },
+                  alt: 'Resolved hero',
+                  originalUrl: '/uploadedImages/Main/hero.jpg',
+                },
+              },
+            },
+          ],
+          autoPlay: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByAltText('Resolved hero')).toHaveAttribute(
+      'src',
+      'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+    );
+  });
 });

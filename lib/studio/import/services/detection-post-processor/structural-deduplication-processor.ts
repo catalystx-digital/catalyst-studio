@@ -51,6 +51,41 @@ function listingItems(component: DetectedComponent): Record<string, unknown>[] {
   return []
 }
 
+function heroCarouselSlideTitles(component: DetectedComponent): Set<string> {
+  if (component.type !== 'hero-carousel') {
+    return new Set()
+  }
+
+  const content = isRecord(component.content) ? component.content : {}
+  const slides = Array.isArray(content.slides) ? content.slides.filter(isRecord) : []
+  const titles = new Set<string>()
+
+  for (const slide of slides) {
+    const slideContent = isRecord(slide.content) ? slide.content : {}
+    const sources = [slide, slideContent]
+    for (const source of sources) {
+      const title = normalizeText(source.heading ?? source.title ?? source.label ?? source.alt)
+      if (title) {
+        titles.add(title)
+      }
+      const image = isRecord(source.image) ? source.image : undefined
+      const imageAlt = normalizeText(image?.alt)
+      if (imageAlt) {
+        titles.add(imageAlt)
+      }
+      const ctaButtons = Array.isArray(source.ctaButtons) ? source.ctaButtons.filter(isRecord) : []
+      for (const button of ctaButtons) {
+        const label = normalizeText(button.label)
+        if (label) {
+          titles.add(label)
+        }
+      }
+    }
+  }
+
+  return titles
+}
+
 function hasImageLikeValue(value: unknown): boolean {
   if (!value) {
     return false
@@ -103,6 +138,18 @@ function familyFor(component: DetectedComponent, items: Record<string, unknown>[
 }
 
 function fingerprint(component: DetectedComponent): SurfaceFingerprint {
+  if (component.type === 'hero-carousel') {
+    const titles = heroCarouselSlideTitles(component)
+    return {
+      kind: 'other',
+      family: 'hero-carousel',
+      titles,
+      hasMedia: hasImageLikeValue(component.content),
+      hasEditorialLinks: false,
+      richnessScore: titles.size * 2 + (hasImageLikeValue(component.content) ? 8 : 0)
+    }
+  }
+
   if (!LISTING_TYPES.has(String(component.type))) {
     const title = getComponentTitle(component)
     return {
@@ -164,6 +211,35 @@ function unionTitles(fingerprints: SurfaceFingerprint[]): Set<string> {
     entry.titles.forEach(title => titles.add(title))
   }
   return titles
+}
+
+function duplicatesPreviousHeroCarousel(current: SurfaceFingerprint, previous: SurfaceFingerprint[]): boolean {
+  if (current.kind !== 'listing' || current.hasMedia || current.titles.size < 3) {
+    return false
+  }
+
+  const heroTitles = unionTitles(previous.filter(entry => entry.family === 'hero-carousel'))
+  if (heroTitles.size < 3) {
+    return false
+  }
+
+  const overlap = countOverlap(current.titles, heroTitles)
+  return overlap >= Math.max(3, Math.ceil(current.titles.size * 0.75))
+}
+
+function duplicatesRecentHeroSequence(current: SurfaceFingerprint, previous: SurfaceFingerprint[]): boolean {
+  if (current.kind !== 'listing' || current.hasMedia || current.titles.size < 5) {
+    return false
+  }
+
+  const recent = previous.slice(-5).filter(entry => entry.kind === 'other' && entry.titles.size > 0)
+  if (recent.length < 2) {
+    return false
+  }
+
+  const heroTitles = unionTitles(recent)
+  const overlap = countOverlap(current.titles, heroTitles)
+  return overlap >= 3 && overlap >= Math.ceil(heroTitles.size * 0.75)
 }
 
 function relatedListingFamilies(a: SurfaceFingerprint, b: SurfaceFingerprint): boolean {
@@ -250,6 +326,15 @@ export function collapseDuplicateListingSurfaces(components: DetectedComponent[]
 
   for (const component of components) {
     const current = fingerprint(component)
+    if (duplicatesPreviousHeroCarousel(current, retained) || duplicatesRecentHeroSequence(current, retained)) {
+      console.log('[StructuralDeduplication] Dropped carousel slide listing surface:', {
+        droppedComponentType: component.type,
+        titleCount: current.titles.size,
+        family: current.family,
+      })
+      continue
+    }
+
     const duplicateIndex = duplicateCandidateIndex(current, retained)
     if (duplicateIndex !== undefined) {
       const previous = retained[duplicateIndex]
