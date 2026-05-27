@@ -33,6 +33,7 @@ export interface ImportWorkflowInput {
   websiteId: string;
   url: string;
   accountId: string;
+  model?: string;
   options?: {
     maxUrls?: number;
     model?: string;
@@ -86,7 +87,7 @@ interface DesignSystemResult {
 export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise<ImportWorkflowResult> {
   "use workflow";
 
-  const { jobId, websiteId, url, accountId, options } = input;
+  const { jobId, websiteId, url, accountId, model, options } = input;
   const errors: string[] = [];
   // Use ConcurrencyConfig.maxUrls as default (reads from IMPORT_MAX_URLS env var)
   const maxUrls = options?.maxUrls ?? ConcurrencyConfig.maxUrls;
@@ -125,7 +126,7 @@ export async function importWebsiteWorkflow(input: ImportWorkflowInput): Promise
       );
       const settledResults = await Promise.allSettled(
         batchUrls.map((pageUrl, index) =>
-          processPageStep(jobId, pageUrl, websiteId, options?.model, batchPlans[index]?.attemptToken ?? null)
+          processPageStep(jobId, pageUrl, websiteId, options?.model ?? model, batchPlans[index]?.attemptToken ?? null)
         )
       );
       const batchResults = settledResults.map((result, index): PageProcessingResult => {

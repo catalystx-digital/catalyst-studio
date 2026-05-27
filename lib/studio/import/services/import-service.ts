@@ -6,7 +6,7 @@ import { ImportProgressManager } from './import-progress-manager';
 import { SitemapDiscoveryService, type ExpandedImportUrls } from './sitemap-discovery.service';
 import { ImportPlannerService } from './import-planner';
 import type { ImportPlannerInput, ImportPlan } from '../types/import-planner.types';
-import { ConcurrencyConfig, LoggingConfig } from '../config';
+import { ConcurrencyConfig, LoggingConfig, type ImportModelMode } from '../config';
 import { ImportRunService } from './import-run-service';
 import { ImportDraftMaterializer } from './import-draft-materializer';
 
@@ -30,6 +30,8 @@ export interface ImportServiceOptions {
   /** Max link depth (default: 3) */
   maxDepth?: number;
   idempotencyKey?: string;
+  modelMode?: ImportModelMode;
+  modelChain?: string;
 }
 
 interface StartImportResult {
@@ -117,7 +119,7 @@ export class ImportService {
    * - Natural language request
    */
   async startImport(options: ImportServiceOptions): Promise<StartImportResult> {
-    const { accountId, websiteId, url, urls, request, followSubpages, maxDepth, idempotencyKey } = options;
+    const { accountId, websiteId, url, urls, request, followSubpages, maxDepth, idempotencyKey, modelMode, modelChain } = options;
 
     if (!accountId) {
       throw new Error('accountId is required to start an import job');
@@ -172,6 +174,8 @@ export class ImportService {
               linkScope: plan.linkScope,
               maxPages: plan.maxPages,
               reasoning: plan.reasoning,
+              modelMode,
+              modelChain,
             },
           },
         },
@@ -265,6 +269,8 @@ export class ImportService {
             linkScope: plan.linkScope,
             maxPages: plan.maxPages,
             reasoning: plan.reasoning,
+            modelMode,
+            modelChain,
           },
         });
       }
@@ -285,6 +291,8 @@ export class ImportService {
         linkScope: plan.linkScope,
         maxPages: plan.maxPages,
         reasoning: plan.reasoning,
+        modelMode,
+        modelChain,
         discoveredUrls: precomputed.urls,
         skipped: precomputed.skipped ?? [],
       },

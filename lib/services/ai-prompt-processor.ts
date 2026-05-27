@@ -15,6 +15,11 @@ interface ProcessedPrompt {
 type ImportJobStatus = 'pending' | 'processing' | 'queued' | 'completed' | 'failed' | 'cancelled'
 
 type ImportJobLifecycleState = 'active' | 'queued' | 'completed'
+export type ImportModelMode = 'quality' | 'cheap'
+
+export interface CreateWebsiteOptions {
+  importModelMode?: ImportModelMode
+}
 
 const debugAIPromptProcessor = (...args: unknown[]) => {
   if (process.env.NODE_ENV !== 'production') {
@@ -104,7 +109,11 @@ export class AIPromptProcessor {
     };
   }
   
-  async createWebsiteFromPrompt(userPrompt: string, processedPrompt?: ProcessedPrompt): Promise<CreateWebsiteResult> {
+  async createWebsiteFromPrompt(
+    userPrompt: string,
+    processedPrompt?: ProcessedPrompt,
+    options?: CreateWebsiteOptions
+  ): Promise<CreateWebsiteResult> {
     const prompt = processedPrompt ?? (await this.processPrompt(userPrompt))
 
     // Use LLM-based workflow routing with regex fallback
@@ -119,7 +128,7 @@ export class AIPromptProcessor {
     })
 
     if (routingResult.workflow === 'import' && routingResult.importUrl) {
-      return this.startImportFromPrompt(routingResult.importUrl, userPrompt, prompt)
+      return this.startImportFromPrompt(routingResult.importUrl, userPrompt, prompt, options)
     }
 
     const websiteId = await this.createWebsiteViaApi(prompt, userPrompt)
@@ -275,13 +284,21 @@ export class AIPromptProcessor {
 
 
   
-  private async startImportFromPrompt(url: string, userPrompt: string, prompt: ProcessedPrompt): Promise<CreateWebsiteResult> {
+  private async startImportFromPrompt(
+    url: string,
+    userPrompt: string,
+    prompt: ProcessedPrompt,
+    options?: CreateWebsiteOptions
+  ): Promise<CreateWebsiteResult> {
     const normalizedUrl = this.normalizeImportUrl(url)
     const trimmedWebsiteName = prompt.websiteName?.trim() ?? ''
-    const payload: { url: string; websiteName?: string } = { url: normalizedUrl }
+    const payload: { url: string; websiteName?: string; modelMode?: ImportModelMode } = { url: normalizedUrl }
 
     if (trimmedWebsiteName.length > 0) {
       payload.websiteName = trimmedWebsiteName
+    }
+    if (options?.importModelMode) {
+      payload.modelMode = options.importModelMode
     }
 
     const response = await fetch('/api/studio/import/start', {
@@ -635,7 +652,9 @@ export class AIPromptProcessor {
     const explicitComponentPatterns = [
       /^(?:create|build|make)\s+(?:a\s+)?(?:single\s+)?component/i,  // "create a component"
       /^(?:create|build|make)\s+(?:a\s+)?(?:single\s+)?widget/i,     // "create a widget"
-      /reusable\s+(?:ui\s+)?component/i,                              // "reusable component"
+      /reusable\b.*\bcomponent/i,                                      // "reusable hero component"
+      /\b(?:header|navigation|pricing|hero|card|form|table|footer|navbar)\b.*\bcomponent\b/i,
+      /\bcomponent\b.*\b(?:header|navigation|pricing|hero|card|form|table|footer|navbar)\b/i,
       /standalone\s+component/i,                                       // "standalone component"
       /component\s+library/i,                                          // "component library"
     ];

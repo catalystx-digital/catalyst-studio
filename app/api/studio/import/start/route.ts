@@ -7,8 +7,10 @@ import { ApiError } from '@/lib/api/errors';
 import { getAuthContext } from '@/lib/auth/context';
 import { checkAndRecordUsage } from '@/lib/usage/limits';
 import { normalizeImportUrl } from '@/lib/studio/import/services/import-run-service';
+import { resolveImportModelSelection, type ImportModelMode } from '@/lib/studio/import/config/import-config';
 
 type ImportMode = 'new' | 'merge';
+type ApiImportModelMode = Extract<ImportModelMode, 'quality' | 'cheap'>;
 const ACTIVE_RUN_STATUSES = ['queued', 'discovering', 'importing', 'running', 'detecting', 'normalizing', 'staged', 'committing'];
 
 function startImportProcessing(input: {
@@ -16,6 +18,7 @@ function startImportProcessing(input: {
   websiteId: string;
   url: string;
   accountId: string;
+  model: string;
 }): void | Promise<unknown> {
   if (process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true') {
     void importWebsiteWorkflow(input).then((result) => {
@@ -59,6 +62,7 @@ interface ImportStartRequest {
   request?: string;          // Natural language request
   followSubpages?: boolean;  // Whether to crawl subpages (default: true)
   maxDepth?: number;         // Max link depth (default: 3)
+  modelMode?: ApiImportModelMode;
 }
 
 /**
@@ -121,7 +125,15 @@ export async function POST(request: NextRequest) {
       targetWebsiteId,
       followSubpages = true,
       maxDepth = 3,
+      modelMode = 'quality',
     } = body;
+
+    if (modelMode !== 'quality' && modelMode !== 'cheap') {
+      return NextResponse.json(
+        { error: 'Invalid model mode. Expected "quality" or "cheap".' },
+        { status: 400 }
+      );
+    }
 
     // Validate: must have at least one of: url, urls, or request with url
     if (!url && (!urls || urls.length === 0)) {
@@ -191,6 +203,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+    const modelSelection = resolveImportModelSelection({ ...process.env, IMPORT_MODEL_MODE: modelMode });
 
     const auth = await getAuthContext(request);
 
@@ -198,7 +211,15 @@ export async function POST(request: NextRequest) {
 
     // Get primary URL for website creation
     const primaryUrl = url || (urls && urls.length > 0 ? urls[0] : '');
-    const idempotencyKey = buildImportIdempotencyKey({ primaryUrl, urls, importRequest, followSubpages, maxDepth });
+    const idempotencyKey = buildImportIdempotencyKey({
+      primaryUrl,
+      urls,
+      importRequest,
+      followSubpages,
+      maxDepth,
+      modelMode: modelSelection.mode,
+      modelChain: modelSelection.chain,
+    });
 
     if (mode === 'merge') {
       if (!targetWebsiteId) {
@@ -237,6 +258,8 @@ export async function POST(request: NextRequest) {
             jobId: existingRun.importJobId,
             websiteId,
             mode,
+            modelMode: modelSelection.mode,
+            modelFallback: modelSelection.fallbackEnabled,
             replayed: true,
             message: 'Import is already running',
             initialSitemap: [],
@@ -247,9 +270,9 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-      await checkAndRecordUsage(prisma as any, auth.accountId, 'import_page', 1, { metadata: { mode } });
+      await checkAndRecordUsage(prisma as any, auth.accountId, 'import_page', 1, { metadata: { mode, modelMode: modelSelection.mode } });
     } else {
-      await checkAndRecordUsage(prisma as any, auth.accountId, 'import_page', 1, { metadata: { mode } });
+      await checkAndRecordUsage(prisma as any, auth.accountId, 'import_page', 1, { metadata: { mode, modelMode: modelSelection.mode } });
       const newWebsite = await prisma.website.create({
         data: {
           name: websiteName || new URL(primaryUrl).hostname,
@@ -276,6 +299,8 @@ export async function POST(request: NextRequest) {
       followSubpages,
       maxDepth,
       idempotencyKey,
+      modelMode: modelSelection.mode,
+      modelChain: modelSelection.chain,
     });
 
     await startImportProcessing({
@@ -283,12 +308,15 @@ export async function POST(request: NextRequest) {
       websiteId,
       url: primaryUrl,
       accountId: auth.accountId,
+      model: modelSelection.primary,
     });
 
     return NextResponse.json({
       jobId: result.job.id,
       websiteId,
       mode,
+      modelMode: modelSelection.mode,
+      modelFallback: modelSelection.fallbackEnabled,
       message: result.message,
       initialSitemap: result.initialSitemap ?? [],
     });
@@ -330,6 +358,8 @@ function buildImportIdempotencyKey(input: {
   importRequest?: string;
   followSubpages: boolean;
   maxDepth: number;
+  modelMode: ImportModelMode;
+  modelChain: string;
 }): string {
   const normalizedUrls = (input.urls && input.urls.length > 0 ? input.urls : [input.primaryUrl])
     .map(normalizeImportUrl)
@@ -339,5 +369,7 @@ function buildImportIdempotencyKey(input: {
     request: input.importRequest?.trim() ?? '',
     followSubpages: input.followSubpages,
     maxDepth: input.maxDepth,
+    modelMode: input.modelMode,
+    modelChain: input.modelChain,
   });
 }

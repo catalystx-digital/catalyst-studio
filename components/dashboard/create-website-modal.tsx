@@ -3,7 +3,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Sparkles, Upload, LayoutTemplate, ExternalLink, X, FileText } from 'lucide-react';
+import { BadgeDollarSign, Loader2, Sparkles, Upload, LayoutTemplate, ExternalLink, X, FileText } from 'lucide-react';
 import {
   extractTextFromFile,
   getAcceptedFileTypes,
@@ -12,7 +12,7 @@ import {
 import { useUser } from '@/lib/auth/hooks';
 import { AIPromptProcessor } from '@/lib/services/ai-prompt-processor';
 import { useImportTrackerStore } from '@/lib/studio/stores/import-tracker-store';
-import type { ImportJobSnapshot } from '@/lib/services/ai-prompt-processor';
+import type { ImportJobSnapshot, ImportModelMode } from '@/lib/services/ai-prompt-processor';
 import type { ImportActivityItem } from '@/lib/api/hooks/use-import-activity';
 import { useToast } from '@/components/ui/use-toast';
 import { getStudioWebsiteRoute } from '@/lib/config/deployment';
@@ -89,6 +89,7 @@ export function CreateWebsiteModal({
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const [prompt, setPrompt] = useState('');
   const [importUrl, setImportUrl] = useState('');
+  const [importModelMode, setImportModelMode] = useState<ImportModelMode>('quality');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -110,6 +111,7 @@ export function CreateWebsiteModal({
       setTimeout(() => {
         setPrompt('');
         setImportUrl('');
+        setImportModelMode('quality');
         setError(null);
         setUploadedFile(null);
         setExtractedContent(null);
@@ -362,7 +364,9 @@ ${extractedContent.text}`
     try {
       const processor = new AIPromptProcessor();
       const processedPrompt = await processor.processPrompt(importPrompt);
-      const result = await processor.createWebsiteFromPrompt(importPrompt, processedPrompt);
+      const result = await processor.createWebsiteFromPrompt(importPrompt, processedPrompt, {
+        importModelMode,
+      });
 
       if (result.type === 'import') {
         primeImportStores(result.job);
@@ -386,7 +390,7 @@ ${extractedContent.text}`
     } finally {
       setIsCreating(false);
     }
-  }, [importUrl, isCreating, primeImportStores, toast, onWebsiteCreated, onOpenChange, router]);
+  }, [importUrl, importModelMode, isCreating, primeImportStores, toast, onWebsiteCreated, onOpenChange, router]);
 
   const handleTagClick = useCallback((tagPrompt: string) => {
     // If this is the import tag, switch to import tab instead of showing verbose prompt
@@ -618,6 +622,40 @@ ${extractedContent.text}`
               <p className="text-xs text-gray-500">
                 We'll recreate the structure, navigation, and content of the website
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-gray-300">
+                Model
+              </Label>
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-800 p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setImportModelMode('quality')}
+                  disabled={isCreating}
+                  className={cn(
+                    'h-9 justify-center gap-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white',
+                    importModelMode === 'quality' && 'bg-gray-700 text-white'
+                  )}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Quality
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setImportModelMode('cheap')}
+                  disabled={isCreating}
+                  className={cn(
+                    'h-9 justify-center gap-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white',
+                    importModelMode === 'cheap' && 'bg-gray-700 text-white'
+                  )}
+                >
+                  <BadgeDollarSign className="h-4 w-4" />
+                  Cheap
+                </Button>
+              </div>
             </div>
 
             {error && (

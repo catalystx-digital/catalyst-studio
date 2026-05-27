@@ -15,6 +15,7 @@ function startImportProcessing(input: {
   websiteId: string
   url: string
   accountId: string
+  model?: string
 }): void | Promise<unknown> {
   if (process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === 'true') {
     void importWebsiteWorkflow(input).then((result) => {
@@ -37,6 +38,19 @@ function startImportProcessing(input: {
   }
 
   return start(importWebsiteWorkflow, [input])
+}
+
+function getRetryModel(importPlan: unknown): string | undefined {
+  if (!importPlan || typeof importPlan !== 'object' || Array.isArray(importPlan)) {
+    return undefined
+  }
+
+  const modelChain = (importPlan as Record<string, unknown>).modelChain
+  if (typeof modelChain !== 'string') {
+    return undefined
+  }
+
+  return modelChain.split('|').map((value) => value.trim()).find(Boolean)
 }
 
 export async function POST(
@@ -131,6 +145,7 @@ export async function POST(
       websiteId: run.websiteId,
       url: run.sourceUrl,
       accountId: auth.accountId,
+      model: getRetryModel(run.importPlan),
     })
 
     return NextResponse.json({ success: true, jobId, retryingPages: resetResult.count })

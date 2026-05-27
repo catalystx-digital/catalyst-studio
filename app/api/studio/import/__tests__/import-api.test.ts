@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { checkAndRecordUsage } from '@/lib/usage/limits'
 import { ImportService } from '@/lib/studio/import/services/import-service'
 import { ApiError } from '@/lib/api/errors'
+import { start as startWorkflow } from 'workflow/api'
 
 jest.mock('@/lib/auth/context', () => ({
   getAuthContext: jest.fn().mockResolvedValue({
@@ -15,6 +16,7 @@ jest.mock('@/lib/auth/context', () => ({
 
 jest.mock('@/lib/prisma', () => ({
   prisma: {
+    $transaction: jest.fn(async (callback: (tx: any) => unknown) => callback({})),
     website: {
       create: jest.fn(),
       findUnique: jest.fn(),
@@ -22,12 +24,17 @@ jest.mock('@/lib/prisma', () => ({
     },
     importJob: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
     },
     importRun: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
+    },
+    importPageStage: {
+      findMany: jest.fn(),
     },
     websiteComponentType: {
       findMany: jest.fn(),
@@ -54,6 +61,7 @@ jest.mock('@/lib/studio/workflows/import-website.workflow', () => ({
 const startImportMock = jest.fn()
 
 const prismaMock = prisma as unknown as {
+  $transaction: jest.Mock
   website: {
     create: jest.Mock
     findUnique: jest.Mock
@@ -61,12 +69,17 @@ const prismaMock = prisma as unknown as {
   }
   importJob: {
     findUnique: jest.Mock
+    findFirst: jest.Mock
     findMany: jest.Mock
     update: jest.Mock
   }
   importRun: {
     findUnique: jest.Mock
+    findFirst: jest.Mock
     update: jest.Mock
+  }
+  importPageStage: {
+    findMany: jest.Mock
   }
   websiteComponentType: {
     findMany: jest.Mock
@@ -76,6 +89,7 @@ const prismaMock = prisma as unknown as {
 
 const usageMock = checkAndRecordUsage as jest.MockedFunction<typeof checkAndRecordUsage>
 const ImportServiceMock = jest.mocked(ImportService)
+const startWorkflowMock = startWorkflow as jest.Mock
 
 describe('Import API Routes', () => {
   beforeEach(() => {
@@ -91,10 +105,13 @@ describe('Import API Routes', () => {
     prismaMock.website.findUnique.mockResolvedValue(null)
     prismaMock.website.update.mockResolvedValue({})
     prismaMock.importJob.findUnique.mockResolvedValue(null)
+    prismaMock.importJob.findFirst.mockResolvedValue(null)
     prismaMock.importJob.findMany.mockResolvedValue([])
     prismaMock.importJob.update.mockResolvedValue({})
     prismaMock.importRun.findUnique.mockResolvedValue(null)
+    prismaMock.importRun.findFirst.mockResolvedValue(null)
     prismaMock.importRun.update.mockResolvedValue({})
+    prismaMock.importPageStage.findMany.mockResolvedValue([])
     prismaMock.websiteComponentType.findMany.mockResolvedValue([])
     prismaMock.websiteComponentType.deleteMany.mockResolvedValue({ count: 0 })
 
@@ -126,7 +143,7 @@ describe('Import API Routes', () => {
 
       expect(response.status).toBe(200)
       expect(usageMock).toHaveBeenCalledWith(expect.anything(), 'test-account-id', 'import_page', 1, {
-        metadata: { mode: 'new' },
+        metadata: { mode: 'new', modelMode: 'quality' },
       })
       expect(startImportMock).toHaveBeenCalledWith({
         websiteId: 'test-website-id',
@@ -136,11 +153,16 @@ describe('Import API Routes', () => {
         request: undefined,
         followSubpages: true,
         maxDepth: 3,
+        idempotencyKey: expect.any(String),
+        modelMode: 'quality',
+        modelChain: expect.any(String),
       })
       expect(payload).toEqual({
         jobId: 'job-1',
         websiteId: 'test-website-id',
         mode: 'new',
+        modelMode: 'quality',
+        modelFallback: expect.any(Boolean),
         message: 'Preparing import...',
         initialSitemap: [],
       })
@@ -179,9 +201,100 @@ describe('Import API Routes', () => {
         request: undefined,
         followSubpages: true,
         maxDepth: 3,
+        idempotencyKey: expect.any(String),
+        modelMode: 'quality',
+        modelChain: expect.any(String),
       })
       expect(payload.websiteId).toBe('existing-site')
       expect(payload.mode).toBe('merge')
+    })
+
+    it('starts a cheap model import when requested', async () => {
+      startImportMock.mockResolvedValueOnce({
+        job: { id: 'job-cheap', websiteId: 'test-website-id' } as any,
+        message: 'Preparing import...',
+        initialSitemap: [],
+      })
+
+      const request = new NextRequest('http://localhost:3000/api/studio/import/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          url: 'https://example.com',
+          modelMode: 'cheap',
+        }),
+      })
+
+      const response = await startImport(request)
+      const payload = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(startImportMock).toHaveBeenCalledWith(expect.objectContaining({
+        modelMode: 'cheap',
+        modelChain: 'deepseek/deepseek-v4-flash',
+      }))
+      expect(startWorkflowMock).toHaveBeenCalledWith(expect.any(Function), [
+        expect.objectContaining({
+          jobId: 'job-cheap',
+          websiteId: 'test-website-id',
+          url: 'https://example.com',
+          accountId: 'test-account-id',
+          model: 'deepseek/deepseek-v4-flash',
+        }),
+      ])
+      expect(payload).toMatchObject({
+        jobId: 'job-cheap',
+        modelMode: 'cheap',
+        modelFallback: false,
+      })
+    })
+
+    it('passes only the primary model to workflow when quality mode has a chain', async () => {
+      const originalChain = process.env.IMPORT_MODEL_CHAIN
+      process.env.IMPORT_MODEL_CHAIN = 'quality/primary|quality/retry'
+      startImportMock.mockResolvedValueOnce({
+        job: { id: 'job-chain', websiteId: 'test-website-id' } as any,
+        message: 'Preparing import...',
+        initialSitemap: [],
+      })
+
+      const response = await startImport(new NextRequest('http://localhost:3000/api/studio/import/start', {
+        method: 'POST',
+        body: JSON.stringify({ url: 'https://example.com' }),
+      }))
+
+      if (typeof originalChain === 'string') {
+        process.env.IMPORT_MODEL_CHAIN = originalChain
+      } else {
+        delete process.env.IMPORT_MODEL_CHAIN
+      }
+
+      expect(response.status).toBe(200)
+      expect(startImportMock).toHaveBeenCalledWith(expect.objectContaining({
+        modelMode: 'quality',
+        modelChain: 'quality/primary|quality/retry',
+      }))
+      expect(startWorkflowMock).toHaveBeenCalledWith(expect.any(Function), [
+        expect.objectContaining({
+          model: 'quality/primary',
+        }),
+      ])
+    })
+
+    it('rejects invalid model modes', async () => {
+      const request = new NextRequest('http://localhost:3000/api/studio/import/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          url: 'https://example.com',
+          modelMode: 'benchmark',
+        }),
+      })
+
+      const response = await startImport(request)
+      const payload = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(payload.error).toContain('Invalid model mode')
+      expect(startImportMock).not.toHaveBeenCalled()
     })
 
     it('requires targetWebsiteId for merge mode', async () => {
@@ -317,7 +430,7 @@ describe('Import API Routes', () => {
         id: 'job-1',
         status: 'cancelled',
       })
-      prismaMock.importRun.findUnique.mockResolvedValueOnce({
+      prismaMock.importRun.findUnique.mockResolvedValue({
         id: 'run-1',
         importJobId: 'job-1',
         status: 'running',

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { POST as retryImport } from '../retry/[jobId]/route'
 import { prisma } from '@/lib/prisma'
+import { start as startWorkflow } from 'workflow/api'
 
 jest.mock('@/lib/auth/context', () => ({
   getAuthContext: jest.fn().mockResolvedValue({
@@ -33,6 +34,8 @@ jest.mock('@/lib/studio/workflows/import-website.workflow', () => ({
 }))
 
 describe('POST /api/studio/import/retry/[jobId]', () => {
+  const startWorkflowMock = startWorkflow as jest.Mock
+
   beforeEach(() => {
     const prismaMock = prisma as unknown as {
       importRun: { findUnique: jest.Mock; update: jest.Mock }
@@ -48,6 +51,10 @@ describe('POST /api/studio/import/retry/[jobId]', () => {
       sourceUrl: 'https://example.com',
       status: 'failed_retryable',
       progress: 80,
+      importPlan: {
+        modelMode: 'cheap',
+        modelChain: 'deepseek/deepseek-v4-flash|quality/retry',
+      },
       importJob: { id: 'job-1' },
       website: { accountId: 'account-1' },
     })
@@ -75,6 +82,12 @@ describe('POST /api/studio/import/retry/[jobId]', () => {
         }),
       }),
     )
+    expect(startWorkflowMock).toHaveBeenCalledWith(expect.any(Function), [
+      expect.objectContaining({
+        jobId: 'job-1',
+        model: 'deepseek/deepseek-v4-flash',
+      }),
+    ])
   })
 
   it('restarts staged pages when the run failed before page-level retry flags were written', async () => {

@@ -1,5 +1,11 @@
 import { AIPromptProcessor } from '../ai-prompt-processor';
 
+const findFetchCall = (url: string) => {
+  const call = (global.fetch as jest.Mock).mock.calls.find(([requestUrl]) => requestUrl === url);
+  expect(call).toBeDefined();
+  return call!;
+};
+
 describe('AIPromptProcessor', () => {
   let processor: AIPromptProcessor;
   
@@ -115,15 +121,34 @@ describe('AIPromptProcessor', () => {
   
   describe('createWebsiteFromPrompt', () => {
     beforeEach(() => {
-      const fetchMock = jest.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: { pagesCreated: 3, populatedPages: 2, fallbackApplied: false } }),
-      }) as jest.Mock;
+      const fetchMock = jest.fn(async (requestUrl: string) => {
+        if (requestUrl === '/api/studio/workflow-route') {
+          return {
+            ok: false,
+            status: 503,
+            json: async () => ({}),
+          };
+        }
 
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: { id: 'test-website-id' } }),
-      });
+        if (requestUrl === '/api/websites') {
+          return {
+            ok: true,
+            json: async () => ({ data: { id: 'test-website-id' } }),
+          };
+        }
+
+        if (requestUrl === '/api/studio/site-builder/bootstrap') {
+          return {
+            ok: true,
+            json: async () => ({ data: { pagesCreated: 3, populatedPages: 2, fallbackApplied: false } }),
+          };
+        }
+
+        return {
+          ok: true,
+          json: async () => ({ data: { pagesCreated: 3, populatedPages: 2, fallbackApplied: false } }),
+        };
+      }) as jest.Mock;
 
       global.fetch = fetchMock;
     });
@@ -131,6 +156,11 @@ describe('AIPromptProcessor', () => {
     it('should create import job when prompt contains a URL', async () => {
       const fetchMock = global.fetch as jest.Mock;
       fetchMock.mockReset();
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      });
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -159,15 +189,52 @@ describe('AIPromptProcessor', () => {
         }),
       );
 
-      const [requestUrl, requestInit] = (global.fetch as jest.Mock).mock.calls[0];
+      const [requestUrl, requestInit] = findFetchCall('/api/studio/import/start');
       expect(requestUrl).toBe('/api/studio/import/start');
       const payload = JSON.parse((requestInit?.body as string) ?? '{}');
       expect(payload.websiteName).toBe('Example');
     });
 
+    it('sends selected import model mode when starting an import', async () => {
+      const fetchMock = global.fetch as jest.Mock;
+      fetchMock.mockReset();
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      });
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          jobId: 'job-cheap',
+          websiteId: 'site-cheap',
+          mode: 'new',
+          state: 'active',
+          message: 'Preparing import...',
+          queuePosition: null,
+          estimatedStartSeconds: null,
+        }),
+      });
+
+      await processor.createWebsiteFromPrompt(
+        'Import https://example.com now',
+        undefined,
+        { importModelMode: 'cheap' },
+      );
+
+      const [, requestInit] = findFetchCall('/api/studio/import/start');
+      const payload = JSON.parse((requestInit?.body as string) ?? '{}');
+      expect(payload.modelMode).toBe('cheap');
+    });
+
     it('marks import jobs as queued when API responds with queued state', async () => {
       const fetchMock = global.fetch as jest.Mock;
       fetchMock.mockReset();
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      });
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -196,24 +263,24 @@ describe('AIPromptProcessor', () => {
 
       expect(result.type).toBe('ai');
       expect(result.websiteId).toBe('test-website-id');
-      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe('/api/websites');
-      expect((global.fetch as jest.Mock).mock.calls[1][0]).toBe('/api/studio/site-builder/bootstrap');
+      expect(findFetchCall('/api/websites')[0]).toBe('/api/websites');
+      expect(findFetchCall('/api/studio/site-builder/bootstrap')[0]).toBe('/api/studio/site-builder/bootstrap');
     });
 
     it('should call API to create website', async () => {
       const prompt = 'Test website';
       await processor.createWebsiteFromPrompt(prompt);
 
-      expect(global.fetch).toHaveBeenCalledTimes(2);
-      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe('/api/websites');
-      expect((global.fetch as jest.Mock).mock.calls[1][0]).toBe('/api/studio/site-builder/bootstrap');
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+      expect(findFetchCall('/api/websites')[0]).toBe('/api/websites');
+      expect(findFetchCall('/api/studio/site-builder/bootstrap')[0]).toBe('/api/studio/site-builder/bootstrap');
     });
 
     it('should save AI context with initial prompt', async () => {
       const prompt = 'E-commerce store with payment processing';
       await processor.createWebsiteFromPrompt(prompt);
 
-      const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+      const fetchCall = findFetchCall('/api/websites');
       const body = JSON.parse(fetchCall[1].body as string);
 
       expect(body.metadata).toBeDefined();
@@ -238,7 +305,7 @@ describe('AIPromptProcessor', () => {
       const crmPrompt = 'CRM system for sales teams';
       await processor.createWebsiteFromPrompt(crmPrompt);
 
-      const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+      const fetchCall = findFetchCall('/api/websites');
       const body = JSON.parse(fetchCall[1].body as string);
 
       expect(body.settings.theme).toBeDefined();
@@ -249,7 +316,7 @@ describe('AIPromptProcessor', () => {
       const prompt = 'Platform with user authentication and payment processing';
       await processor.createWebsiteFromPrompt(prompt);
 
-      const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+      const fetchCall = findFetchCall('/api/websites');
       const body = JSON.parse(fetchCall[1].body as string);
 
       expect(body.settings.techStack).toContain('NextAuth.js');
@@ -307,5 +374,3 @@ describe('AIPromptProcessor', () => {
     });
   });
 });
-
-
