@@ -375,8 +375,9 @@ export class SitemapDiscoveryService {
     const reachable: string[] = [];
     const skipped: Array<{ url: string; reason: string }> = [];
 
-    // FAST MODE: Skip reachability checks for large imports (set IMPORT_SKIP_REACHABILITY=1)
-    const skipReachability = process.env.IMPORT_SKIP_REACHABILITY === '1' || process.env.IMPORT_SKIP_REACHABILITY === 'true';
+    // FAST MODE: skip reachability only for genuinely large imports. Small imports need
+    // filtering so inaccessible sitemap URLs do not consume the requested page slots.
+    const skipReachability = this.shouldSkipReachability(maxUrls);
     if (skipReachability) {
       console.log('[DISCOVERY] Fast mode: skipping reachability checks');
       for (const url of urls) {
@@ -444,7 +445,7 @@ export class SitemapDiscoveryService {
       })
     );
 
-    const skipReachability = process.env.IMPORT_SKIP_REACHABILITY === '1' || process.env.IMPORT_SKIP_REACHABILITY === 'true';
+    const skipReachability = this.shouldSkipReachability(maxUrls);
 
     for (const priorityPath of priorityPaths) {
       // Normalize priority path
@@ -512,6 +513,16 @@ export class SitemapDiscoveryService {
     } catch {
       return false;
     }
+  }
+
+  private shouldSkipReachability(maxUrls: number): boolean {
+    const requested = process.env.IMPORT_SKIP_REACHABILITY === '1' || process.env.IMPORT_SKIP_REACHABILITY === 'true';
+    if (!requested) {
+      return false;
+    }
+    const threshold = Number.parseInt(process.env.IMPORT_SKIP_REACHABILITY_MIN_URLS || '50', 10);
+    const minUrls = Number.isFinite(threshold) && threshold > 0 ? threshold : 50;
+    return maxUrls >= minUrls;
   }
 
   private async isReachable(url: string, timeoutMs: number = 5000): Promise<{ ok: boolean; reason?: string }> {

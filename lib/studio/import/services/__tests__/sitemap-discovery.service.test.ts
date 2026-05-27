@@ -2,6 +2,7 @@ import { SitemapDiscoveryService } from '../sitemap-discovery.service';
 
 describe('SitemapDiscoveryService', () => {
   const service = new SitemapDiscoveryService();
+  const originalFetch = (global as any).fetch;
 
   const makeResponse = (status: number, body: string, contentType: string = 'text/xml') =>
     ({
@@ -30,6 +31,9 @@ describe('SitemapDiscoveryService', () => {
     } as any);
 
   beforeEach(() => {
+    if (!(global as any).fetch) {
+      (global as any).fetch = jest.fn();
+    }
     const responses: Record<string, { status: number; body: string; contentType?: string }> = {
       // Platform detection fetch.
       'https://example.com/': { status: 200, body: '<html><head></head><body>home</body></html>', contentType: 'text/html' },
@@ -45,12 +49,12 @@ describe('SitemapDiscoveryService', () => {
         `,
       },
       // Reachability probes.
-      'https://example.com/valid/': { status: 200, body: 'ok' },
+      'https://example.com/valid/': { status: 200, body: '<html>ok</html>', contentType: 'text/html' },
       'https://example.com/compact/': {
         status: 200,
         body: '<html><body><h1>Page not found</h1><p>Error: 404</p></body></html>',
       },
-      'https://example.com/encoded/path/': { status: 200, body: 'ok' },
+      'https://example.com/encoded/path/': { status: 200, body: '<html>ok</html>', contentType: 'text/html' },
     };
 
     const fetchMock = jest.spyOn(global, 'fetch' as any);
@@ -58,7 +62,7 @@ describe('SitemapDiscoveryService', () => {
       const url = typeof input === 'string' ? input : input?.toString();
       const hit = responses[url];
       if (!hit) {
-        throw new Error(`Unexpected fetch for ${url}`);
+        return makeResponse(404, 'not found', 'text/html');
       }
       return makeResponse(hit.status, hit.body, hit.contentType);
     });
@@ -67,6 +71,13 @@ describe('SitemapDiscoveryService', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     jest.clearAllTimers();
+    delete process.env.IMPORT_SKIP_REACHABILITY;
+    delete process.env.IMPORT_SKIP_REACHABILITY_MIN_URLS;
+    if (originalFetch) {
+      (global as any).fetch = originalFetch;
+    } else {
+      delete (global as any).fetch;
+    }
   });
 
   it('always includes the site root first and filters unreachable entries', async () => {
@@ -95,7 +106,7 @@ describe('SitemapDiscoveryService', () => {
         );
       }
       if (url === 'https://example.com/valid/') {
-        return makeResponse(200, 'ok');
+        return makeResponse(200, '<html>ok</html>', 'text/html');
       }
       if (url === 'https://example.com/intranet/secret/') {
         return makeResponse(200, '<html>Page not found</html>', 'text/html');
@@ -131,7 +142,7 @@ describe('SitemapDiscoveryService', () => {
         return makeResponse(200, '<html><body><h1>Error: 404</h1></body></html>');
       }
       if (url === 'https://example.com/valid-a/' || url === 'https://example.com/valid-b/' || url === 'https://example.com/valid-c/') {
-        return makeResponse(200, 'ok');
+        return makeResponse(200, '<html>ok</html>', 'text/html');
       }
       throw new Error(`Unexpected fetch for ${url}`);
     });
@@ -141,5 +152,49 @@ describe('SitemapDiscoveryService', () => {
     expect(result.urls).toContain('https://example.com/valid-a/');
     expect(result.urls).toContain('https://example.com/valid-b/');
     expect(result.urls.length).toBe(3);
+  });
+
+  it('still filters unreachable URLs for small imports when fast mode is enabled', async () => {
+    process.env.IMPORT_SKIP_REACHABILITY = '1';
+    const serviceWithFastMode = new SitemapDiscoveryService();
+    (global.fetch as any).mockImplementation(async (input: any) => {
+      const url = typeof input === 'string' ? input : input?.toString();
+      if (url === 'https://example.com/') {
+        return makeResponse(200, '<html>home</html>', 'text/html');
+      }
+      if (url === 'https://example.com/sitemap.xml') {
+        return makeResponse(
+          200,
+          `<urlset>
+             <url><loc>https://example.com/valid-a/</loc></url>
+             <url><loc>https://example.com/forbidden/</loc></url>
+             <url><loc>https://example.com/valid-b/</loc></url>
+           </urlset>`
+        );
+      }
+      if (url === 'https://example.com/forbidden/') {
+        return makeResponse(403, 'forbidden', 'text/html');
+      }
+      if (url === 'https://example.com/valid-a/' || url === 'https://example.com/valid-b/') {
+        return makeResponse(200, 'ok', 'text/html');
+      }
+      throw new Error(`Unexpected fetch for ${url}`);
+    });
+
+    const result = await serviceWithFastMode.expandUrlsForImport('https://example.com/', 3);
+
+    expect(result.urls).toEqual([
+      'https://example.com/',
+      'https://example.com/valid-a/',
+      'https://example.com/valid-b/'
+    ]);
+    expect(result.skipped).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          url: 'https://example.com/forbidden/',
+          reason: 'http-403'
+        })
+      ])
+    );
   });
 });
