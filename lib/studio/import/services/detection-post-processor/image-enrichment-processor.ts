@@ -306,6 +306,23 @@ function enrichComponentWithImage(
     return enrichCardCollection(content.pinned, image, imageData)
   }
 
+  if (component.type === 'cta-banner' && !content.backgroundImage) {
+    content.backgroundImage = absoluteSrc
+    return true
+  }
+
+  if (component.type === 'logo-cloud') {
+    const logos = Array.isArray(content.logos) ? content.logos as unknown[] : []
+    content.logos = [
+      ...logos,
+      {
+        id: stableImageId(absoluteSrc),
+        ...imageData
+      }
+    ]
+    return true
+  }
+
   // For two-column components, try to add to the matching child component.
   if (component.type === 'two-column') {
     const leftColumn = content.leftColumn as Array<Record<string, unknown>> | undefined
@@ -399,12 +416,30 @@ function enrichCardCollection(
 
 function getItemText(item: Record<string, unknown>): string {
   const texts: string[] = []
-  if (typeof item.heading === 'string') texts.push(item.heading.toLowerCase())
-  if (typeof item.title === 'string') texts.push(item.title.toLowerCase())
-  if (typeof item.body === 'string') {
-    texts.push(item.body.replace(/<[^>]+>/g, ' ').toLowerCase())
+
+  const collectText = (value: unknown): void => {
+    if (typeof value === 'string') {
+      const text = value.replace(/<[^>]+>/g, ' ').trim().toLowerCase()
+      if (text.length > 2) texts.push(text)
+      return
+    }
+
+    if (!isRecord(value)) {
+      return
+    }
+
+    for (const key of ['heading', 'title', 'body', 'text', 'description', 'summary', 'excerpt', 'label', 'name', 'caption', 'alt']) {
+      collectText(value[key])
+    }
   }
-  return texts.join(' ')
+
+  collectText(item)
+
+  if (isRecord(item.content)) {
+    collectText(item.content)
+  }
+
+  return Array.from(new Set(texts)).join(' ')
 }
 
 function imageMatchesItem(nearbyText: string, itemText: string): boolean {
