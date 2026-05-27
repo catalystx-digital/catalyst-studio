@@ -176,6 +176,7 @@ export interface DetectionFailureDebug {
   repairPromptCapped?: boolean
   repairPromptPreviousJsonChars?: number
   invalidComponents?: InvalidDetectedComponent[]
+  invalidComponentReasons?: string[]
   invalidComponentCount?: number
   requiredSectionEmpty?: boolean
   extractionMode?: 'fresh' | 'reused' | 'checkpoint'
@@ -196,6 +197,16 @@ export class DetectionFailureError extends Error {
     this.name = 'DetectionFailureError'
     this.debug = debug
   }
+}
+
+function summarizeInvalidComponents(invalidComponents: InvalidDetectedComponent[] | undefined): string[] | undefined {
+  if (!invalidComponents || invalidComponents.length === 0) {
+    return undefined
+  }
+  return invalidComponents.slice(0, 5).map(component => {
+    const type = component.type || component.component || 'unknown'
+    return `components[${component.index}] ${type}: ${component.reason}`
+  })
 }
 
 function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
@@ -1084,6 +1095,7 @@ export class DetectionService {
                   sectionApproxBytes,
                   ...sectionPayloadDebug,
                   invalidComponents: parsedSection.invalidComponents,
+                  invalidComponentReasons: summarizeInvalidComponents(parsedSection.invalidComponents),
                   invalidComponentCount: parsedSection.invalidComponents.length,
                   ...repairDebug
                 }
@@ -1115,6 +1127,7 @@ export class DetectionService {
                 sectionApproxBytes,
                 ...sectionPayloadDebug,
                 invalidComponents: parsedSection.invalidComponents,
+                invalidComponentReasons: summarizeInvalidComponents(parsedSection.invalidComponents),
                 invalidComponentCount: parsedSection.invalidComponents?.length,
                 requiredSectionEmpty,
                 ...parserDebug,
@@ -1227,6 +1240,7 @@ export class DetectionService {
               sectionSummarizedBytes: summarizedSection.summarizedBytes,
               sectionSummaryReductionRatio: summarizedSection.reductionRatio,
               invalidComponents: artifact.invalidComponents,
+              invalidComponentReasons: summarizeInvalidComponents(artifact.invalidComponents),
               invalidComponentCount: artifact.invalidComponents?.length,
               requiredSectionEmpty: artifact.requiredSectionEmpty,
               extractionMode: provenance.extractionMode,
@@ -1304,6 +1318,7 @@ export class DetectionService {
               sectionSummarizedBytes: error.debug.sectionSummarizedBytes,
               sectionSummaryReductionRatio: error.debug.sectionSummaryReductionRatio,
               invalidComponents: error.debug.invalidComponents,
+              invalidComponentReasons: error.debug.invalidComponentReasons,
               invalidComponentCount: error.debug.invalidComponentCount,
               requiredSectionEmpty: error.debug.requiredSectionEmpty,
               parserRepair: error.debug.parserRepair,
@@ -1887,6 +1902,7 @@ export class DetectionService {
                     sectionOrder: artifact.sectionOrder,
                     extractionMode: 'fresh',
                     invalidComponents: artifact.invalidComponents,
+                    invalidComponentReasons: summarizeInvalidComponents(artifact.invalidComponents),
                     invalidComponentCount: artifact.invalidComponents?.length
                   }
                 ).catch(error => {
@@ -2010,6 +2026,7 @@ export class DetectionService {
           requestCount,
           toolCallCount: 0,
           invalidComponents,
+          invalidComponentReasons: summarizeInvalidComponents(invalidComponents),
           invalidComponentCount: invalidComponents.length || undefined
         }
       )

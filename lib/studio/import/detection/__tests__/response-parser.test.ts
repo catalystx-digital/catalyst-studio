@@ -254,6 +254,78 @@ describe('parseComponentsArray strict contract', () => {
     }))
   })
 
+  it('canonicalizes hero-with-image right and left layout aliases during parser validation', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'hero-with-image',
+          confidence: 0.9,
+          content: {
+            heading: 'Right layout',
+            layout: ' RIGHT ',
+            image: {
+              src: {
+                mediaId: 'detected:right-layout',
+                mediaType: 'image',
+                url: 'https://example.com/right.jpg'
+              },
+              alt: 'Right layout'
+            }
+          }
+        },
+        {
+          component: 'hero-with-image',
+          confidence: 0.9,
+          content: {
+            heading: 'Left layout',
+            layout: 'left',
+            image: {
+              src: {
+                mediaId: 'detected:left-layout',
+                mediaType: 'image',
+                url: 'https://example.com/left.jpg'
+              },
+              alt: 'Left layout'
+            }
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/test'
+    )
+
+    expect(parsed.map(component => component.content.layout)).toEqual(['image-right', 'image-left'])
+  })
+
+  it('keeps unsupported hero-with-image layout values strict during parser validation', () => {
+    expect(() =>
+      detectionParserInternals.parseComponentsArray(
+        [
+          {
+            component: 'hero-with-image',
+            confidence: 0.9,
+            content: {
+              heading: 'Unsupported layout',
+              layout: 'center',
+              image: {
+                src: {
+                  mediaId: 'detected:center-layout',
+                  mediaType: 'image',
+                  url: 'https://example.com/center.jpg'
+                },
+                alt: 'Unsupported layout'
+              }
+            }
+          }
+        ],
+        patterns,
+        0.25,
+        'https://example.com/test'
+      )
+    ).toThrow('layout:invalid_enum_value')
+  })
+
   it('coerces statistics column counts emitted as numeric strings', () => {
     const parsed = detectionParserInternals.parseComponentsArray(
       [

@@ -413,6 +413,36 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
+  it.each([
+    ['right', 'image-right'],
+    [' RIGHT ', 'image-right'],
+    ['left', 'image-left'],
+    [' Left ', 'image-left'],
+    ['image-right', 'image-right'],
+    ['image-left', 'image-left'],
+    ['center', 'center']
+  ])('normalizes hero-with-image layout alias %s to %s', (layout, expectedLayout) => {
+    const detection: DetectionResult = {
+      id: `hero-with-image-layout-${String(layout).trim()}`,
+      type: 'hero-with-image',
+      bounds: baseBounds,
+      content: {
+        heading: 'Layout hero',
+        layout,
+        image: {
+          src: 'https://cdn.example.com/assets/hero-layout.jpg',
+          alt: 'Layout hero'
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-with-image'))
+
+    expect(props.content?.layout).toBe(expectedLayout)
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
   it('preserves hero-with-image mediaId when src payload nests media metadata', () => {
     const detection: DetectionResult = {
       id: 'hero-with-image-nested-src',

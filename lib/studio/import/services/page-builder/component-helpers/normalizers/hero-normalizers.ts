@@ -730,6 +730,21 @@ function resolveHeroWithImageImage(
   return { warnings }
 }
 
+function normalizeHeroWithImageLayout(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'right') {
+    return 'image-right'
+  }
+  if (normalized === 'left') {
+    return 'image-left'
+  }
+  return value
+}
+
 /**
  * Normalizes hero-with-image component content.
  */
@@ -747,6 +762,9 @@ export const normalizeHeroWithImageContent: ComponentContentNormalizer = (
   })
 
   const normalized: Record<string, any> = { ...flattened }
+  if (Object.prototype.hasOwnProperty.call(normalized, 'layout')) {
+    normalized.layout = normalizeHeroWithImageLayout(normalized.layout)
+  }
 
   const hadCtaSource = Object.prototype.hasOwnProperty.call(normalized, 'ctaButtons')
   const { ctas: normalizedCtas, warnings: ctaWarnings } = collectHeroCtaPayloads(normalized.ctaButtons, {
