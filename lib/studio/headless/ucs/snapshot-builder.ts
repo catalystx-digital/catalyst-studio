@@ -1171,19 +1171,6 @@ function createSlotComponentId(componentId: string, side: TwoColumnSide, index: 
   return `${componentId}:${side}:${index}`
 }
 
-function isCmsComponentPropsCandidate(value: unknown): value is CMSComponentProps {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    typeof value.id === 'string' &&
-    typeof value.type === 'string' &&
-    typeof value.category === 'string' &&
-    isRecord(value.content)
-  )
-}
-
 function canonicalizeCmsShapedEntry(
   entry: Record<string, unknown>,
   fallbackId: string,

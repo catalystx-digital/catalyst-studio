@@ -31,6 +31,7 @@ import { enrichHeroContent } from './detection-post-processor/hero-content-enric
 import { collapseAdjacentHeroSlides } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
 import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
+import { promoteSourceFeatureTilesToCardGrid } from './detection-post-processor/feature-tile-grid-processor'
 import { telemetryCollector, withTelemetry, withConfidenceCheck } from './detection-post-processor/telemetry'
 import { checkProcessorSkip } from './detection-post-processor/confidence-config'
 
@@ -106,6 +107,14 @@ export function adjustDetectedComponents(
     domSnapshot: options.domSnapshot,
     pageUrl: options.pageUrl
   }))
+
+  withTelemetry('featureTileGridPromotion', cloned, (c) => {
+    const promoted = promoteSourceFeatureTilesToCardGrid(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl
+    })
+    c.splice(0, c.length, ...promoted)
+  })
 
   withTelemetry('heroCarouselCollapse', cloned, (c) => {
     const collapsed = collapseAdjacentHeroSlides(c)
