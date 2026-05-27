@@ -28,10 +28,11 @@ import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-me
 import { tagPageComponents, tagListingComponents } from './detection-post-processor/content-tagging-processor'
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
 import { enrichHeroContent } from './detection-post-processor/hero-content-enrichment'
-import { collapseAdjacentHeroSlides } from './detection-post-processor/hero-carousel-processor'
+import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
 import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
 import { promoteSourceFeatureTilesToCardGrid } from './detection-post-processor/feature-tile-grid-processor'
+import { enrichSourceNewsListing } from './detection-post-processor/source-news-processor'
 import { telemetryCollector, withTelemetry, withConfidenceCheck } from './detection-post-processor/telemetry'
 import { checkProcessorSkip } from './detection-post-processor/confidence-config'
 
@@ -124,6 +125,13 @@ export function adjustDetectedComponents(
     const collapsed = collapseAdjacentHeroSlides(c)
     c.splice(0, c.length, ...collapsed)
   })
+  withTelemetry('heroCarouselSourceEnrichment', cloned, (c) => {
+    const enriched = enrichHeroCarouselFromSource(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl
+    })
+    c.splice(0, c.length, ...enriched)
+  })
 
   // CTA cleanup
   withTelemetry('ctaCleanup', cloned, (c) => removeInlineCtas(c))
@@ -142,6 +150,14 @@ export function adjustDetectedComponents(
     pageMetadata: options.pageMetadata
   }))
 
+  withTelemetry('sourceNewsEnrichment', cloned, (c) => {
+    const enriched = enrichSourceNewsListing(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl
+    })
+    c.splice(0, c.length, ...enriched)
+  })
+
   withTelemetry('structuralDeduplication', cloned, (c) => {
     const deduped = collapseDuplicateListingSurfaces(c)
     c.splice(0, c.length, ...deduped)
@@ -150,6 +166,13 @@ export function adjustDetectedComponents(
   withTelemetry('heroCarouselCollapseAfterDedupe', cloned, (c) => {
     const collapsed = collapseAdjacentHeroSlides(c)
     c.splice(0, c.length, ...collapsed)
+  })
+  withTelemetry('heroCarouselSourceEnrichmentAfterDedupe', cloned, (c) => {
+    const enriched = enrichHeroCarouselFromSource(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl
+    })
+    c.splice(0, c.length, ...enriched)
   })
 
   // Transform URLs from source site to relative/target format

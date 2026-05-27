@@ -305,4 +305,77 @@ describe('collapseDuplicateListingSurfaces', () => {
       components[8],
     ])
   })
+
+  it('drops one-card feature repeats after the source-backed feature grid', () => {
+    const components = [
+      component('card-grid', {
+        cards: [
+          { title: 'Emergency Department status', image: { src: { url: '/ed.png' } } },
+          { title: 'Teen Health Info fact sheets', image: { src: { url: '/teen.png' } } },
+          { title: 'Translation resources', image: { src: { url: '/translation.png' } } },
+          { title: 'Telehealth appointments', image: { src: { url: '/telehealth.png' } } },
+        ],
+      }),
+      component('card-grid', {
+        heading: 'Translation resources',
+        cards: [
+          { title: 'Translation resources', image: { src: { url: '/translation.png' } } },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([components[0]])
+  })
+
+  it('drops two-column blocks that only contain source navigation crumbs and a heading', () => {
+    const components = [
+      component('cta-banner', { heading: 'Support Us' }),
+      component('two-column', {
+        leftColumn: [
+          {
+            type: 'sidemenu',
+            content: {
+              props: {
+                items: [{ label: 'About the RCH', href: { path: '/rch/about/' } }],
+              },
+            },
+          },
+        ],
+        rightColumn: [
+          {
+            type: 'breadcrumbs',
+            content: { props: { items: [{ label: 'RCH', href: '/' }] } },
+          },
+          {
+            type: 'html-block',
+            content: { props: { bodyHtml: "<h1>The Royal Children's Hospital</h1>" } },
+          },
+        ],
+      }),
+      component('footer', { columns: [] }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([components[0], components[2]])
+  })
+
+  it('keeps sidebar layouts when they include real body content', () => {
+    const components = [
+      component('two-column', {
+        leftColumn: [
+          {
+            type: 'sidemenu',
+            content: { props: { items: [{ label: 'About', href: '/about/' }] } },
+          },
+        ],
+        rightColumn: [
+          {
+            type: 'html-block',
+            content: { props: { bodyHtml: '<h1>About</h1><p>Useful page body.</p>' } },
+          },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
+  })
 })

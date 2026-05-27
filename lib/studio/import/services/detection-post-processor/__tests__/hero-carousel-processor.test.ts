@@ -1,4 +1,4 @@
-import { collapseAdjacentHeroSlides } from '../hero-carousel-processor'
+import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from '../hero-carousel-processor'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 
 function component(type: string, content: Record<string, unknown>, region = 'main'): DetectedComponent {
@@ -220,5 +220,190 @@ describe('collapseAdjacentHeroSlides', () => {
     ]
 
     expect(collapseAdjacentHeroSlides(components)).toEqual(components)
+  })
+})
+
+describe('enrichHeroCarouselFromSource', () => {
+  const sourceCarouselHtml = `
+    <div id="rch-featured-carousel" class="carousel slide hidden-xs">
+      <div class="carousel-inner">
+        <div class="item active" style="background-image:url('/hero_images/appointment.jpg')">
+          <div class="rch-ccaption">
+            <h2>Appointment notifications now straight to your phone</h2>
+            <p>Appointment copy. <a href="/appointments/">Click here to find out more.</a></p>
+          </div>
+        </div>
+        <div class="item" style="background-image:url('/hero_images/food.jpg')">
+          <div class="rch-ccaption">
+            <h2>Teens and food</h2>
+            <p>Food copy. <a href="https://poll.example/food/">Click here to learn more.</a></p>
+          </div>
+        </div>
+        <div class="item" style="background-image:url('/hero_images/travel.jpg')">
+          <div class="rch-ccaption">
+            <h2>Travel a long way to get to the RCH?</h2>
+            <p>Travel copy. <a href="/telehealth/">Click here to find out more.</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="rch-featured-carousel-xs" class="carousel slide visible-xs">
+      <div class="carousel-inner">
+        <div class="item"><h2>Appointment notifications now straight to your phone</h2></div>
+        <div class="item"><h2>Travel a long way to get to the RCH?</h2></div>
+      </div>
+    </div>
+  `
+
+  it('replaces a partial imported carousel with the larger source carousel and drops duplicated standalone heroes', () => {
+    const components = [
+      component('navbar', {}, 'header'),
+      component('hero-carousel', {
+        slides: [
+          {
+            id: 'slide-1',
+            heading: 'Appointment notifications now straight to your phone',
+            image: { src: { url: '/hero_images/appointment.jpg' } },
+          },
+          {
+            id: 'slide-2',
+            heading: 'Travel a long way to get to the RCH?',
+            image: { src: { url: '/hero_images/travel.jpg' } },
+          },
+        ],
+      }, 'hero'),
+      component('hero-with-image', {
+        heading: 'Travel a long way to get to the RCH?',
+        image: { src: { url: '/hero_images/travel.jpg' } },
+      }, 'hero'),
+      component('card-grid', { cards: [{ title: 'Quick link' }] }),
+    ]
+
+    const result = enrichHeroCarouselFromSource(components, {
+      domSnapshot: sourceCarouselHtml,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })
+
+    expect(result).toHaveLength(3)
+    expect(result[1].type).toBe('hero-carousel')
+    expect((result[1].content.slides as any[]).map(slide => slide.heading)).toEqual([
+      'Appointment notifications now straight to your phone',
+      'Teens and food',
+      'Travel a long way to get to the RCH?',
+    ])
+    expect((result[1].content.slides as any[])[1]).toMatchObject({
+      body: 'Food copy.',
+      image: {
+        src: {
+          url: 'https://www.rch.org.au/hero_images/food.jpg',
+          mediaType: 'image',
+        },
+      },
+      ctaButtons: [
+        {
+          label: 'Click here',
+          href: {
+            url: 'https://poll.example/food/',
+            type: 'external',
+          },
+        },
+      ],
+    })
+    expect(result[2].type).toBe('card-grid')
+  })
+
+  it('does not enrich when source carousel titles do not overlap the imported carousel', () => {
+    const components = [
+      component('hero-carousel', {
+        slides: [
+          { id: 'slide-1', heading: 'Different imported slide' },
+          { id: 'slide-2', heading: 'Another imported slide' },
+        ],
+      }, 'hero'),
+    ]
+
+    expect(enrichHeroCarouselFromSource(components, {
+      domSnapshot: sourceCarouselHtml,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })).toEqual(components)
+  })
+
+  it('creates a source-backed carousel from split top heroes and recap cards', () => {
+    const components = [
+      component('navbar', {}, 'header'),
+      component('hero-with-image', {
+        heading: 'Appointment notifications now straight to your phone',
+        image: { src: { url: '/hero_images/appointment.jpg' } },
+      }, 'hero'),
+      component('hero-with-image', {
+        heading: 'Travel a long way to get to the RCH?',
+        image: { src: { url: '/hero_images/travel.jpg' } },
+      }, 'hero'),
+      component('card-grid', {
+        cards: [
+          { title: 'Appointment notifications now straight to your phone' },
+          { title: 'Teens and food' },
+          { title: 'Travel a long way to get to the RCH?' },
+        ],
+      }),
+      component('card-grid', { cards: [{ title: 'Quick link' }] }),
+    ]
+
+    const result = enrichHeroCarouselFromSource(components, {
+      domSnapshot: sourceCarouselHtml,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })
+
+    expect(result).toHaveLength(3)
+    expect(result[1].type).toBe('hero-carousel')
+    expect((result[1].content.slides as any[]).map(slide => slide.heading)).toEqual([
+      'Appointment notifications now straight to your phone',
+      'Teens and food',
+      'Travel a long way to get to the RCH?',
+    ])
+    expect(result[2].type).toBe('card-grid')
+    expect((result[2].content as any).cards).toEqual([{ title: 'Quick link' }])
+  })
+
+  it('does not consume later sections that happen to overlap carousel titles', () => {
+    const components = [
+      component('navbar', {}, 'header'),
+      component('hero-with-image', {
+        heading: 'Appointment notifications now straight to your phone',
+        image: { src: { url: '/hero_images/appointment.jpg' } },
+      }, 'hero'),
+      component('hero-with-image', {
+        heading: 'Travel a long way to get to the RCH?',
+        image: { src: { url: '/hero_images/travel.jpg' } },
+      }, 'hero'),
+      component('card-grid', {
+        cards: [
+          { title: 'Appointment notifications now straight to your phone' },
+          { title: 'Teens and food' },
+          { title: 'Travel a long way to get to the RCH?' },
+        ],
+      }),
+      component('card-grid', { cards: [{ title: 'Quick link' }] }),
+      component('content-feed', {
+        heading: 'Latest News',
+        pinned: [
+          { title: 'Teens and food' },
+          { title: 'Travel a long way to get to the RCH?' },
+        ],
+      }),
+    ]
+
+    const result = enrichHeroCarouselFromSource(components, {
+      domSnapshot: sourceCarouselHtml,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })
+
+    expect(result.map(item => item.type)).toEqual([
+      'navbar',
+      'hero-carousel',
+      'card-grid',
+      'content-feed',
+    ])
+    expect((result[3].content as any).heading).toBe('Latest News')
   })
 })

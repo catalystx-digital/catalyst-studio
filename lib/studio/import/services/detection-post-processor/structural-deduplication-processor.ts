@@ -6,6 +6,7 @@ interface SurfaceFingerprint {
   kind: ListingKind
   family: string
   titles: Set<string>
+  heading?: string
   hasMedia: boolean
   hasEditorialLinks: boolean
   richnessScore: number
@@ -144,6 +145,7 @@ function fingerprint(component: DetectedComponent): SurfaceFingerprint {
       kind: 'other',
       family: 'hero-carousel',
       titles,
+      heading: undefined,
       hasMedia: hasImageLikeValue(component.content),
       hasEditorialLinks: false,
       richnessScore: titles.size * 2 + (hasImageLikeValue(component.content) ? 8 : 0)
@@ -156,6 +158,7 @@ function fingerprint(component: DetectedComponent): SurfaceFingerprint {
       kind: 'other',
       family: title ?? String(component.type),
       titles: new Set(title ? [title] : []),
+      heading: title,
       hasMedia: hasImageLikeValue(component.content),
       hasEditorialLinks: false,
       richnessScore: title ? 1 : 0
@@ -189,6 +192,7 @@ function fingerprint(component: DetectedComponent): SurfaceFingerprint {
     kind: 'listing',
     family: familyFor(component, items),
     titles,
+    heading: getComponentTitle(component),
     hasMedia,
     hasEditorialLinks,
     richnessScore: titles.size * 2 + Math.min(populatedFields, 12) + (hasMedia ? 8 : 0) + (hasEditorialLinks ? 2 : 0)
@@ -240,6 +244,21 @@ function duplicatesRecentHeroSequence(current: SurfaceFingerprint, previous: Sur
   const heroTitles = unionTitles(recent)
   const overlap = countOverlap(current.titles, heroTitles)
   return overlap >= 3 && overlap >= Math.ceil(heroTitles.size * 0.75)
+}
+
+function duplicatesRecentMultiItemListing(current: SurfaceFingerprint, previous: SurfaceFingerprint[]): boolean {
+  if (current.kind !== 'listing' || current.titles.size !== 1 || !current.heading) {
+    return false
+  }
+
+  const [title] = Array.from(current.titles)
+  if (current.heading !== title) {
+    return false
+  }
+
+  return previous
+    .slice(-4)
+    .some(entry => entry.kind === 'listing' && entry.titles.size > 1 && entry.titles.has(title))
 }
 
 function relatedListingFamilies(a: SurfaceFingerprint, b: SurfaceFingerprint): boolean {
@@ -316,6 +335,62 @@ function previousSubsetIndexes(current: SurfaceFingerprint, previous: SurfaceFin
   return indexes
 }
 
+function childComponents(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.filter(isRecord)
+}
+
+function childType(child: Record<string, unknown>): string {
+  return normalizeText(child.type ?? child.component) ?? ''
+}
+
+function htmlBlockIsHeadingOnly(child: Record<string, unknown>): boolean {
+  const content = isRecord(child.content) ? child.content : {}
+  const props = isRecord(content.props) ? content.props : content
+  const html = typeof props.bodyHtml === 'string' ? props.bodyHtml : typeof props.html === 'string' ? props.html : ''
+  if (!html) {
+    return false
+  }
+  if (/<(?:p|ul|ol|li|table|img|figure|section|article)\b/i.test(html)) {
+    return false
+  }
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > 0 && text.length <= 100
+}
+
+function childIsNavigationOnly(child: Record<string, unknown>): boolean {
+  const type = childType(child)
+  if (type === 'sidemenu' || type === 'sidebar-nav' || type === 'breadcrumbs' || type === 'breadcrumb') {
+    return true
+  }
+  return type === 'html-block' && htmlBlockIsHeadingOnly(child)
+}
+
+function isNavigationOnlyLayoutArtifact(component: DetectedComponent): boolean {
+  if (String(component.type) !== 'two-column' || !isRecord(component.content)) {
+    return false
+  }
+
+  const left = childComponents(component.content.leftColumn)
+  const right = childComponents(component.content.rightColumn)
+  const children = [...left, ...right]
+  if (children.length === 0) {
+    return false
+  }
+
+  const hasNavigationChild = children.some(child => {
+    const type = childType(child)
+    return type === 'sidemenu' || type === 'sidebar-nav' || type === 'breadcrumbs' || type === 'breadcrumb'
+  })
+
+  return hasNavigationChild && children.every(childIsNavigationOnly)
+}
+
 /**
  * Removes repeated listing surfaces produced by section-level extraction when
  * the same carousel/news/widget content is emitted as multiple top-level lists.
@@ -325,12 +400,28 @@ export function collapseDuplicateListingSurfaces(components: DetectedComponent[]
   const retained: SurfaceFingerprint[] = []
 
   for (const component of components) {
+    if (isNavigationOnlyLayoutArtifact(component)) {
+      console.log('[StructuralDeduplication] Dropped navigation-only layout artifact:', {
+        droppedComponentType: component.type,
+      })
+      continue
+    }
+
     const current = fingerprint(component)
     if (duplicatesPreviousHeroCarousel(current, retained) || duplicatesRecentHeroSequence(current, retained)) {
       console.log('[StructuralDeduplication] Dropped carousel slide listing surface:', {
         droppedComponentType: component.type,
         titleCount: current.titles.size,
         family: current.family,
+      })
+      continue
+    }
+
+    if (duplicatesRecentMultiItemListing(current, retained)) {
+      console.log('[StructuralDeduplication] Dropped duplicate single-card listing surface:', {
+        droppedComponentType: component.type,
+        family: current.family,
+        title: Array.from(current.titles)[0],
       })
       continue
     }
