@@ -154,3 +154,100 @@ export function normalizeMultiRowNavigation(components: DetectedComponent[], pag
     executeMultiRowDetection(components, NavBarDef.processing.multiRowDetection, pageUrl)
   }
 }
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0
+}
+
+function navbarScore(component: DetectedComponent): number {
+  const content = isPlainObject(component.content) ? component.content as Record<string, unknown> : {}
+  const menuItems = arrayLength(content.menuItems)
+  const utilityNav = arrayLength(content.utilityNav)
+  const hasLogo = isPlainObject(content.logo) ? 1 : 0
+  const hasSearch = isPlainObject(content.search) ? 1 : 0
+  const hasCta = isPlainObject(content.cta) ? 1 : 0
+
+  return menuItems * 4 + utilityNav * 2 + hasLogo + hasSearch + hasCta
+}
+
+function normalizedLabels(component: DetectedComponent, key: 'menuItems' | 'utilityNav'): Set<string> {
+  const content = isPlainObject(component.content) ? component.content as Record<string, unknown> : {}
+  const items = Array.isArray(content[key]) ? content[key] : []
+  return new Set(items
+    .filter(isPlainObject)
+    .map(item => normalizeString(item.label ?? item.text)?.toLowerCase())
+    .filter((label): label is string => Boolean(label)))
+}
+
+function isGlobalNavbar(component: DetectedComponent): boolean {
+  return canonicalizeComponentType(String(component.type)) === 'navbar'
+}
+
+function overlapRatio(a: Set<string>, b: Set<string>): number {
+  const smaller = a.size <= b.size ? a : b
+  const larger = a.size <= b.size ? b : a
+  if (smaller.size === 0) {
+    return larger.size === 0 ? 1 : 0
+  }
+
+  let overlap = 0
+  smaller.forEach(label => {
+    if (larger.has(label)) {
+      overlap += 1
+    }
+  })
+  return overlap / smaller.size
+}
+
+function shouldCollapseAdjacentNavbars(previous: DetectedComponent, current: DetectedComponent): boolean {
+  const previousPrimary = normalizedLabels(previous, 'menuItems')
+  const currentPrimary = normalizedLabels(current, 'menuItems')
+  const previousUtility = normalizedLabels(previous, 'utilityNav')
+  const currentUtility = normalizedLabels(current, 'utilityNav')
+
+  if (previousPrimary.size === 0 || currentPrimary.size === 0) {
+    if (previousUtility.size === 0 || currentUtility.size === 0) {
+      return false
+    }
+    return overlapRatio(previousUtility, currentUtility) >= 0.5
+  }
+
+  return overlapRatio(previousPrimary, currentPrimary) >= 0.75
+}
+
+/**
+ * Drops duplicate adjacent global navbars produced when the source header is
+ * split into overlapping desktop/mobile/header-logo regions.
+ */
+export function collapseDuplicateGlobalNavigation(components: DetectedComponent[]): DetectedComponent[] {
+  const result: DetectedComponent[] = []
+  let changed = false
+
+  for (let index = 0; index < components.length; index += 1) {
+    const component = components[index]
+    const previous = result[result.length - 1]
+
+    if (
+      previous &&
+      isGlobalNavbar(previous) &&
+      isGlobalNavbar(component) &&
+      shouldCollapseAdjacentNavbars(previous, component)
+    ) {
+      const previousScore = navbarScore(previous)
+      const currentScore = navbarScore(component)
+      if (currentScore > previousScore) {
+        result[result.length - 1] = component
+      }
+      changed = true
+      console.log('[NavigationProcessor] Dropped duplicate adjacent navbar:', {
+        keptScore: Math.max(previousScore, currentScore),
+        droppedScore: Math.min(previousScore, currentScore),
+      })
+      continue
+    }
+
+    result.push(component)
+  }
+
+  return changed ? result : components
+}

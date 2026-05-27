@@ -21,7 +21,7 @@ import { transformComponentUrls, extractOrigin } from '../utils/url-transformer'
 // Import from decomposed processor modules
 import { cloneComponent } from './detection-post-processor/utils'
 import { assignHeaderRegions, assignHeroRegions } from './detection-post-processor/region-processor'
-import { normalizeMultiRowNavigation } from './detection-post-processor/navigation-processor'
+import { collapseDuplicateGlobalNavigation, normalizeMultiRowNavigation } from './detection-post-processor/navigation-processor'
 import { promoteHeroBackground } from './detection-post-processor/hero-processor'
 import { removeInlineCtas } from './detection-post-processor/cta-processor'
 import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-merger'
@@ -83,6 +83,10 @@ export function adjustDetectedComponents(
 
   // Navigation processing (type-changing - check confidence first)
   withConfidenceCheck('navigationNormalize', cloned, (c) => normalizeMultiRowNavigation(c, options.pageUrl), checkProcessorSkip)
+  withTelemetry('navigationDeduplication', cloned, (c) => {
+    const deduped = collapseDuplicateGlobalNavigation(c)
+    c.splice(0, c.length, ...deduped)
+  })
 
   // Region assignment
   withTelemetry('headerRegions', cloned, (c) => assignHeaderRegions(c))
