@@ -132,4 +132,83 @@ describe('collapseDuplicateListingSurfaces', () => {
 
     expect(collapseDuplicateListingSurfaces(components)).toEqual([components[0], components[2]])
   })
+
+  it('drops exact duplicate editorial listings across card-grid and content-feed', () => {
+    const components = [
+      component('card-grid', {
+        cards: [
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+        ],
+      }),
+      component('content-feed', {
+        heading: 'Latest News',
+        pinned: [
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([components[0]])
+  })
+
+  it('collapses RCH home repeated news cluster while preserving unrelated sections', () => {
+    const components = [
+      component('hero-carousel', { slides: [{ heading: 'Hero' }] }),
+      component('hero-with-image', { heading: 'Travel a long way', image: { src: { url: '/travel.jpg' } } }),
+      component('card-grid', { cards: [{ title: 'Your guide to the RCH' }, { title: 'Find a doctor' }] }),
+      component('content-feed', {
+        heading: 'RCH News',
+        pinned: [{ title: 'Hope at last for butterfly children', href: { url: 'https://blogs.rch.org.au/news/hope/' } }],
+      }),
+      component('card-grid', {
+        cards: [
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+        ],
+      }),
+      component('card-grid', {
+        heading: 'RCH News',
+        cards: [
+          { title: 'Emma’s story', href: { url: 'https://blogs.rch.org.au/news/emma/' } },
+          { title: 'Chief of Medicine named as finalist for Human Rights Medal', href: { url: 'https://blogs.rch.org.au/news/chief/' } },
+          { title: 'Hazel’s story: little fighter from the farm', href: { url: 'https://blogs.rch.org.au/news/hazel/' } },
+          { title: 'Hope at last for butterfly children', href: { url: 'https://blogs.rch.org.au/news/hope/' } },
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
+        ],
+      }),
+      component('content-feed', {
+        heading: 'Latest News',
+        pinned: [
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+        ],
+      }),
+      component('content-feed', {
+        heading: "The Royal Children's Hospital",
+        pinned: [
+          { title: 'Emma’s story', href: { url: 'https://blogs.rch.org.au/news/emma/' } },
+          { title: 'Chief of Medicine named as finalist for Human Rights Medal', href: { url: 'https://blogs.rch.org.au/news/chief/' } },
+          { title: 'Hazel’s story: little fighter from the farm', href: { url: 'https://blogs.rch.org.au/news/hazel/' } },
+        ],
+      }),
+      component('card-grid', { cards: [{ title: 'Donate' }, { title: 'Volunteer' }] }),
+    ]
+
+    const result = collapseDuplicateListingSurfaces(components)
+
+    expect(result).toEqual([
+      components[0],
+      components[1],
+      components[2],
+      components[4],
+      components[5],
+      components[8],
+    ])
+  })
 })

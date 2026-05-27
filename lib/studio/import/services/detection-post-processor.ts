@@ -134,6 +134,11 @@ export function adjustDetectedComponents(
     c.splice(0, c.length, ...deduped)
   })
 
+  withTelemetry('heroCarouselCollapseAfterDedupe', cloned, (c) => {
+    const collapsed = collapseAdjacentHeroSlides(c)
+    c.splice(0, c.length, ...collapsed)
+  })
+
   // Transform URLs from source site to relative/target format
   const transformed = transformSourceUrls(cloned, options.pageUrl)
 
