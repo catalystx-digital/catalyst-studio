@@ -492,7 +492,7 @@ function normalizeColumnChild(
 
   // Build content object from remaining fields
   const contentFields: Record<string, any> = {}
-  const skipKeys = new Set(['type', 'component', 'kind', 'id'])
+  const skipKeys = new Set(['type', 'component', 'kind', 'id', 'content'])
 
   for (const [key, value] of Object.entries(entry)) {
     if (skipKeys.has(key)) continue
@@ -505,6 +505,17 @@ function normalizeColumnChild(
   if (isRecord(entry.content)) {
     // Merge existing content fields
     Object.assign(contentFields, entry.content)
+  }
+
+  if (canonicalChild === 'sidemenu' || canonicalChild === 'sidebar-nav') {
+    if (contentFields.heading && !contentFields.title) {
+      contentFields.title = contentFields.heading
+      delete contentFields.heading
+    }
+    if (Array.isArray(contentFields.menuItems) && !Array.isArray(contentFields.items)) {
+      contentFields.items = contentFields.menuItems
+      delete contentFields.menuItems
+    }
   }
 
   // Ensure bodyHtml for HTML content (html-block components)

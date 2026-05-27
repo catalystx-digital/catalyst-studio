@@ -72,6 +72,7 @@ const MENU_ITEM_COLLECTION_KEYS = new Set(['menuItems', 'utilityNav'])
 const MENU_ITEM_CHILD_KEYS = new Set(['children'])
 const MENU_ITEM_IMAGE_KEYS = new Set(['image', 'imageUrl', 'imageSrc', 'thumbnail', 'media', 'picture', 'photo'])
 const ROW_STYLE_KEYS = new Set(['backgroundColor', 'textColor', 'borderColor'])
+const SMART_LINK_TYPES = new Set(['internal', 'external', 'email', 'phone', 'anchor'])
 
 function isLogoImageShaped(value: unknown): boolean {
   if (typeof value === 'string') {
@@ -621,6 +622,101 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
       delete normalized[alias]
     }
   })
+
+  return { content: normalized, warnings }
+}
+
+function deriveBreadcrumbLabel(item: Record<string, any>, fallbackHomeLabel?: string): string | undefined {
+  const explicit =
+    normalizeString(item.label) ??
+    normalizeString(item.text) ??
+    normalizeString(item.title) ??
+    normalizeString(item.name)
+  if (explicit) {
+    return explicit
+  }
+
+  const path = normalizeString(item.path ?? item.url ?? item.href)
+  if (path === '/') {
+    return fallbackHomeLabel ?? 'Home'
+  }
+
+  return undefined
+}
+
+function normalizeBreadcrumbItem(
+  item: unknown,
+  fallbackHomeLabel: string | undefined,
+  warnings: LocalNormalizationWarning[],
+  index: number
+): Record<string, any> | undefined {
+  if (!isRecord(item)) {
+    warnings.push({
+      issue: 'invalid-subcomponent',
+      message: `Dropped breadcrumb item ${index} - expected object.`,
+      field: `items.${index}`,
+      childType: 'breadcrumbs',
+      details: { index, valueType: typeof item }
+    })
+    return undefined
+  }
+
+  const source = item as Record<string, any>
+  const sourceType = normalizeString(source.type)
+  const hrefSource = isRecord(source.href) ? source.href as Record<string, any> : undefined
+  const label = deriveBreadcrumbLabel(source, fallbackHomeLabel)
+
+  if (sourceType && SMART_LINK_TYPES.has(sourceType)) {
+    return {
+      ...(label ? { label } : {}),
+      href: {
+        type: source.type,
+        ...(source.pageId ? { pageId: source.pageId } : {}),
+        ...(source.path ? { path: source.path } : {}),
+        ...(source.url ? { url: source.url } : {}),
+        ...(source.email ? { email: source.email } : {}),
+        ...(source.phone ? { phone: source.phone } : {}),
+        ...(source.anchor ? { anchor: source.anchor } : {})
+      }
+    }
+  }
+
+  if (hrefSource) {
+    return {
+      ...(label ? { label } : {}),
+      href: hrefSource,
+      ...(typeof source.external === 'boolean' ? { external: source.external } : {}),
+      ...(typeof source.target === 'string' ? { target: source.target } : {})
+    }
+  }
+
+  return {
+    ...(label ? { label } : {}),
+    ...(typeof source.external === 'boolean' ? { external: source.external } : {}),
+    ...(typeof source.target === 'string' ? { target: source.target } : {})
+  }
+}
+
+export const normalizeBreadcrumbsContent: ComponentContentNormalizer = (
+  rawContent: Record<string, any>,
+  options: { parentCanonicalType: string; pageUrl?: string }
+) => {
+  const warnings: LocalNormalizationWarning[] = []
+  const flattened = expandSourceRecord(rawContent, {
+    canonicalType: 'breadcrumbs',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'content',
+    index: 0,
+    pageUrl: options.pageUrl
+  })
+
+  const normalized: Record<string, any> = { ...flattened }
+  const homeLabel = normalizeString(flattened.homeLabel)
+  if (Array.isArray(flattened.items)) {
+    normalized.items = flattened.items
+      .map((item, index) => normalizeBreadcrumbItem(item, homeLabel, warnings, index))
+      .filter((item): item is Record<string, any> => Boolean(item))
+  }
 
   return { content: normalized, warnings }
 }

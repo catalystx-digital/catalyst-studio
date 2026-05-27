@@ -29,7 +29,8 @@ export {
 
 // Navigation normalizers
 export {
-  normalizeNavbarContent
+  normalizeNavbarContent,
+  normalizeBreadcrumbsContent
 } from './nav-normalizers'
 
 // Content normalizers
@@ -72,7 +73,7 @@ export {
  * Use this to look up the appropriate normalizer for a component type.
  */
 import { normalizeHeroSimpleContent, normalizeHeroWithImageContent } from './hero-normalizers'
-import { normalizeNavbarContent } from './nav-normalizers'
+import { normalizeNavbarContent, normalizeBreadcrumbsContent } from './nav-normalizers'
 import { normalizeTimelineContent, normalizeTextBlockContent, normalizeContentFeedContent, normalizeTwoColumnContent } from './content-normalizers'
 import { normalizeCtaWithFormContent, normalizeCtaSimpleContent } from './cta-normalizers'
 import { normalizeBlogPostContent, normalizeArticleHeaderContent } from './blog-normalizers'
@@ -85,6 +86,7 @@ export const COMPONENT_CONTENT_NORMALIZERS: Record<string, ComponentContentNorma
   'hero-with-image': normalizeHeroWithImageContent,
   'hero-simple': normalizeHeroSimpleContent,
   'video-embed': normalizeVideoEmbedContent,
+  breadcrumbs: normalizeBreadcrumbsContent,
   navbar: normalizeNavbarContent,
   timeline: normalizeTimelineContent,
   'cta-with-form': normalizeCtaWithFormContent,

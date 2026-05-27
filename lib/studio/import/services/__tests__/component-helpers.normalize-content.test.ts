@@ -644,6 +644,59 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
+  it('normalizes nested sidemenu aliases inside two-column columns', () => {
+    const detection: DetectionResult = {
+      id: 'two-column-rch-sidemenu',
+      type: 'two-column',
+      bounds: baseBounds,
+      content: {
+        columnRatio: '25-75',
+        leftColumn: [
+          {
+            id: 'sidemenu-rch',
+            type: 'sidemenu',
+            content: {
+              heading: 'In this section',
+              menuItems: [
+                {
+                  label: 'About the RCH',
+                  href: {
+                    type: 'internal',
+                    pageId: 'about',
+                    path: '/rch/about/'
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        rightColumn: []
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('two-column'))
+
+    expect(props.content?.leftColumn?.[0]).toEqual({
+      id: 'sidemenu-rch',
+      type: 'sidemenu',
+      content: {
+        title: 'In this section',
+        items: [
+          {
+            label: 'About the RCH',
+            href: {
+              type: 'internal',
+              pageId: 'about',
+              path: '/rch/about/'
+            }
+          }
+        ]
+      }
+    })
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
   it('passes cta-simple payloads through unchanged', () => {
     const detection: DetectionResult = {
       id: 'cta-simple-1',
@@ -1185,6 +1238,78 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         })
       ])
     )
+  })
+
+  it('wraps bare smart-link breadcrumb items into canonical link entries', () => {
+    const detection: DetectionResult = {
+      id: 'rch-breadcrumbs-bare-link',
+      type: 'breadcrumbs',
+      bounds: baseBounds,
+      content: {
+        items: [
+          {
+            type: 'internal',
+            pageId: 'home',
+            path: '/'
+          }
+        ],
+        separator: '>',
+        showHome: true,
+        homeLabel: 'RCH'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('breadcrumbs'))
+
+    expect(props.content).toEqual({
+      items: [
+        {
+          label: 'RCH',
+          href: {
+            type: 'internal',
+            pageId: 'home',
+            path: '/'
+          }
+        }
+      ],
+      separator: '>',
+      showHome: true,
+      homeLabel: 'RCH'
+    })
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('does not infer breadcrumb labels from non-home paths', () => {
+    const detection: DetectionResult = {
+      id: 'breadcrumbs-unlabeled-path',
+      type: 'breadcrumbs',
+      bounds: baseBounds,
+      content: {
+        items: [
+          {
+            type: 'internal',
+            pageId: 'about',
+            path: '/rch/about/'
+          }
+        ],
+        separator: '>'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('breadcrumbs'))
+
+    expect(props.content?.items).toEqual([
+      {
+        href: {
+          type: 'internal',
+          pageId: 'about',
+          path: '/rch/about/'
+        }
+      }
+    ])
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
   it('rejects invalid navbar row style color values during normalization', () => {
