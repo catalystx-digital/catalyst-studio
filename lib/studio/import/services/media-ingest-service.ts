@@ -882,6 +882,11 @@ export class MediaIngestService {
     }
 
     const record = value as Record<string, unknown>
+    const mediaRef = this.rewriteMediaReferenceRecord(record, replacements)
+    if (mediaRef) {
+      return mediaRef
+    }
+
     if (typeof record.mediaId === 'string' && typeof record.originalUrl === 'string') {
       // Ensure src is always populated for rendering
       if (typeof record.src !== 'string' || !record.src.trim()) {
@@ -895,6 +900,52 @@ export class MediaIngestService {
       updated[key] = this.rewriteValue(child, replacements, seen)
     }
     return updated
+  }
+
+  private rewriteMediaReferenceRecord(
+    record: Record<string, unknown>,
+    replacements: Map<string, IngestedAssetSummary>
+  ): Record<string, unknown> | null {
+    const mediaType = typeof record.mediaType === 'string' ? record.mediaType : undefined
+    const isCanonicalMediaReference =
+      mediaType === 'image' ||
+      mediaType === 'video' ||
+      mediaType === 'file' ||
+      (typeof record.mediaId === 'string' && typeof record.url === 'string')
+
+    if (!isCanonicalMediaReference) {
+      return null
+    }
+
+    const url = typeof record.url === 'string' ? record.url.trim() : ''
+    const originalUrl = typeof record.originalUrl === 'string' ? record.originalUrl.trim() : ''
+    const sourceUrl = url || originalUrl
+    const match = sourceUrl ? this.lookupReplacement(replacements, sourceUrl) : undefined
+
+    if (!match) {
+      return {
+        ...record,
+        ...(mediaType ? { mediaType } : {}),
+        ...(sourceUrl ? { url: sourceUrl } : {}),
+        ...(originalUrl ? { originalUrl } : {})
+      }
+    }
+
+    if (!match.mediaId) {
+      return {
+        ...record,
+        url: match.originalUrl,
+        originalUrl: match.originalUrl
+      }
+    }
+
+    return {
+      ...record,
+      mediaId: match.mediaId,
+      mediaType: mediaType ?? 'image',
+      url: match.originalUrl,
+      originalUrl: match.originalUrl
+    }
   }
 
   private decorateDesignTokens(

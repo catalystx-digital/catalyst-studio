@@ -33,9 +33,14 @@ export function resolveImageSource(value: unknown): string | undefined {
     return undefined;
   }
 
-  const directUrl = normalizeString(value.url);
+  const directUrl = resolveImageSource(value.url);
   if (directUrl) {
-    return validateImageUrl(directUrl) || undefined;
+    return directUrl;
+  }
+
+  const originalUrl = normalizeString(value.originalUrl);
+  if (originalUrl) {
+    return validateImageUrl(originalUrl) || undefined;
   }
 
   const src = value.src;
@@ -85,9 +90,16 @@ export function normalizeCmsImage(value: unknown, fallbackAlt?: string): Normali
   }
 
   const nested = isRecord(value.src) ? value.src : undefined;
-  const renditions = normalizeRenditions(value.renditions) ?? normalizeRenditions(nested?.renditions);
-  const alt = normalizeString(value.alt) ?? normalizeString(nested?.alt) ?? fallbackAlt;
-  const originalUrl = normalizeString(value.originalUrl) ?? normalizeString(nested?.originalUrl);
+  const nestedUrl = isRecord(nested?.url) ? nested.url : undefined;
+  const renditions =
+    normalizeRenditions(value.renditions) ??
+    normalizeRenditions(nested?.renditions) ??
+    normalizeRenditions(nestedUrl?.renditions);
+  const alt = normalizeString(value.alt) ?? normalizeString(nested?.alt) ?? normalizeString(nestedUrl?.alt) ?? fallbackAlt;
+  const originalUrl =
+    normalizeString(value.originalUrl) ??
+    normalizeString(nested?.originalUrl) ??
+    normalizeString(nestedUrl?.originalUrl);
 
   return {
     src,

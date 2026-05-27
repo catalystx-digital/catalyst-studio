@@ -1,0 +1,70 @@
+import { normalizeImage } from './image-normalization'
+import { normalizeCmsImage } from './media-reference'
+
+describe('CMS media reference normalization', () => {
+  it('normalizes canonical image media references', () => {
+    expect(
+      normalizeCmsImage({
+        src: {
+          mediaId: 'media-1',
+          mediaType: 'image',
+          url: 'https://example.com/card.jpg',
+        },
+        alt: 'Card',
+        originalUrl: 'https://example.com/card.jpg',
+      })
+    ).toEqual({
+      src: 'https://example.com/card.jpg',
+      alt: 'Card',
+      originalUrl: 'https://example.com/card.jpg',
+    })
+  })
+
+  it('normalizes previously malformed nested url media references for rendering', () => {
+    const malformed = {
+      src: {
+        mediaId: 'detected:card',
+        mediaType: 'image',
+        url: {
+          src: 'https://example.com/card.jpg',
+          mediaId: 'media-1',
+          originalUrl: 'https://example.com/card.jpg',
+        },
+      },
+      alt: 'Card',
+    }
+
+    expect(normalizeCmsImage(malformed)).toEqual({
+      src: 'https://example.com/card.jpg',
+      alt: 'Card',
+      originalUrl: 'https://example.com/card.jpg',
+    })
+    expect(normalizeImage(malformed)).toMatchObject({
+      src: 'https://example.com/card.jpg',
+      alt: 'Card',
+      originalUrl: 'https://example.com/card.jpg',
+    })
+  })
+
+  it('normalizes media references that only carry originalUrl', () => {
+    const image = {
+      src: {
+        mediaId: 'media-1',
+        mediaType: 'image',
+        originalUrl: 'https://example.com/original.jpg',
+      },
+      alt: 'Original only',
+    }
+
+    expect(normalizeCmsImage(image)).toEqual({
+      src: 'https://example.com/original.jpg',
+      alt: 'Original only',
+      originalUrl: 'https://example.com/original.jpg',
+    })
+    expect(normalizeImage(image)).toMatchObject({
+      src: 'https://example.com/original.jpg',
+      alt: 'Original only',
+      originalUrl: 'https://example.com/original.jpg',
+    })
+  })
+})

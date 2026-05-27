@@ -106,6 +106,108 @@ describe('MediaIngestService', () => {
     expect(storageProvider.put).not.toHaveBeenCalled()
   })
 
+  it('rewrites canonical media reference url without nesting the media object under url', async () => {
+    const { service, repository } = createService()
+    const detection = buildDetection({
+      components: [
+        {
+          component: 'card-grid',
+          type: 'card-grid',
+          confidence: 0.9,
+          content: {
+            cards: [
+              {
+                title: 'Card',
+                image: {
+                  src: {
+                    mediaId: 'detected:card',
+                    mediaType: 'image',
+                    url,
+                  },
+                  alt: 'Card image',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+    ;(repository.resolveByOriginalUrl as jest.Mock).mockResolvedValue({
+      media: {
+        id: 'media-123',
+        storageKey: 'site/media-123.png',
+        contentType: 'image/png',
+        checksum: 'abc123',
+      },
+    })
+
+    const result = await service.ingest({
+      websiteId: 'site-1',
+      detectionResults: [detection],
+      designTokens: null,
+    })
+
+    expect(result.detections[0].components?.[0].content).toEqual({
+      cards: [
+        {
+          title: 'Card',
+          image: {
+            src: {
+              mediaId: 'media-123',
+              mediaType: 'image',
+              url,
+              originalUrl: url,
+            },
+            alt: 'Card image',
+          },
+        },
+      ],
+    })
+    expect(JSON.stringify(result.detections[0].components?.[0].content)).not.toContain('"url":{"src"')
+  })
+
+  it('preserves renderable canonical media references when only originalUrl is present', async () => {
+    const { service, repository } = createService()
+    const detection = buildDetection({
+      components: [
+        {
+          component: 'hero-with-image',
+          type: 'hero-with-image',
+          confidence: 0.9,
+          content: {
+            image: {
+              src: {
+                mediaId: 'media-123',
+                mediaType: 'image',
+                originalUrl: url,
+              },
+              alt: 'Original only',
+            },
+          },
+        },
+      ],
+    })
+    ;(repository.resolveByOriginalUrl as jest.Mock).mockResolvedValue(null)
+
+    const result = await service.ingest({
+      websiteId: 'site-1',
+      detectionResults: [detection],
+      designTokens: null,
+    })
+
+    expect(result.detections[0].components?.[0].content).toEqual({
+      image: {
+        src: {
+          mediaId: 'media-123',
+          mediaType: 'image',
+          url,
+          originalUrl: url,
+        },
+        alt: 'Original only',
+      },
+    })
+  })
+
   it('downloads and persists new media asset when no match exists', async () => {
     const { service, repository, storageProvider } = createService()
     const detection = buildDetection()

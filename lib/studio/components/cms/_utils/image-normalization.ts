@@ -64,7 +64,7 @@ export function buildSrcSet(renditions: ImageRendition[]): string | undefined {
 }
 
 interface RawImage {
-  src?: string | { src?: string; originalUrl?: string; renditions?: unknown[] };
+  src?: string | { src?: unknown; url?: unknown; originalUrl?: string; renditions?: unknown[] };
   alt?: string;
   originalUrl?: string;
   renditions?: unknown[];
@@ -101,6 +101,41 @@ export function normalizeImage(
     sourceRenditions = Array.isArray(image.src.renditions)
       ? image.src.renditions
       : image.renditions;
+  } else if (image.src && typeof image.src === 'object') {
+    const nested = image.src as Record<string, unknown>;
+    const nestedUrl = nested.url;
+    if (typeof nestedUrl === 'string') {
+      resolvedSrc = validateImageUrl(nestedUrl);
+      resolvedOriginalUrl = typeof nested.originalUrl === 'string' ? nested.originalUrl : image.originalUrl;
+      sourceRenditions = Array.isArray(nested.renditions) ? nested.renditions : image.renditions;
+    } else if (nestedUrl && typeof nestedUrl === 'object') {
+      const malformedUrl = nestedUrl as Record<string, unknown>;
+      const srcCandidate = typeof malformedUrl.src === 'string'
+        ? malformedUrl.src
+        : typeof malformedUrl.url === 'string'
+          ? malformedUrl.url
+          : undefined;
+      resolvedSrc = srcCandidate ? validateImageUrl(srcCandidate) : undefined;
+      resolvedOriginalUrl =
+        (typeof malformedUrl.originalUrl === 'string' ? malformedUrl.originalUrl : undefined) ??
+        (typeof nested.originalUrl === 'string' ? nested.originalUrl : undefined) ??
+        image.originalUrl;
+      sourceRenditions = Array.isArray(malformedUrl.renditions)
+        ? malformedUrl.renditions
+        : Array.isArray(nested.renditions)
+          ? nested.renditions
+          : image.renditions;
+    }
+    if (!resolvedSrc && typeof nested.originalUrl === 'string') {
+      resolvedSrc = validateImageUrl(nested.originalUrl);
+      resolvedOriginalUrl = nested.originalUrl;
+      sourceRenditions = Array.isArray(nested.renditions) ? nested.renditions : image.renditions;
+    }
+  }
+
+  if (!resolvedSrc && typeof image.originalUrl === 'string') {
+    resolvedSrc = validateImageUrl(image.originalUrl);
+    resolvedOriginalUrl = image.originalUrl;
   }
 
   const renditions = normalizeRenditions(sourceRenditions);

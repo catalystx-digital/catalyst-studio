@@ -75,8 +75,18 @@ function extractImagesFromDom(html: string): ExtractedImage[] {
  */
 function isNonContentImage(src: string): boolean {
   const lowerSrc = src.toLowerCase()
+  const pathname = (() => {
+    try {
+      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
+    } catch {
+      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
+    }
+  })()
+  const filename = pathname.split('/').filter(Boolean).pop() || pathname
 
   // Tracking pixels and analytics
+  if (lowerSrc.includes('facebook.com/tr?')) return true
+  if (lowerSrc.includes('/tr?id=')) return true
   if (lowerSrc.includes('pixel') || lowerSrc.includes('beacon')) return true
   if (lowerSrc.includes('analytics') || lowerSrc.includes('tracking')) return true
   if (lowerSrc.includes('.gif') && lowerSrc.includes('1x1')) return true
@@ -85,6 +95,21 @@ function isNonContentImage(src: string): boolean {
   if (lowerSrc.includes('/icons/') && lowerSrc.includes('.svg')) return true
   if (lowerSrc.includes('favicon')) return true
   if (lowerSrc.includes('spinner') || lowerSrc.includes('loading')) return true
+  if (pathname.includes('/flags/') || /^flag[-_.]/.test(filename)) return true
+  if (
+    (pathname.includes('/templateassets/') || pathname.includes('/icons/')) &&
+    (filename.includes('auslan') || filename.includes('interpreter'))
+  ) return true
+  if (/^(auslan|interpreter)[-_.].*\.svg$/i.test(filename)) return true
+
+  // Site-wide brand assets should not be attached as content images.
+  if (
+    filename.includes('rch-master') ||
+    (
+      pathname.includes('/templateassets/') &&
+      (filename.includes('logo') || filename.includes('brandmark'))
+    )
+  ) return true
 
   // Social media share buttons
   if (lowerSrc.includes('facebook') && lowerSrc.includes('share')) return true
@@ -151,6 +176,12 @@ function getExistingImageUrls(component: DetectedComponent): Set<string> {
     // Check for image-like fields
     if (typeof record.src === 'string') {
       urls.add(record.src.toLowerCase())
+    }
+    if (typeof record.url === 'string') {
+      urls.add(record.url.toLowerCase())
+    }
+    if (typeof record.originalUrl === 'string') {
+      urls.add(record.originalUrl.toLowerCase())
     }
     if (typeof record.image === 'object' && record.image) {
       const img = record.image as Record<string, unknown>
@@ -238,18 +269,44 @@ function enrichComponentWithImage(
   component: DetectedComponent,
   image: ExtractedImage,
   pageUrl?: string
-): void {
+): boolean {
   const absoluteSrc = normalizeToAbsolute(image.src, pageUrl)
-  const imageData = { src: absoluteSrc, alt: image.alt || '' }
+  const mediaRef = {
+    mediaId: `detected:${stableImageId(absoluteSrc)}`,
+    mediaType: 'image' as const,
+    url: absoluteSrc
+  }
+  const imageData = { src: mediaRef, alt: image.alt || '', originalUrl: absoluteSrc }
 
   const content = component.content as Record<string, unknown> | undefined
   if (!content) {
-    component.content = { images: [imageData] }
-    return
+    if (component.type === 'image-gallery') {
+      component.content = { images: [imageData] }
+      return true
+    }
+    return false
   }
 
-  // For two-column components, try to add to the matching column item
-  // Two-column schema uses imageUrl/imageAlt fields, not image: { src, alt }
+  if (component.type === 'hero-with-image' && !content.image) {
+    content.image = imageData
+    return true
+  }
+
+  if (component.type === 'image-gallery') {
+    const images = Array.isArray(content.images) ? content.images as unknown[] : []
+    content.images = [...images, imageData]
+    return true
+  }
+
+  if (component.type === 'card-grid') {
+    return enrichCardCollection(content.cards, image, imageData)
+  }
+
+  if (component.type === 'content-feed') {
+    return enrichCardCollection(content.pinned, image, imageData)
+  }
+
+  // For two-column components, try to add to the matching child component.
   if (component.type === 'two-column') {
     const leftColumn = content.leftColumn as Array<Record<string, unknown>> | undefined
     const rightColumn = content.rightColumn as Array<Record<string, unknown>> | undefined
@@ -271,15 +328,17 @@ function enrichComponentWithImage(
       }
 
       if (image.nearbyText && itemText && imageMatchesItem(image.nearbyText, itemText)) {
-        // Add image using the proper two-column schema fields
-        if (!item.imageUrl) {
-          item.imageUrl = absoluteSrc
-          item.imageAlt = image.alt || ''
-          console.log('[ImageEnrichment] Added imageUrl to two-column item:', {
+        if (!hasImage(item)) {
+          if (isRecord(item.content)) {
+            ;(item.content as Record<string, unknown>).image = imageData
+          } else {
+            item.image = imageData
+          }
+          console.log('[ImageEnrichment] Added image to two-column item:', {
             heading: item.heading,
             imageUrl: absoluteSrc.substring(0, 60)
           })
-          return
+          return true
         }
       }
     }
@@ -291,6 +350,51 @@ function enrichComponentWithImage(
   // The image enrichment for these components should happen through
   // component-specific fields (like slides[].image for carousel)
   // For now, we only enrich two-column components with matched images
+  return false
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function stableImageId(src: string): string {
+  const withoutQuery = src.split(/[?#]/, 1)[0] || src
+  const file = withoutQuery.split('/').filter(Boolean).pop() || 'image'
+  const base = file.replace(/\.[a-z0-9]+$/i, '')
+  return base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'image'
+}
+
+function hasImage(record: Record<string, unknown>): boolean {
+  if (record.image) return true
+  if (record.imageUrl) return true
+  if (isRecord(record.content)) {
+    const content = record.content as Record<string, unknown>
+    return Boolean(content.image || content.imageUrl)
+  }
+  return false
+}
+
+function enrichCardCollection(
+  value: unknown,
+  image: ExtractedImage,
+  imageData: Record<string, unknown>
+): boolean {
+  if (!Array.isArray(value)) {
+    return false
+  }
+
+  for (const item of value) {
+    if (!isRecord(item) || hasImage(item)) {
+      continue
+    }
+    const itemText = getItemText(item)
+    if (image.nearbyText && itemText && imageMatchesItem(image.nearbyText, itemText)) {
+      item.image = imageData
+      return true
+    }
+  }
+
+  return false
 }
 
 function getItemText(item: Record<string, unknown>): string {
@@ -385,14 +489,21 @@ export function enrichComponentImages(
         const normalizedSrc = normalizeToAbsolute(image.src, pageUrl).toLowerCase()
 
         if (!existingUrls.has(normalizedSrc)) {
-          enrichComponentWithImage(component, image, pageUrl)
+          const mutated = enrichComponentWithImage(component, image, pageUrl)
 
-          // Log enrichment for debugging
-          console.log('[ImageEnrichment] Added image to component:', {
-            componentType: component.type,
-            imageSrc: image.src.substring(0, 80) + (image.src.length > 80 ? '...' : ''),
-            matchedVia: 'nearbyText'
-          })
+          if (mutated) {
+            console.log('[ImageEnrichment] Added image to component:', {
+              componentType: component.type,
+              imageSrc: image.src.substring(0, 80) + (image.src.length > 80 ? '...' : ''),
+              matchedVia: 'nearbyText'
+            })
+          } else {
+            console.log('[ImageEnrichment] Skipped image candidate:', {
+              componentType: component.type,
+              imageSrc: image.src.substring(0, 80) + (image.src.length > 80 ? '...' : ''),
+              reason: 'schema_unsupported_or_no_item_match'
+            })
+          }
         }
       }
     }
