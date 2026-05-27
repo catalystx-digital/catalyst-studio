@@ -119,6 +119,9 @@ function cloneArtifact(artifact: SectionExtractionArtifact): SectionExtractionAr
     pageMetadata: artifact.pageMetadata ? JSON.parse(JSON.stringify(artifact.pageMetadata)) : undefined,
     invalidComponents: artifact.invalidComponents
       ? artifact.invalidComponents.map(component => ({ ...component }))
+      : undefined,
+    parserRepairs: artifact.parserRepairs
+      ? artifact.parserRepairs.map(repair => ({ ...repair }))
       : undefined
   }
 }

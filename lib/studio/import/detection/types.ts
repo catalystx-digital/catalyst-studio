@@ -57,6 +57,14 @@ export interface InvalidDetectedComponent {
   reason: string
 }
 
+export interface ParserRepairNote {
+  index: number
+  component: string
+  type: string
+  action: 'drop_duplicate_empty_card_grid'
+  reason: string
+}
+
 export interface DetectedPageTemplate {
   templateKey: string
   confidence?: number

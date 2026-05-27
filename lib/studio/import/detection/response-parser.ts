@@ -1,5 +1,5 @@
 import { applyTemplateCanonicalization } from './canonicalization'
-import type { ComponentPattern, DetectedComponent, DetectedPageTemplate, InvalidDetectedComponent, PageMetadata } from './types'
+import type { ComponentPattern, DetectedComponent, DetectedPageTemplate, InvalidDetectedComponent, PageMetadata, ParserRepairNote } from './types'
 import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import { ConfidenceConfig } from '../config'
 import { normalizePath } from '../utils/path-utils'
@@ -48,6 +48,7 @@ interface ParseSectionDetectionOutput {
   components: DetectedComponent[]
   pageMetadata?: PageMetadata
   invalidComponents?: InvalidDetectedComponent[]
+  parserRepairs?: ParserRepairNote[]
 }
 
 type RawTemplateCandidate = {
@@ -162,7 +163,8 @@ export function parseSectionDetectionResponse({
     sectionKey,
     components: parsedComponents.components,
     pageMetadata,
-    ...(parsedComponents.invalidComponents.length > 0 ? { invalidComponents: parsedComponents.invalidComponents } : {})
+    ...(parsedComponents.invalidComponents.length > 0 ? { invalidComponents: parsedComponents.invalidComponents } : {}),
+    ...(parsedComponents.parserRepairs.length > 0 ? { parserRepairs: parsedComponents.parserRepairs } : {})
   }
 }
 
@@ -231,9 +233,10 @@ function parseComponentsArrayDetailed(
   confidenceThreshold: number,
   pageUrl?: string,
   options: { isolateInvalidContent?: boolean } = {}
-): { components: DetectedComponent[]; invalidComponents: InvalidDetectedComponent[] } {
+): { components: DetectedComponent[]; invalidComponents: InvalidDetectedComponent[]; parserRepairs: ParserRepairNote[] } {
   const validComponents: DetectedComponent[] = []
   const invalidComponents: InvalidDetectedComponent[] = []
+  const parserRepairs: ParserRepairNote[] = []
   const componentMap = new Map(availableComponents.map(c => [c.type, c]))
   for (let index = 0; index < parsed.length; index++) {
     const item = parsed[index]
@@ -294,6 +297,17 @@ function parseComponentsArrayDetailed(
       })
     } catch (error) {
       if (options.isolateInvalidContent) {
+        const duplicateEmptyCardGridRepair = getDuplicateEmptyCardGridRepair({
+          index,
+          componentName,
+          canonicalType: pattern.type,
+          content,
+          validComponents
+        })
+        if (duplicateEmptyCardGridRepair) {
+          parserRepairs.push(duplicateEmptyCardGridRepair)
+          continue
+        }
         invalidComponents.push({
           index,
           component: componentName,
@@ -318,7 +332,57 @@ function parseComponentsArrayDetailed(
       } as DetectedComponent['metadata']
     })
   }
-  return { components: validComponents, invalidComponents }
+  return { components: validComponents, invalidComponents, parserRepairs }
+}
+
+function getDuplicateEmptyCardGridRepair({
+  index,
+  componentName,
+  canonicalType,
+  content,
+  validComponents
+}: {
+  index: number
+  componentName: string
+  canonicalType: string
+  content: Record<string, unknown>
+  validComponents: DetectedComponent[]
+}): ParserRepairNote | null {
+  if (canonicalType !== 'card-grid') {
+    return null
+  }
+
+  if (!Array.isArray(content.cards) || content.cards.length > 0) {
+    return null
+  }
+
+  const sourceHeading = extractComparableHeading(content)
+  if (!sourceHeading || sourceHeading.length < 8 || sourceHeading.split(' ').length < 2) {
+    return null
+  }
+
+  const duplicateSibling = validComponents.find(component => extractComparableHeading(component.content) === sourceHeading)
+  if (!duplicateSibling) {
+    return null
+  }
+
+  return {
+    index,
+    component: componentName,
+    type: canonicalType,
+    action: 'drop_duplicate_empty_card_grid',
+    reason: `Dropped empty card-grid because required cards were missing and valid sibling ${duplicateSibling.type} already represents heading "${sourceHeading}".`
+  }
+}
+
+function extractComparableHeading(content: Record<string, unknown>): string {
+  const value = typeof content.heading === 'string'
+    ? content.heading
+    : typeof content.title === 'string'
+      ? content.title
+      : ''
+
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
 function validateDetectedComponentContent({

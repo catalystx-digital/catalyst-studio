@@ -1,4 +1,4 @@
-import type { DetectedComponent, InvalidDetectedComponent, PageMetadata } from './types'
+import type { DetectedComponent, InvalidDetectedComponent, PageMetadata, ParserRepairNote } from './types'
 import type { DetectionSectionTask } from './section-plan'
 
 export interface SectionExtractionArtifact {
@@ -8,6 +8,7 @@ export interface SectionExtractionArtifact {
   components: DetectedComponent[]
   pageMetadata?: PageMetadata
   invalidComponents?: InvalidDetectedComponent[]
+  parserRepairs?: ParserRepairNote[]
   requiredSectionEmpty?: boolean
   satisfiedBySectionKey?: string
 }

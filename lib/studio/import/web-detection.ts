@@ -34,7 +34,7 @@ import {
 import { summarizeSectionNodes } from './detection/section-summarizer'
 import { enrichNavbarRowStylesFromEvidence } from './detection/navbar-row-style-enrichment'
 import { classifySectionIntent } from './detection/section-taxonomy'
-import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
+import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata, ParserRepairNote } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
 import { createDetectionTelemetry } from './telemetry/detection-telemetry'
 import type { DetectionPhaseRecord, DetectionTelemetry } from './telemetry/detection-telemetry'
@@ -171,7 +171,8 @@ export interface DetectionFailureDebug {
   sectionOriginalBytes?: number
   sectionSummarizedBytes?: number
   sectionSummaryReductionRatio?: number
-  parserRepair?: 'missing_section_key_injected'
+  parserRepair?: 'missing_section_key_injected' | ParserRepairNote['action']
+  parserRepairs?: ParserRepairNote[]
   missingSectionKey?: boolean
   repairPromptCapped?: boolean
   repairPromptPreviousJsonChars?: number
@@ -833,6 +834,7 @@ export class DetectionService {
             durationMs: cached.durationMs,
             components: cached.components,
             pageMetadata: cached.pageMetadata,
+            parserRepairs: cached.llmDebug?.parserRepairs,
             requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
             satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
           },
@@ -1075,6 +1077,53 @@ export class DetectionService {
             localRequestCount++
             rawResult = response.choices[0]?.message?.content || ''
             parsedSection = parseOutcome(response, rawResult, repairDebug, true)
+            if (parsedSection.parserRepairs?.length) {
+              parserDebug = {
+                ...parserDebug,
+                parserRepair: parsedSection.parserRepairs[0]?.action,
+                parserRepairs: parsedSection.parserRepairs
+              }
+            }
+            if (parsedSection.invalidComponents?.length && parsedSection.components.length > 0) {
+              const invalidSummary = summarizeInvalidComponents(parsedSection.invalidComponents)?.join('\n') ?? 'unknown'
+              messages.push({
+                role: 'user',
+                content: [
+                  'Your repaired JSON still contains invalid components.',
+                  'Keep every valid component exactly as-is unless it must be reordered to remain valid JSON.',
+                  'For each invalid component, either populate required fields from real visible content in the previous JSON/section evidence, or remove that invalid component from the components array.',
+                  'Do not return empty required arrays such as card-grid.cards: [].',
+                  'Do not invent placeholder cards, logos, posts, buttons, or images.',
+                  'Return only JSON with the same sectionKey.',
+                  'Invalid component reasons:',
+                  invalidSummary,
+                  'Previous repaired JSON:',
+                  rawResult
+                ].join('\n')
+              })
+              response = await runJsonRequest(messages, {
+                sectionKey: task.sectionKey,
+                sectionOrder: task.sectionOrder,
+                role: task.role,
+                attempt: 3,
+                repair: true,
+                promptTokensEstimate: estimateMessageTokens(messages),
+                sectionApproxBytes,
+                summarizerEnabled: summarizedSection.enabled,
+                originalBytes: summarizedSection.originalBytes,
+                summarizedBytes: summarizedSection.summarizedBytes
+              })
+              localRequestCount++
+              rawResult = response.choices[0]?.message?.content || ''
+              parsedSection = parseOutcome(response, rawResult, repairDebug, true)
+              if (parsedSection.parserRepairs?.length) {
+                parserDebug = {
+                  ...parserDebug,
+                  parserRepair: parsedSection.parserRepairs[0]?.action,
+                  parserRepairs: parsedSection.parserRepairs
+                }
+              }
+            }
             if (parsedSection.invalidComponents?.length) {
               throw new DetectionFailureError(
                 `Section ${task.sectionKey} produced ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} after repair`,
@@ -1145,6 +1194,7 @@ export class DetectionService {
               components: parsedSection.components,
               pageMetadata: parsedSection.pageMetadata,
               invalidComponents: parsedSection.invalidComponents,
+              parserRepairs: parsedSection.parserRepairs,
               requiredSectionEmpty
             },
             rawResult,
@@ -1271,7 +1321,8 @@ export class DetectionService {
           originalBytes: summarizedSection.originalBytes,
           summarizedBytes: summarizedSection.summarizedBytes,
           summaryReductionRatio: summarizedSection.reductionRatio,
-          componentCount: artifact.components.length
+          componentCount: artifact.components.length,
+          parserRepairCount: artifact.parserRepairs?.length ?? 0
         })
 
         return {
@@ -1363,6 +1414,7 @@ export class DetectionService {
                   durationMs: cached.durationMs,
                   components: cached.components,
                   pageMetadata: cached.pageMetadata,
+                  parserRepairs: cached.llmDebug?.parserRepairs,
                   requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
                   satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
                 },

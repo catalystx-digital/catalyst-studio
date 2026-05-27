@@ -1095,6 +1095,113 @@ describe('parseSectionDetectionResponse', () => {
     ])
   })
 
+  it('drops duplicate empty card grids during invalid component isolation', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'text-block',
+            confidence: 0.9,
+            content: { heading: 'Deep platform knowledge', body: 'Deep platform knowledge' }
+          },
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: { heading: 'Deep platform knowledge', cards: [] }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://www.luminary.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components.map(component => component.type)).toEqual(['text-block'])
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.parserRepairs).toEqual([
+      expect.objectContaining({
+        index: 1,
+        component: 'card-grid',
+        type: 'card-grid',
+        action: 'drop_duplicate_empty_card_grid',
+        reason: expect.stringContaining('valid sibling text-block already represents heading "deep platform knowledge"')
+      })
+    ])
+  })
+
+  it('keeps non-duplicate empty card grids invalid during isolation', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'text-block',
+            confidence: 0.9,
+            content: { heading: 'Different content', body: 'Different content' }
+          },
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: { heading: 'Deep platform knowledge', cards: [] }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://www.luminary.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components.map(component => component.type)).toEqual(['text-block'])
+    expect(parsed.invalidComponents).toEqual([
+      expect.objectContaining({
+        index: 1,
+        component: 'card-grid',
+        type: 'card-grid',
+        reason: expect.stringContaining('cards:missing-required-field')
+      })
+    ])
+  })
+
+  it('does not drop empty card grids on loose substring heading matches', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'text-block',
+            confidence: 0.9,
+            content: { heading: 'Services', body: 'Services' }
+          },
+          {
+            component: 'card-grid',
+            confidence: 0.9,
+            content: { heading: 'Services and support', cards: [] }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components.map(component => component.type)).toEqual(['text-block'])
+    expect(parsed.parserRepairs).toBeUndefined()
+    expect(parsed.invalidComponents).toEqual([
+      expect.objectContaining({
+        index: 1,
+        component: 'card-grid',
+        type: 'card-grid'
+      })
+    ])
+  })
+
   it('normalizes unsupported nested navbar menu teaser images before schema validation', () => {
     const parsed = parseSectionDetectionResponse({
       rawResponse: JSON.stringify({

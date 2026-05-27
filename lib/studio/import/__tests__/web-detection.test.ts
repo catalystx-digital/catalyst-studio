@@ -849,7 +849,63 @@ describe('DetectionService (web-based)', () => {
       await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
         'Section main:0-99 produced 1 invalid component after repair'
       )
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(3)
+    })
+
+    it('uses a surgical repair pass to remove invalid empty components while preserving valid siblings', async () => {
+      mockOpenAI.chat.completions.create = jest.fn()
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sectionKey: 'main:0-99',
+                components: [
+                  { component: 'navbar', confidence: 0.95, content: { menuItems: [] } },
+                  { component: 'logo-cloud', confidence: 0.95, content: null }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 1000 }
+        })
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sectionKey: 'main:0-99',
+                components: [
+                  { component: 'navbar', confidence: 0.95, content: { menuItems: [] } },
+                  { component: 'logo-cloud', confidence: 0.95, content: null }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 1000 }
+        })
+        .mockResolvedValueOnce({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                sectionKey: 'main:0-99',
+                components: [
+                  { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
+                ]
+              })
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { total_tokens: 1000 }
+        })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components.map(component => component.type)).toEqual(['navbar'])
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(3)
+      expect(mockOpenAI.chat.completions.create.mock.calls[2][0].messages.at(-1).content).toContain(
+        'Do not return empty required arrays such as card-grid.cards: [].'
+      )
     })
 
     it('fails required nonempty sections when all repaired components are invalid', async () => {

@@ -7,7 +7,7 @@
  * @module checkpoint.types
  */
 
-import type { DetectedComponent, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from '../detection/types'
+import type { DetectedComponent, ImportDetectionResult, InvalidDetectedComponent, PageMetadata, ParserRepairNote } from '../detection/types'
 
 // =============================================================================
 // Pipeline Stage Types
@@ -218,7 +218,8 @@ export interface LLMDebugInfo {
   /** Fractional source payload reduction from summarization */
   sectionSummaryReductionRatio?: number
   /** Parser-side repair/normalization applied without another LLM call */
-  parserRepair?: 'missing_section_key_injected'
+  parserRepair?: 'missing_section_key_injected' | ParserRepairNote['action']
+  parserRepairs?: ParserRepairNote[]
   /** Whether the section response omitted the expected section key */
   missingSectionKey?: boolean
   /** Whether the repair prompt included a capped previous response */
@@ -227,6 +228,8 @@ export interface LLMDebugInfo {
   repairPromptPreviousJsonChars?: number
   /** Components omitted from a section because their content failed strict validation */
   invalidComponents?: InvalidDetectedComponent[]
+  /** Human-readable summaries for invalid component validation failures */
+  invalidComponentReasons?: string[]
   /** Count of components omitted from a section because their content failed strict validation */
   invalidComponentCount?: number
   /** Whether a required nonempty section returned no valid components */
