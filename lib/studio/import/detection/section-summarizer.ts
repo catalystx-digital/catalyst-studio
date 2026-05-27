@@ -9,13 +9,20 @@ export interface SectionSummarizerResult {
 }
 
 const PRESERVED_ATTRS = new Set([
+  'id',
+  'class',
+  'className',
   'href',
   'src',
   'alt',
   'title',
+  'aria-hidden',
   'aria-label',
   'aria-labelledby',
   'aria-describedby',
+  'aria-selected',
+  'aria-expanded',
+  'hidden',
   'role',
   'type',
   'name',
@@ -25,6 +32,11 @@ const PRESERVED_ATTRS = new Set([
   'data-src',
   'data-href'
 ])
+
+const STRUCTURAL_ATTR_PATTERNS = [
+  /^data-(?:slide|slider|carousel|swiper|slick|glide|flickity|owl|active|current|visible|hidden|index|target|tab|panel|role|component|section)/i,
+  /^(?:data-)?(?:lazy|srcset)$/i
+]
 
 function byteLength(value: unknown): number {
   return JSON.stringify(value).length
@@ -53,7 +65,7 @@ function summarizeNode(value: unknown): unknown {
     }
   }
 
-  for (const key of ['pathId', 'bgColor', 'bgImage']) {
+  for (const key of ['id', 'class', 'className', 'pathId', 'bgColor', 'bgImage']) {
     if (typeof node[key] === 'string') {
       const value = compactWhitespace(node[key])
       if (value) summarized[key] = value
@@ -64,7 +76,11 @@ function summarizeNode(value: unknown): unknown {
   if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
     const keptAttrs: Record<string, unknown> = {}
     for (const [key, attrValue] of Object.entries(attrs as Record<string, unknown>)) {
-      if (!PRESERVED_ATTRS.has(key) && !key.startsWith('aria-')) {
+      if (
+        !PRESERVED_ATTRS.has(key) &&
+        !key.startsWith('aria-') &&
+        !STRUCTURAL_ATTR_PATTERNS.some(pattern => pattern.test(key))
+      ) {
         continue
       }
       keptAttrs[key] = typeof attrValue === 'string' ? compactWhitespace(attrValue) : attrValue

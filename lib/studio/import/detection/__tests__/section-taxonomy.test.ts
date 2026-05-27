@@ -40,6 +40,38 @@ describe('section taxonomy', () => {
     expect(result.deniedTypes).not.toContain('content-feed')
   })
 
+  it('classifies news article links without visible dates as editorial feeds', () => {
+    const result = classifySectionIntent({
+      content: {
+        heading: 'Latest News',
+        cards: [
+          { title: 'Story A', href: 'https://blogs.example.com/news/story-a/' },
+          { title: 'Story B', href: 'https://blogs.example.com/news/story-b/' }
+        ]
+      }
+    })
+
+    expect(result.intent).toBe('editorial_feed')
+    expect(result.allowedTypes).toContain('content-feed')
+    expect(result.deniedTypes).not.toContain('content-feed')
+  })
+
+  it('does not classify latest project links as editorial feeds just because they say latest', () => {
+    const result = classifySectionIntent({
+      content: {
+        heading: 'Latest projects',
+        cards: [
+          { title: 'Project A', href: '/projects/a' },
+          { title: 'Project B', href: '/projects/b' }
+        ]
+      }
+    })
+
+    expect(result.intent).toBe('project_grid')
+    expect(result.allowedTypes).toContain('card-grid')
+    expect(result.deniedTypes).toContain('content-feed')
+  })
+
   it('classifies services tiles as service grid and denies content feed', () => {
     const result = classifySectionIntent({
       content: {

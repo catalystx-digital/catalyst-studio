@@ -28,7 +28,9 @@ import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-me
 import { tagPageComponents, tagListingComponents } from './detection-post-processor/content-tagging-processor'
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
 import { enrichHeroContent } from './detection-post-processor/hero-content-enrichment'
+import { collapseAdjacentHeroSlides } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
+import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
 import { telemetryCollector, withTelemetry, withConfidenceCheck } from './detection-post-processor/telemetry'
 import { checkProcessorSkip } from './detection-post-processor/confidence-config'
 
@@ -105,6 +107,11 @@ export function adjustDetectedComponents(
     pageUrl: options.pageUrl
   }))
 
+  withTelemetry('heroCarouselCollapse', cloned, (c) => {
+    const collapsed = collapseAdjacentHeroSlides(c)
+    c.splice(0, c.length, ...collapsed)
+  })
+
   // CTA cleanup
   withTelemetry('ctaCleanup', cloned, (c) => removeInlineCtas(c))
 
@@ -121,6 +128,11 @@ export function adjustDetectedComponents(
     pageUrl: options.pageUrl,
     pageMetadata: options.pageMetadata
   }))
+
+  withTelemetry('structuralDeduplication', cloned, (c) => {
+    const deduped = collapseDuplicateListingSurfaces(c)
+    c.splice(0, c.length, ...deduped)
+  })
 
   // Transform URLs from source site to relative/target format
   const transformed = transformSourceUrls(cloned, options.pageUrl)

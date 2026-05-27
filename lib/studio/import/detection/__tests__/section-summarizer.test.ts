@@ -15,11 +15,18 @@ describe('section summarizer', () => {
     const result = summarizeSectionNodes([
       {
         tag: 'article',
+        id: 'news-carousel',
         pathId: 'n000123',
+        class: 'home-carousel slick-slider',
         className: 'large noisy class list',
         bgColor: '#6f8434',
         bgImage: 'url(/hero.jpg)',
         attrs: {
+          id: 'news-carousel',
+          class: 'carousel slick-slider',
+          'aria-hidden': 'false',
+          'data-slide-index': '0',
+          'data-current': 'true',
           href: '/news/story',
           title: 'Story',
           'data-tracking-id': 'discard-me'
@@ -47,11 +54,19 @@ describe('section summarizer', () => {
     expect(result.nodes).toEqual([
       {
         tag: 'article',
+        id: 'news-carousel',
         pathId: 'n000123',
+        class: 'home-carousel slick-slider',
+        className: 'large noisy class list',
         text: 'Story heading with spacing',
         bgColor: '#6f8434',
         bgImage: 'url(/hero.jpg)',
         attrs: {
+          id: 'news-carousel',
+          class: 'carousel slick-slider',
+          'aria-hidden': 'false',
+          'data-slide-index': '0',
+          'data-current': 'true',
           href: '/news/story',
           title: 'Story'
         },

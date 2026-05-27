@@ -900,7 +900,10 @@ export class DetectionService {
               'Never emit generic wrappers such as section, container, wrapper, block, group, layout, or raw DOM/tag names.',
               'Do not invent copy, URLs, images, dates, categories, or placeholder content.',
               'If this section contains project/case-study/client-work/latest-project tiles, use card-grid, not content-feed.',
-              'Use content-feed only for real dated news/blog/article/resource teaser listings.',
+              'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings; never use card-grid for those editorial feeds.',
+              'One carousel, slider, tab panel, or responsive listing surface must become one component with nested items; never emit one top-level component per slide/card variant.',
+              'Hidden or inactive slides/items marked by aria-hidden, hidden, data-active/current/index, carousel/slider classes, or responsive duplicate wrappers must not become separate top-level components.',
+              'When desktop/mobile/list variants contain the same item titles or links, represent the source surface once using the richest visible variant.',
               'Every image.src MediaReference object must include mediaId, mediaType: "image", and url.',
               'card-grid.cards[] links must use href, never link or url.',
               'When nodes include bgColor evidence for a visible component surface, preserve that source CSS color in the component style fields supported by its schema; do not infer colors from brand palette.',
@@ -1386,8 +1389,12 @@ export class DetectionService {
               pageUrl: url
             })
             taxonomy.allowedTypes.forEach(type => candidateTypes.add(type))
+            taxonomy.deniedTypes.forEach(type => candidateTypes.delete(type))
             expandCandidatesFromSectionEvidence(candidateTypes, section.packets)
-            if (!dedicatedEditorialListing && candidateTypes.has('card-grid')) {
+            if (taxonomy.intent === 'editorial_feed' && candidateTypes.has('content-feed')) {
+              candidateTypes.delete('card-grid')
+            }
+            if (taxonomy.intent !== 'editorial_feed' && !dedicatedEditorialListing && candidateTypes.has('card-grid')) {
               candidateTypes.delete('content-feed')
             }
             if (candidateTypes.has('accordion') && !hasAccordionEvidence(section.packets)) {
@@ -1448,9 +1455,9 @@ export class DetectionService {
                 'For each planned component, return plannedComponentId, component, confidence, and evidenceRefs.',
                 'plannedComponentId must be unique and stable, for example "<sectionKey>:0".',
                 'evidenceRefs must reference provided source packet ids or pathId values.',
-                'For visible static lists of articles, links, resources, services, or news cards, prefer card-grid.',
+                'For visible static lists of non-editorial links, resources, services, or feature cards, prefer card-grid.',
                 'Use accordion only for real collapsible FAQ/Q&A/details content with non-empty answer/body text for each item; never use accordion for ordinary navigation or "In this section" link lists.',
-                'Use content-feed only when the source shows an explicit dynamic feed surface such as filters, categories, pagination, dates-as-feed metadata, or a latest-news module that cannot be represented as static cards.',
+                'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings, including latest-news modules on a home page.',
                 'If a non-required section has no importable component, return plannedComponents: [] and emptyReason: duplicate, decorative, unsupported, or no_visible_content.',
                 'Do not invent sections, components, or evidence references.'
               ].join('\n')

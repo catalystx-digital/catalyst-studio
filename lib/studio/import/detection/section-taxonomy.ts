@@ -97,7 +97,7 @@ export function classifySectionIntent(input: {
   if (hasServiceText) addEvidence(evidence, 'service-text', headingText)
   if (hasServicePath) addEvidence(evidence, 'service-path')
 
-  if ((hasEditorialText || hasEditorialPath) && hasDates && !hasProjectText) {
+  if ((hasEditorialPath || hasEditorialText) && !hasProjectText && !hasServiceText) {
     return {
       intent: 'editorial_feed',
       evidence,
