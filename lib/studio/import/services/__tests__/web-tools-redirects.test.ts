@@ -104,6 +104,111 @@ describe('web-tools body fallback main extraction', () => {
     expect(serializedMain).not.toContain('Contact')
   })
 
+  it('keeps source-backed navigation roots when responsive CSS hides header classes', async () => {
+    global.fetch = jest.fn(async () => ({
+      status: 200,
+      url: 'https://example.com/',
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: async () => `<!doctype html>
+        <html>
+          <head>
+            <title>Example</title>
+            <style>
+              .desktop-header { display: none; }
+              .mobile-header { display: none; }
+            </style>
+          </head>
+          <body>
+            <div class="desktop-header">
+              <a href="/" class="logo">Luminary</a>
+              <div class="mega-menu main-navigation">
+                <button>Services</button>
+                <button>Work</button>
+                <button>Technology</button>
+              </div>
+              <nav class="main-nav-wrapper">
+                <a href="/blog">Insights</a>
+                <a href="/about">About</a>
+              </nav>
+              <a href="/contact" class="menu-cta">Contact Us</a>
+            </div>
+            <main>
+              <section><h1>Visible hero</h1><p>Visible supporting content.</p></section>
+            </main>
+          </body>
+        </html>`
+    } as Response))
+
+    const tools = getWebFetchTools()
+    const outline = await tools.fetchOutline({ url: 'https://example.com/' })
+
+    expect(outline.sections?.some(section => section.key === 'header')).toBe(true)
+
+    const headerSection = await tools.getSection({ handle: outline.handle, key: 'header' })
+    const serializedHeader = JSON.stringify(headerSection.slice)
+
+    expect(serializedHeader).toContain('Services')
+    expect(serializedHeader).toContain('Work')
+    expect(serializedHeader).toContain('Insights')
+    expect(serializedHeader).toContain('Contact Us')
+
+    const mainSections = outline.sections?.filter(section => section.key.startsWith('main:')) ?? []
+    const mainNodes = (
+      await Promise.all(mainSections.map(section => tools.getSection({ handle: outline.handle, key: section.key })))
+    ).flatMap(section => section.slice)
+    const serializedMain = JSON.stringify(mainNodes)
+
+    expect(serializedMain).toContain('Visible hero')
+    expect(serializedMain).not.toContain('Services')
+    expect(serializedMain).not.toContain('Contact Us')
+  })
+
+  it('does not leak class-hidden navigation outside the selected header root', async () => {
+    global.fetch = jest.fn(async () => ({
+      status: 200,
+      url: 'https://example.com/',
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: async () => `<!doctype html>
+        <html>
+          <head>
+            <title>Example</title>
+            <style>
+              .desktop-header { display: none; }
+              .hidden-panel { display: none; }
+            </style>
+          </head>
+          <body>
+            <div class="desktop-header">
+              <a href="/" class="logo">Example</a>
+              <nav class="main-navigation"><a href="/services">Services</a></nav>
+              <nav class="hidden-panel"><a href="/hidden-header">Hidden header nav</a></nav>
+            </div>
+            <main>
+              <section><h1>Visible hero</h1></section>
+              <nav class="hidden-panel"><a href="/hidden-main">Hidden main nav</a></nav>
+            </main>
+          </body>
+        </html>`
+    } as Response))
+
+    const tools = getWebFetchTools()
+    const outline = await tools.fetchOutline({ url: 'https://example.com/' })
+    const headerSection = await tools.getSection({ handle: outline.handle, key: 'header' })
+    const serializedHeader = JSON.stringify(headerSection.slice)
+
+    expect(serializedHeader).toContain('Services')
+    expect(serializedHeader).not.toContain('Hidden header nav')
+
+    const mainSections = outline.sections?.filter(section => section.key.startsWith('main:')) ?? []
+    const mainNodes = (
+      await Promise.all(mainSections.map(section => tools.getSection({ handle: outline.handle, key: section.key })))
+    ).flatMap(section => section.slice)
+    const serializedMain = JSON.stringify(mainNodes)
+
+    expect(serializedMain).toContain('Visible hero')
+    expect(serializedMain).not.toContain('Hidden main nav')
+  })
+
   it('does not promote footer navigation as a header section', async () => {
     global.fetch = jest.fn(async () => ({
       status: 200,

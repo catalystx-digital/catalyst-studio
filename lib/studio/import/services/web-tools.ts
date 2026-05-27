@@ -209,13 +209,16 @@ function classListContainsHiddenSelector(className: string | undefined, hiddenBy
 }
 
 function isExplicitlyHiddenDomNode(params: {
+  tag: string
   attrs: Dict<string>
   id?: string
   className?: string
+  role?: string
   style?: string
   bgImageMap?: BackgroundImageMap
+  preserveClassHiddenNavigationRoot?: boolean
 }): boolean {
-  const { attrs, id, className, style, bgImageMap } = params
+  const { tag, attrs, id, className, role, style, bgImageMap, preserveClassHiddenNavigationRoot } = params
   if (Object.prototype.hasOwnProperty.call(attrs, 'hidden')) {
     return true
   }
@@ -224,6 +227,9 @@ function isExplicitlyHiddenDomNode(params: {
   }
   if (id && bgImageMap?.hiddenById.has(id)) {
     return true
+  }
+  if (preserveClassHiddenNavigationRoot && isNavigationEvidenceRoot({ tag, id, className, role })) {
+    return false
   }
   return classListContainsHiddenSelector(className, bgImageMap?.hiddenByClass)
 }
@@ -243,6 +249,7 @@ function traverseToNodes(
     bgImageMap?: BackgroundImageMap
     skipTags?: Set<string>
     skipNode?: (node: { tag: string; id?: string; className?: string; role?: string }) => boolean
+    preserveClassHiddenRoot?: boolean
   }
 ): DomNode[] {
   const nodes: DomNode[] = []
@@ -274,7 +281,18 @@ function traverseToNodes(
     const nodeClassName = typeof clsRaw === 'string' ? clsRaw : undefined
     const style = typeof styleRaw === 'string' ? styleRaw : undefined
 
-    if (isExplicitlyHiddenDomNode({ attrs, id: nodeId, className: nodeClassName, style, bgImageMap })) {
+    const nodeRole = typeof role === 'string' ? role : undefined
+
+    if (isExplicitlyHiddenDomNode({
+      tag,
+      attrs,
+      id: nodeId,
+      className: nodeClassName,
+      role: nodeRole,
+      style,
+      bgImageMap,
+      preserveClassHiddenNavigationRoot: opts.preserveClassHiddenRoot === true && path === ''
+    })) {
       return
     }
 
@@ -286,7 +304,7 @@ function traverseToNodes(
       tag,
       id: nodeId,
       className: nodeClassName,
-      role: typeof role === 'string' ? role : undefined
+      role: nodeRole
     })) {
       return
     }
@@ -497,6 +515,10 @@ function isHeaderLikeNode(node: { tag: string; id?: string; className?: string; 
     'primary-nav',
     'nav-menu'
   ].some(token => haystack.includes(token))
+}
+
+function isNavigationEvidenceRoot(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
+  return node.tag === 'nav' || node.role === 'navigation' || isHeaderLikeNode(node)
 }
 
 function findHeaderLikeDescendant(node: any): any | undefined {
@@ -1563,7 +1585,7 @@ export class WebFetchTools {
       const mainSkipNode = actualMainNode ? undefined : shouldSkipBodyFallbackMainNode
 
       const maxSectionBytes = resolveSectionMaxBytes()
-      const headerSlice = headerNode ? traverseToNodes(headerNode, { maxTextPerNode: 1500, bgImageMap }) : []
+      const headerSlice = headerNode ? traverseToNodes(headerNode, { maxTextPerNode: 1500, bgImageMap, preserveClassHiddenRoot: true }) : []
       const mainNodes = mainNode ? traverseToNodes(mainNode, { maxTextPerNode: 1500, bgImageMap, skipTags: mainSkipTags, skipNode: mainSkipNode }) : []
       const footerSlice = footerNode ? traverseToNodes(footerNode, { maxTextPerNode: 1500, bgImageMap }) : []
 
