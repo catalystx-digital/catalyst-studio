@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cmsBody, dsSpacing } from '../../_ui';
 import type { ComponentTheme } from '../../_core/types';
-import { NavBarProps, MenuItem, CTAButton } from './nav-bar.types';
+import { NavBarProps, MenuItem, CTAButton, NavBarRowStyle } from './nav-bar.types';
 import { normalizeCTA, normalizeMenuItems, resolveHref } from './nav-bar.transform';
 import { buildHrefActiveChecker, buildMenuItemActiveChecker, normalizePathname } from './nav-bar.utils';
 import { SearchToggle } from './search-toggle';
@@ -38,6 +38,61 @@ function resolveCtaVariant(variant: CTAButton['variant'], theme?: ComponentTheme
     return 'outline';
   }
   return mapped;
+}
+
+function isSafeCssColor(value: unknown): value is string {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const color = value.trim();
+  if (!color || /[;{}]/.test(color)) {
+    return false;
+  }
+  return (
+    /^#[0-9a-f]{3,8}$/i.test(color) ||
+    /^rgba?\(\s*[\d.\s,%]+\)$/i.test(color) ||
+    /^hsla?\(\s*[\d.\s,%degturnrad]+\)$/i.test(color) ||
+    /^var\(--[a-z0-9-_]+\)$/i.test(color)
+  );
+}
+
+function rowStyleToCss(style: NavBarRowStyle | undefined): React.CSSProperties | undefined {
+  if (!style || typeof style !== 'object') {
+    return undefined;
+  }
+  const backgroundColor = isSafeCssColor((style as Record<string, unknown>).backgroundColor)
+    ? ((style as Record<string, string>).backgroundColor.trim())
+    : undefined;
+  const textColorValue = (style as Record<string, unknown>).textColor ?? (style as Record<string, unknown>).color;
+  const color = isSafeCssColor(textColorValue)
+    ? String(textColorValue).trim()
+    : undefined;
+  const borderColor = isSafeCssColor((style as Record<string, unknown>).borderColor)
+    ? ((style as Record<string, string>).borderColor.trim())
+    : undefined;
+
+  const css: React.CSSProperties = {
+    ...(backgroundColor ? { backgroundColor } : {}),
+    ...(color ? { color } : {}),
+    ...(borderColor ? { borderColor } : {})
+  };
+
+  return Object.keys(css).length > 0 ? css : undefined;
+}
+
+function normalizeStyleLabel(label: string): string {
+  return label.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function buildPrimaryItemStyleMap(styles: NavBarProps['content']['styles'] | undefined): Map<string, React.CSSProperties> {
+  const styleMap = new Map<string, React.CSSProperties>();
+  for (const itemStyle of styles?.primaryItems ?? []) {
+    const css = rowStyleToCss(itemStyle);
+    if (css) {
+      styleMap.set(normalizeStyleLabel(itemStyle.label), css);
+    }
+  }
+  return styleMap;
 }
 
 // Shared CTA Button component
@@ -293,6 +348,55 @@ function UtilityNavLink({
   );
 }
 
+function ImportedPrimaryNavLink({
+  item,
+  index,
+  isActive,
+  onInteraction,
+  className,
+  hasSourceStyle,
+}: {
+  item: MenuItem;
+  index: number;
+  isActive: boolean;
+  onInteraction: (event: string, payload: Record<string, unknown>) => void;
+  className?: string;
+  hasSourceStyle?: boolean;
+}) {
+  const href = resolveHref(item.href);
+  if (!href) return null;
+
+  return (
+    <Link
+      href={href}
+      target={item.external ? '_blank' : undefined}
+      rel={item.external ? 'noopener noreferrer' : undefined}
+      className={cn(
+        'flex min-h-10 flex-1 items-center justify-center px-4 py-2 text-center text-sm font-semibold transition-colors',
+        hasSourceStyle ? 'hover:brightness-95 data-[active=true]:brightness-90' : 'hover:bg-primary/90 data-[active=true]:bg-primary/90',
+        className ?? 'text-primary-foreground'
+      )}
+      data-active={isActive ? 'true' : undefined}
+      aria-current={isActive ? 'page' : undefined}
+      onClick={() =>
+        onInteraction('nav_click', {
+          label: item.label,
+          href,
+          index,
+          external: Boolean(item.external),
+          surface: 'desktop',
+        })
+      }
+    >
+      <span className="flex items-center gap-1">
+        {item.label}
+        {item.external && <ExternalLink className="h-3 w-3 opacity-70" />}
+      </span>
+      {isActive && <span className="sr-only"> (current page)</span>}
+    </Link>
+  );
+}
+
 export function NavBarServer({ content, className, theme, onInteraction }: NavBarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -409,6 +513,82 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
   // For fixed positioning (transparent + sticky), we need a spacer to prevent content overlap
   // The spacer only shows when scrolled (navbar becomes opaque)
   const needsSpacer = sticky && transparent && isScrolled;
+  const importedMultiRow = content.layout === 'multi-row';
+
+  if (importedMultiRow) {
+    const utilityRowStyle = rowStyleToCss(content.styles?.utilityRow);
+    const primaryRowStyle = rowStyleToCss(content.styles?.primaryRow);
+    const primaryItemStyles = buildPrimaryItemStyleMap(content.styles);
+    const primaryRowTextClass = primaryRowStyle?.color ? 'text-current' : 'text-primary-foreground';
+    const primaryRowBorderClass = primaryRowStyle?.borderColor ? 'border-current/40' : 'border-background/70';
+    const importedNavClassName = cn(
+      'nav-bar-server hidden w-full lg:block bg-background text-foreground',
+      sticky ? 'sticky top-0 z-50' : 'relative',
+      className
+    );
+
+    return (
+      <nav aria-label={navLabel} className={importedNavClassName}>
+        <div className="border-b border-border bg-background" style={utilityRowStyle}>
+          <div className="cms-container">
+            <div className="flex min-h-20 items-center justify-between gap-6 py-4">
+              <NavLogo logo={content.logo} onInteraction={emitInteraction} />
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                {hasUtilityNav && (
+                  <NavigationMenu className="flex items-center">
+                    <NavigationMenuList className="flex flex-wrap items-center justify-end gap-1">
+                      {normalizedUtilityNav.map((item, index) => (
+                        <UtilityNavLink
+                          key={`utility-${item.label}-${index}`}
+                          item={item}
+                          index={index}
+                          isActive={isMenuItemActive(item)}
+                          onInteraction={emitInteraction}
+                        />
+                      ))}
+                    </NavigationMenuList>
+                  </NavigationMenu>
+                )}
+                <NavCTA cta={normalizedCTA} theme={resolvedTheme} onInteraction={emitInteraction} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-primary" style={primaryRowStyle} data-imported-primary-nav>
+          <div className="cms-container">
+            <div className="flex min-h-10 items-stretch">
+              {normalizedMenuItems.map((item, index) => {
+                const primaryItemStyle = primaryItemStyles.get(normalizeStyleLabel(item.label));
+                const primaryItemTextClass = primaryItemStyle?.color ? 'text-current' : primaryRowTextClass;
+                return (
+                <div
+                  key={`${item.label}-${index}`}
+                  className={cn('flex flex-1 border-r', primaryRowBorderClass)}
+                  style={primaryItemStyle}
+                >
+                  <ImportedPrimaryNavLink
+                    item={item}
+                    index={index}
+                    isActive={isMenuItemActive(item)}
+                    onInteraction={emitInteraction}
+                    className={primaryItemTextClass}
+                    hasSourceStyle={Boolean(primaryItemStyle)}
+                  />
+                </div>
+                );
+              })}
+              {search?.enabled && (
+                <div className={cn('flex min-h-10 items-center justify-center border-r px-4', primaryRowBorderClass, primaryRowTextClass)}>
+                  <SearchToggle search={search} onInteraction={emitInteraction} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <>

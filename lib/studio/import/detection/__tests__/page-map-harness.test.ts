@@ -45,6 +45,8 @@ describe('page-map harness', () => {
             tag: 'article',
             pathId: 'n1',
             class: 'decorative '.repeat(40),
+            bgColor: '#6f8434',
+            bgImage: 'url(/hero.jpg)',
             attrs: { href: '/story', title: 'Story', 'data-track': 'discard '.repeat(40) },
             text: '  Story heading  ',
             children: [
@@ -61,6 +63,8 @@ describe('page-map harness', () => {
         id: 's0#0',
         pathId: 'n1',
         tag: 'article',
+        bgColor: '#6f8434',
+        bgImage: 'url(/hero.jpg)',
         text: 'Story heading',
         attrs: { href: '/story', title: 'Story' },
         children: [

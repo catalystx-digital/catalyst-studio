@@ -1121,6 +1121,109 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
+  it('normalizes navbar row style aliases into the canonical styles object', () => {
+    const detection: DetectionResult = {
+      id: 'navbar-row-colors',
+      type: 'navbar',
+      bounds: baseBounds,
+      content: {
+        layout: 'multi-row',
+        menuItems: [{ label: 'Patients and Families', href: '/' }],
+        primaryNavBackgroundColor: '#6f8434',
+        primaryNavTextColor: '#ffffff',
+        primaryRowBorderColor: 'rgba(255, 255, 255, 0.6)',
+        topRowBackgroundColor: '#ffffff',
+        topRowTextColor: '#334e5c',
+        styles: {
+          primaryItems: [
+            {
+              label: 'Patients and Families',
+              backgroundColor: '#F68D39',
+              color: '#ffffff'
+            },
+            {
+              label: 'Invalid',
+              backgroundColor: 'bg-orange'
+            },
+            {
+              backgroundColor: '#000000'
+            }
+          ]
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('navbar'))
+
+    expect(props.content?.styles).toEqual({
+      utilityRow: {
+        backgroundColor: '#ffffff',
+        textColor: '#334e5c'
+      },
+      primaryRow: {
+        backgroundColor: '#6f8434',
+        textColor: '#ffffff',
+        borderColor: 'rgba(255, 255, 255, 0.6)'
+      },
+      primaryItems: [
+        {
+          label: 'Patients and Families',
+          backgroundColor: '#F68D39',
+          textColor: '#ffffff'
+        }
+      ]
+    })
+    expect(props.content?.primaryNavBackgroundColor).toBeUndefined()
+    expect(props.content?.topRowBackgroundColor).toBeUndefined()
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'navbar',
+          field: 'styles.primaryItems.1.backgroundColor',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
+  it('rejects invalid navbar row style color values during normalization', () => {
+    consumeNormalizationWarnings()
+    const detection: DetectionResult = {
+      id: 'navbar-invalid-row-colors',
+      type: 'navbar',
+      bounds: baseBounds,
+      content: {
+        layout: 'multi-row',
+        menuItems: [{ label: 'Patients and Families', href: '/' }],
+        styles: {
+          primaryRow: {
+            backgroundColor: 'bg-green',
+            textColor: '#ffffff'
+          }
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('navbar'))
+
+    expect(props.content?.styles).toEqual({
+      primaryRow: {
+        textColor: '#ffffff'
+      }
+    })
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'navbar',
+          field: 'styles.primaryRow.backgroundColor',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
   it('emits fatal-classified warnings and drops malformed navbar logo image payloads', () => {
     consumeNormalizationWarnings()
     const malformedLogo = {

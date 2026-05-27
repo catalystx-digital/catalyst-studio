@@ -1,6 +1,7 @@
 import { renderLocalWebsitePreview } from '@/lib/studio/preview/local-renderer'
 import { ApiError } from '@/lib/api/errors'
 import { assertStudioWebsiteAccess } from '@/lib/studio/preview/access'
+import { normalizePreviewPath } from '@/lib/studio/preview/qa-preview-token'
 
 interface PageProps {
   params: Promise<{
@@ -9,15 +10,20 @@ interface PageProps {
   }>
   searchParams?: Promise<{
     designConcept?: string
+    previewToken?: string
   }>
 }
 
 export default async function StudioLocalPreviewPage(props: PageProps) {
   const params = await props.params
   const searchParams = await props.searchParams
+  const previewPath = normalizePreviewPath(params.slug?.join('/') ?? '/')
 
   try {
-    await assertStudioWebsiteAccess(undefined, params.websiteId)
+    await assertStudioWebsiteAccess(undefined, params.websiteId, {
+      previewToken: searchParams?.previewToken,
+      path: previewPath,
+    })
   } catch (error) {
     if (!(error instanceof ApiError)) {
       throw error

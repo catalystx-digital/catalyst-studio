@@ -13,7 +13,7 @@ import { Footer as FooterImpl } from './footer';
 import { MobileMenu as MobileMenuImpl } from './mobile-menu';
 import { Breadcrumbs as BreadcrumbsImpl } from './breadcrumbs';
 import { SidebarNavServer as SidebarNavImpl } from './sidebar-nav';
-import { NavBarContent, NavBarProps } from './nav-bar/nav-bar.types';
+import { NavBarContent, NavBarProps, NavBarItemStyle, NavBarRowStyle, NavBarStyles } from './nav-bar/nav-bar.types';
 import { FooterContent, FooterProps } from './footer/footer.types';
 import { MobileMenuContent, MobileMenuProps } from './mobile-menu/mobile-menu.types';
 import { BreadcrumbsContent, BreadcrumbsProps } from './breadcrumbs/breadcrumbs.types';
@@ -83,6 +83,55 @@ function canonicalMenuItems(value: unknown): MenuItem[] {
     .filter((item): item is MenuItem => item !== null);
 }
 
+function canonicalNavRowStyle(value: unknown): NavBarRowStyle | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const style: NavBarRowStyle = {
+    ...(typeof value.backgroundColor === 'string' ? { backgroundColor: value.backgroundColor } : {}),
+    ...(typeof value.textColor === 'string'
+      ? { textColor: value.textColor }
+      : typeof value.color === 'string'
+        ? { textColor: value.color }
+        : {}),
+    ...(typeof value.borderColor === 'string' ? { borderColor: value.borderColor } : {})
+  };
+
+  return Object.keys(style).length > 0 ? style : undefined;
+}
+
+function canonicalNavStyles(value: unknown): NavBarStyles | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const utilityRow = canonicalNavRowStyle(value.utilityRow);
+  const primaryRow = canonicalNavRowStyle(value.primaryRow);
+  const primaryItems = Array.isArray(value.primaryItems)
+    ? value.primaryItems
+        .filter(isPlainObject)
+        .map((item) => {
+          if (typeof item.label !== 'string') {
+            return undefined;
+          }
+          const rowStyle = canonicalNavRowStyle(item);
+          if (!rowStyle) {
+            return undefined;
+          }
+          return { label: item.label, ...rowStyle } satisfies NavBarItemStyle;
+        })
+        .filter((item): item is NavBarItemStyle => Boolean(item))
+    : undefined;
+  const styles: NavBarStyles = {
+    ...(utilityRow ? { utilityRow } : {}),
+    ...(primaryRow ? { primaryRow } : {}),
+    ...(primaryItems && primaryItems.length > 0 ? { primaryItems } : {})
+  };
+
+  return Object.keys(styles).length > 0 ? styles : undefined;
+}
+
 function canonicalFooterColumns(value: unknown): FooterContent['columns'] {
   if (!Array.isArray(value)) {
     return undefined;
@@ -122,6 +171,7 @@ function canonicalSocialLinks(value: unknown): FooterContent['socialLinks'] {
 export const NavBarAdapter: React.FC<CMSComponentProps> = (props) => {
   const raw = readRuntimeContent(props.content);
   const base = asRecord(raw);
+  const styles = canonicalNavStyles(base.styles);
 
   const navBarContent: NavBarContent = {
     menuItems: canonicalMenuItems(base.menuItems),
@@ -129,6 +179,7 @@ export const NavBarAdapter: React.FC<CMSComponentProps> = (props) => {
     ...(base.logo && typeof base.logo === 'object' ? { logo: base.logo } : {}),
     ...(base.cta && typeof base.cta === 'object' ? { cta: base.cta } : {}),
     ...(base.search && typeof base.search === 'object' ? { search: base.search } : {}),
+    ...(styles ? { styles } : {}),
     ...(typeof base.mobileBreakpoint === 'number' ? { mobileBreakpoint: base.mobileBreakpoint } : {}),
     ...(typeof base.sticky === 'boolean' ? { sticky: base.sticky } : {}),
     ...(typeof base.transparent === 'boolean' ? { transparent: base.transparent } : {}),

@@ -38,6 +38,29 @@ export interface NavBarSearch {
   panelVariant?: 'dropdown' | 'overlay' | 'fullscreen';
 }
 
+export interface NavBarRowStyle {
+  /** Source-captured row background color, e.g. #6f8434 or rgb(111, 132, 52). */
+  backgroundColor?: string;
+  /** Source-captured row foreground/text color. */
+  textColor?: string;
+  /** Source-captured row separator/border color. */
+  borderColor?: string;
+}
+
+export interface NavBarItemStyle extends NavBarRowStyle {
+  /** Menu item label this style belongs to. */
+  label: string;
+}
+
+export interface NavBarStyles {
+  /** Styles for the logo/utility/CTA row in multi-row headers. */
+  utilityRow?: NavBarRowStyle;
+  /** Styles for the primary category/audience row in multi-row headers. */
+  primaryRow?: NavBarRowStyle;
+  /** Source-captured styles for individual primary nav items. */
+  primaryItems?: NavBarItemStyle[];
+}
+
 /**
  * Navigation bar content configuration
  */
@@ -56,6 +79,8 @@ export interface NavBarContent {
   cta?: CTAButton;
   /** Optional search configuration - displays compact search in navbar */
   search?: NavBarSearch;
+  /** Source-captured row styles for imported navigation layouts. */
+  styles?: NavBarStyles;
   /** Breakpoint (in pixels) for mobile menu activation */
   mobileBreakpoint?: number;
   /** Whether navbar sticks to top on scroll */

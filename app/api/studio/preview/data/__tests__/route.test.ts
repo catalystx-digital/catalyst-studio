@@ -3,7 +3,7 @@ jest.mock('@/lib/db/client', () => ({
 }))
 
 jest.mock('@/lib/studio/preview/access', () => ({
-  assertStudioWebsiteAccess: jest.fn(),
+  authorizePreviewRead: jest.fn(),
   previewAccessErrorResponse: jest.fn(),
 }))
 
@@ -56,7 +56,7 @@ jest.mock('@/lib/studio/design-system/design-system-reader', () => {
 
 import { NextRequest } from 'next/server'
 import { getClient } from '@/lib/db/client'
-import { assertStudioWebsiteAccess } from '@/lib/studio/preview/access'
+import { authorizePreviewRead } from '@/lib/studio/preview/access'
 import { GET } from '@/app/api/studio/preview/data/route'
 import {
   extractComponents,
@@ -238,7 +238,7 @@ describe('preview data GET diagnostics', () => {
     jest.clearAllMocks()
     jest.spyOn(console, 'info').mockImplementation(() => undefined)
     ;(getClient as jest.Mock).mockReturnValue(mockPrisma)
-    ;(assertStudioWebsiteAccess as jest.Mock).mockResolvedValue(undefined)
+    ;(authorizePreviewRead as jest.Mock).mockResolvedValue({ mode: 'session' })
     mockPrisma.website.findUnique.mockResolvedValue({
       id: 'website-1',
       name: 'Website',
@@ -267,6 +267,7 @@ describe('preview data GET diagnostics', () => {
         parentId: null,
         websitePageId: 'page-1',
         slug: 'about',
+        fullPath: '/about',
         position: 0,
       },
     ])
@@ -301,6 +302,135 @@ describe('preview data GET diagnostics', () => {
     expect(response.status).toBe(200)
     expect(body.data.designSystem.variables).toEqual({ '--primary': '240 5.9% 10%' })
     expect(body.data.designSystemCss).not.toContain('--background')
+  })
+
+  it('preserves page metadata needed by sandbox preview rendering', async () => {
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-1',
+        title: 'Imported Home',
+        templateKey: 'core/generic-default',
+        templateProps: { density: 'compact' },
+        metadata: {
+          importSource: 'https://example.com/',
+          importStatus: 'committed',
+        },
+        content: {
+          regions: [],
+          components: [],
+        },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.pages[0]).toEqual(expect.objectContaining({
+      templateKey: 'core/generic-default',
+      templateProps: { density: 'compact' },
+      metadata: {
+        importSource: 'https://example.com/',
+        importStatus: 'committed',
+      },
+    }))
+  })
+
+  it('scopes QA token access to the signed preview path', async () => {
+    ;(authorizePreviewRead as jest.Mock).mockResolvedValue({ mode: 'qa-token' })
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-home',
+        title: 'Home',
+        content: { regions: [], components: [] },
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+      {
+        id: 'page-about',
+        title: 'About',
+        content: { regions: [], components: [] },
+        createdAt: new Date('2024-01-02T00:00:00.000Z'),
+      },
+    ])
+    mockPrisma.websiteStructure.findMany.mockResolvedValue([
+      {
+        id: 'structure-home',
+        parentId: null,
+        websitePageId: 'page-home',
+        slug: '',
+        fullPath: '/',
+        position: 0,
+      },
+      {
+        id: 'structure-about',
+        parentId: 'structure-home',
+        websitePageId: 'page-about',
+        slug: 'about',
+        fullPath: '/about',
+        position: 1,
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&path=/about&previewToken=token-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Referrer-Policy')).toBe('no-referrer')
+    expect(authorizePreviewRead).toHaveBeenCalledWith(expect.any(NextRequest), 'website-1', {
+      previewToken: 'token-1',
+      path: '/about',
+    })
+    expect(body.data.pages).toEqual([
+      expect.objectContaining({
+        id: 'page-about',
+        title: 'About',
+        fullPath: '/about',
+      }),
+    ])
+  })
+
+  it('returns 404 when QA token path does not match an existing preview page', async () => {
+    ;(authorizePreviewRead as jest.Mock).mockResolvedValue({ mode: 'qa-token' })
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&path=/missing&previewToken=token-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(body).toEqual({
+      success: false,
+      error: 'Preview page not found for signed path',
+    })
+  })
+
+  it('uses WebsiteStructure.fullPath rather than slug when scoping QA token pages', async () => {
+    ;(authorizePreviewRead as jest.Mock).mockResolvedValue({ mode: 'qa-token' })
+    mockPrisma.websiteStructure.findMany.mockResolvedValue([
+      {
+        id: 'structure-1',
+        parentId: null,
+        websitePageId: 'page-1',
+        slug: 'home',
+        fullPath: '/',
+        position: 0,
+      },
+    ])
+
+    const rootResponse = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&path=/&previewToken=token-1'))
+    const rootBody = await rootResponse.json()
+    const slugResponse = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&path=/home&previewToken=token-1'))
+
+    expect(rootResponse.status).toBe(200)
+    expect(rootBody.data.pages).toEqual([
+      expect.objectContaining({
+        id: 'page-1',
+        slug: 'home',
+        fullPath: '/',
+      }),
+    ])
+    expect(slugResponse.status).toBe(404)
   })
 
   it('returns 422 diagnostics for invalid design system tokens', async () => {

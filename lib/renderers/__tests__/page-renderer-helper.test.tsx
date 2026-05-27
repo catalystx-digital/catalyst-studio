@@ -192,6 +192,72 @@ describe('PageRendererHelper', () => {
     expect(componentsArg[0]).not.toHaveProperty('text');
   });
 
+  it('does not render a synthetic page title for imported pages', async () => {
+    const page: SnapshotPage = {
+      id: 'imported-page',
+      title: 'Imported Home',
+      fullPath: '/',
+      templateKey: 'core/generic-default',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: { heading: 'Source hero heading' },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {
+        importSource: 'https://example.com/'
+      },
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    const element = await PageRendererHelper({ page, sharedComponents: [], structure: undefined });
+    const html = renderToStaticMarkup(element as unknown as React.ReactElement);
+
+    expect(html).not.toContain('page-header');
+    expect(html).not.toContain('Imported Home');
+  });
+
+  it('keeps the page title for non-imported pages', async () => {
+    const page: SnapshotPage = {
+      id: 'manual-page',
+      title: 'Manual Page',
+      fullPath: '/manual',
+      templateKey: 'core/generic-default',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'hero-1',
+          type: 'hero-banner',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: { heading: 'Manual hero heading' },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {},
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    const element = await PageRendererHelper({ page, sharedComponents: [], structure: undefined });
+    const html = renderToStaticMarkup(element as unknown as React.ReactElement);
+
+    expect(html).toContain('page-header');
+    expect(html).toContain('Manual Page');
+  });
+
   it('does not synthesize content from legacy props.text at render time', async () => {
     const page: SnapshotPage = {
       id: 'page-legacy-text',

@@ -1,12 +1,12 @@
 /**
  * Tests for shadcn-transformer
  *
- * Tests the Brand + Polish approach:
+ * Tests the Brand + Semantic Base + Polish approach:
  * - Brand identity colors (primary, secondary, ring) are extracted from source
- * - UI polish variables use shadcn defaults for consistent, modern appearance
+ * - Semantic background/text colors are extracted from source when present
+ * - Unresolved UI polish variables use shadcn defaults for consistency
  */
 
-import { describe, it, expect } from 'vitest'
 import {
   toShadcnVariables,
   generateExportCss,
@@ -96,7 +96,7 @@ describe('toShadcnVariables', () => {
   })
 })
 
-describe('toShadcnVariables - Brand + Polish approach', () => {
+describe('toShadcnVariables - Brand + Semantic Base + Polish approach', () => {
   it('should extract primary color as brand identity', () => {
     const capture = createMockCapture({
       primary: { hex: '#ff6600', rgb: 'rgb(255,102,0)', occurrences: 10, cssProperties: [], sampleSelectors: [] },
@@ -108,28 +108,91 @@ describe('toShadcnVariables - Brand + Polish approach', () => {
     expect(result.extraction.detectedCount).toBe(3) // primary, primary-foreground, ring
   })
 
-  it('should use shadcn defaults for UI polish variables', () => {
+  it('should use shadcn defaults for unresolved UI polish variables', () => {
     const capture = createMockCapture({
       primary: { hex: '#ff6600', rgb: 'rgb(255,102,0)', occurrences: 10, cssProperties: [], sampleSelectors: [] },
-      // Even if neutrals are provided, they should be IGNORED
       neutrals: [{ hex: '#3d5567', rgb: 'rgb(61,85,103)', occurrences: 5, cssProperties: [], sampleSelectors: [] }],
     })
     const result = toShadcnVariables(capture)
 
-    // UI polish should use shadcn defaults, NOT extracted values
+    // Structural polish should still use shadcn defaults.
     expect(result.variables['--muted']).toBe(SHADCN_DEFAULTS['--muted'])
-    expect(result.variables['--muted-foreground']).toBe(SHADCN_DEFAULTS['--muted-foreground'])
     expect(result.variables['--border']).toBe(SHADCN_DEFAULTS['--border'])
     expect(result.variables['--accent']).toBe(SHADCN_DEFAULTS['--accent'])
   })
 
-  it('should NOT extract background/foreground from source', () => {
+  it('should extract semantic background and foreground from source when present', () => {
     const capture = createMockCapture({
-      surface: [{ hex: '#f5f5dc', rgb: 'rgb(245,245,220)', occurrences: 10, cssProperties: [], sampleSelectors: [] }],
+      surface: [{ hex: '#ffffff', rgb: 'rgb(255,255,255)', occurrences: 10, cssProperties: ['background-color'], sampleSelectors: [] }],
+      neutrals: [{ hex: '#3d5567', rgb: 'rgb(61,85,103)', occurrences: 8, cssProperties: ['color'], sampleSelectors: [] }],
     })
     const result = toShadcnVariables(capture)
 
-    // Should use shadcn default white, not extracted beige
+    expect(result.variables['--background']).toBe('0 0% 100%')
+    expect(result.variables['--card']).toBe('0 0% 100%')
+    expect(result.variables['--foreground']).toBe('206 25.6% 32.2%')
+    expect(result.variables['--card-foreground']).toBe('206 25.6% 32.2%')
+    expect(result.variables['--muted-foreground']).toBe('206 25.6% 32.2%')
+  })
+
+  it('prefers the light page surface over high-frequency dark body text when both have background evidence', () => {
+    const capture = createMockCapture({
+      colors: [
+        {
+          hex: '#ffffff',
+          rgb: 'rgb(255,255,255)',
+          occurrences: 1016,
+          cssProperties: ['background-color', 'color'],
+          sampleSelectors: [
+            'html > body.rch-section > form#aspnetForm > div.container',
+          ],
+        },
+        {
+          hex: '#3d5567',
+          rgb: 'rgb(61,85,103)',
+          occurrences: 2682,
+          cssProperties: ['color', 'border-top-color', 'background-color'],
+          sampleSelectors: [
+            'html > body.rch-section',
+            'html > body.rch-section > form#aspnetForm',
+          ],
+        },
+      ],
+      neutrals: [
+        {
+          hex: '#ffffff',
+          rgb: 'rgb(255,255,255)',
+          occurrences: 1016,
+          cssProperties: ['background-color', 'color'],
+          sampleSelectors: [
+            'html > body.rch-section > form#aspnetForm > div.container',
+          ],
+        },
+        {
+          hex: '#3d5567',
+          rgb: 'rgb(61,85,103)',
+          occurrences: 2682,
+          cssProperties: ['color', 'border-top-color', 'background-color'],
+          sampleSelectors: [
+            'html > body.rch-section',
+            'html > body.rch-section > form#aspnetForm',
+          ],
+        },
+      ],
+    })
+    const result = toShadcnVariables(capture)
+
+    expect(result.variables['--background']).toBe('0 0% 100%')
+    expect(result.variables['--card']).toBe('0 0% 100%')
+    expect(result.variables['--foreground']).toBe('206 25.6% 32.2%')
+  })
+
+  it('keeps shadcn defaults when semantic background and foreground are absent', () => {
+    const capture = createMockCapture({
+      primary: { hex: '#ff6600', rgb: 'rgb(255,102,0)', occurrences: 10, cssProperties: [], sampleSelectors: [] },
+    })
+    const result = toShadcnVariables(capture)
+
     expect(result.variables['--background']).toBe(SHADCN_DEFAULTS['--background'])
     expect(result.variables['--foreground']).toBe(SHADCN_DEFAULTS['--foreground'])
   })
@@ -145,6 +208,22 @@ describe('toShadcnVariables - Brand + Polish approach', () => {
     // secondary should NOT equal the shadcn default since it was extracted
     expect(result.variables['--secondary']).not.toBe(SHADCN_DEFAULTS['--secondary'])
     expect(result.extraction.detectedCount).toBe(5) // primary(3) + secondary(2)
+  })
+
+  it('should not promote text-only secondary swatches to shadcn secondary surface', () => {
+    const capture = createMockCapture({
+      secondary: {
+        hex: '#3d5567',
+        rgb: 'rgb(61,85,103)',
+        occurrences: 12,
+        cssProperties: ['color'],
+        sampleSelectors: [],
+      },
+    })
+    const result = toShadcnVariables(capture)
+
+    expect(result.variables['--secondary']).toBe(SHADCN_DEFAULTS['--secondary'])
+    expect(result.variables['--secondary-foreground']).toBe(SHADCN_DEFAULTS['--secondary-foreground'])
   })
 
   it('should set ring to match primary brand color', () => {

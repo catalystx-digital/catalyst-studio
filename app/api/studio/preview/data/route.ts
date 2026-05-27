@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getClient } from '@/lib/db/client'
-import { assertStudioWebsiteAccess, previewAccessErrorResponse } from '@/lib/studio/preview/access'
+import { authorizePreviewRead, previewAccessErrorResponse } from '@/lib/studio/preview/access'
 import {
   DesignSystemReaderError,
   generateStrictDesignSystemCss,
@@ -26,6 +26,7 @@ import {
   extractComponentsWithDiagnostics,
   type PreviewPageContentDiagnostic,
 } from '@/lib/studio/preview/component-extraction'
+import { normalizePreviewPath } from '@/lib/studio/preview/qa-preview-token'
 
 interface PreviewDesignSystemDiagnostic {
   code: string
@@ -49,6 +50,9 @@ interface PreviewDataResponse {
       title: string
       slug: string
       fullPath: string
+      templateKey: string | null
+      templateProps: Record<string, unknown>
+      metadata: Record<string, unknown>
       components: PreviewComponentConfig[]
     }>
   }
@@ -60,9 +64,27 @@ function hasBlockingDiagnostics(diagnostics: PreviewPageContentDiagnostic[]): bo
   return diagnostics.some(diagnostic => diagnostic.severity === 'warn' || diagnostic.severity === 'error')
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function withQaPreviewHeaders<T>(
+  response: NextResponse<T>,
+  enabled: boolean
+): NextResponse<T> {
+  if (enabled) {
+    response.headers.set('Cache-Control', 'no-store')
+    response.headers.set('Referrer-Policy', 'no-referrer')
+  }
+
+  return response
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse<PreviewDataResponse>> {
   const websiteId = request.nextUrl.searchParams.get('websiteId')
   const designConceptSlug = request.nextUrl.searchParams.get('designConcept')
+  const previewToken = request.nextUrl.searchParams.get('previewToken')
+  const previewPath = normalizePreviewPath(request.nextUrl.searchParams.get('path'))
 
   if (!websiteId) {
     return NextResponse.json(
@@ -73,7 +95,11 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
 
   try {
     const prisma = getClient()
-    await assertStudioWebsiteAccess(request, websiteId)
+    const access = await authorizePreviewRead(request, websiteId, {
+      previewToken,
+      path: previewPath,
+    })
+    const tokenAccess = access.mode === 'qa-token'
 
     // Fetch website
     const website = await prisma.website.findUnique({
@@ -148,42 +174,30 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
       orderBy: [{ parentId: 'asc' }, { position: 'asc' }],
     })
 
-    // Map structures to pages and reconstruct nested preview paths.
+    // Map structures to pages. WebsiteStructure.fullPath is the preview route
+    // source of truth; slug alone is only the node label.
     const structureMap = new Map(structures.map((s) => [s.websitePageId, s]))
-    const structureById = new Map(structures.map((s) => [s.id, s]))
 
-    const fullPathByStructureId = new Map<string, string>()
-    const buildFullPath = (structureId: string | null | undefined): string => {
-      if (!structureId) {
-        return '/'
-      }
+    const pagesForPreview = tokenAccess
+      ? pages.filter((page) => normalizePreviewPath(structureMap.get(page.id)?.fullPath) === previewPath)
+      : pages
 
-      const cached = fullPathByStructureId.get(structureId)
-      if (cached) {
-        return cached
-      }
-
-      const structure = structureById.get(structureId)
-      if (!structure) {
-        return '/'
-      }
-
-      const parentPath = buildFullPath(structure.parentId)
-      const slug = structure.slug?.replace(/^\/+|\/+$/g, '') ?? ''
-      const fullPath = slug
-        ? `${parentPath === '/' ? '' : parentPath}/${slug}`
-        : '/'
-
-      fullPathByStructureId.set(structureId, fullPath)
-      return fullPath
+    if (tokenAccess && pagesForPreview.length === 0) {
+      return withQaPreviewHeaders(
+        NextResponse.json(
+          { success: false, error: 'Preview page not found for signed path' },
+          { status: 404 }
+        ),
+        true
+      )
     }
 
     // Convert pages to preview format
     const allDiagnostics: PreviewPageContentDiagnostic[] = []
-    const previewPages = pages.map((page) => {
+    const previewPages = pagesForPreview.map((page) => {
       const structure = structureMap.get(page.id)
       const slug = structure?.slug || page.id
-      const fullPath = buildFullPath(structure?.id)
+      const fullPath = normalizePreviewPath(structure?.fullPath)
       const { components, diagnostics } = extractComponentsWithDiagnostics(page.content, {
         pageId: page.id,
         pageTitle: page.title,
@@ -197,59 +211,77 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
         title: page.title,
         slug,
         fullPath,
+        templateKey: page.templateKey ?? null,
+        templateProps: isRecord(page.templateProps) ? page.templateProps : {},
+        metadata: isRecord(page.metadata) ? page.metadata : {},
         components,
       }
     })
 
     if (hasBlockingDiagnostics(allDiagnostics)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Preview data contains invalid page content',
-          diagnostics: allDiagnostics,
-        },
-        { status: 422 }
+      return withQaPreviewHeaders(
+        NextResponse.json(
+          {
+            success: false,
+            error: 'Preview data contains invalid page content',
+            diagnostics: allDiagnostics,
+          },
+          { status: 422 }
+        ),
+        tokenAccess
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        websiteId,
-        websiteName: website.name,
-        designSystem,
-        designSystemCss,
-        pages: previewPages,
-      },
-      ...(allDiagnostics.length > 0 ? { diagnostics: allDiagnostics } : {}),
-    })
+    return withQaPreviewHeaders(
+      NextResponse.json({
+        success: true,
+        data: {
+          websiteId,
+          websiteName: website.name,
+          designSystem,
+          designSystemCss,
+          pages: previewPages,
+        },
+        ...(allDiagnostics.length > 0 ? { diagnostics: allDiagnostics } : {}),
+      }),
+      tokenAccess
+    )
   } catch (error) {
     if (error && typeof error === 'object' && 'statusCode' in error) {
-      return previewAccessErrorResponse(error) as NextResponse<PreviewDataResponse>
+      return withQaPreviewHeaders(
+        previewAccessErrorResponse(error) as NextResponse<PreviewDataResponse>,
+        Boolean(previewToken)
+      )
     }
 
     if (isDesignSystemReaderError(error)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          diagnostics: [
-            {
-              code: error.code,
-              severity: 'error',
-              message: error.message,
-              ...(error.context ? { context: error.context } : {}),
-            },
-          ],
-        },
-        { status: 422 }
+      return withQaPreviewHeaders(
+        NextResponse.json(
+          {
+            success: false,
+            error: error.message,
+            diagnostics: [
+              {
+                code: error.code,
+                severity: 'error',
+                message: error.message,
+                ...(error.context ? { context: error.context } : {}),
+              },
+            ],
+          },
+          { status: 422 }
+        ),
+        Boolean(previewToken)
       )
     }
 
     console.error('[preview-data] Error:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Internal error' },
-      { status: 500 }
+    return withQaPreviewHeaders(
+      NextResponse.json(
+        { success: false, error: error instanceof Error ? error.message : 'Internal error' },
+        { status: 500 }
+      ),
+      Boolean(previewToken)
     )
   }
 }

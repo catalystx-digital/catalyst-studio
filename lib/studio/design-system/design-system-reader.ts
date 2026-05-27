@@ -266,6 +266,39 @@ export function readShadcnDesignSystemTokens(
   return parsed
 }
 
+function buildTypographyCssVariables(
+  typography: ShadcnTypography | undefined
+): Record<string, string> {
+  if (!typography) {
+    return {}
+  }
+
+  const variables: Record<string, string> = {}
+  const body = typography.body[0] ?? typography.ui[0]
+  const heading = typography.heading[0]
+
+  if (body?.fontStack || body?.fontFamily) {
+    variables['--font-family'] = body.fontStack ?? body.fontFamily
+    variables['--ds-body-font'] = body.fontStack ?? body.fontFamily
+  }
+
+  if (heading?.fontStack || heading?.fontFamily) {
+    variables['--ds-heading-font'] = heading.fontStack ?? heading.fontFamily
+  }
+
+  if (body?.fontSize) variables['--ds-body-body-3-size'] = body.fontSize
+  if (body?.lineHeight) variables['--ds-body-body-3-line-height'] = body.lineHeight
+  if (body?.fontWeight !== undefined) variables['--ds-body-body-3-weight'] = String(body.fontWeight)
+  if (body?.letterSpacing) variables['--ds-body-body-3-letter-spacing'] = body.letterSpacing
+
+  if (heading?.fontSize) variables['--ds-heading-heading-1-size'] = heading.fontSize
+  if (heading?.lineHeight) variables['--ds-heading-heading-1-line-height'] = heading.lineHeight
+  if (heading?.fontWeight !== undefined) variables['--ds-heading-heading-1-weight'] = String(heading.fontWeight)
+  if (heading?.letterSpacing) variables['--ds-heading-heading-1-letter-spacing'] = heading.letterSpacing
+
+  return variables
+}
+
 export function generateStrictDesignSystemCss(
   tokens: unknown,
   context?: Record<string, unknown>
@@ -275,7 +308,11 @@ export function generateStrictDesignSystemCss(
     return null
   }
 
-  const lightVars = Object.entries(parsed.variables)
+  const typographyVars = buildTypographyCssVariables(parsed.typography)
+  const lightVars = Object.entries({
+    ...parsed.variables,
+    ...typographyVars,
+  })
     .map(([key, value]) => `  ${key}: ${value};`)
     .join('\n')
 

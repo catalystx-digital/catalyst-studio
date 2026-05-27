@@ -50,8 +50,29 @@ function matchesAny(pathname: string, patterns: RegExp[]): boolean {
   return patterns.some((regex) => regex.test(pathname));
 }
 
-function finalizeResponse(response: NextResponse, pathname: string, websiteId: string | null) {
+function isQaPreviewTokenRequest(request: NextRequest, pathname: string, isApiPath: boolean): boolean {
+  if (request.method !== 'GET' || !request.nextUrl.searchParams.has('previewToken')) {
+    return false;
+  }
+
+  if (isApiPath) {
+    return pathname === '/api/studio/preview/data';
+  }
+
+  return pathname.startsWith('/studio/preview/site/');
+}
+
+function finalizeResponse(
+  response: NextResponse,
+  pathname: string,
+  websiteId: string | null,
+  options: { qaPreviewTokenRequest?: boolean } = {},
+) {
   response.headers.set('x-request-path', pathname);
+  if (options.qaPreviewTokenRequest) {
+    response.headers.set('Cache-Control', 'no-store');
+    response.headers.set('Referrer-Policy', 'no-referrer');
+  }
   if (PLAYWRIGHT_TARGET_HEADER_ENABLED && PLAYWRIGHT_TARGET_TOKEN) {
     response.headers.set('x-catalyst-playwright-target', PLAYWRIGHT_TARGET_TOKEN);
   }
@@ -97,19 +118,20 @@ export async function middleware(request: NextRequest) {
   }
 
   const websiteId = request.headers.get('x-website-id');
+  const qaPreviewTokenRequest = isQaPreviewTokenRequest(request, pathname, isApiPath);
 
   if (!isAuthenticated) {
-    if (isApiPath && !matchesAny(pathname, PUBLIC_API_PATHS)) {
+    if (isApiPath && !qaPreviewTokenRequest && !matchesAny(pathname, PUBLIC_API_PATHS)) {
       const unauthorized = NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
       return finalizeResponse(unauthorized, pathname, websiteId);
     }
 
-    if (pathname.startsWith('/studio/preview/site')) {
+    if (pathname.startsWith('/studio/preview/site') && !qaPreviewTokenRequest) {
       const unauthorized = NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
       return finalizeResponse(unauthorized, pathname, websiteId);
     }
 
-    if (!isApiPath && !authPage && !matchesAny(pathname, PUBLIC_APP_PATHS)) {
+    if (!isApiPath && !qaPreviewTokenRequest && !authPage && !matchesAny(pathname, PUBLIC_APP_PATHS)) {
       const redirectUrl = new URL('/sign-in', request.url);
       redirectUrl.searchParams.set('redirect_url', `${request.nextUrl.pathname}${request.nextUrl.search}`);
       return finalizeResponse(NextResponse.redirect(redirectUrl), pathname, websiteId);
@@ -117,7 +139,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
-  return finalizeResponse(response, pathname, websiteId);
+  return finalizeResponse(response, pathname, websiteId, { qaPreviewTokenRequest });
 }
 
 export const config = {

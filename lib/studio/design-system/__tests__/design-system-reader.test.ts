@@ -280,4 +280,40 @@ describe('strict runtime readers', () => {
     expect(css).toContain('--primary: 0 0% 98%;')
     expect(css).not.toContain('--background: 240 10% 3.9%;')
   })
+
+  it('emits captured typography variables for preview runtime CSS', () => {
+    const css = generateStrictDesignSystemCss({
+      variables: currentTokens.variables,
+      typography: {
+        heading: [
+          {
+            role: 'heading',
+            fontFamily: 'Museo Sans',
+            fontStack: 'Museo Sans, Verdana, sans-serif',
+            fontSize: '24px',
+            fontWeight: 700,
+            lineHeight: '28px',
+          },
+        ],
+        body: [
+          {
+            role: 'body',
+            fontFamily: 'Museo Sans',
+            fontStack: 'Museo Sans, Verdana, sans-serif',
+            fontSize: '13px',
+            fontWeight: 300,
+            lineHeight: '18.57px',
+          },
+        ],
+        ui: [],
+      },
+      extraction: currentTokens.extraction,
+    })
+
+    expect(css).toContain('--font-family: Museo Sans, Verdana, sans-serif;')
+    expect(css).toContain('--ds-body-font: Museo Sans, Verdana, sans-serif;')
+    expect(css).toContain('--ds-heading-font: Museo Sans, Verdana, sans-serif;')
+    expect(css).toContain('--ds-body-body-3-size: 13px;')
+    expect(css).toContain('--ds-heading-heading-1-weight: 700;')
+  })
 })

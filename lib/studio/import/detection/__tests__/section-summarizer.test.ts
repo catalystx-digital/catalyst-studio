@@ -15,7 +15,10 @@ describe('section summarizer', () => {
     const result = summarizeSectionNodes([
       {
         tag: 'article',
+        pathId: 'n000123',
         className: 'large noisy class list',
+        bgColor: '#6f8434',
+        bgImage: 'url(/hero.jpg)',
         attrs: {
           href: '/news/story',
           title: 'Story',
@@ -44,7 +47,10 @@ describe('section summarizer', () => {
     expect(result.nodes).toEqual([
       {
         tag: 'article',
+        pathId: 'n000123',
         text: 'Story heading with spacing',
+        bgColor: '#6f8434',
+        bgImage: 'url(/hero.jpg)',
         attrs: {
           href: '/news/story',
           title: 'Story'

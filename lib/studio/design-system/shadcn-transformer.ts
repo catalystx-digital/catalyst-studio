@@ -3,21 +3,26 @@
  *
  * Transforms extracted design system data into shadcn CSS variables.
  *
- * DESIGN PHILOSOPHY: Brand Identity + shadcn Polish
+ * DESIGN PHILOSOPHY: Brand Identity + Source Page Base + shadcn Polish
  *
- * We extract BRAND colors from the source website (primary, secondary) to preserve
- * the client's brand identity. Everything else uses shadcn's refined defaults
- * for consistent, polished UI.
+ * We extract brand colors from the source website (primary, secondary) and
+ * semantic base colors (page background and body text) to preserve the client's
+ * visible identity. Unresolved structural UI colors use shadcn's refined
+ * defaults for consistent, polished UI.
  *
  * Why? Old business websites often have inconsistent grays, weird border colors,
  * and dated UI patterns. But their brand colors (the orange, the blue, etc.) are
  * their identity. We keep the identity, apply shadcn's design excellence.
  *
- * Result: Fast, polished exports that still feel like the client's brand.
+ * Result: Fast, polished exports that still feel like the client's site.
  */
 
 import { SHADCN_DEFAULTS, SHADCN_DEFAULTS_DARK, getShadcnVariablesWithDefaults } from './shadcn-defaults'
-import { hexToHslString, getForegroundForBackground } from './utils/color-utils'
+import {
+  hexToHslString,
+  getForegroundForBackground,
+  validateForegroundContrast,
+} from './utils/color-utils'
 
 /**
  * Minimal palette swatch interface for transformer use
@@ -26,6 +31,9 @@ import { hexToHslString, getForegroundForBackground } from './utils/color-utils'
 interface PaletteSwatch {
   hex: string
   role?: 'primary' | 'secondary' | 'accent' | 'neutral' | 'background' | 'text'
+  occurrences?: number
+  cssProperties?: string[]
+  sampleSelectors?: string[]
 }
 
 /**
@@ -35,6 +43,9 @@ interface PaletteCapture {
   colors: PaletteSwatch[]
   primary?: PaletteSwatch | null
   secondary?: PaletteSwatch | null
+  neutrals?: PaletteSwatch[]
+  surface?: PaletteSwatch[]
+  accent?: PaletteSwatch[]
 }
 
 /**
@@ -67,6 +78,103 @@ export interface DomDesignSystemCapture {
   palette: PaletteCapture
   typography?: TypographySample[]
   spacing?: SpacingCapture
+}
+
+function byOccurrencesDesc(a: PaletteSwatch, b: PaletteSwatch): number {
+  return (b.occurrences ?? 0) - (a.occurrences ?? 0)
+}
+
+function isTextOnlySwatch(swatch: PaletteSwatch): boolean {
+  const properties = swatch.cssProperties ?? []
+  return (
+    properties.includes('color') &&
+    !properties.some(property =>
+      property.includes('background') ||
+      property.includes('border') ||
+      property.includes('outline')
+    )
+  )
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const normalized = hex.replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return null
+  }
+
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function getRelativeLuminance(hex: string): number {
+  const rgb = hexToRgb(hex)
+  if (!rgb) {
+    return 0
+  }
+
+  const toLinear = (value: number): number => {
+    const channel = value / 255
+    return channel <= 0.03928
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4)
+  }
+
+  return (0.2126 * toLinear(rgb.r)) + (0.7152 * toLinear(rgb.g)) + (0.0722 * toLinear(rgb.b))
+}
+
+function hasBackgroundProperty(swatch: PaletteSwatch): boolean {
+  return swatch.cssProperties?.some(property => property.includes('background')) ?? false
+}
+
+function hasRootSurfaceSelector(swatch: PaletteSwatch): boolean {
+  return swatch.sampleSelectors?.some(selector =>
+    selector.includes('> body') ||
+    selector.includes('body.') ||
+    selector.includes('form#') ||
+    selector.includes('div.container')
+  ) ?? false
+}
+
+function selectSurfaceSwatch(palette: PaletteCapture): PaletteSwatch | undefined {
+  const backgroundCandidates = [
+    ...(palette.surface ?? []),
+    ...palette.colors.filter(c =>
+      c.role === 'background' ||
+      hasBackgroundProperty(c)
+    ),
+  ]
+
+  const explicitBackground = backgroundCandidates.filter(c => c.role === 'background')
+  if (explicitBackground.length > 0) {
+    return explicitBackground.sort(byOccurrencesDesc)[0]
+  }
+
+  const lightPageSurfaces = backgroundCandidates.filter(c =>
+    hasBackgroundProperty(c) &&
+    getRelativeLuminance(c.hex) >= 0.85
+  )
+
+  if (lightPageSurfaces.length > 0) {
+    return lightPageSurfaces.sort((a, b) => {
+      const rootScore = Number(hasRootSurfaceSelector(b)) - Number(hasRootSurfaceSelector(a))
+      if (rootScore !== 0) return rootScore
+      return byOccurrencesDesc(a, b)
+    })[0]
+  }
+
+  return backgroundCandidates.sort(byOccurrencesDesc)[0]
+}
+
+function selectTextSwatch(palette: PaletteCapture): PaletteSwatch | undefined {
+  return [
+    ...palette.colors.filter(c => c.role === 'text' || isTextOnlySwatch(c)),
+    ...(palette.neutrals ?? []).filter(c => c.role === 'text' || isTextOnlySwatch(c)),
+    ...(palette.neutrals ?? []).filter(c => validateForegroundContrast(hexToHslString(c.hex), 'light')),
+    ...palette.colors.filter(c => c.role === 'neutral' && validateForegroundContrast(hexToHslString(c.hex), 'light')),
+  ].sort(byOccurrencesDesc)[0]
 }
 
 /**
@@ -272,11 +380,14 @@ function extractSpacing(
 /**
  * Transform DOM probe capture to shadcn CSS variables
  *
- * BRAND + POLISH APPROACH:
- * - Extract ONLY brand identity colors (primary, secondary, ring)
- * - Let shadcn defaults handle all UI polish (muted, border, accent, etc.)
+ * BRAND + SEMANTIC BASE APPROACH:
+ * - Extract brand identity colors (primary, secondary, ring)
+ * - Extract semantic page base colors when the probe captured them explicitly
+ *   (background/surface and body text)
+ * - Let shadcn defaults handle unresolved UI polish (border, destructive, charts)
  *
- * This produces modern, polished exports that preserve the client's brand.
+ * This preserves the client's visible page feel without importing every legacy
+ * visual quirk from the source site.
  */
 export function toShadcnVariables(capture: DomDesignSystemCapture): ShadcnDesignSystemTokens {
   const palette = capture.palette
@@ -298,7 +409,10 @@ export function toShadcnVariables(capture: DomDesignSystemCapture): ShadcnDesign
   }
 
   // --- Secondary Brand Color ---
-  const secondarySwatch = palette.secondary ?? palette.colors.find(c => c.role === 'secondary')
+  const secondaryCandidate = palette.secondary ?? palette.colors.find(c => c.role === 'secondary')
+  const secondarySwatch = secondaryCandidate && !isTextOnlySwatch(secondaryCandidate)
+    ? secondaryCandidate
+    : undefined
   if (secondarySwatch) {
     extracted['--secondary'] = hexToHslString(secondarySwatch.hex)
     extracted['--secondary-foreground'] = getForegroundForBackground(secondarySwatch.hex)
@@ -306,15 +420,36 @@ export function toShadcnVariables(capture: DomDesignSystemCapture): ShadcnDesign
   }
 
   // ============================================================
-  // UI POLISH: Use shadcn defaults for everything else
+  // SEMANTIC PAGE BASE EXTRACTION
+  // These are visible on nearly every imported page and must match the source.
   // ============================================================
-  // We intentionally DO NOT extract:
-  // - background/foreground (shadcn's clean white/dark text)
-  // - muted/muted-foreground (shadcn's refined grays)
-  // - accent/accent-foreground (shadcn's hover states)
+  const backgroundSwatch = selectSurfaceSwatch(palette)
+
+  if (backgroundSwatch) {
+    const background = hexToHslString(backgroundSwatch.hex)
+    extracted['--background'] = background
+    extracted['--card'] = background
+    extracted['--popover'] = background
+    detectedCount += 3
+  }
+
+  const textSwatch = selectTextSwatch(palette)
+
+  if (textSwatch) {
+    const foreground = hexToHslString(textSwatch.hex)
+    extracted['--foreground'] = foreground
+    extracted['--card-foreground'] = foreground
+    extracted['--popover-foreground'] = foreground
+    extracted['--muted-foreground'] = foreground
+    detectedCount += 4
+  }
+
+  // ============================================================
+  // UI POLISH: Use shadcn defaults for unresolved structural colors
+  // ============================================================
+  // We intentionally still do not extract:
   // - border/input (shadcn's consistent neutral borders)
   // - destructive (always standard red)
-  // - card/popover (clean surface colors)
 
   // Fill in shadcn defaults for all UI polish variables
   const variables = getShadcnVariablesWithDefaults(extracted, 'light')

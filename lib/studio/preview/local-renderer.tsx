@@ -129,7 +129,7 @@ function renderPreviewUnavailablePanel({
   fullPath: string
 }): React.ReactElement {
   return (
-    <main className="min-h-screen bg-background-primary p-6 text-text-primary">
+    <main className="min-h-screen bg-background p-6 text-foreground">
       <section
         role="alert"
         className="mx-auto max-w-3xl rounded-md border border-red-300 bg-red-50 p-5 text-red-950 shadow-sm"
@@ -404,7 +404,7 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
     })
 
     return (
-      <div className="min-h-screen bg-background-primary text-text-primary">
+      <div className="min-h-screen bg-background text-foreground">
         {designSystemCss && (
           <style
             id="studio-local-preview-design-system"

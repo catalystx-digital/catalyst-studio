@@ -57,11 +57,28 @@ describe('StudioLocalPreviewPage', () => {
       searchParams: Promise.resolve({ designConcept: 'concept-1' }),
     })
 
+    expect(mockAssertStudioWebsiteAccess).toHaveBeenCalledWith(undefined, 'site-1', {
+      previewToken: undefined,
+      path: '/about',
+    })
     expect(mockRenderLocalWebsitePreview).toHaveBeenCalledWith({
       websiteId: 'site-1',
       slug: ['about'],
       designConcept: 'concept-1',
     })
     expect(renderToStaticMarkup(element as React.ReactElement)).toContain('preview')
+  })
+
+  it('passes QA preview token and normalized root path into access checks', async () => {
+    const { default: StudioLocalPreviewPage } = await import('../page')
+    await StudioLocalPreviewPage({
+      params: Promise.resolve({ websiteId: 'site-1' }),
+      searchParams: Promise.resolve({ previewToken: 'token-1' }),
+    })
+
+    expect(mockAssertStudioWebsiteAccess).toHaveBeenCalledWith(undefined, 'site-1', {
+      previewToken: 'token-1',
+      path: '/',
+    })
   })
 })

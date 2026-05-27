@@ -17,6 +17,8 @@ export interface SourcePacket {
   pathId?: string
   tag?: string
   role?: string
+  bgColor?: string
+  bgImage?: string
   text?: string
   attrs?: Record<string, unknown>
   children?: SourcePacket[]
@@ -125,9 +127,9 @@ function toPacket(value: unknown, packetIdPrefix: string, indexPath: string): So
     id: `${packetIdPrefix}#${indexPath}`
   }
 
-  for (const key of ['pathId', 'tag', 'role'] as const) {
+  for (const key of ['pathId', 'tag', 'role', 'bgColor', 'bgImage'] as const) {
     if (typeof node[key] === 'string' && node[key]) {
-      packet[key] = node[key]
+      packet[key] = compactWhitespace(node[key])
     }
   }
 

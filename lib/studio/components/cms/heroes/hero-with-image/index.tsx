@@ -13,6 +13,10 @@ import { HeroCTA } from '../_shared';
 
 const HERO_IMAGE_SIZES = '100vw';
 
+function stripMarkup(value: string | undefined): string | undefined {
+  return value?.replace(/<[^>]*>/g, '').trim();
+}
+
 const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
   id,
   type,
@@ -23,10 +27,25 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
   onLoad,
   onInteraction,
 }) => {
-  const { eyebrow, heading, subheading, body, alignment = 'left', theme: contentTheme, image, ctaButtons } = content;
+  const {
+    eyebrow: rawEyebrow,
+    heading: rawHeading,
+    subheading: rawSubheading,
+    body: rawBody,
+    alignment = 'left',
+    layout = 'image-left',
+    theme: contentTheme,
+    image,
+    ctaButtons,
+  } = content;
 
   const resolvedTheme = resolveTheme(contentTheme ?? theme);
   const alignCenter = alignment === 'center';
+  const imageFirst = layout !== 'image-right';
+  const eyebrow = stripMarkup(rawEyebrow);
+  const heading = stripMarkup(rawHeading);
+  const subheading = stripMarkup(rawSubheading);
+  const body = stripMarkup(rawBody);
 
   // Use shared image normalization utility
   const normalizedImg = useMemo(() => normalizeImage(image as any, heading, HERO_IMAGE_SIZES), [image, heading]);
@@ -53,69 +72,59 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
       data-component-type={type}
       theme={resolvedTheme}
       size="none"
-      className={cn('cms-hero-with-image relative overflow-hidden', className)}
+      className={cn('cms-hero-with-image bg-background', className)}
       style={style}
     >
-      {/* Full-width hero with text overlay on image - min-h-screen for full viewport height */}
-      <div className="relative w-full min-h-screen">
-        {/* Background Image */}
-        {normalizedImg?.src ? (
-          <button type="button" onClick={handleImageClick} className="absolute inset-0 w-full h-full">
-            <span className="sr-only">Expand hero media</span>
-            <img
-              src={normalizedImg.src}
-              srcSet={normalizedImg.srcSet}
-              sizes={normalizedImg.sizes}
-              alt={normalizedImg.alt ?? ''}
-              className="absolute inset-0 h-full w-full object-cover"
-              loading="eager"
-              data-original-url={normalizedImg.originalUrl}
-            />
-            {/* Dark overlay for text readability - strong enough for busy images */}
-            <div className={cn(
-              'absolute inset-0',
-              alignCenter
-                ? 'bg-black/60' // Uniform overlay for centered text
-                : 'bg-gradient-to-r from-black/80 via-black/60 to-black/30' // Strong left overlay for left-aligned
-            )} aria-hidden="true" />
-            {/* Additional bottom gradient for CTA visibility */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" aria-hidden="true" />
-          </button>
-        ) : (
-          <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-primary to-primary/80" />
-        )}
-
-        {/* Text Overlay */}
+      <div className="mx-auto grid w-full max-w-7xl md:min-h-[28rem] md:grid-cols-[2fr_1fr]">
         <div className={cn(
-          'absolute inset-0 flex items-center',
+          'relative min-h-[18rem] overflow-hidden md:min-h-[28rem]',
+          !imageFirst && 'md:order-2'
+        )}>
+          {normalizedImg?.src ? (
+            <button type="button" onClick={handleImageClick} className="absolute inset-0 h-full w-full">
+              <span className="sr-only">Expand hero media</span>
+              <img
+                src={normalizedImg.src}
+                srcSet={normalizedImg.srcSet}
+                sizes={normalizedImg.sizes}
+                alt={normalizedImg.alt ?? ''}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="eager"
+                data-original-url={normalizedImg.originalUrl}
+              />
+            </button>
+          ) : (
+            <div className="absolute inset-0 h-full w-full bg-muted" />
+          )}
+        </div>
+
+        <div className={cn(
+          'flex min-h-[18rem] items-center bg-primary px-8 py-10 text-primary-foreground md:min-h-[28rem] lg:px-10',
+          !imageFirst && 'md:order-1',
           alignCenter ? 'justify-center text-center' : 'justify-start text-left'
         )}>
           <div className={cn(
-            'px-4 sm:px-6 lg:px-8 max-w-7xl w-full',
-            alignCenter ? 'mx-auto' : ''
+            'flex flex-col',
+            dsSpacing.gap('sm'),
+            alignCenter ? 'items-center' : 'items-start'
           )}>
-            <div className={cn(
-              'flex flex-col text-white',
-              dsSpacing.gap('sm'),
-              alignCenter ? 'items-center max-w-3xl mx-auto' : 'items-start max-w-2xl'
-            )}>
               {eyebrow && (
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-white/90">
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary-foreground/90">
                   {eyebrow}
                 </p>
               )}
               {heading && (
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] text-balance">
+                <h1 className="text-3xl font-bold leading-tight text-primary-foreground sm:text-4xl">
                   {heading}
                 </h1>
               )}
               {subheading && (
-                <p className="text-lg sm:text-xl lg:text-2xl font-medium text-white/95 drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]">
+                <p className={cn(cmsHeading(3), 'text-primary-foreground/95')}>
                   {subheading}
                 </p>
               )}
               {body && (
-                <p className="text-base sm:text-lg text-white/80 max-w-xl">
+                <p className={cn(cmsBody(), 'text-primary-foreground/90')}>
                   {body}
                 </p>
               )}
@@ -128,7 +137,6 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
                   className={dsSpacing.mt('xs')}
                 />
               )}
-            </div>
           </div>
         </div>
       </div>

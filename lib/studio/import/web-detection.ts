@@ -32,6 +32,7 @@ import {
   type PageMap
 } from './detection/page-map-harness'
 import { summarizeSectionNodes } from './detection/section-summarizer'
+import { enrichNavbarRowStylesFromEvidence } from './detection/navbar-row-style-enrichment'
 import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata } from './detection/types'
 import { traceMemory } from './utils/memory-trace'
@@ -902,6 +903,7 @@ export class DetectionService {
               'Use content-feed only for real dated news/blog/article/resource teaser listings.',
               'Every image.src MediaReference object must include mediaId, mediaType: "image", and url.',
               'card-grid.cards[] links must use href, never link or url.',
+              'When nodes include bgColor evidence for a visible component surface, preserve that source CSS color in the component style fields supported by its schema; do not infer colors from brand palette.',
               'If no registered component can truthfully represent the section, return components: [].'
             ].join('\n\n')
           },
@@ -1184,6 +1186,7 @@ export class DetectionService {
           durationMs: Date.now() - sectionStart,
           pageMetadata: provenance.extractionMode === 'reused' ? undefined : cacheResult.artifact.pageMetadata
         }
+        enrichNavbarRowStylesFromEvidence(artifact.components, section.slice)
         if (completedFreshRun && provenance.extractionMode === 'fresh') {
           const responseUsage = completedFreshRun.responseUsage
           sectionUsage.total_tokens = responseUsage.total_tokens ?? 0
@@ -1662,6 +1665,7 @@ export class DetectionService {
                   'The componentContract list is authoritative. For each plannedComponentId, copy the exact component value from componentContract.',
                   'Use only the provided plannedComponentId values. Do not add, remove, rename, or change component types.',
                   'Extract content only from the provided sourcePackets. Do not invent copy, URLs, images, dates, categories, or placeholder content.',
+                  'When sourcePackets include bgColor evidence for a visible component surface, preserve that source CSS color in the component style fields supported by its schema; do not infer colors from brand palette.',
                   'Each output component must include plannedComponentId, component, confidence, and content.',
                   'Every MediaReference image src must include mediaId, mediaType: "image", and url.',
                   'All same-site or relative SmartLink values must include type: "internal", pageId, and path.',
@@ -1834,6 +1838,8 @@ export class DetectionService {
             addTokenUsage(usageTotals, fillUsage)
             requestCount += fillRequestCount
             for (const artifact of fillResult.artifacts) {
+              const sourceSectionPackets = pageMap.sections.find(section => section.sectionKey === artifact.sectionKey)?.packets
+              enrichNavbarRowStylesFromEvidence(artifact.components, sourceSectionPackets)
               telemetry.recordPhase('section_extract', 0, {
                 sectionKey: artifact.sectionKey,
                 sectionOrder: artifact.sectionOrder,

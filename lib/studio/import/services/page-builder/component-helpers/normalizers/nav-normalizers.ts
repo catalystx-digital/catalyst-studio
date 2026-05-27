@@ -71,6 +71,7 @@ const STRONG_LOGO_IMAGE_SHAPE_KEYS = new Set([
 const MENU_ITEM_COLLECTION_KEYS = new Set(['menuItems', 'utilityNav'])
 const MENU_ITEM_CHILD_KEYS = new Set(['children'])
 const MENU_ITEM_IMAGE_KEYS = new Set(['image', 'imageUrl', 'imageSrc', 'thumbnail', 'media', 'picture', 'photo'])
+const ROW_STYLE_KEYS = new Set(['backgroundColor', 'textColor', 'borderColor'])
 
 function isLogoImageShaped(value: unknown): boolean {
   if (typeof value === 'string') {
@@ -267,6 +268,120 @@ function extractTextLogo(
   return logo
 }
 
+function isSafeCssColor(value: string): boolean {
+  const color = value.trim()
+  if (!color || /[;{}]/.test(color)) {
+    return false
+  }
+  return (
+    /^#[0-9a-f]{3,8}$/i.test(color) ||
+    /^rgba?\(\s*[\d.\s,%]+\)$/i.test(color) ||
+    /^hsla?\(\s*[\d.\s,%degturnrad]+\)$/i.test(color) ||
+    /^var\(--[a-z0-9-_]+\)$/i.test(color)
+  )
+}
+
+function normalizeRowStyle(
+  value: unknown,
+  warnings: LocalNormalizationWarning[],
+  fieldPath: string
+): Record<string, string> | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const style: Record<string, string> = {}
+  for (const key of ROW_STYLE_KEYS) {
+    const sourceValue = key === 'textColor' ? value.textColor ?? value.color : value[key]
+    const normalized = normalizeString(sourceValue)
+    if (normalized) {
+      if (isSafeCssColor(normalized)) {
+        style[key] = normalized
+      } else {
+        warnings.push({
+          issue: 'suspicious-value',
+          message: `Dropped unsupported navbar row style color "${key}".`,
+          field: `${fieldPath}.${key}`,
+          childType: 'navbar',
+          details: { field: key }
+        })
+      }
+    }
+  }
+
+  return Object.keys(style).length > 0 ? style : undefined
+}
+
+function normalizeNavbarStyles(
+  flattened: Record<string, any>,
+  warnings: LocalNormalizationWarning[]
+): Record<string, any> | undefined {
+  const stylesSource = isRecord(flattened.styles) ? flattened.styles as Record<string, any> : {}
+  const primaryItems = Array.isArray(stylesSource.primaryItems)
+    ? stylesSource.primaryItems
+        .map((item, index) => {
+          if (!isRecord(item)) {
+            return undefined
+          }
+          const label = normalizeString(item.label)
+          const rowStyle = normalizeRowStyle(item, warnings, `styles.primaryItems.${index}`)
+          return label && rowStyle ? { label, ...rowStyle } : undefined
+        })
+        .filter((item): item is { label: string } & Record<string, string> => Boolean(item))
+    : undefined
+  const primaryRow =
+    normalizeRowStyle(stylesSource.primaryRow, warnings, 'styles.primaryRow') ??
+    normalizeRowStyle(flattened.primaryRowStyle, warnings, 'primaryRowStyle') ??
+    normalizeRowStyle(flattened.primaryRow, warnings, 'primaryRow') ??
+    normalizeRowStyle(flattened.primaryNavStyle, warnings, 'primaryNavStyle') ??
+    normalizeRowStyle(flattened.mainRowStyle, warnings, 'mainRowStyle') ??
+    normalizeRowStyle(flattened.audienceRowStyle, warnings, 'audienceRowStyle') ??
+    normalizeRowStyle({
+      backgroundColor:
+        flattened.primaryRowBackgroundColor ??
+        flattened.primaryNavBackgroundColor ??
+        flattened.mainRowBackgroundColor ??
+        flattened.audienceRowBackgroundColor,
+      textColor:
+        flattened.primaryRowTextColor ??
+        flattened.primaryRowForegroundColor ??
+        flattened.primaryNavTextColor ??
+        flattened.mainRowTextColor ??
+        flattened.audienceRowTextColor,
+      borderColor:
+        flattened.primaryRowBorderColor ??
+        flattened.primaryNavBorderColor ??
+        flattened.mainRowBorderColor ??
+        flattened.audienceRowBorderColor
+    }, warnings, 'primaryRow')
+
+  const utilityRow =
+    normalizeRowStyle(stylesSource.utilityRow, warnings, 'styles.utilityRow') ??
+    normalizeRowStyle(flattened.utilityRowStyle, warnings, 'utilityRowStyle') ??
+    normalizeRowStyle(flattened.utilityRow, warnings, 'utilityRow') ??
+    normalizeRowStyle(flattened.topRowStyle, warnings, 'topRowStyle') ??
+    normalizeRowStyle({
+      backgroundColor:
+        flattened.utilityRowBackgroundColor ??
+        flattened.topRowBackgroundColor,
+      textColor:
+        flattened.utilityRowTextColor ??
+        flattened.utilityRowForegroundColor ??
+        flattened.topRowTextColor,
+      borderColor:
+        flattened.utilityRowBorderColor ??
+        flattened.topRowBorderColor
+    }, warnings, 'utilityRow')
+
+  const styles: Record<string, any> = {
+    ...(utilityRow ? { utilityRow } : {}),
+    ...(primaryRow ? { primaryRow } : {}),
+    ...(primaryItems && primaryItems.length > 0 ? { primaryItems } : {})
+  }
+
+  return Object.keys(styles).length > 0 ? styles : undefined
+}
+
 /**
  * Normalizes navbar component content.
  * Handles logo resolution and normalization from various field formats.
@@ -285,6 +400,47 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   })
 
   const normalized: Record<string, any> = { ...flattened }
+  const normalizedStyles = normalizeNavbarStyles(flattened, warnings)
+  if (normalizedStyles) {
+    normalized.styles = normalizedStyles
+  }
+
+  const styleAliasKeys = [
+    'primaryRowStyle',
+    'primaryRow',
+    'primaryNavStyle',
+    'mainRowStyle',
+    'audienceRowStyle',
+    'primaryRowBackgroundColor',
+    'primaryNavBackgroundColor',
+    'mainRowBackgroundColor',
+    'audienceRowBackgroundColor',
+    'primaryRowTextColor',
+    'primaryRowForegroundColor',
+    'primaryNavTextColor',
+    'mainRowTextColor',
+    'audienceRowTextColor',
+    'primaryRowBorderColor',
+    'primaryNavBorderColor',
+    'mainRowBorderColor',
+    'audienceRowBorderColor',
+    'utilityRowStyle',
+    'utilityRow',
+    'topRowStyle',
+    'utilityRowBackgroundColor',
+    'topRowBackgroundColor',
+    'utilityRowTextColor',
+    'utilityRowForegroundColor',
+    'topRowTextColor',
+    'utilityRowBorderColor',
+    'topRowBorderColor'
+  ]
+  styleAliasKeys.forEach(alias => {
+    if (alias in normalized) {
+      delete normalized[alias]
+    }
+  })
+
   for (const collectionKey of MENU_ITEM_COLLECTION_KEYS) {
     if (Array.isArray(normalized[collectionKey])) {
       normalized[collectionKey] = normalizeMenuItemArray(normalized[collectionKey], warnings, collectionKey)

@@ -59,7 +59,31 @@ describe('navigation adapters', () => {
             { label: 'String href', href: '/string-href' },
             { label: 'URL only', url: '/url-only' },
             { type: ComponentType.NavMenuItem, content: { label: 'Wrapped', href: '/wrapped' } }
-          ]
+          ],
+          styles: {
+            primaryRow: {
+              backgroundColor: '#6f8434',
+              textColor: '#ffffff',
+              ignored: 'drop me'
+            },
+            primaryItems: [
+              {
+                label: 'Health Professionals',
+                backgroundColor: '#DA1A32',
+                color: '#ffffff',
+                ignored: 'drop me'
+              },
+              {
+                label: 'No Style'
+              },
+              {
+                backgroundColor: '#000000'
+              }
+            ],
+            ignoredRow: {
+              backgroundColor: '#000000'
+            }
+          }
         }}
       />
     );
@@ -72,6 +96,19 @@ describe('navigation adapters', () => {
       { label: 'String href' },
       { label: 'URL only' }
     ]);
+    expect(content.styles).toEqual({
+      primaryRow: {
+        backgroundColor: '#6f8434',
+        textColor: '#ffffff'
+      },
+      primaryItems: [
+        {
+          label: 'Health Professionals',
+          backgroundColor: '#DA1A32',
+          textColor: '#ffffff'
+        }
+      ]
+    });
   });
 
   it('keeps footer columns, legal links, and social links canonical', () => {

@@ -328,6 +328,15 @@ function buildPageRootClasses(theme: ComponentTheme | undefined): string {
     .join(' ');
 }
 
+function shouldRenderPageHeader(page: SnapshotPage): boolean {
+  const metadata = isRecord(page.metadata) ? page.metadata : {};
+  if (typeof metadata.importSource === 'string' || metadata.importStatus === 'committed') {
+    return false;
+  }
+
+  return Boolean(page.title);
+}
+
 function coerceComponentType(value: string): ComponentType {
   if (COMPONENT_TYPE_VALUES.has(value)) {
     return value as ComponentType;
@@ -596,7 +605,7 @@ export async function PageRendererHelper({
       >
         <div className={rootClasses}>
           <div className="cms-page-container">
-            {page.title && (
+            {shouldRenderPageHeader(page) && (
               <div className="page-header mb-8">
                 <h1 className="text-4xl font-bold text-text-primary">{page.title}</h1>
               </div>
@@ -616,7 +625,8 @@ export function PageRendererClient(props: PageRenderProps) {
 
 export {
   buildComponentTree,
-  componentInstanceToCMSProps
+  componentInstanceToCMSProps,
+  shouldRenderPageHeader
 };
 
 export default PageRendererHelper;

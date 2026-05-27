@@ -53,6 +53,13 @@ function summarizeNode(value: unknown): unknown {
     }
   }
 
+  for (const key of ['pathId', 'bgColor', 'bgImage']) {
+    if (typeof node[key] === 'string') {
+      const value = compactWhitespace(node[key])
+      if (value) summarized[key] = value
+    }
+  }
+
   const attrs = node.attrs
   if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
     const keptAttrs: Record<string, unknown> = {}
