@@ -1212,30 +1212,11 @@ function canonicalizeCmsShapedEntry(
   }
 }
 
-function upgradeTwoColumnContent(
+function normalizeTwoColumnContent(
   content: Record<string, unknown>,
   component: ComponentInstance
 ): Record<string, unknown> {
   const result = { ...content }
-  const existingAreasRaw = isRecord(content.areas) ? content.areas : undefined
-
-  const initializeExisting = (side: TwoColumnSide): CMSComponentProps[] | undefined => {
-    if (!existingAreasRaw) {
-      return undefined
-    }
-    const raw = side === 'left' ? (existingAreasRaw.left as unknown) : (existingAreasRaw.right as unknown)
-    if (!Array.isArray(raw)) {
-      return undefined
-    }
-    const filtered = raw.filter(isCmsComponentPropsCandidate)
-    return filtered.length > 0 ? filtered.map(entry => cloneJson(entry)) : undefined
-  }
-
-  const nextAreas: { left?: CMSComponentProps[]; right?: CMSComponentProps[] } = {
-    left: initializeExisting('left'),
-    right: initializeExisting('right')
-  }
-
   let mutated = false
 
   const processSide = (columnKey: 'leftColumn' | 'rightColumn', side: TwoColumnSide): void => {
@@ -1287,16 +1268,9 @@ function upgradeTwoColumnContent(
     })
 
     if (migrated.length > 0) {
+      result[columnKey] = migrated
       mutated = true
-      if (side === 'left') {
-        nextAreas.left = migrated
-      } else {
-        nextAreas.right = migrated
-      }
-    }
-
-    // Clear the column key since we've moved data to areas
-    if (rawColumn.length > 0) {
+    } else if (rawColumn.length > 0) {
       delete result[columnKey]
       mutated = true
     }
@@ -1304,21 +1278,6 @@ function upgradeTwoColumnContent(
 
   processSide('leftColumn', 'left')
   processSide('rightColumn', 'right')
-
-  if (mutated) {
-    const areas: Record<string, unknown> = {}
-    if (nextAreas.left && nextAreas.left.length > 0) {
-      areas.left = nextAreas.left
-    }
-    if (nextAreas.right && nextAreas.right.length > 0) {
-      areas.right = nextAreas.right
-    }
-    if (Object.keys(areas).length > 0) {
-      result.areas = areas
-    } else {
-      delete result.areas
-    }
-  }
 
   return mutated ? result : content
 }
@@ -1388,7 +1347,7 @@ function enrichComponentFromShared(
 
   if (normalizedType === 'two-column') {
     if (hasCanonicalTwoColumnContent(normalizedContent)) {
-      normalizedContent = upgradeTwoColumnContent(cloneJson(normalizedContent), component)
+      normalizedContent = normalizeTwoColumnContent(cloneJson(normalizedContent), component)
     }
   }
 
