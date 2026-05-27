@@ -312,6 +312,7 @@ function normalizeHeroSimpleBackground(
   ])
 
   let normalizedImage: NormalizedImageValue | undefined
+  const imageCandidateWarnings: LocalNormalizationWarning[] = []
   for (let index = 0; index < imageCandidates.length; index += 1) {
     const candidate = imageCandidates[index]
     const normalizedAsset = normalizeImage(candidate, fallbackAlt)
@@ -329,13 +330,17 @@ function normalizeHeroSimpleBackground(
       break
     }
 
-    warnings.push(createMalformedImageWarning({
+    imageCandidateWarnings.push(createMalformedImageWarning({
       field: 'background.image',
       childType: 'hero-simple-background-image',
       index,
       message: 'Dropped hero background image payload because it did not contain a usable image source.',
       valueType: Array.isArray(candidate) ? 'array' : typeof candidate
     }))
+  }
+
+  if (!normalizedImage && imageCandidateWarnings.length > 0) {
+    warnings.push(...imageCandidateWarnings)
   }
 
   if (normalizedImage) {
@@ -529,6 +534,128 @@ export const normalizeHeroSimpleContent: ComponentContentNormalizer = (
 
   const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'hero-simple', {
     childType: 'hero-simple'
+  })
+  if (pruneWarnings.length > 0) {
+    warnings.push(...pruneWarnings)
+  }
+
+  return { content: pruned, warnings }
+}
+
+export const normalizeHeroBannerContent: ComponentContentNormalizer = (
+  rawContent: Record<string, any>,
+  options: { parentCanonicalType: string; pageUrl?: string }
+) => {
+  const warnings: LocalNormalizationWarning[] = []
+  const flattened = expandSourceRecord(rawContent, {
+    canonicalType: 'hero-banner',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'content',
+    index: 0,
+    pageUrl: options.pageUrl
+  })
+
+  const normalized: Record<string, any> = { ...flattened }
+
+  const { ctas: normalizedCtas, warnings: ctaWarnings } = collectHeroCtaPayloads(flattened.ctaButtons, {
+    parentCanonicalType: options.parentCanonicalType,
+    pageUrl: options.pageUrl,
+    canonicalType: 'hero-banner-cta'
+  })
+  if (ctaWarnings.length > 0) {
+    warnings.push(...ctaWarnings)
+  }
+  if (normalizedCtas.length > 0) {
+    normalized.ctaButtons = normalizedCtas
+  } else {
+    delete normalized.ctaButtons
+  }
+
+  const { background, warnings: backgroundWarnings } = normalizeHeroSimpleBackground(flattened, options)
+
+  if (background?.image) {
+    const image = background.image as Record<string, any>
+    normalized.backgroundImage = normalizeString(image.src) ?? normalizeString(image.originalUrl) ?? image
+  }
+  const hasHeroBannerBackgroundImage = Boolean(normalizeString(normalized.backgroundImage)) || isRecord(normalized.backgroundImage)
+  if (backgroundWarnings.length > 0 && !hasHeroBannerBackgroundImage) {
+    warnings.push(...backgroundWarnings)
+  }
+
+  const overlaySource = isRecord(flattened.overlay) ? flattened.overlay : undefined
+  const overlay: Record<string, any> = {
+    ...(overlaySource ?? {})
+  }
+  if (background?.overlayColor && !overlay.color) {
+    overlay.color = background.overlayColor
+  }
+  if (background?.overlayOpacity !== undefined && overlay.opacity === undefined) {
+    overlay.opacity = background.overlayOpacity
+  }
+  if (background?.gradient && !overlay.gradient) {
+    overlay.gradient = background.gradient
+  }
+  if (Object.keys(overlay).length > 0) {
+    normalized.overlay = {
+      enabled: normalizeBooleanFlag(overlay.enabled) ?? true,
+      ...(normalizeString(overlay.color) ? { color: normalizeString(overlay.color) } : {}),
+      ...(normalizeOverlayOpacityValue(overlay.opacity) !== undefined ? { opacity: normalizeOverlayOpacityValue(overlay.opacity) } : {}),
+      ...(normalizeString(overlay.gradient) ? { gradient: normalizeString(overlay.gradient) } : {})
+    }
+  } else {
+    delete normalized.overlay
+  }
+
+  const backgroundAliasKeys = [
+    'background',
+    'background_image',
+    'backgroundImg',
+    'backgroundImageUrl',
+    'backgroundUrl',
+    'backgroundSrc',
+    'backgroundMedia',
+    'backgroundAsset',
+    'backgroundFile',
+    'heroImage',
+    'heroBackground',
+    'heroBackgroundImage',
+    'heroBackgroundImg',
+    'heroBackgroundUrl',
+    'image',
+    'imageUrl',
+    'imageSrc',
+    'backgroundColor',
+    'bgColor',
+    'backgroundColour',
+    'gradient',
+    'backgroundGradient',
+    'backgroundImageGradient',
+    'overlayColor',
+    'backgroundOverlayColor',
+    'backgroundOverlay',
+    'tintColor',
+    'backgroundTint',
+    'overlayOpacity',
+    'backgroundOverlayOpacity',
+    'overlay_opacity',
+    'tintOpacity',
+    'overlayAlpha',
+    'backgroundPosition',
+    'imagePosition',
+    'objectPosition',
+    'imageAlignment',
+    'focalPoint',
+    'imageFocalPoint',
+    'backgroundFocalPoint'
+  ]
+  backgroundAliasKeys.forEach(alias => {
+    if (alias in normalized) {
+      delete normalized[alias]
+    }
+  })
+
+  const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'hero-banner', {
+    childType: 'hero-banner'
   })
   if (pruneWarnings.length > 0) {
     warnings.push(...pruneWarnings)

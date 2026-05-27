@@ -24,6 +24,7 @@ export {
 // Hero normalizers
 export {
   normalizeHeroSimpleContent,
+  normalizeHeroBannerContent,
   normalizeHeroWithImageContent
 } from './hero-normalizers'
 
@@ -72,7 +73,7 @@ export {
  * Map of component types to their content normalizers.
  * Use this to look up the appropriate normalizer for a component type.
  */
-import { normalizeHeroSimpleContent, normalizeHeroWithImageContent } from './hero-normalizers'
+import { normalizeHeroSimpleContent, normalizeHeroBannerContent, normalizeHeroWithImageContent } from './hero-normalizers'
 import { normalizeNavbarContent, normalizeBreadcrumbsContent } from './nav-normalizers'
 import { normalizeTimelineContent, normalizeTextBlockContent, normalizeContentFeedContent, normalizeTwoColumnContent } from './content-normalizers'
 import { normalizeCtaWithFormContent, normalizeCtaSimpleContent } from './cta-normalizers'
@@ -84,6 +85,7 @@ import type { ComponentContentNormalizer } from './shared-normalizer-utils'
 
 export const COMPONENT_CONTENT_NORMALIZERS: Record<string, ComponentContentNormalizer> = {
   'hero-with-image': normalizeHeroWithImageContent,
+  'hero-banner': normalizeHeroBannerContent,
   'hero-simple': normalizeHeroSimpleContent,
   'video-embed': normalizeVideoEmbedContent,
   breadcrumbs: normalizeBreadcrumbsContent,

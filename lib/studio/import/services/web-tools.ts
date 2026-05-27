@@ -177,6 +177,57 @@ function attrsToMap(attrs?: Array<{ name: string; value: string }>): Dict<string
   return map
 }
 
+const responsiveVisibilityClasses = new Set([
+  'hidden-xs',
+  'hidden-sm',
+  'hidden-md',
+  'hidden-lg',
+  'hidden-xl',
+  'visible-xs',
+  'visible-sm',
+  'visible-md',
+  'visible-lg',
+  'visible-xl'
+])
+
+function inlineStyleHidesElement(style?: string): boolean {
+  if (!style) return false
+  return /(?:^|;)\s*display\s*:\s*none\s*(?:!important)?\s*(?:;|$)/i.test(style) ||
+    /(?:^|;)\s*visibility\s*:\s*hidden\s*(?:!important)?\s*(?:;|$)/i.test(style) ||
+    /(?:^|;)\s*content-visibility\s*:\s*hidden\s*(?:!important)?\s*(?:;|$)/i.test(style)
+}
+
+function classListContainsHiddenSelector(className: string | undefined, hiddenByClass?: Set<string>): boolean {
+  if (!className || !hiddenByClass) return false
+
+  for (const cls of className.split(/\s+/)) {
+    if (!cls || responsiveVisibilityClasses.has(cls)) continue
+    if (hiddenByClass.has(cls)) return true
+  }
+
+  return false
+}
+
+function isExplicitlyHiddenDomNode(params: {
+  attrs: Dict<string>
+  id?: string
+  className?: string
+  style?: string
+  bgImageMap?: BackgroundImageMap
+}): boolean {
+  const { attrs, id, className, style, bgImageMap } = params
+  if (Object.prototype.hasOwnProperty.call(attrs, 'hidden')) {
+    return true
+  }
+  if (inlineStyleHidesElement(style)) {
+    return true
+  }
+  if (id && bgImageMap?.hiddenById.has(id)) {
+    return true
+  }
+  return classListContainsHiddenSelector(className, bgImageMap?.hiddenByClass)
+}
+
 // HTML parsing via parse5 (already available via deps)
 // We import lazily to avoid bundling if unused.
 async function parseHtml(html: string): Promise<any> {
@@ -219,6 +270,13 @@ function traverseToNodes(
     const clsRaw = attrs.class
     const styleRaw = attrs.style // Capture inline style for bgImage extraction
     const role = attrs.role
+    const nodeId = typeof idRaw === 'string' ? idRaw : undefined
+    const nodeClassName = typeof clsRaw === 'string' ? clsRaw : undefined
+    const style = typeof styleRaw === 'string' ? styleRaw : undefined
+
+    if (isExplicitlyHiddenDomNode({ attrs, id: nodeId, className: nodeClassName, style, bgImageMap })) {
+      return
+    }
 
     // Skip specified tags/nodes (used to exclude navigation chrome when falling back to body for main content)
     if (skipTags && skipTags.has(tag)) {
@@ -226,8 +284,8 @@ function traverseToNodes(
     }
     if (opts.skipNode && opts.skipNode({
       tag,
-      id: typeof idRaw === 'string' ? idRaw : undefined,
-      className: typeof clsRaw === 'string' ? clsRaw : undefined,
+      id: nodeId,
+      className: nodeClassName,
       role: typeof role === 'string' ? role : undefined
     })) {
       return
@@ -656,6 +714,10 @@ export interface BackgroundImageMap {
   bgColorByClass: Map<string, string>
   /** Map of ID (without hash) to background-color (hex) */
   bgColorById: Map<string, string>
+  /** Class names whose own selector is deterministically hidden */
+  hiddenByClass: Set<string>
+  /** IDs whose own selector is deterministically hidden */
+  hiddenById: Set<string>
 }
 
 /**
@@ -671,6 +733,8 @@ function extractBackgroundImages(html: string): BackgroundImageMap {
   const byId = new Map<string, string>()
   const bgColorByClass = new Map<string, string>()
   const bgColorById = new Map<string, string>()
+  const hiddenByClass = new Set<string>()
+  const hiddenById = new Set<string>()
 
   // Extract all <style> block contents
   const styleBlockRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi
@@ -723,11 +787,12 @@ function extractBackgroundImages(html: string): BackgroundImageMap {
 
     // Also extract background-color rules
     parseCssForBackgroundColors(cssContent, bgColorByClass, bgColorById)
+    parseCssForHiddenSelectors(cssContent, hiddenByClass, hiddenById)
   }
 
   // Note: inline styles are handled per-element in traverseToNodes
 
-  return { byClass, byId, bgColorByClass, bgColorById }
+  return { byClass, byId, bgColorByClass, bgColorById, hiddenByClass, hiddenById }
 }
 
 /**
@@ -783,6 +848,39 @@ function parseCssForBackgroundColors(
             bgColorById.set(idName, colorValue)
           }
         }
+      }
+    }
+  }
+}
+
+function parseCssForHiddenSelectors(
+  cssContent: string,
+  hiddenByClass: Set<string>,
+  hiddenById: Set<string>
+): void {
+  const hiddenRuleRegex = /([^{}]+)\{[^}]*(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)[^}]*\}/gi
+  let hiddenMatch: RegExpExecArray | null
+
+  while ((hiddenMatch = hiddenRuleRegex.exec(cssContent)) !== null) {
+    const selectors = hiddenMatch[1].split(',').map(s => s.trim())
+
+    for (const selector of selectors) {
+      if (selector.includes('@media')) {
+        continue
+      }
+
+      const classMatch = selector.match(/^\.([a-zA-Z_-][a-zA-Z0-9_-]*)$/)
+      if (classMatch) {
+        const className = classMatch[1]
+        if (!responsiveVisibilityClasses.has(className)) {
+          hiddenByClass.add(className)
+        }
+        continue
+      }
+
+      const idMatch = selector.match(/^#([a-zA-Z_-][a-zA-Z0-9_-]*)$/)
+      if (idMatch) {
+        hiddenById.add(idMatch[1])
       }
     }
   }
@@ -1175,6 +1273,7 @@ async function fetchExternalCssBackgroundImages(
       parseCssForBackgroundImages(cssContent, bgImageMap.byClass, bgImageMap.byId, cssUrl)
       // Also extract background-colors from external CSS
       parseCssForBackgroundColors(cssContent, bgImageMap.bgColorByClass, bgImageMap.bgColorById)
+      parseCssForHiddenSelectors(cssContent, bgImageMap.hiddenByClass, bgImageMap.hiddenById)
       const afterCount = bgImageMap.byClass.size + bgImageMap.byId.size
 
       stats.cssFilesFetched++

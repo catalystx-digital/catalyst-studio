@@ -196,6 +196,84 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
+  it('maps hero-banner nested background payloads to schema fields', () => {
+    const detection: DetectionResult = {
+      id: 'hero-banner-background-object',
+      type: 'hero-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Welcome to the hospital',
+        background: {
+          image: 'https://cdn.example.com/assets/banner.jpg',
+          overlayColor: '#000000',
+          overlayOpacity: '55%'
+        },
+        backgroundPosition: 'center top'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-banner'))
+
+    expect(props.content?.backgroundImage).toBe('https://cdn.example.com/assets/banner.jpg')
+    expect(props.content?.overlay).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        color: '#000000',
+        opacity: 0.55
+      })
+    )
+    expect(props.content?.background).toBeUndefined()
+    expect(props.content?.backgroundPosition).toBeUndefined()
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('does not warn for malformed hero background candidates when another candidate is usable', () => {
+    const detection: DetectionResult = {
+      id: 'hero-banner-background-candidate-order',
+      type: 'hero-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Welcome to the hospital',
+        background: {
+          image: { decorative: true }
+        },
+        backgroundImage: 'https://cdn.example.com/assets/banner.jpg'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-banner'))
+
+    expect(props.content?.backgroundImage).toBe('https://cdn.example.com/assets/banner.jpg')
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('does not warn for malformed hero background candidates when a media background image is already present', () => {
+    const detection: DetectionResult = {
+      id: 'hero-banner-background-media-candidate-order',
+      type: 'hero-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Welcome to the hospital',
+        background: {
+          image: { decorative: true }
+        },
+        backgroundImage: {
+          mediaId: 'asset-banner',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/assets/banner.jpg'
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-banner'))
+
+    expect(props.content?.backgroundImage).toBe('https://cdn.example.com/assets/banner.jpg')
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
   it('preserves hero-simple background media references from nested payloads', () => {
     const detection: DetectionResult = {
       id: 'hero-simple-background-media',
