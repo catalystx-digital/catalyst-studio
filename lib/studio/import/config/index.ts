@@ -31,6 +31,7 @@ export {
   validateImportConfig,
 
   // Types
+  type ImportModelMode,
   type ImportConfigType,
   type ModelConfigType,
   type TokenConfigType,

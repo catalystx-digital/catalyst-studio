@@ -38,41 +38,82 @@ function parseEnvString(key: string, defaultValue: string): string {
   return trimmed || defaultValue
 }
 
-function parseRequiredEnvString(key: string): string {
-  const raw = process.env[key]
-  const trimmed = raw?.trim()
-  if (!trimmed) {
-    throw new Error(`${key} environment variable is required`)
-  }
-  return trimmed
-}
-
 // =============================================================================
 // Model Configuration
 // =============================================================================
 
+export type ImportModelMode = 'quality' | 'cheap' | 'benchmark'
+
+type ImportModelSelection = {
+  mode: ImportModelMode
+  chain: string
+  primary: string
+  fallbackEnabled: boolean
+}
+
+const DEFAULT_CHEAP_MODEL_CHAIN = 'deepseek/deepseek-v4-flash'
+
+function validateModelChain(key: string, chain: string): string[] {
+  const entries = chain.split('|').map(model => model.trim())
+  if (entries.some(model => model.length === 0)) {
+    throw new Error(`${key} must be a pipe-separated list of non-empty model ids`)
+  }
+  if (!entries[0]) {
+    throw new Error(`${key} must include at least one model id`)
+  }
+  return entries
+}
+
+export function resolveImportModelSelection(env: NodeJS.ProcessEnv = process.env): ImportModelSelection {
+  const rawMode = (env.IMPORT_MODEL_MODE?.trim() || 'quality').toLowerCase()
+  if (rawMode !== 'quality' && rawMode !== 'cheap' && rawMode !== 'benchmark') {
+    throw new Error('IMPORT_MODEL_MODE must be one of: quality, cheap, benchmark')
+  }
+
+  const mode = rawMode as ImportModelMode
+  const chainKey = mode === 'cheap' ? 'IMPORT_CHEAP_MODEL_CHAIN' : 'IMPORT_MODEL_CHAIN'
+  const chain = mode === 'cheap'
+    ? (env.IMPORT_CHEAP_MODEL_CHAIN?.trim() || DEFAULT_CHEAP_MODEL_CHAIN)
+    : (() => {
+        const raw = env.IMPORT_MODEL_CHAIN?.trim()
+        if (!raw) throw new Error('IMPORT_MODEL_CHAIN environment variable is required')
+        return raw
+      })()
+  const entries = validateModelChain(chainKey, chain)
+
+  return {
+    mode,
+    chain,
+    primary: entries[0],
+    fallbackEnabled: entries.length > 1
+  }
+}
+
 /**
  * LLM model configuration for import detection.
  *
- * Model selection uses required IMPORT_MODEL_CHAIN (pipe-separated list).
- * First model in chain is the primary; later entries are explicit retry candidates.
+ * Model selection supports explicit modes:
+ * - quality: IMPORT_MODEL_CHAIN
+ * - cheap: IMPORT_CHEAP_MODEL_CHAIN or deepseek/deepseek-v4-flash
+ * - benchmark: IMPORT_MODEL_CHAIN, typically set by CLI/API for a single run
  */
-const modelChain = parseRequiredEnvString('IMPORT_MODEL_CHAIN')
-const modelChainEntries = modelChain.split('|').map(model => model.trim())
-if (modelChainEntries.some(model => model.length === 0)) {
-  throw new Error('IMPORT_MODEL_CHAIN must be a pipe-separated list of non-empty model ids')
-}
-const primaryModel = modelChainEntries[0]
-if (!primaryModel) {
-  throw new Error('IMPORT_MODEL_CHAIN must include at least one model id')
-}
+const modelSelection = resolveImportModelSelection()
 
 export const ModelConfig = {
+  /** Explicit model mode for import detection */
+  mode: modelSelection.mode,
+
   /** Model chain for detection (pipe-separated, first is primary) */
-  chain: modelChain,
+  chain: modelSelection.chain,
 
   /** Primary model (first in chain) */
-  primary: primaryModel,
+  primary: modelSelection.primary,
+
+  /** Whether the configured chain has explicit retry candidates */
+  fallbackEnabled: modelSelection.fallbackEnabled,
+
+  /** Default cheap model chain */
+  cheapChainDefault: DEFAULT_CHEAP_MODEL_CHAIN,
 
   /** Model for component type extraction */
   typeExtraction: 'openai/gpt-4o-mini',

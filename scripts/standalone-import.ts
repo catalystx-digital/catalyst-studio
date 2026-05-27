@@ -53,6 +53,8 @@ interface ScriptArgs {
   priorityUrls?: string;
   /** Override IMPORT_MODEL_CHAIN for this run */
   modelChain?: string;
+  /** Select import model mode */
+  modelMode?: 'quality' | 'cheap' | 'benchmark';
   /** Override IMPORT_CONCURRENCY for this run */
   concurrency?: number;
 
@@ -102,6 +104,13 @@ function parseArgs(argv: string[]): ScriptArgs {
       args.priorityUrls = argv[++i];
     } else if (arg === '--model-chain' && argv[i + 1]) {
       args.modelChain = argv[++i];
+    } else if (arg === '--model-mode' && argv[i + 1]) {
+      const mode = argv[++i];
+      if (mode !== 'quality' && mode !== 'cheap' && mode !== 'benchmark') {
+        console.error('Error: --model-mode must be one of: quality, cheap, benchmark');
+        process.exit(1);
+      }
+      args.modelMode = mode;
     } else if (arg === '--concurrency' && argv[i + 1]) {
       args.concurrency = parseInt(argv[++i], 10);
     }
@@ -163,8 +172,20 @@ function parseArgs(argv: string[]): ScriptArgs {
 }
 
 function applyRuntimeOverrides(args: ScriptArgs): void {
+  if (args.modelMode === 'cheap' && args.modelChain?.trim()) {
+    console.error('Error: --model-chain is not used with --model-mode cheap. Set IMPORT_CHEAP_MODEL_CHAIN or omit --model-mode to run a benchmark chain.');
+    process.exit(1);
+  }
+
+  if (args.modelMode) {
+    process.env.IMPORT_MODEL_MODE = args.modelMode;
+  }
+
   if (args.modelChain?.trim()) {
     process.env.IMPORT_MODEL_CHAIN = args.modelChain.trim();
+    if (!args.modelMode) {
+      process.env.IMPORT_MODEL_MODE = 'benchmark';
+    }
   }
 
   if (args.concurrency !== undefined) {
@@ -207,6 +228,7 @@ function printUsage(): void {
   console.error('  --max-pages <n>             Maximum pages to import (default: 10)');
   console.error('  --priority-urls <paths>     Comma-separated paths to process first');
   console.error('                              (e.g., "/about,/services,/contact")');
+  console.error('  --model-mode <mode>         Model mode: quality, cheap, benchmark');
   console.error('  --model-chain <models>      Override IMPORT_MODEL_CHAIN for this run');
   console.error('  --concurrency <n>           Override IMPORT_CONCURRENCY for this run');
   console.error('  --retain-checkpoint         Keep checkpoint files after success');
@@ -443,7 +465,7 @@ async function main(args: ScriptArgs) {
   const { ImportProgressManager } = await import('../lib/studio/import/services/import-progress-manager');
   const { ImportJobStatus } = await import('../lib/studio/import/types/import-job.types');
   const { getCheckpointService } = await import('../lib/studio/import/services/checkpoint-service');
-  const { CheckpointConfig } = await import('../lib/studio/import/config');
+  const { CheckpointConfig, ModelConfig } = await import('../lib/studio/import/config');
   const { ReImportService } = await import('../lib/studio/import/services/reimport-service');
   const { prioritizeUrls, parsePriorityUrlsArg } = await import('../lib/studio/import/utils/url-prioritizer');
 
@@ -482,7 +504,9 @@ async function main(args: ScriptArgs) {
   }
 
   // Log which model chain is being used (helps verify env loaded correctly)
-  console.log(`  Model Chain: ${process.env.IMPORT_MODEL_CHAIN || '(using defaults)'}`);
+  console.log(`  Model Mode: ${ModelConfig.mode}`);
+  console.log(`  Model Chain: ${ModelConfig.chain}`);
+  console.log(`  Model Fallback: ${ModelConfig.fallbackEnabled ? 'enabled (explicit chain)' : 'disabled'}`);
 
   // Create dedicated Prisma client (NOT shared with web app)
   const prisma = new PrismaClient({
