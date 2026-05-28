@@ -205,6 +205,114 @@ describe('CMSComponent: CardGrid', () => {
     expect(card).toHaveClass('md:flex-row');
   });
 
+  it('honors explicit vertical card style for imported grids', () => {
+    const verticalContent = { ...mockContent, cardStyle: 'vertical' as const };
+    const { container } = render(<CardGrid content={verticalContent} />);
+
+    const card = container.querySelector('.cms-card-grid-card');
+    expect(card).not.toHaveClass('md:flex-row');
+  });
+
+  it('renders imported small icon images as icons instead of full aspect-ratio media', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          heading: 'Services',
+          cards: [
+            {
+              id: 'icon-card',
+              title: 'Digital strategy',
+              image: {
+                src: 'https://assets.example.com/icon-digital.png?w=48&fm=webp',
+                alt: 'Digital Strategy',
+              },
+              href: '/digital-strategy',
+            },
+          ],
+          columns: 1,
+          cardStyle: 'horizontal',
+        }}
+      />,
+    );
+
+    const image = screen.getByRole('img', { name: 'Digital Strategy' });
+    expect(image).toHaveClass('h-16', 'w-16', 'object-contain');
+    expect(container.querySelector('.aspect-\\[16\\/9\\]')).not.toBeInTheDocument();
+  });
+
+  it('does not treat small transformed photo URLs as icons', () => {
+    render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'photo-card',
+              title: 'Small source photo',
+              image: {
+                src: 'https://assets.example.com/photo.jpg?w=80&h=60&fm=webp',
+                alt: 'Small source photo',
+              },
+              href: '/photo',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const image = screen.getByRole('img', { name: 'Small source photo' });
+    expect(image).not.toHaveClass('h-16', 'w-16', 'object-contain');
+    expect(image).toHaveClass('h-full', 'w-full', 'object-cover');
+  });
+
+  it('renders title-only icon cards compactly without empty content space', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          heading: 'How we do it',
+          cards: [
+            {
+              id: 'compact-icon-card',
+              title: 'Agile-focused delivery',
+              image: {
+                src: 'https://assets.example.com/icon-agile.png?w=48&fm=webp',
+                alt: 'Agile Focused Delivery Icon',
+              },
+              href: '/agile-project-management',
+            },
+          ],
+          columns: 1,
+          cardStyle: 'vertical',
+        }}
+      />,
+    );
+
+    const card = container.querySelector('.cms-card-grid-card')!;
+    expect(card.querySelector('.p-\\[var\\(--component-padding\\)\\].flex-1')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Agile Focused Delivery Icon' })).toHaveClass('h-16', 'w-16');
+    expect(screen.getByRole('link', { name: 'Learn more' }).closest('[class*="justify-center"]')).toBeInTheDocument();
+  });
+
+  it('can disable first-card feature spanning for feed-like grids', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          ...mockContent,
+          cards: [
+            ...mockContent.cards,
+            { id: '4', title: 'Fourth item', description: 'More content' },
+            { id: '5', title: 'Fifth item', description: 'More content' },
+          ],
+          columns: 3,
+          featureFirstCard: false,
+        }}
+      />,
+    );
+
+    const firstCard = container.querySelector('.cms-card-grid-card');
+    expect(firstCard).not.toHaveClass('md:col-span-2');
+  });
+
   it('applies theme and variant classes', () => {
     const { container } = render(
       <CardGrid 

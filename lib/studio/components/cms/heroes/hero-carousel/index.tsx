@@ -571,6 +571,7 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
       <div className="absolute inset-0">
         {slides.map((slide, index) => {
           const isActive = index === currentIndex;
+          const HeadingTag = isActive ? 'h1' : 'div';
           const transitionClass =
             transitionStyle === 'slide'
               ? 'translate-x-0 opacity-100'
@@ -655,9 +656,9 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
                     ) : null}
 
                     {slide.heading ? (
-                      <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-primary-foreground leading-tight text-balance">
+                      <HeadingTag className="text-2xl sm:text-3xl lg:text-4xl font-bold text-primary-foreground leading-tight text-balance">
                         {slide.heading}
-                      </h1>
+                      </HeadingTag>
                     ) : null}
 
                     {slide.subheading ? (

@@ -51,9 +51,22 @@ const CTABannerComponent: React.FC<CTABannerProps> = ({ id, type, content, class
     onInteraction?.(`${btnType}-cta-click`, url);
   }, [onInteraction]);
 
+  const explicitTextColor =
+    typeof textColor === 'string' && textColor.trim().startsWith('#')
+      ? textColor.trim()
+      : undefined;
+  const textStyle = explicitTextColor ? { color: explicitTextColor } : undefined;
+
   // Simplified: Only use background image if provided, ignore custom gradients for cleaner look
   const bannerStyle: React.CSSProperties = {
-    ...(normalizedBackgroundImage ? { backgroundImage: `url("${normalizedBackgroundImage}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+    ...(normalizedBackgroundImage
+      ? {
+          backgroundImage: `url("${normalizedBackgroundImage}")`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          ...(typeof backgroundColor === 'string' && backgroundColor.trim() ? { backgroundColor } : {}),
+        }
+      : {}),
     ...style,
   };
 
@@ -65,15 +78,35 @@ const CTABannerComponent: React.FC<CTABannerProps> = ({ id, type, content, class
       <div className={cn('flex w-full flex-col', fullWidth ? 'mx-0 max-w-none' : 'mx-auto max-w-7xl', 'px-4 sm:px-6 lg:px-8')}>
         <div
           className={cn(
-            'flex flex-col rounded-xl px-6 py-6 md:px-8 md:py-8',
+            'relative isolate flex min-h-44 flex-col overflow-hidden rounded-xl px-6 py-6 md:min-h-56 md:px-8 md:py-8',
             dsSpacing.gap('sm'),
             align,
             hasCustomBg ? 'text-primary-foreground' : 'bg-primary text-primary-foreground',
           )}
           style={bannerStyle}
         >
-          {heading && <h2 className={cn(cmsHeading(2, theme), (typeof textColor === 'string' && textColor.trim()) || 'text-inherit')}>{heading}</h2>}
-          {subheading && <p className={cn(cmsBody('lg', theme), 'opacity-90 max-w-2xl', (typeof textColor === 'string' && textColor.trim()) || 'text-inherit')}>{subheading}</p>}
+          {hasCustomBg && (
+            <div
+              className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/40 to-black/10"
+              aria-hidden="true"
+            />
+          )}
+          {heading && (
+            <h2
+              className={cn(cmsHeading(2, theme), 'max-w-3xl text-inherit drop-shadow-sm')}
+              style={textStyle}
+            >
+              {heading}
+            </h2>
+          )}
+          {subheading && (
+            <p
+              className={cn(cmsBody('lg', theme), 'max-w-2xl text-inherit opacity-95 drop-shadow-sm')}
+              style={textStyle}
+            >
+              {subheading}
+            </p>
+          )}
 
           {(primaryBtn || secondaryBtn) && (
             <div className={cn('flex flex-wrap gap-4 mt-2', align.includes('center') ? 'justify-center' : align.includes('right') ? 'justify-end' : 'justify-start')}>

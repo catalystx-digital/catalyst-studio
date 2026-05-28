@@ -12,7 +12,7 @@ interface SurfaceFingerprint {
   richnessScore: number
 }
 
-const LISTING_TYPES = new Set(['card-grid', 'content-feed'])
+const LISTING_TYPES = new Set(['card-grid', 'content-feed', 'two-column'])
 const NEWS_HEADING_PATTERN = /\b(news|latest|updates?|stories|media|articles?)\b/i
 const EDITORIAL_PATH_PATTERN = /\/(?:news|blog|blogs|article|articles|post|posts|press|media|stories)(?:\/|$)/i
 
@@ -36,6 +36,35 @@ function normalizeText(value: unknown): string | undefined {
 
 function listingItems(component: DetectedComponent): Record<string, unknown>[] {
   const content = isRecord(component.content) ? component.content : {}
+
+  if (component.type === 'two-column') {
+    const columns = [
+      ...childComponents(content.leftColumn),
+      ...childComponents(content.rightColumn),
+    ]
+    const nestedItems: Record<string, unknown>[] = []
+    for (const child of columns) {
+      const type = childType(child)
+      const childContent = isRecord(child.content) ? child.content : {}
+      if (!LISTING_TYPES.has(type) || type === 'two-column') {
+        continue
+      }
+      const childCandidates = [
+        childContent.cards,
+        childContent.pinned,
+        childContent.items,
+        childContent.entries,
+      ]
+      for (const candidate of childCandidates) {
+        if (Array.isArray(candidate)) {
+          nestedItems.push(...candidate.filter(isRecord))
+          break
+        }
+      }
+    }
+    return nestedItems
+  }
+
   const candidates = [
     content.cards,
     content.pinned,

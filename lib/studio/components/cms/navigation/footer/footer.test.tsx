@@ -135,4 +135,54 @@ describe('Footer Component', () => {
     render(<Footer {...propsWithClass} />);
     expect(screen.getByRole('contentinfo')).toHaveClass('custom-footer');
   });
+
+  it('applies imported background color and resolves nested media logo references', () => {
+    render(
+      <Footer
+        {...defaultProps}
+        content={{
+          ...defaultProps.content,
+          backgroundColor: '#300a44',
+          logo: {
+            alt: 'Luminary Digital',
+            src: {
+              url: 'https://example.com/luminary-logo-full-inline-white.svg',
+              mediaId: 'logo-media',
+              mediaType: 'image',
+            },
+          } as any,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('contentinfo')).toHaveStyle({ backgroundColor: '#300a44' });
+    expect(screen.getByRole('img', { name: 'Luminary Digital' })).toHaveAttribute(
+      'src',
+      'https://example.com/luminary-logo-full-inline-white.svg',
+    );
+  });
+
+  it('does not duplicate social links already present in footer columns', () => {
+    render(
+      <Footer
+        {...defaultProps}
+        content={{
+          ...defaultProps.content,
+          columns: [
+            {
+              title: 'Follow',
+              links: [
+                { label: 'Twitter', href: 'https://twitter.com' },
+              ],
+            },
+          ],
+          socialLinks: [
+            { platform: 'twitter', url: 'https://twitter.com' },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getAllByRole('link', { name: /twitter/i })).toHaveLength(1);
+  });
 });

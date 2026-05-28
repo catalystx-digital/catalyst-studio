@@ -24,7 +24,7 @@ import { cloneComponent } from './detection-post-processor/utils'
 import { assignHeaderRegions, assignHeroRegions } from './detection-post-processor/region-processor'
 import { collapseDuplicateGlobalNavigation, normalizeMultiRowNavigation } from './detection-post-processor/navigation-processor'
 import { promoteHeroBackground } from './detection-post-processor/hero-processor'
-import { removeInlineCtas } from './detection-post-processor/cta-processor'
+import { cleanupCtas } from './detection-post-processor/cta-processor'
 import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-merger'
 import { tagPageComponents, tagListingComponents } from './detection-post-processor/content-tagging-processor'
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
@@ -150,7 +150,7 @@ export function adjustDetectedComponents(
   })
 
   // CTA cleanup
-  withTelemetry('ctaCleanup', cloned, (c) => removeInlineCtas(c))
+  withTelemetry('ctaCleanup', cloned, (c) => cleanupCtas(c))
 
   // Merge hero + simple CTA banner into single hero with subheading (type-changing - check confidence first)
   // This handles cases where org names are detected as separate CTA banners

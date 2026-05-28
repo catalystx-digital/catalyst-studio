@@ -35,7 +35,23 @@ type FooterClientProps = Pick<FooterProps, 'content' | 'onInteraction' | 'theme'
 type NewsletterFormValues = { email: string };
 
 export function FooterClient({ content, onInteraction, theme }: FooterClientProps) {
-  const socialLinks = Array.isArray(content.socialLinks) ? content.socialLinks : [];
+  const columnSocialUrls = new Set(
+    (Array.isArray(content.columns) ? content.columns : [])
+      .flatMap(column => (Array.isArray(column.links) ? column.links : []))
+      .map(link => {
+        const href = link?.href;
+        if (typeof href === 'string') return href;
+        if (href && typeof href === 'object') {
+          const record = href as Record<string, unknown>;
+          return typeof record.url === 'string' ? record.url : typeof record.href === 'string' ? record.href : undefined;
+        }
+        return undefined;
+      })
+      .filter((href): href is string => Boolean(href)),
+  );
+  const socialLinks = Array.isArray(content.socialLinks)
+    ? content.socialLinks.filter(social => !columnSocialUrls.has(social.url))
+    : [];
   const newsletter = content.newsletter;
   const cmsTheme = (typeof theme === 'string' ? theme : undefined) as ComponentTheme | undefined;
 
@@ -70,7 +86,7 @@ export function FooterClient({ content, onInteraction, theme }: FooterClientProp
                 asChild
                 size="icon"
                 variant="secondary"
-                className="h-12 w-12 rounded-full  transition-transform"
+                className="cms-button h-12 w-12 rounded-full transition-transform"
               >
                 <a
                   href={social.url}

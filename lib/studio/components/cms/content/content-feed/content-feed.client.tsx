@@ -87,6 +87,8 @@ function toCardGridContent(items: NormalizedContentFeedItem[]): CardGridClientPr
     gap: DEFAULT_GAP,
     cardStyle: 'vertical',
     imageAspectRatio: '16:9',
+    imageLoading: 'eager',
+    featureFirstCard: false,
   };
 }
 

@@ -8,6 +8,24 @@ interface FooterLogoProps {
   theme?: ComponentTheme;
 }
 
+function resolveMediaString(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of ['url', 'src', 'originalUrl', 'href']) {
+    const nested = resolveMediaString(record[key]);
+    if (nested) return nested;
+  }
+
+  return undefined;
+}
+
 function resolveLogoPayload(logo: unknown): { src?: string; label?: string } | null {
   if (!logo) return null;
   if (typeof logo === 'string') return { src: logo };
@@ -16,8 +34,8 @@ function resolveLogoPayload(logo: unknown): { src?: string; label?: string } | n
   if (typeof logo === 'object') {
     const record = logo as Record<string, unknown>;
     const srcCandidate = ['src', 'url', 'originalUrl', 'href', 'image']
-      .map(key => record[key])
-      .find(v => typeof v === 'string' && v.trim()) as string | undefined;
+      .map(key => resolveMediaString(record[key]))
+      .find(Boolean);
     const labelCandidate = ['alt', 'text', 'label', 'title', 'name']
       .map(key => record[key])
       .find(v => typeof v === 'string' && v.trim()) as string | undefined;

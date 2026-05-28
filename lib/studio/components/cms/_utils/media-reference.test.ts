@@ -91,4 +91,18 @@ describe('CMS media reference normalization', () => {
       originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
     })
   })
+
+  it('strips clearly truncated tiny transform dimensions from image URLs', () => {
+    expect(
+      normalizeCmsImage({
+        src: {
+          url: 'https://assets.example.com/article.jpg?h=3&fm=webp',
+        },
+        alt: 'Article',
+      })
+    ).toEqual({
+      src: 'https://assets.example.com/article.jpg?fm=webp',
+      alt: 'Article',
+    })
+  })
 })

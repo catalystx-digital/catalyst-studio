@@ -82,10 +82,13 @@ describe('HeroCarousel component', () => {
   });
 
   it('renders the first slide by default', () => {
-    render(<HeroCarousel {...defaultProps} />);
+    const { container } = render(<HeroCarousel {...defaultProps} />);
     expect(
       screen.getByRole('heading', { name: 'Coffee With a Cop' }),
     ).toBeVisible();
+
+    expect(container.querySelectorAll('h1')).toHaveLength(1);
+    expect(container.querySelector('h1')).toHaveTextContent('Coffee With a Cop');
 
     const slides = screen.getAllByRole('group', { hidden: true });
     expect(slides[0]).toHaveAttribute('data-active', 'true');
@@ -93,7 +96,7 @@ describe('HeroCarousel component', () => {
   });
 
   it('advances to the next slide when the next control is clicked', () => {
-    render(<HeroCarousel {...defaultProps} />);
+    const { container } = render(<HeroCarousel {...defaultProps} />);
 
     const nextButton = screen.getByRole('button', { name: 'Next slide' });
     fireEvent.click(nextButton);
@@ -101,6 +104,8 @@ describe('HeroCarousel component', () => {
     expect(
       screen.getByRole('heading', { name: 'Go Big This Halloween' }),
     ).toBeVisible();
+    expect(container.querySelectorAll('h1')).toHaveLength(1);
+    expect(container.querySelector('h1')).toHaveTextContent('Go Big This Halloween');
 
     const slides = screen.getAllByRole('group', { hidden: true });
     expect(slides[1]).toHaveAttribute('data-active', 'true');

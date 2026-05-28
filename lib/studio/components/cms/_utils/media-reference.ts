@@ -24,9 +24,31 @@ function normalizeString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function repairTinyImageTransformParam(src: string): string {
+  try {
+    const parsed = new URL(src);
+    let changed = false;
+
+    for (const key of ['w', 'width', 'h', 'height']) {
+      const raw = parsed.searchParams.get(key);
+      if (!raw) continue;
+      const value = Number(raw);
+      if (Number.isInteger(value) && value > 0 && value < 16) {
+        parsed.searchParams.delete(key);
+        changed = true;
+      }
+    }
+
+    return changed ? parsed.toString() : src;
+  } catch {
+    return src;
+  }
+}
+
 export function resolveImageSource(value: unknown): string | undefined {
   if (typeof value === 'string') {
-    return validateImageUrl(value) || undefined;
+    const validated = validateImageUrl(value) || undefined;
+    return validated ? repairTinyImageTransformParam(validated) : undefined;
   }
 
   if (!isRecord(value)) {
@@ -40,7 +62,8 @@ export function resolveImageSource(value: unknown): string | undefined {
 
   const src = value.src;
   if (typeof src === 'string') {
-    return validateImageUrl(src) || undefined;
+    const validated = validateImageUrl(src) || undefined;
+    return validated ? repairTinyImageTransformParam(validated) : undefined;
   }
 
   const nestedSrc = resolveImageSource(src);
@@ -50,7 +73,8 @@ export function resolveImageSource(value: unknown): string | undefined {
 
   const originalUrl = normalizeString(value.originalUrl);
   if (originalUrl) {
-    return validateImageUrl(originalUrl) || undefined;
+    const validated = validateImageUrl(originalUrl) || undefined;
+    return validated ? repairTinyImageTransformParam(validated) : undefined;
   }
 
   return undefined;

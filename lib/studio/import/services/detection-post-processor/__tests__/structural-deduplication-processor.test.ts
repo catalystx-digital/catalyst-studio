@@ -378,4 +378,88 @@ describe('collapseDuplicateListingSurfaces', () => {
 
     expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
   })
+
+  it('drops top-level card grids that duplicate nested two-column listing cards', () => {
+    const components = [
+      component('two-column', {
+        leftColumn: [
+          {
+            type: 'card-grid',
+            content: {
+              cards: [
+                {
+                  title: 'Emergency Department status',
+                  description: 'View the page for a real time guide to how busy we are.',
+                  image: { src: { url: '/ed-home-lg.png' } },
+                },
+              ],
+            },
+          },
+        ],
+        rightColumn: [
+          {
+            type: 'card-grid',
+            content: {
+              cards: [
+                {
+                  title: 'Teen Health Info fact sheets',
+                  description: 'for young people aged 12 to 25.',
+                  image: { src: { url: '/poll.png' } },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      component('card-grid', {
+        cards: [
+          {
+            title: 'Emergency Department status',
+            description: 'View the page for a real time guide to how busy we are.',
+            image: { src: { url: '/ed.png' } },
+          },
+          {
+            title: 'Teen Health Info fact sheets',
+            description: 'for young people aged 12 to 25.',
+            image: { src: { url: '/poll-sm.png' } },
+          },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([components[0]])
+  })
+
+  it('keeps later card grids with additional distinct cards beyond a nested two-column listing', () => {
+    const components = [
+      component('two-column', {
+        leftColumn: [
+          {
+            type: 'card-grid',
+            content: {
+              cards: [{ title: 'Emergency Department status', image: { src: { url: '/ed-home-lg.png' } } }],
+            },
+          },
+        ],
+        rightColumn: [
+          {
+            type: 'card-grid',
+            content: {
+              cards: [{ title: 'Teen Health Info fact sheets', image: { src: { url: '/poll.png' } } }],
+            },
+          },
+        ],
+      }),
+      component('card-grid', {
+        cards: [
+          { title: 'Emergency Department status', image: { src: { url: '/ed.png' } } },
+          { title: 'Teen Health Info fact sheets', image: { src: { url: '/poll-sm.png' } } },
+          { title: 'Translation resources', image: { src: { url: '/translation.png' } } },
+          { title: 'Telehealth appointments', image: { src: { url: '/telehealth.png' } } },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
+  })
 })

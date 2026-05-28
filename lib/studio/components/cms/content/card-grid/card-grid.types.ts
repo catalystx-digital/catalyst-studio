@@ -83,6 +83,8 @@ export interface CardGridContent {
   cardStyle?: 'vertical' | 'horizontal' | 'compact';
   imagePosition?: 'top' | 'left' | 'right' | 'background';
   imageAspectRatio?: '16:9' | '4:3' | '1:1' | '3:2';
+  imageLoading?: 'lazy' | 'eager';
+  featureFirstCard?: boolean;
   filters?: CardGridFilter[];
 }
 

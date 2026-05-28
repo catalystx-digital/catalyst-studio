@@ -108,6 +108,7 @@ function CardImage({
   alt,
   className,
   originalUrl,
+  loading = 'lazy',
 }: {
   src: string;
   srcSet?: string;
@@ -115,6 +116,7 @@ function CardImage({
   alt: string;
   className?: string;
   originalUrl?: string;
+  loading?: 'lazy' | 'eager';
 }) {
   const [hasError, setHasError] = useState(false);
 
@@ -144,7 +146,7 @@ function CardImage({
       width={640}
       height={360}
       className={cn(className, 'transition-transform duration-500')}
-      loading="lazy"
+      loading={loading}
       onError={() => setHasError(true)}
       data-original-url={originalUrl}
     />
@@ -188,6 +190,29 @@ function getImageFromCard(
   };
 }
 
+function isIconLikeImage(
+  media: { src: string; alt?: string; originalUrl?: string } | null,
+): boolean {
+  if (!media) {
+    return false;
+  }
+
+  const haystack = `${media.src} ${media.originalUrl ?? ''} ${media.alt ?? ''}`.toLowerCase();
+  return /(?:^|[/?&_-])(?:icon|logo|glyph|badge)(?:[._/?&=-]|$)/.test(haystack);
+}
+
+function isCompactIconCard(card: NormalizedCardItem): boolean {
+  return (
+    isIconLikeImage(getImageFromCard(card)) &&
+    !card.description &&
+    !card.metadata?.author &&
+    !card.metadata?.date &&
+    !card.metadata?.category &&
+    !(Array.isArray(card.metadata?.tags) && card.metadata.tags.length > 0) &&
+    !(Array.isArray(card.actions) && card.actions.length > 0)
+  );
+}
+
 export function CardGridClient({
   content,
   className,
@@ -207,12 +232,11 @@ export function CardGridClient({
     ? rawColumns
     : (cardCount > 1 ? 3 : 1);
   const gap = content.gap ?? 'medium';
-  // Stitch design: Cards without custom background colors use horizontal layout (image left, text right)
-  // Quick Links have backgroundColor so they stay vertical; Info Cards don't have backgroundColor so they go horizontal
   const hasColoredCards = cards.some(card => card.backgroundColor);
-  const cardStyle = hasColoredCards ? (content.cardStyle ?? 'vertical') : 'horizontal';
-  const imagePosition = hasColoredCards ? (content.imagePosition ?? 'top') : 'left';
+  const cardStyle = content.cardStyle ?? (hasColoredCards ? 'vertical' : 'horizontal');
+  const imagePosition = content.imagePosition ?? (hasColoredCards ? 'top' : 'left');
   const aspectRatioKey = content.imageAspectRatio ?? DEFAULT_ASPECT_RATIO;
+  const imageLoading = content.imageLoading ?? 'lazy';
   const resolvedTheme = resolveTheme(theme);
 
   // Memoize theme class to avoid recalculating on every render
@@ -373,7 +397,7 @@ export function CardGridClient({
     );
   };
 
-  const renderLinkFooter = (card: NormalizedCardItem) => {
+  const renderLinkFooter = (card: NormalizedCardItem, compact = false) => {
     // Skip if card has explicit actions (buttons) or no link at all
     if (!card.link || (card.actions && card.actions.length > 0)) {
       return null;
@@ -386,7 +410,13 @@ export function CardGridClient({
       : 'Learn more';
 
     return (
-      <CardFooter className={cn('flex items-center gap-3 p-[var(--component-padding)] pt-0', resolvedThemeClass)}>
+      <CardFooter
+        className={cn(
+          'flex items-center gap-3 p-[var(--component-padding)] pt-0',
+          resolvedThemeClass,
+          compact && 'justify-center p-4 pt-0',
+        )}
+      >
         <Button
           asChild
           variant="link"
@@ -421,6 +451,27 @@ export function CardGridClient({
       return null;
     }
 
+    if (isIconLikeImage(media)) {
+      return (
+        <div
+          className={cn(
+            'flex shrink-0 items-center justify-center p-6',
+            cardStyle === 'horizontal' ? 'md:w-32 md:py-8' : 'min-h-28',
+          )}
+        >
+          <CardImage
+            src={media.src}
+            srcSet={media.srcSet}
+            sizes={media.sizes}
+            alt={media.alt ?? card.title}
+            className="h-16 w-16 object-contain"
+            originalUrl={media.originalUrl}
+            loading={imageLoading}
+          />
+        </div>
+      );
+    }
+
     if (cardStyle === 'horizontal') {
       const orderClass = position === 'right' ? 'md:order-last md:rounded-l-none md:rounded-r-xl' : 'md:rounded-r-none md:rounded-l-xl';
 
@@ -441,6 +492,7 @@ export function CardGridClient({
               alt={media.alt ?? card.title}
               className="h-full w-full object-cover"
               originalUrl={media.originalUrl}
+              loading={imageLoading}
             />
           </div>
         </div>
@@ -459,6 +511,7 @@ export function CardGridClient({
           alt={media.alt ?? card.title}
           className="h-full w-full object-cover"
           originalUrl={media.originalUrl}
+          loading={imageLoading}
         />
       </AspectRatio>
     );
@@ -466,6 +519,16 @@ export function CardGridClient({
 
   // Theme is set on parent Card - children inherit via CSS cascade
   const renderCardBody = (card: NormalizedCardItem, isOverlay = false) => (
+    (() => {
+      const compactIconCard = isCompactIconCard(card);
+      const hasBodyContent =
+        Boolean(card.description) ||
+        Boolean(card.metadata?.author) ||
+        Boolean(card.metadata?.date) ||
+        Boolean(card.metadata?.category) ||
+        Boolean(card.metadata?.tags?.length);
+
+      return (
     <>
       <CardHeader
         className={cn(
@@ -474,6 +537,7 @@ export function CardGridClient({
           dsSpacing.gap('sm'),
           cardStyle === 'compact' ? dsSpacing.padding('md') : dsSpacing.padding('lg'),
           isOverlay && `lg:${dsSpacing.padding('xl')}`,
+          compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
         )}
       >
         {card.badge && (
@@ -488,35 +552,40 @@ export function CardGridClient({
           </span>
         )}
 
-        <CardTitle className="text-xl line-clamp-2">
+        <CardTitle className={cn('line-clamp-2', compactIconCard ? 'text-base' : 'text-xl')}>
           {card.title}
         </CardTitle>
       </CardHeader>
 
-      <CardContent
-        className={cn(
-          'p-[var(--component-padding)] pt-0',
-          resolvedThemeClass,
-          'flex flex-1 flex-col',
-          dsSpacing.gap('md'),
-          cardStyle === 'compact'
-            ? dsSpacing.padding('md')
-            : dsSpacing.padding('lg'),
-          'pt-0',
-          isOverlay && `lg:${dsSpacing.px('xl')}`,
-        )}
-      >
-        {card.description && (
-          <p className={cmsBody('md', undefined, 'line-clamp-3')}>{card.description}</p>
-        )}
+      {hasBodyContent && (
+        <CardContent
+          className={cn(
+            'p-[var(--component-padding)] pt-0',
+            resolvedThemeClass,
+            'flex flex-1 flex-col',
+            dsSpacing.gap('md'),
+            cardStyle === 'compact'
+              ? dsSpacing.padding('md')
+              : dsSpacing.padding('lg'),
+            'pt-0',
+            isOverlay && `lg:${dsSpacing.px('xl')}`,
+            compactIconCard && 'items-center text-center',
+          )}
+        >
+          {card.description && (
+            <p className={cmsBody('md', undefined, 'line-clamp-3')}>{card.description}</p>
+          )}
 
-        {renderMetadata(card)}
-        {renderTags(card)}
-      </CardContent>
+          {renderMetadata(card)}
+          {renderTags(card)}
+        </CardContent>
+      )}
 
       {renderActions(card)}
-      {renderLinkFooter(card)}
+      {renderLinkFooter(card, compactIconCard)}
     </>
+      );
+    })()
   );
 
 
@@ -533,6 +602,7 @@ export function CardGridClient({
 
         // Skip rendering image for cards with custom background color (solid color cards)
         const media = hasCustomBg ? null : renderImage(card, imagePosition);
+        const compactIconCard = isCompactIconCard(card);
         const cardTheme = backgroundImage ? 'dark' : resolvedTheme;
 
         // Featured card styling: first card can span 2 columns when we have 3+ columns
@@ -542,7 +612,8 @@ export function CardGridClient({
         const wouldCreateBalancedLayout =
           cardsAfterFirstRow >= columns || // At least one full row after row 1
           cardsAfterFirstRow === 0; // Or exactly fills row 1
-        const isFeatured = index === 0 && columns >= 3 && cards.length > 2 && wouldCreateBalancedLayout;
+        const featureFirstCard = content.featureFirstCard !== false;
+        const isFeatured = featureFirstCard && index === 0 && columns >= 3 && cards.length > 2 && wouldCreateBalancedLayout;
         // P1 Fix: Sanitize red-like colors to primary for better semantics
         const sanitizedBgColor = sanitizeSemanticColor(card.backgroundColor);
         const customBgStyle = hasCustomBg ? { backgroundColor: sanitizedBgColor } : undefined;
@@ -566,6 +637,7 @@ export function CardGridClient({
               cardStyle === 'horizontal' && !backgroundImage && 'md:flex-row',
               cardStyle === 'compact' && 'md:max-w-md',
               backgroundImage && 'border-0 bg-transparent text-foreground shadow-none',
+              compactIconCard && 'justify-start',
               // Featured card styling - subtle emphasis
               isFeatured && 'md:col-span-2 border-primary/20',
               // Custom background styling - use white/light text for dark backgrounds
@@ -594,6 +666,7 @@ export function CardGridClient({
                         alt={mediaAsset.alt ?? card.title}
                         className="absolute inset-0 h-full w-full object-cover"
                         originalUrl={mediaAsset.originalUrl}
+                        loading={imageLoading}
                       />
                       <div
                         className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"

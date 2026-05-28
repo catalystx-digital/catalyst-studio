@@ -92,6 +92,20 @@ describe('CTABanner Component', () => {
     expect(card.style.backgroundImage).toContain('banner.png');
   });
 
+  it('adds a contrast overlay for image-backed banners', () => {
+    const { container } = render(
+      <CTABanner
+        {...baseProps}
+        content={{
+          ...baseProps.content,
+          backgroundImage: 'https://example.com/banner.png',
+        }}
+      />,
+    );
+
+    expect(container.querySelector('.bg-gradient-to-r.from-black\\/70')).toBeInTheDocument();
+  });
+
   it('normalizes media reference background images without rendering object URLs', () => {
     const { container } = render(
       <CTABanner

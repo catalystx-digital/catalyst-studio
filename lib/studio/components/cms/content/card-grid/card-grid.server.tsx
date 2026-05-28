@@ -88,6 +88,8 @@ export function CardGridServer({
     cardStyle: content.cardStyle ?? 'vertical',
     imagePosition: content.imagePosition ?? 'top',
     imageAspectRatio: content.imageAspectRatio ?? '16:9',
+    imageLoading: content.imageLoading,
+    featureFirstCard: content.featureFirstCard,
     ...(filters.length > 0 ? { filters } : {}),
   };
 

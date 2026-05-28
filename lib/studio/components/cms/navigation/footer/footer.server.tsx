@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { cmsBody, cmsHeading, dsSpacing, resolveTheme } from '../../_ui';
+import { cmsBody, cmsHeading, dsSpacing, resolveTheme, themeClass } from '../../_ui';
 import { FooterClient } from './footer.client';
 import { FooterLink, resolveLinkHref } from './footer-link';
 import { FooterLogo } from './footer-logo';
@@ -18,7 +18,13 @@ export function FooterServer({ content, className, style, theme, onInteraction }
   const columns = Array.isArray(content.columns) ? content.columns : [];
   const legalLinks = Array.isArray(content.legalLinks) ? content.legalLinks : [];
   const currentYear = new Date().getFullYear();
-  const resolvedTheme = resolveTheme(theme);
+  const hasCustomBackground = typeof content.backgroundColor === 'string' && content.backgroundColor.trim().length > 0;
+  const resolvedTheme = hasCustomBackground ? 'dark' : resolveTheme(theme);
+  const footerStyle: React.CSSProperties = {
+    ...(hasCustomBackground ? { backgroundColor: content.backgroundColor } : {}),
+    ...(typeof content.textColor === 'string' && content.textColor.trim() ? { color: content.textColor } : {}),
+    ...style,
+  };
 
   const hasInteractiveSection =
     (Array.isArray(content.socialLinks) && content.socialLinks.length > 0) ||
@@ -51,7 +57,11 @@ export function FooterServer({ content, className, style, theme, onInteraction }
   const gridClass = COLUMN_GRID[columns.length] ?? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
 
   return (
-    <footer className={cn('cms-footer bg-muted/50', className)} style={style} role="contentinfo">
+    <footer
+      className={cn('cms-footer', themeClass(resolvedTheme), hasCustomBackground ? 'text-white' : 'bg-muted/50', className)}
+      style={footerStyle}
+      role="contentinfo"
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
