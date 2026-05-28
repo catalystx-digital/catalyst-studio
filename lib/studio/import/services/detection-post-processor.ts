@@ -36,6 +36,7 @@ import { unwrapJsonContent } from './detection-post-processor/json-unwrap-proces
 import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
 import { promoteSourceFeatureTilesToCardGrid } from './detection-post-processor/feature-tile-grid-processor'
 import { enrichSourceNewsListing } from './detection-post-processor/source-news-processor'
+import { composeInstitutionalHomepageIfEligible } from './detection-post-processor/institutional-homepage-composer'
 import { applyDesignFit } from './detection-post-processor/design-fit-processor'
 import { telemetryCollector, withTelemetry, withConfidenceCheck } from './detection-post-processor/telemetry'
 import { checkProcessorSkip } from './detection-post-processor/confidence-config'
@@ -190,6 +191,28 @@ export function adjustDetectedComponents(
     })
     c.splice(0, c.length, ...enriched)
   })
+
+  if (options.designProfile || options.presentationSkeleton) {
+    withTelemetry('institutionalHomepageComposer', cloned, (c) => {
+      const result = composeInstitutionalHomepageIfEligible(c, {
+        pageUrl: options.pageUrl,
+        pageMetadata: options.pageMetadata,
+        domSnapshot: options.domSnapshot,
+        designProfile: options.designProfile,
+        presentationSkeleton: options.presentationSkeleton
+      })
+      c.splice(0, c.length, ...result.components)
+      if (result.applied || result.audit.status === 'skipped') {
+        console.log('[InstitutionalHomepageComposer] Completed homepage composition check', {
+          pageUrl: options.pageUrl,
+          applied: result.applied,
+          reason: result.audit.reason,
+          preservedComponentCount: result.audit.preservedComponentCount,
+          removedDuplicateCount: result.audit.removedDuplicateCount
+        })
+      }
+    })
+  }
 
   if (options.designProfile || options.presentationSkeleton) {
     withTelemetry('designFit', cloned, (c) => {

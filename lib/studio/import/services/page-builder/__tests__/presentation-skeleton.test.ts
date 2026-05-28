@@ -85,6 +85,7 @@ describe('selectPresentationSkeleton', () => {
     const selection = selectPresentationSkeleton({
       pageUrl: 'https://example.com/about',
       detection: detection({
+        pageMetadata: { pageType: 'home' },
         components: [{
           component: ComponentType.CardGrid,
           type: ComponentType.CardGrid,
@@ -96,5 +97,50 @@ describe('selectPresentationSkeleton', () => {
 
     expect(selection.key).toBe('unknown')
     expect(selection.confidence).toBe(0)
+  })
+
+  it('treats root-ish /home paths as homepage candidates', () => {
+    const selection = selectPresentationSkeleton({
+      pageUrl: 'https://example.com/home/',
+      detection: detection({
+        pageMetadata: { pageType: 'home', title: 'Example Hospital' },
+        components: [{
+          component: ComponentType.HeroWithImage,
+          type: ComponentType.HeroWithImage,
+          confidence: 0.9,
+          content: { heading: 'Example Hospital patient services' },
+        }],
+      }),
+    })
+
+    expect(selection.key).toBe('institutional-home')
+  })
+
+  it('counts hero-carousel as homepage hero evidence for institutional confidence', () => {
+    const selection = selectPresentationSkeleton({
+      pageUrl: 'https://www.rch.org.au/home/',
+      detection: detection({
+        pageMetadata: { pageType: 'home', title: 'The Royal Children Hospital' },
+        components: [
+          {
+            component: ComponentType.HeroCarousel,
+            type: ComponentType.HeroCarousel,
+            confidence: 0.9,
+            content: {
+              slides: [{ content: { heading: 'Hospital care for patients and families' } }],
+            },
+          },
+          {
+            component: ComponentType.CardGrid,
+            type: ComponentType.CardGrid,
+            confidence: 0.9,
+            content: { cards: [{ title: 'Patients and families' }, { title: 'Clinical guidelines' }] },
+          },
+        ],
+      }),
+    })
+
+    expect(selection.key).toBe('institutional-home')
+    expect(selection.confidence).toBeGreaterThanOrEqual(0.65)
   })
 })

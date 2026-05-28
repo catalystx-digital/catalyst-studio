@@ -2,6 +2,15 @@ import type { ImportDetectionResult } from '../../detection/types'
 import type { ImportDesignProfile, PresentationSkeletonSelection } from '../../types/design-profile.types'
 import { normalizePath, isHomePath } from '../../utils/path-utils'
 
+function isHomepageCandidate(pageUrl: string, _detection: ImportDetectionResult): boolean {
+  const path = normalizePath(pageUrl)
+  return (
+    isHomePath(path) ||
+    path === '/home' ||
+    path === '/index'
+  )
+}
+
 function countComponents(detection: ImportDetectionResult, types: string[]): number {
   const wanted = new Set(types)
   return (detection.components ?? []).filter(component => wanted.has(String(component.type))).length
@@ -33,8 +42,8 @@ export function selectPresentationSkeleton(input: {
   detection: ImportDetectionResult
   designProfile?: ImportDesignProfile | null
 }): PresentationSkeletonSelection {
-  const path = normalizePath(input.pageUrl)
-  if (!isHomePath(path)) {
+  if (!isHomepageCandidate(input.pageUrl, input.detection)) {
+    const path = normalizePath(input.pageUrl)
     return {
       key: 'unknown',
       confidence: 0,
@@ -43,7 +52,7 @@ export function selectPresentationSkeleton(input: {
     }
   }
 
-  const hasHero = countComponents(input.detection, ['hero-with-image', 'hero-simple', 'hero-banner', 'hero-split']) > 0
+  const hasHero = countComponents(input.detection, ['hero-with-image', 'hero-simple', 'hero-banner', 'hero-split', 'hero-carousel']) > 0
   const hasLogoCloud = countComponents(input.detection, ['logo-cloud']) > 0
   const cardGridCount = countComponents(input.detection, ['card-grid', 'feature-grid', 'feature-list'])
   const pageType = input.detection.pageMetadata?.pageType
