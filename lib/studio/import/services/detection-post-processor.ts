@@ -15,6 +15,7 @@
 
 import type { DetectedComponent, PageMetadata } from '@/lib/studio/import/detection/types'
 import type { ResourcesSummary } from './web-tools'
+import type { ImportDesignProfile, PresentationSkeletonSelection } from '../types/design-profile.types'
 import { UrlTransformConfig } from '../config/import-config'
 import { transformComponentUrls, extractOrigin } from '../utils/url-transformer'
 
@@ -28,11 +29,13 @@ import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-me
 import { tagPageComponents, tagListingComponents } from './detection-post-processor/content-tagging-processor'
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
 import { enrichHeroContent } from './detection-post-processor/hero-content-enrichment'
+import { recoverMissingHomepageHero } from './detection-post-processor/hero-recovery-processor'
 import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
 import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
 import { promoteSourceFeatureTilesToCardGrid } from './detection-post-processor/feature-tile-grid-processor'
 import { enrichSourceNewsListing } from './detection-post-processor/source-news-processor'
+import { applyDesignFit } from './detection-post-processor/design-fit-processor'
 import { telemetryCollector, withTelemetry, withConfidenceCheck } from './detection-post-processor/telemetry'
 import { checkProcessorSkip } from './detection-post-processor/confidence-config'
 
@@ -44,6 +47,8 @@ interface PostProcessorOptions {
   pageUrl?: string
   resourcesSummary?: ResourcesSummary
   pageMetadata?: PageMetadata
+  designProfile?: ImportDesignProfile | null
+  presentationSkeleton?: PresentationSkeletonSelection | null
 }
 
 /**
@@ -113,6 +118,11 @@ export function adjustDetectedComponents(
     pageUrl: options.pageUrl
   }))
 
+  withTelemetry('heroRecovery', cloned, (c) => recoverMissingHomepageHero(c, {
+    domSnapshot: options.domSnapshot,
+    pageUrl: options.pageUrl
+  }))
+
   withTelemetry('featureTileGridPromotion', cloned, (c) => {
     const promoted = promoteSourceFeatureTilesToCardGrid(c, {
       domSnapshot: options.domSnapshot,
@@ -174,6 +184,24 @@ export function adjustDetectedComponents(
     })
     c.splice(0, c.length, ...enriched)
   })
+
+  if (options.designProfile || options.presentationSkeleton) {
+    withTelemetry('designFit', cloned, (c) => {
+      const result = applyDesignFit(c, {
+        designProfile: options.designProfile,
+        skeleton: options.presentationSkeleton
+      })
+      c.splice(0, c.length, ...result.components)
+      if (result.mutations.length > 0 || result.diagnostics.length > 0) {
+        console.log('[DesignFit] Applied source-aware presentation fit', {
+          pageUrl: options.pageUrl,
+          skeleton: options.presentationSkeleton?.key ?? 'unknown',
+          mutations: result.mutations.length,
+          diagnostics: result.diagnostics.length
+        })
+      }
+    })
+  }
 
   // Transform URLs from source site to relative/target format
   const transformed = transformSourceUrls(cloned, options.pageUrl)

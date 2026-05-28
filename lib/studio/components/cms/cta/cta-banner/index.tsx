@@ -8,6 +8,7 @@ import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { CmsSection, cmsBody, cmsHeading, dsSpacing } from '../../_ui';
 import { resolveSmartLinkHref } from '../../_utils/smart-link';
+import { normalizeImage } from '../../_utils/image-normalization';
 import type { CTABannerProps, CTABannerContent } from './cta-banner.types';
 
 export type { CTABannerProps, CTABannerContent } from './cta-banner.types';
@@ -40,6 +41,7 @@ function sanitizeClassName(className?: string): string {
 const CTABannerComponent: React.FC<CTABannerProps> = ({ id, type, content, className, style, theme, onInteraction }) => {
   const { heading, subheading, backgroundColor, textColor, alignment = 'center', backgroundImage, fullWidth } = content ?? {};
   const sanitizedClassName = sanitizeClassName(className);
+  const normalizedBackgroundImage = normalizeImage(backgroundImage as any)?.src;
 
   const primaryBtn = normalizeButton(content?.primaryButton);
   const secondaryBtn = normalizeButton(content?.secondaryButton);
@@ -51,12 +53,12 @@ const CTABannerComponent: React.FC<CTABannerProps> = ({ id, type, content, class
 
   // Simplified: Only use background image if provided, ignore custom gradients for cleaner look
   const bannerStyle: React.CSSProperties = {
-    ...(backgroundImage ? { backgroundImage: `url("${backgroundImage}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+    ...(normalizedBackgroundImage ? { backgroundImage: `url("${normalizedBackgroundImage}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
     ...style,
   };
 
   // Ignore gradient backgrounds - use shadcn primary for cleaner, modern look
-  const hasCustomBg = backgroundImage;
+  const hasCustomBg = Boolean(normalizedBackgroundImage);
 
   return (
     <CmsSection size="sm" theme={theme} className={cn('cms-cta-banner', sanitizedClassName)} container={false} data-component-type={type} data-component-id={id}>

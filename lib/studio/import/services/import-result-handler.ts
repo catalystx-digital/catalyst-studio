@@ -16,6 +16,7 @@ import { ImportJobRepository } from '../repositories/import-job.repository';
 import { ImportProgressManager } from './import-progress-manager';
 import { ImportOrchestrator } from './import-orchestrator';
 import { DesignSystemService } from './design-system-service';
+import type { DesignSystemProcessingResult } from './design-system-service';
 import { ImportRunService, isTerminalImportRunStatus } from './import-run-service';
 import type { ImportResult } from './interfaces/import-orchestrator.interface';
 import { getWebFetchTools } from './web-tools';
@@ -31,6 +32,9 @@ import {
 } from './page-builder/normalization-telemetry';
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service';
 import { adjustDetectedComponents } from './detection-post-processor';
+import { buildImportDesignProfile } from './design-profile-service';
+import { selectPresentationSkeleton } from './page-builder/presentation-skeleton';
+import type { DesignFitPageAudit, ImportDesignProfile, PresentationSkeletonSelection } from '../types/design-profile.types';
 import { normalizeComponentContent } from './page-builder/component-helpers';
 import { canonicalizeComponentType } from './page-builder/component-helpers';
 import { PageBuilderService } from './page-builder-service';
@@ -170,6 +174,41 @@ function collectPreflightComponentTypes(detectionPayload: any[]): any[] {
   }));
 }
 
+function collectDesignFitAudit(
+  components: any[],
+  designProfile: ImportDesignProfile,
+  skeleton: PresentationSkeletonSelection,
+): DesignFitPageAudit {
+  const componentAudits = components
+    .map((component) => ({
+      component: String(component.type ?? component.component ?? 'unknown'),
+      mutations: Array.isArray(component.metadata?.designFit?.mutations)
+        ? component.metadata.designFit.mutations
+        : [],
+    }))
+    .filter((audit) => audit.mutations.length > 0);
+
+  const diagnostics: DesignFitPageAudit['diagnostics'] = [
+    ...designProfile.diagnostics,
+    ...skeleton.diagnostics,
+  ];
+
+  if (skeleton.key === 'unknown') {
+    diagnostics.push({
+      code: 'DESIGN_PROFILE_LOW_CONFIDENCE',
+      severity: 'warning',
+      message: 'No confident presentation skeleton was selected; design-fit mutations were skipped.',
+    });
+  }
+
+  return {
+    skeleton,
+    profileConfidence: designProfile.confidence,
+    diagnostics,
+    components: componentAudits,
+  };
+}
+
 async function validateDetectionPayloadWithPageBuilder(
   prisma: PrismaClient,
   detectionPayload: any[],
@@ -304,6 +343,7 @@ export class ImportResultHandler {
     let mediaAssets: MediaIngestResult['mediaAssets'] = [];
     let mediaWarnings: MediaIngestResult['warnings'] = [];
     let originalScreenshots: Array<{ url: string; pageUrl: string; key: string }> = [];
+    let designSystemResult: DesignSystemProcessingResult | null = null;
 
     // --- Handle redirect pages: Store as Redirects instead of empty pages ---
     const redirectPages = detectionPages.filter((d) => d.isRedirectPage && d.redirectInfo?.isExternal);
@@ -393,7 +433,7 @@ export class ImportResultHandler {
       try {
         console.log(`[ImportResultHandler] Processing design system for website ${job.websiteId}`);
 
-        const designSystemResult = await this.designSystemService.processDesignSystem({
+        designSystemResult = await this.designSystemService.processDesignSystem({
           websiteId: job.websiteId,
           detectionResults: detectionPages,
           sourceJobId: job.id,
@@ -456,6 +496,9 @@ export class ImportResultHandler {
     const pageSummaryByUrl = new Map<string, DetectionPageSummary>();
     const pageMetaByUrl = new Map<string, any>();
     const templateByUrl = new Map<string, ImportDetectionResult['pageTemplate']>();
+    const designProfileByUrl = new Map<string, ImportDesignProfile>();
+    const skeletonByUrl = new Map<string, PresentationSkeletonSelection>();
+    const designFitAuditByUrl = new Map<string, DesignFitPageAudit>();
     const groups = new Map<string, { pageUrl: string; pageTitle: string; components: any[] }>();
 
     let totalComponentsDetected = 0;
@@ -475,18 +518,37 @@ export class ImportResultHandler {
         }
       | null = null;
 
+    const importDesignProfile = buildImportDesignProfile({
+      sourceUrl: job.url,
+      designSystemResult,
+      detections: detectionPages,
+    });
+
     for (const rawDetection of detectionPages) {
       const detection = rawDetection as ImportDetectionResult;
       const pageUrl = detection.pageUrl || job.url;
       const pageTitle = selectPageTitle(detection.pageUrl, detection.pageMetadata, detection.components);
+      const presentationSkeleton = selectPresentationSkeleton({
+        pageUrl,
+        detection,
+        designProfile: importDesignProfile,
+      });
+      designProfileByUrl.set(pageUrl, importDesignProfile);
+      skeletonByUrl.set(pageUrl, presentationSkeleton);
 
       if (Array.isArray(detection.components)) {
         detection.components = adjustDetectedComponents(detection.components, {
           domSnapshot: domSnapshotHtml,
           pageUrl,
           resourcesSummary: detection.resourcesSummary,
-          pageMetadata: detection.pageMetadata
+          pageMetadata: detection.pageMetadata,
+          designProfile: importDesignProfile,
+          presentationSkeleton,
         });
+        designFitAuditByUrl.set(
+          pageUrl,
+          collectDesignFitAudit(detection.components, importDesignProfile, presentationSkeleton)
+        );
       }
 
       if (detection.pageMetadata) {
@@ -551,6 +613,10 @@ export class ImportResultHandler {
           logo: metadata?.logo ?? null,
           favicon: metadata?.favicon ?? null,
           visualStyle: metadata?.visualStyle ?? null,
+          designProfileConfidence: importDesignProfile.confidence,
+          designProfileDiagnostics: importDesignProfile.diagnostics,
+          presentationSkeleton,
+          designFitAudit: designFitAuditByUrl.get(pageUrl),
         },
         components: summaryComponents,
       };
@@ -608,6 +674,8 @@ export class ImportResultHandler {
       totalPages: detectionPages.length,
       mediaAssets: mediaAssets.length,
       mediaWarnings: mediaWarnings.length,
+      designProfileConfidence: importDesignProfile.confidence,
+      designProfileDiagnostics: importDesignProfile.diagnostics.length,
     };
 
     const mediaDiagnostics: {
@@ -636,6 +704,9 @@ export class ImportResultHandler {
       // pages: pageSummaries,  // REMOVED - now stored in ImportPageDetection table
       navigation,
       designTokens,
+      importDesignProfile,
+      presentationSkeletons: Object.fromEntries(skeletonByUrl.entries()),
+      designFitAudit: Object.fromEntries(designFitAuditByUrl.entries()),
       metadata: detectionSummary,
       failedPages: [],
       mediaDiagnostics
@@ -701,6 +772,9 @@ export class ImportResultHandler {
           componentTypes: [...new Set(children.map((child) => child.type))],
           pageMetadata: pageMetaByUrl.get(group.pageUrl),
           pageTemplate: template,
+          importDesignProfile: designProfileByUrl.get(group.pageUrl),
+          presentationSkeleton: skeletonByUrl.get(group.pageUrl),
+          designFitAudit: designFitAuditByUrl.get(group.pageUrl),
           sitemap,
         },
       };

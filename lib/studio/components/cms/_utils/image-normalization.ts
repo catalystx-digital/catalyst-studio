@@ -64,10 +64,31 @@ export function buildSrcSet(renditions: ImageRendition[]): string | undefined {
 }
 
 interface RawImage {
-  src?: string | { src?: unknown; url?: unknown; originalUrl?: string; renditions?: unknown[] };
+  src?: string | { src?: unknown; url?: unknown; originalUrl?: unknown; renditions?: unknown[] };
+  url?: unknown;
   alt?: string;
-  originalUrl?: string;
+  originalUrl?: unknown;
   renditions?: unknown[];
+}
+
+function resolveUrlCandidate(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return validateImageUrl(value);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of ['url', 'src', 'originalUrl']) {
+    const resolved = resolveUrlCandidate(record[key]);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -93,11 +114,11 @@ export function normalizeImage(
 
   if (typeof image.src === 'string') {
     resolvedSrc = validateImageUrl(image.src);
-    resolvedOriginalUrl = image.originalUrl;
+    resolvedOriginalUrl = resolveUrlCandidate(image.originalUrl);
     sourceRenditions = image.renditions;
   } else if (isNestedMediaObject(image.src)) {
     resolvedSrc = validateImageUrl(image.src.src);
-    resolvedOriginalUrl = image.src.originalUrl ?? image.originalUrl;
+    resolvedOriginalUrl = resolveUrlCandidate(image.src.originalUrl) ?? resolveUrlCandidate(image.originalUrl);
     sourceRenditions = Array.isArray(image.src.renditions)
       ? image.src.renditions
       : image.renditions;
@@ -106,7 +127,7 @@ export function normalizeImage(
     const nestedUrl = nested.url;
     if (typeof nestedUrl === 'string') {
       resolvedSrc = validateImageUrl(nestedUrl);
-      resolvedOriginalUrl = typeof nested.originalUrl === 'string' ? nested.originalUrl : image.originalUrl;
+      resolvedOriginalUrl = resolveUrlCandidate(nested.originalUrl) ?? resolveUrlCandidate(image.originalUrl);
       sourceRenditions = Array.isArray(nested.renditions) ? nested.renditions : image.renditions;
     } else if (nestedUrl && typeof nestedUrl === 'object') {
       const malformedUrl = nestedUrl as Record<string, unknown>;
@@ -117,25 +138,35 @@ export function normalizeImage(
           : undefined;
       resolvedSrc = srcCandidate ? validateImageUrl(srcCandidate) : undefined;
       resolvedOriginalUrl =
-        (typeof malformedUrl.originalUrl === 'string' ? malformedUrl.originalUrl : undefined) ??
-        (typeof nested.originalUrl === 'string' ? nested.originalUrl : undefined) ??
-        image.originalUrl;
+        resolveUrlCandidate(malformedUrl.originalUrl) ??
+        resolveUrlCandidate(nested.originalUrl) ??
+        resolveUrlCandidate(image.originalUrl);
       sourceRenditions = Array.isArray(malformedUrl.renditions)
         ? malformedUrl.renditions
         : Array.isArray(nested.renditions)
           ? nested.renditions
           : image.renditions;
     }
-    if (!resolvedSrc && typeof nested.originalUrl === 'string') {
-      resolvedSrc = validateImageUrl(nested.originalUrl);
-      resolvedOriginalUrl = nested.originalUrl;
+    const nestedOriginalUrl = resolveUrlCandidate(nested.originalUrl);
+    if (!resolvedSrc && nestedOriginalUrl) {
+      resolvedSrc = nestedOriginalUrl;
+      resolvedOriginalUrl = nestedOriginalUrl;
       sourceRenditions = Array.isArray(nested.renditions) ? nested.renditions : image.renditions;
     }
   }
 
-  if (!resolvedSrc && typeof image.originalUrl === 'string') {
-    resolvedSrc = validateImageUrl(image.originalUrl);
-    resolvedOriginalUrl = image.originalUrl;
+  if (!resolvedSrc) {
+    const topLevelUrl = resolveUrlCandidate(image.url);
+    if (topLevelUrl) {
+      resolvedSrc = topLevelUrl;
+      resolvedOriginalUrl = topLevelUrl;
+    }
+  }
+
+  const originalUrl = resolveUrlCandidate(image.originalUrl);
+  if (!resolvedSrc && originalUrl) {
+    resolvedSrc = originalUrl;
+    resolvedOriginalUrl = originalUrl;
   }
 
   const renditions = normalizeRenditions(sourceRenditions);

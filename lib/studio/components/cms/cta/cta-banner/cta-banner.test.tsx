@@ -92,6 +92,28 @@ describe('CTABanner Component', () => {
     expect(card.style.backgroundImage).toContain('banner.png');
   });
 
+  it('normalizes media reference background images without rendering object URLs', () => {
+    const { container } = render(
+      <CTABanner
+        {...baseProps}
+        content={{
+          ...baseProps.content,
+          backgroundImage: {
+            url: {
+              url: 'https://example.com/media-banner.png',
+              mediaId: 'media-1',
+              mediaType: 'image',
+            },
+          } as any,
+        }}
+      />,
+    );
+
+    const card = container.querySelector('.cms-cta-banner .rounded-xl') as HTMLElement;
+    expect(card.style.backgroundImage).toContain('media-banner.png');
+    expect(card.style.backgroundImage).not.toContain('[object Object]');
+  });
+
   it('omits links when no buttons are provided', () => {
     render(
       <CTABanner

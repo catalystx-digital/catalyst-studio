@@ -39,6 +39,7 @@ export interface AIComponentMetadata {
   variant?: string
   contentTypeTag?: string
   pageTag?: string
+  sourceEvidence?: Record<string, unknown>
 }
 
 export interface DetectedComponent {

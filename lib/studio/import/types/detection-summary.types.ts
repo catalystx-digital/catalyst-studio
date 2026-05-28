@@ -1,4 +1,5 @@
 import type { WebsiteMediaReference } from '@/types/api';
+import type { DesignFitPageAudit, DesignProfileDiagnostic, PresentationSkeletonSelection } from './design-profile.types';
 export interface DetectionComponentSummary {
   component: string
   type: string
@@ -35,6 +36,10 @@ export interface DetectionPageSummary {
     logo?: BrandingAssetReference
     favicon?: BrandingAssetReference
     visualStyle?: string | null
+    designProfileConfidence?: number
+    designProfileDiagnostics?: DesignProfileDiagnostic[]
+    presentationSkeleton?: PresentationSkeletonSelection
+    designFitAudit?: DesignFitPageAudit
     importStatus?: 'invalid' | 'error'
     importIssues?: unknown
     normalizationWarnings?: NormalizationWarningSummary[]
@@ -57,4 +62,6 @@ export interface DetectionSummaryMetadata {
   mediaWarnings?: number
   mediaMissingSrc?: number
   mediaMissingSrcPages?: number
+  designProfileConfidence?: number
+  designProfileDiagnostics?: number
 }
