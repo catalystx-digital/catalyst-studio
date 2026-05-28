@@ -30,6 +30,7 @@ import { tagPageComponents, tagListingComponents } from './detection-post-proces
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
 import { enrichHeroContent } from './detection-post-processor/hero-content-enrichment'
 import { recoverMissingHomepageHero } from './detection-post-processor/hero-recovery-processor'
+import { completeCardGridsFromSource } from './detection-post-processor/card-grid-completion-processor'
 import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
 import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
@@ -119,6 +120,11 @@ export function adjustDetectedComponents(
   }))
 
   withTelemetry('heroRecovery', cloned, (c) => recoverMissingHomepageHero(c, {
+    domSnapshot: options.domSnapshot,
+    pageUrl: options.pageUrl
+  }))
+
+  withTelemetry('cardGridCompletion', cloned, (c) => completeCardGridsFromSource(c, {
     domSnapshot: options.domSnapshot,
     pageUrl: options.pageUrl
   }))

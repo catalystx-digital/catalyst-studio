@@ -22,6 +22,10 @@ interface ExtractedImage {
   alt?: string
   /** Text context near the image (for matching to components) */
   nearbyText?: string
+  /** Nearest source section around the image, used to prevent cross-section matches. */
+  sectionHtml?: string
+  sectionText?: string
+  sectionKind?: 'logo' | 'content' | 'navigation'
 }
 
 /**
@@ -60,14 +64,99 @@ function extractImagesFromDom(html: string): ExtractedImage[] {
     const altMatch = altRegex.exec(fullTag)
     const alt = altMatch?.[1] || undefined
 
-    // Extract nearby text for context matching
-    const tagIndex = match.index
-    const nearbyText = extractNearbyText(html, tagIndex)
+    const sectionHtml = extractNearestSectionHtml(html, match.index)
+    const sectionKind = classifySection(sectionHtml)
+    if (sectionKind === 'navigation') continue
 
-    images.push({ src, alt, nearbyText })
+    const tagIndex = match.index
+    const nearbyText = extractSectionText(sectionHtml) || extractNearbyText(html, tagIndex)
+
+    images.push({
+      src,
+      alt,
+      nearbyText,
+      sectionHtml,
+      sectionText: nearbyText,
+      sectionKind
+    })
   }
 
   return images
+}
+
+function extractNearestSectionHtml(html: string, tagIndex: number): string {
+  const semanticSection = extractNearestOpenElement(html, tagIndex, ['section', 'article', 'header', 'footer', 'nav'])
+  if (semanticSection) return semanticSection
+
+  const divSection = extractNearestOpenElement(html, tagIndex, ['div'])
+  if (divSection) return divSection
+
+  const mainSection = extractNearestOpenElement(html, tagIndex, ['main'])
+  if (mainSection) return mainSection
+
+  const start = Math.max(0, tagIndex - 500)
+  const end = Math.min(html.length, tagIndex + 500)
+  return html.slice(start, end)
+}
+
+function extractNearestOpenElement(html: string, tagIndex: number, tags: string[]): string | null {
+  const before = html.slice(0, tagIndex)
+  const tagPattern = tags.map(tag => tag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
+  const openMatches = Array.from(before.matchAll(new RegExp(`<(${tagPattern})\\b[^>]*>`, 'gi')))
+  const opening = openMatches.reverse().find(match => {
+    const tag = match[1]?.toLowerCase()
+    if (!tag) return false
+    const afterOpen = before.slice((match.index || 0) + match[0].length)
+    const closeCount = (afterOpen.match(new RegExp(`</${tag}>`, 'gi')) || []).length
+    const openCount = (afterOpen.match(new RegExp(`<${tag}\\b[^>]*>`, 'gi')) || []).length
+    return closeCount <= openCount
+  })
+
+  if (!opening) {
+    return null
+  }
+
+  const tag = opening[1].toLowerCase()
+  const start = opening.index || 0
+  const closingRegex = new RegExp(`</${tag}>`, 'gi')
+  closingRegex.lastIndex = tagIndex
+  const closing = closingRegex.exec(html)
+  const end = closing ? closing.index + closing[0].length : Math.min(html.length, tagIndex + 500)
+  return html.slice(start, end)
+}
+
+function classifySection(sectionHtml: string): ExtractedImage['sectionKind'] {
+  const tagMatch = sectionHtml.match(/^<([a-z0-9-]+)\b/i)
+  const openingTag = sectionHtml.slice(0, Math.min(sectionHtml.indexOf('>') + 1 || 200, 300)).toLowerCase()
+  if (
+    tagMatch?.[1]?.toLowerCase() === 'nav' ||
+    tagMatch?.[1]?.toLowerCase() === 'header' ||
+    /\b(role|aria-label)\s*=\s*["'][^"']*(navigation|menu)[^"']*["']/i.test(openingTag) ||
+    /\b(class|id)\s*=\s*["'][^"']*(mega|menu|nav|navbar|dropdown|header)[^"']*["']/i.test(openingTag)
+  ) {
+    return 'navigation'
+  }
+
+  const text = extractSectionText(sectionHtml).toLowerCase()
+  if (
+    /\b(class|id)\s*=\s*["'][^"']*(awards?|logo|logos|client|clients)[^"']*["']/i.test(openingTag) ||
+    /\b(trusted by|client logos?|partner logos?|awards? and recognition)\b/.test(text)
+  ) {
+    return 'logo'
+  }
+
+  return 'content'
+}
+
+function extractSectionText(sectionHtml: string): string {
+  return sectionHtml
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 600)
 }
 
 /**
@@ -157,6 +246,10 @@ function normalizeToAbsolute(src: string, pageUrl?: string): string {
   }
 }
 
+function normalizeImageUrl(src: string, pageUrl?: string): string {
+  return normalizeToAbsolute(src, pageUrl).toLowerCase().replace(/&amp;/g, '&')
+}
+
 /**
  * Gets all image URLs already present in a component
  */
@@ -175,18 +268,18 @@ function getExistingImageUrls(component: DetectedComponent): Set<string> {
 
     // Check for image-like fields
     if (typeof record.src === 'string') {
-      urls.add(record.src.toLowerCase())
+      urls.add(record.src.toLowerCase().replace(/&amp;/g, '&'))
     }
     if (typeof record.url === 'string') {
-      urls.add(record.url.toLowerCase())
+      urls.add(record.url.toLowerCase().replace(/&amp;/g, '&'))
     }
     if (typeof record.originalUrl === 'string') {
-      urls.add(record.originalUrl.toLowerCase())
+      urls.add(record.originalUrl.toLowerCase().replace(/&amp;/g, '&'))
     }
     if (typeof record.image === 'object' && record.image) {
       const img = record.image as Record<string, unknown>
       if (typeof img.src === 'string') {
-        urls.add(img.src.toLowerCase())
+        urls.add(img.src.toLowerCase().replace(/&amp;/g, '&'))
       }
     }
 
@@ -196,6 +289,16 @@ function getExistingImageUrls(component: DetectedComponent): Set<string> {
 
   scanValue(component.content)
   return urls
+}
+
+function getImageUrl(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (!isRecord(value)) return null
+  if (typeof value.url === 'string') return value.url
+  if (typeof value.src === 'string') return value.src
+  if (isRecord(value.src) && typeof value.src.url === 'string') return value.src.url
+  if (typeof value.originalUrl === 'string') return value.originalUrl
+  return null
 }
 
 /**
@@ -306,13 +409,21 @@ function enrichComponentWithImage(
     return enrichCardCollection(content.pinned, image, imageData)
   }
 
-  if (component.type === 'cta-banner' && !content.backgroundImage) {
-    content.backgroundImage = absoluteSrc
-    return true
+  if (component.type === 'cta-banner') {
+    // CTA media is reconciled by source section before the generic enrichment loop.
+    // Per-image CTA matching is too broad on pages with footer badges and global logos.
+    return false
   }
 
   if (component.type === 'logo-cloud') {
+    if (image.sectionKind !== 'logo') {
+      return false
+    }
     const logos = Array.isArray(content.logos) ? content.logos as unknown[] : []
+    const existingUrls = getExistingImageUrls(component)
+    if (existingUrls.has(normalizeImageUrl(absoluteSrc, pageUrl))) {
+      return false
+    }
     content.logos = [
       ...logos,
       {
@@ -379,6 +490,27 @@ function stableImageId(src: string): string {
   const file = withoutQuery.split('/').filter(Boolean).pop() || 'image'
   const base = file.replace(/\.[a-z0-9]+$/i, '')
   return base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'image'
+}
+
+function imageUrlSame(a: unknown, b: unknown, pageUrl?: string): boolean {
+  const aUrl = getImageUrl(a)
+  const bUrl = getImageUrl(b)
+  if (!aUrl || !bUrl) return false
+  return normalizeImageUrl(aUrl, pageUrl) === normalizeImageUrl(bUrl, pageUrl)
+}
+
+function sectionContainsImageUrl(sectionHtml: string, src: unknown, pageUrl?: string): boolean {
+  const srcUrl = getImageUrl(src)
+  if (!sectionHtml || !srcUrl) return false
+  const normalizedSection = sectionHtml.toLowerCase().replace(/&amp;/g, '&')
+  const normalizedSrc = normalizeImageUrl(srcUrl, pageUrl)
+  const rawSrc = srcUrl.toLowerCase().replace(/&amp;/g, '&')
+  try {
+    const pathname = new URL(srcUrl, pageUrl).pathname.toLowerCase()
+    return normalizedSection.includes(normalizedSrc) || normalizedSection.includes(rawSrc) || normalizedSection.includes(pathname)
+  } catch {
+    return normalizedSection.includes(normalizedSrc) || normalizedSection.includes(rawSrc)
+  }
 }
 
 function hasImage(record: Record<string, unknown>): boolean {
@@ -489,6 +621,11 @@ export function enrichComponentImages(
 
   if (domImages.length === 0) return components
 
+  reconcileLogoCloudsFromSourceSections(components, domSnapshot, pageUrl)
+  reconcileLogoCloudsWithSourceSections(components, domImages, pageUrl)
+  reconcileCtaImagesWithSourceSections(components, domSnapshot, domImages, pageUrl)
+  removeUnsupportedCardGridImages(components, domSnapshot)
+
   // Collect all already-captured image URLs across all components
   const capturedUrls = new Set<string>()
   for (const component of components) {
@@ -498,8 +635,8 @@ export function enrichComponentImages(
 
   // Find uncaptured images
   const uncapturedImages = domImages.filter(img => {
-    const normalizedSrc = normalizeToAbsolute(img.src, pageUrl).toLowerCase()
-    return !capturedUrls.has(normalizedSrc) && !capturedUrls.has(img.src.toLowerCase())
+    const normalizedSrc = normalizeImageUrl(img.src, pageUrl)
+    return !capturedUrls.has(normalizedSrc) && !capturedUrls.has(img.src.toLowerCase().replace(/&amp;/g, '&'))
   })
 
   console.log('[ImageEnrichment] Uncaptured images:', {
@@ -521,7 +658,7 @@ export function enrichComponentImages(
       if (imageMatchesComponent(image, componentText)) {
         // Check if we haven't already added this image
         const existingUrls = getExistingImageUrls(component)
-        const normalizedSrc = normalizeToAbsolute(image.src, pageUrl).toLowerCase()
+        const normalizedSrc = normalizeImageUrl(image.src, pageUrl)
 
         if (!existingUrls.has(normalizedSrc)) {
           const mutated = enrichComponentWithImage(component, image, pageUrl)
@@ -544,5 +681,272 @@ export function enrichComponentImages(
     }
   }
 
+  reconcileLogoCloudsFromSourceSections(components, domSnapshot, pageUrl)
+  removeUnsupportedCardGridImages(components, domSnapshot)
   return components
+}
+
+function reconcileLogoCloudsFromSourceSections(
+  components: DetectedComponent[],
+  domSnapshot: string,
+  pageUrl?: string
+): void {
+  const logoSections = extractContentSections(domSnapshot)
+    .filter(section => classifySection(section.html) === 'logo')
+    .map(section => ({
+      ...section,
+      images: extractSectionImages(section.html)
+    }))
+    .filter(section => section.images.length > 0)
+
+  if (logoSections.length === 0) return
+
+  for (const component of components) {
+    if (component.type !== 'logo-cloud' || !isRecord(component.content)) continue
+
+    const existingUrls = getExistingImageUrls(component)
+    const existingLogoText = JSON.stringify(component.content).toLowerCase()
+    const existingLooksLikeAwards = /\baward/.test(existingLogoText)
+    const best = logoSections
+      .map(section => {
+        const sourceUrls = new Set(section.images.map(image => normalizeImageUrl(image.src, pageUrl)))
+        const overlap = Array.from(existingUrls).filter(url => sourceUrls.has(normalizeImageUrl(url, pageUrl))).length
+        const awardBoost = existingLooksLikeAwards && section.html.toLowerCase().includes('award') ? 1 : 0
+        return { section, overlap, score: overlap + awardBoost }
+      })
+      .sort((a, b) => b.score - a.score)[0]
+
+    const bestLooksLikeAwards = Boolean(best?.section.html.toLowerCase().includes('award'))
+    if (!best || (best.overlap < 2 && !(existingLooksLikeAwards && bestLooksLikeAwards))) continue
+
+    const unique = new Map<string, Pick<ExtractedImage, 'src' | 'alt'>>()
+    for (const image of best.section.images) {
+      const absoluteSrc = normalizeToAbsolute(image.src, pageUrl)
+      unique.set(normalizeImageUrl(absoluteSrc, pageUrl), { ...image, src: absoluteSrc })
+    }
+
+    const content = component.content as Record<string, unknown>
+    content.logos = Array.from(unique.values()).map(image => {
+      const absoluteSrc = normalizeToAbsolute(image.src, pageUrl)
+      return {
+        id: stableImageId(absoluteSrc),
+        src: {
+          mediaId: `detected:${stableImageId(absoluteSrc)}`,
+          mediaType: 'image' as const,
+          url: absoluteSrc
+        },
+        alt: image.alt || '',
+        originalUrl: absoluteSrc
+      }
+    })
+  }
+}
+
+function extractSectionImages(sectionHtml: string): Array<Pick<ExtractedImage, 'src' | 'alt'>> {
+  const images: Array<Pick<ExtractedImage, 'src' | 'alt'>> = []
+  const imgTagRegex = /<img\s+[^>]*?src\s*=\s*["']([^"']+)["'][^>]*>/gi
+  const altRegex = /alt\s*=\s*["']([^"']*)["']/i
+  let match
+  while ((match = imgTagRegex.exec(sectionHtml)) !== null) {
+    const src = match[1]?.trim()
+    if (!src || src.startsWith('data:') || isNonContentImage(src)) continue
+    images.push({ src, alt: altRegex.exec(match[0])?.[1] || undefined })
+  }
+  return images
+}
+
+function reconcileCtaImagesWithSourceSections(
+  components: DetectedComponent[],
+  domSnapshot: string,
+  domImages: ExtractedImage[],
+  pageUrl?: string
+): void {
+  const sections = extractContentSections(domSnapshot)
+
+  for (const component of components) {
+    if (component.type !== 'cta-banner' || !isRecord(component.content)) continue
+
+    const content = component.content as Record<string, unknown>
+    const heading = typeof content.heading === 'string' ? content.heading : ''
+    const subheading = typeof content.subheading === 'string' ? content.subheading : ''
+    if (!heading && !subheading) continue
+
+    const matched = sections.find(section => {
+      const sectionText = section.text.toLowerCase()
+      return textMatchesCta(sectionText, heading, subheading)
+    })
+    const fallbackImage = matched ? undefined : domImages.find(image => {
+      const sectionText = (image.sectionText || image.nearbyText || '').toLowerCase()
+      return textMatchesCta(sectionText, heading, subheading)
+    })
+    if (!matched && !fallbackImage) continue
+
+    const image = matched ? extractFirstContentImage(matched.html) : fallbackImage
+    if (!image) continue
+
+    const absoluteSrc = normalizeToAbsolute(image.src, pageUrl)
+    if (imageUrlSame(content.backgroundImage, absoluteSrc, pageUrl)) continue
+    const sourceHtml = matched ? matched.html : fallbackImage?.sectionHtml || ''
+    if (content.backgroundImage && sectionContainsImageUrl(sourceHtml, content.backgroundImage, pageUrl)) continue
+
+    content.backgroundImage = isRecord(content.backgroundImage)
+      ? {
+        mediaId: `detected:${stableImageId(absoluteSrc)}`,
+        mediaType: 'image',
+        url: absoluteSrc
+      }
+      : absoluteSrc
+    component.metadata = {
+      ...(component.metadata || {}),
+      sourceEvidence: {
+        ...(component.metadata?.sourceEvidence || {}),
+        ctaImageCorrection: {
+          reason: 'matched-source-section-image',
+          replacement: absoluteSrc
+        }
+      }
+    }
+  }
+}
+
+function textMatchesCta(sectionText: string, heading: string, subheading: string): boolean {
+  const hasHeading = heading.length > 2 && sectionText.includes(heading.toLowerCase())
+  const hasSubheading = subheading.length > 8 && sectionText.includes(subheading.toLowerCase())
+  if (heading.length > 2 && subheading.length > 8) {
+    return hasHeading && hasSubheading
+  }
+  return hasHeading || hasSubheading
+}
+
+function extractFirstContentImage(sectionHtml: string): Pick<ExtractedImage, 'src' | 'alt'> | null {
+  const imgTagRegex = /<img\s+[^>]*?src\s*=\s*["']([^"']+)["'][^>]*>/gi
+  const altRegex = /alt\s*=\s*["']([^"']*)["']/i
+  let match
+  while ((match = imgTagRegex.exec(sectionHtml)) !== null) {
+    const src = match[1]?.trim()
+    if (!src || src.startsWith('data:') || isNonContentImage(src)) continue
+    const alt = altRegex.exec(match[0])?.[1] || undefined
+    return { src, alt }
+  }
+  return null
+}
+
+function reconcileLogoCloudsWithSourceSections(
+  components: DetectedComponent[],
+  images: ExtractedImage[],
+  pageUrl?: string
+): void {
+  const logoSections = new Map<string, ExtractedImage[]>()
+  for (const image of images) {
+    if (image.sectionKind !== 'logo' || !image.sectionHtml) continue
+    const current = logoSections.get(image.sectionHtml) || []
+    current.push(image)
+    logoSections.set(image.sectionHtml, current)
+  }
+
+  if (logoSections.size === 0) return
+
+  for (const component of components) {
+    if (component.type !== 'logo-cloud' || !isRecord(component.content)) continue
+
+    const componentText = getComponentText(component)
+    const existingUrls = getExistingImageUrls(component)
+    const match = Array.from(logoSections.entries())
+      .map(([sectionHtml, sectionImages]) => {
+        const sectionUrls = new Set(sectionImages.map(image => normalizeImageUrl(image.src, pageUrl)))
+        const overlap = Array.from(existingUrls).filter(url => sectionUrls.has(normalizeImageUrl(url, pageUrl))).length
+        const textMatched = sectionImages.some(image => imageMatchesComponent(image, componentText))
+        return { sectionHtml, sectionImages, score: overlap + (textMatched ? 2 : 0) }
+      })
+      .sort((a, b) => b.score - a.score)[0]
+    if (!match || match.score <= 0) continue
+
+    const { sectionImages } = match
+    const unique = new Map<string, ExtractedImage>()
+    for (const image of sectionImages) {
+      const absoluteSrc = normalizeToAbsolute(image.src, pageUrl)
+      unique.set(normalizeImageUrl(absoluteSrc, pageUrl), { ...image, src: absoluteSrc })
+    }
+
+    const content = component.content as Record<string, unknown>
+    content.logos = Array.from(unique.values()).map(image => {
+      const absoluteSrc = normalizeToAbsolute(image.src, pageUrl)
+      const mediaRef = {
+        mediaId: `detected:${stableImageId(absoluteSrc)}`,
+        mediaType: 'image' as const,
+        url: absoluteSrc
+      }
+      return {
+        id: stableImageId(absoluteSrc),
+        src: mediaRef,
+        alt: image.alt || '',
+        originalUrl: absoluteSrc
+      }
+    })
+  }
+}
+
+function removeUnsupportedCardGridImages(
+  components: DetectedComponent[],
+  domSnapshot: string
+): void {
+  const sourceSections = extractContentSections(domSnapshot)
+
+  for (const component of components) {
+    if (component.type !== 'card-grid' || !isRecord(component.content)) continue
+
+    const content = component.content as Record<string, unknown>
+    if (typeof content.heading !== 'string' || !Array.isArray(content.cards)) continue
+
+    const heading = content.heading.toLowerCase()
+    const matchedSection = sourceSections.find(section => section.text.toLowerCase().includes(heading))
+    if (!matchedSection) continue
+
+    const sectionText = matchedSection.text.toLowerCase()
+
+    for (const card of content.cards) {
+      if (!isRecord(card) || !card.image || card.href) continue
+      const title = typeof card.title === 'string' ? card.title.toLowerCase() : ''
+      if (!title || !sectionText.includes(title)) continue
+      const titleBlock = extractLocalTextBlock(matchedSection.html, title)
+      if (titleBlock && /(<img\b|srcset\s*=|background-image\s*:|data-bg|data-background|data-image)/i.test(titleBlock)) continue
+      const cardImageUrl = getImageUrl(card.image)
+      if (!cardImageUrl) continue
+
+      delete card.image
+      component.metadata = {
+        ...(component.metadata || {}),
+        sourceEvidence: {
+          ...(component.metadata?.sourceEvidence || {}),
+          cardGridImageRemoval: {
+            reason: 'matched-source-section-has-no-image-elements',
+            heading: content.heading
+          }
+        }
+      }
+    }
+  }
+}
+
+function extractLocalTextBlock(html: string, normalizedNeedle: string): string | null {
+  const normalizedHtml = html.toLowerCase()
+  const index = normalizedHtml.indexOf(normalizedNeedle)
+  if (index < 0) return null
+  return html.slice(Math.max(0, index - 350), Math.min(html.length, index + 700))
+}
+
+function extractContentSections(html: string): Array<{ html: string, text: string, imageCount: number }> {
+  const sections: Array<{ html: string, text: string, imageCount: number }> = []
+  const regex = /<(section|article)\b[^>]*>[\s\S]*?<\/\1>/gi
+  let match
+  while ((match = regex.exec(html)) !== null) {
+    const sectionHtml = match[0]
+    if (classifySection(sectionHtml) === 'navigation') continue
+    sections.push({
+      html: sectionHtml,
+      text: extractSectionText(sectionHtml),
+      imageCount: (sectionHtml.match(/<img\b/gi) || []).length
+    })
+  }
+  return sections
 }

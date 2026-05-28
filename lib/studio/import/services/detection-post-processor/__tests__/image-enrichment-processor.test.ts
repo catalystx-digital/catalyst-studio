@@ -200,6 +200,75 @@ describe('image enrichment processor', () => {
     expect(JSON.stringify(result[0].content)).not.toContain('"images"')
   })
 
+  it('adds matched CTA banner images from div-based source markup', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'cta-banner',
+        component: 'cta-banner',
+        confidence: 0.9,
+        content: {
+          heading: 'Book an appointment',
+          subheading: 'Talk to the digital care team',
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <div class="homepage-cta">
+          <h2>Book an appointment</h2>
+          <p>Talk to the digital care team</p>
+          <img src="/appointments/team.jpg" alt="Care team">
+        </div>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      backgroundImage: 'https://www.example.com/appointments/team.jpg',
+    })
+  })
+
+  it('does not use an unrelated earlier main image for div-based CTA markup', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'cta-banner',
+        component: 'cta-banner',
+        confidence: 0.9,
+        content: {
+          heading: 'Book an appointment',
+          subheading: 'Talk to the digital care team',
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <div class="article-card">
+          <h2>Article</h2>
+          <p>Book an appointment with unrelated copy elsewhere in main.</p>
+          <img src="/articles/unrelated.jpg" alt="Unrelated">
+        </div>
+        <div class="homepage-cta">
+          <h2>Book an appointment</h2>
+          <p>Talk to the digital care team</p>
+          <img src="/appointments/team.jpg" alt="Care team">
+        </div>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      backgroundImage: 'https://www.example.com/appointments/team.jpg',
+    })
+  })
+
   it('matches content-feed images using excerpt text', () => {
     const components: DetectedComponent[] = [
       {
@@ -354,5 +423,240 @@ describe('image enrichment processor', () => {
       caption: 'Trusted by Acme and Globex',
       logos: [],
     })
+  })
+
+  it('does not attach later author thumbnails to a text-only Luminary framework grid', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          heading: 'Our flexible 3 stage framework to craft digital experiences',
+          cards: [
+            { title: 'Explore', description: 'Discover what matters before you build.' },
+            {
+              title: 'Build',
+              description: 'Bring specialists together to build the experience.',
+              image: {
+                src: {
+                  url: 'https://www.luminary.com/authors/Adam_thumb.jpg',
+                  mediaType: 'image',
+                },
+                alt: 'Adam',
+              },
+            },
+            { title: 'Grow', description: 'Measure and improve after launch.' },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="ebg-framework">
+          <h2>Our flexible 3 stage framework to craft digital experiences</h2>
+          <article><h3>Explore</h3><p>Discover what matters before you build.</p></article>
+          <article><h3>Build</h3><p>Bring specialists together to build the experience.</p></article>
+          <article><h3>Grow</h3><p>Measure and improve after launch.</p></article>
+        </section>
+        <section class="latest-guides">
+          <h2>Latest guides</h2>
+          <article>
+            <h3>Build better teams</h3>
+            <p>Bring specialists together to build the experience.</p>
+            <img src="/authors/Adam_thumb.jpg" alt="Adam" />
+          </article>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.luminary.com/',
+    })
+
+    expect(JSON.stringify(result[0].content)).not.toContain('Adam_thumb')
+    expect((result[0].content as { cards: Array<{ image?: unknown }> }).cards[1].image).toBeUndefined()
+  })
+
+  it('keeps legitimate unlinked card-grid images when the source section contains that image', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          heading: 'Care options',
+          cards: [
+            {
+              title: 'Emergency care',
+              description: 'Urgent treatment options',
+              image: {
+                src: {
+                  url: 'https://www.example.com/images/emergency-care.jpg',
+                  mediaType: 'image',
+                },
+                alt: 'Emergency care',
+              },
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section>
+          <h2>Care options</h2>
+          <article>
+            <picture><source srcset="/images/emergency-care.webp"></picture>
+            <img src="/images/emergency-care.jpg" alt="Emergency care">
+            <h3>Emergency care</h3>
+            <p>Urgent treatment options</p>
+          </article>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.example.com/',
+    })
+
+    expect((result[0].content as { cards: Array<{ image?: unknown }> }).cards[0].image).toBeDefined()
+  })
+
+  it('keeps legitimate unlinked card-grid images from CSS background source markup', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          heading: 'Care options',
+          cards: [
+            {
+              title: 'Emergency care',
+              description: 'Urgent treatment options',
+              image: {
+                src: {
+                  url: 'https://www.example.com/images/emergency-care.jpg',
+                  mediaType: 'image',
+                },
+                alt: 'Emergency care',
+              },
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section>
+          <h2>Care options</h2>
+          <article style="background-image:url('/images/emergency-care.jpg')">
+            <h3>Emergency care</h3>
+            <p>Urgent treatment options</p>
+          </article>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.example.com/',
+    })
+
+    expect((result[0].content as { cards: Array<{ image?: unknown }> }).cards[0].image).toBeDefined()
+  })
+
+  it('corrects a Luminary CTA image when the existing image is from another source section', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'cta-banner',
+        component: 'cta-banner',
+        confidence: 0.9,
+        content: {
+          heading: 'Luminary has earned B Corp Certification',
+          subheading: 'We are proud to be part of a global community balancing purpose and profit.',
+          backgroundImage: {
+            url: 'https://assets.example.com/EBG%20Graphic.png',
+            mediaId: 'existing-wrong',
+            mediaType: 'image',
+          },
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="mega-menu-card">
+          <h3>Explore. Build. Grow.</h3>
+          <img src="https://assets.example.com/EBG%20Graphic.png" alt="Explore Build Grow" />
+        </section>
+        <section class="featured-cta-section">
+          <h2>Luminary has earned B Corp Certification</h2>
+          <p>We are proud to be part of a global community balancing purpose and profit.</p>
+          <img src="https://assets.example.com/B%20Corp%20Certified.png" alt="B Corp Certified" />
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.luminary.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      backgroundImage: {
+        url: 'https://assets.example.com/B%20Corp%20Certified.png',
+        mediaType: 'image',
+      },
+    })
+  })
+
+  it('reconciles Luminary award logos to the matched logo section and removes unrelated images', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'logo-cloud',
+        component: 'logo-cloud',
+        confidence: 0.9,
+        content: {
+          caption: 'Awards and recognition',
+          logos: [
+            { id: 'webby', src: { url: 'https://assets.example.com/webby.svg' }, alt: 'Webby' },
+            { id: 'byd', src: { url: 'https://assets.example.com/hero_BYD.png' }, alt: 'BYD' },
+            { id: 'gptw-dupe', src: { url: 'https://assets.example.com/gptw.svg' }, alt: 'Great Place to Work' },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="projects">
+          <h2>Some of our latest projects</h2>
+          <img src="https://assets.example.com/hero_BYD.png" alt="BYD" />
+        </section>
+        <section class="awards">
+          <h2>Awards and recognition</h2>
+          <img src="https://assets.example.com/webby.svg" alt="Webby" />
+          <img src="https://assets.example.com/good-design.svg" alt="Good Design" />
+          <img src="https://assets.example.com/gptw.svg" alt="Great Place to Work" />
+          <img src="https://assets.example.com/driven-x-design.svg" alt="Driven x Design" />
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.luminary.com/',
+    })
+
+    const logos = (result[0].content as { logos: Array<{ alt: string }> }).logos
+    expect(logos.map(logo => logo.alt)).toEqual([
+      'Webby',
+      'Good Design',
+      'Great Place to Work',
+      'Driven x Design',
+    ])
+    expect(JSON.stringify(result[0].content)).not.toContain('hero_BYD')
   })
 })
