@@ -264,7 +264,7 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     expect(result.components[1].type).toBe(ComponentType.HeroWithImage)
   })
 
-  it('throws when composed output violates component schemas', () => {
+  it('omits copied hero CTA buttons without usable hrefs', () => {
     const components = baseComponents()
     components[1] = component(ComponentType.HeroCarousel, {
       slides: [{
@@ -272,9 +272,66 @@ describe('composeInstitutionalHomepageIfEligible', () => {
           heading: 'Hospital care for families',
           body: 'Specialist care for children and families.',
           image: { src: { url: 'https://example.org/hero.jpg' }, alt: 'Hospital entrance' },
-          ctaButtons: [{ label: 'Book now', href: menuHref('/book'), variant: 'large' }],
+          ctaButtons: [{ label: 'Click here' }],
         },
       }],
+    })
+
+    const result = composeInstitutionalHomepageIfEligible(components, {
+      pageUrl: 'https://example.org/home/',
+      pageMetadata: {
+        title: 'Example Children Hospital',
+        pageType: 'home',
+        description: 'Hospital care for patients.',
+      },
+      designProfile,
+      presentationSkeleton: skeleton,
+    })
+
+    expect(result.applied).toBe(true)
+    expect(result.components[1].type).toBe(ComponentType.HeroWithImage)
+    expect(result.components[1].content?.ctaButtons).toBeUndefined()
+  })
+
+  it('preserves valid copied hero CTA buttons as SmartLinks', () => {
+    const components = baseComponents()
+    components[1] = component(ComponentType.HeroCarousel, {
+      slides: [{
+        content: {
+          heading: 'Hospital care for families',
+          body: 'Specialist care for children and families.',
+          image: { src: { url: 'https://example.org/hero.jpg' }, alt: 'Hospital entrance' },
+          ctaButtons: [{ label: 'Book now', href: '/book', variant: 'primary' }],
+        },
+      }],
+    })
+
+    const result = composeInstitutionalHomepageIfEligible(components, {
+      pageUrl: 'https://example.org/home/',
+      pageMetadata: {
+        title: 'Example Children Hospital',
+        pageType: 'home',
+        description: 'Hospital care for patients.',
+      },
+      designProfile,
+      presentationSkeleton: skeleton,
+    })
+
+    expect(result.applied).toBe(true)
+    expect(result.components[1].content?.ctaButtons).toEqual([
+      { label: 'Book now', href: menuHref('/book'), variant: 'primary' },
+    ])
+  })
+
+  it('throws when composed output violates component schemas', () => {
+    const components = baseComponents()
+    components[2] = component(ComponentType.NavBar, {
+      logo: { src: { url: 'https://example.org/logo.svg' }, alt: 'Example Hospital' },
+      menuItems: [
+        { label: 'Patients and families', href: menuHref('/patients') },
+        { label: 'Health professionals', href: menuHref('/professionals') },
+      ],
+      cta: { label: 'Donate', href: menuHref('/donate'), variant: 'large' },
     })
 
     expect(() => composeInstitutionalHomepageIfEligible(components, {
@@ -285,7 +342,7 @@ describe('composeInstitutionalHomepageIfEligible', () => {
       },
       designProfile,
       presentationSkeleton: skeleton,
-    })).toThrow(/hero-with-image-schema-invalid/)
+    })).toThrow(/navbar-schema-invalid/)
   })
 
   it('recovers a navbar from sourced DOM header links when detection misses navbar', () => {

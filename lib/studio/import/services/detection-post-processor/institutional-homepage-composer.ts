@@ -220,6 +220,38 @@ function hasRealHref(value: unknown, pageUrl?: string): boolean {
   return Boolean(smartLinkFrom(value, pageUrl))
 }
 
+function normalizeHeroCtaButtons(value: unknown, pageUrl?: string): Array<{ label: string; href: SmartLink; variant?: 'primary' | 'secondary' | 'outline' }> {
+  const items = Array.isArray(value)
+    ? value
+    : isPlainObject(value)
+      ? [value]
+      : []
+
+  return items
+    .map((item) => {
+      if (!isPlainObject(item)) return null
+      const label = text(item.label ?? item.text ?? item.title ?? item.name)
+      const href = smartLinkFrom(item.href ?? item.url ?? item.link ?? item.path, pageUrl)
+      if (!label || !href) return null
+      const variant = normalizeHeroCtaVariant(item.variant ?? item.style ?? item.buttonStyle)
+      return {
+        label,
+        href,
+        ...(variant ? { variant } : {}),
+      }
+    })
+    .filter((item): item is { label: string; href: SmartLink; variant?: 'primary' | 'secondary' | 'outline' } => Boolean(item))
+}
+
+function normalizeHeroCtaVariant(value: unknown): 'primary' | 'secondary' | 'outline' | undefined {
+  const variant = text(value)?.toLowerCase()
+  if (variant === 'primary' || variant === 'secondary' || variant === 'outline') return variant
+  if (variant === 'default' || variant === 'accent' || variant === 'filled' || variant === 'solid') return 'primary'
+  if (variant === 'neutral') return 'secondary'
+  if (variant === 'ghost' || variant === 'link') return 'outline'
+  return undefined
+}
+
 function normalizeMenuItems(items: unknown, pageUrl?: string): unknown[] {
   if (!Array.isArray(items)) return []
   return items
@@ -866,8 +898,9 @@ function isHomepageQuickLinkContext(context: string, attrs: string): boolean {
   )
 }
 
-function makeHeroWithImage(hero: SelectedHero): DetectedComponent {
+function makeHeroWithImage(hero: SelectedHero, pageUrl?: string): DetectedComponent {
   const content = hero.content
+  const ctaButtons = normalizeHeroCtaButtons(content.ctaButtons, pageUrl)
   return {
     ...hero.component,
     component: ComponentType.HeroWithImage,
@@ -880,7 +913,7 @@ function makeHeroWithImage(hero: SelectedHero): DetectedComponent {
       alignment: 'left',
       layout: 'image-left',
       ...(hero.image ? { image: cloneValue(hero.image) } : {}),
-      ...(Array.isArray(content.ctaButtons) ? { ctaButtons: content.ctaButtons } : {}),
+      ...(ctaButtons.length > 0 ? { ctaButtons } : {}),
     },
     metadata: { ...(hero.component.metadata ?? {}), region: 'hero' } as DetectedComponent['metadata'],
   }
@@ -976,7 +1009,7 @@ export function composeInstitutionalHomepageIfEligible(
   }
 
   const navComponent = nav.component
-  const heroComponent = makeHeroWithImage(hero)
+  const heroComponent = makeHeroWithImage(hero, pageUrl)
   const quickLinkComponent = quickLinks.component
   const consumedFingerprints = [navComponent, hero.component, quickLinkComponent].map(componentFingerprint)
   const consumedFingerprintSet = new Set(consumedFingerprints)

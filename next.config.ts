@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
+import { createRequire } from "module";
 import path from "path";
-import { withWorkflow } from "workflow/next";
 
 const nextConfig: NextConfig = {
   // Externalize Prisma packages so they're not bundled into workflow steps.
@@ -52,6 +52,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === "true"
+const requireModule = createRequire(import.meta.url);
+const config = process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN === "true"
   ? nextConfig
-  : withWorkflow(nextConfig);
+  : (requireModule("workflow/next") as typeof import("workflow/next")).withWorkflow(nextConfig);
+
+export default config;
