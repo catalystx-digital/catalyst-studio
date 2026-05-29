@@ -1,6 +1,7 @@
 import type { SnapshotPage } from '@/lib/studio/headless/site-snapshot/types';
 import type { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { buildCmsPresentationContext } from '../cms-presentation';
 
 const mockRenderCMSComponents = jest.fn(async () => []);
 
@@ -12,6 +13,36 @@ jest.mock('@/lib/studio/components/cms/_factory/renderer.server', () => ({
 describe('PageRendererHelper', () => {
   beforeEach(() => {
     mockRenderCMSComponents.mockClear();
+  });
+
+  it('classifies institutional pages before agency wording like our work', () => {
+    const page: SnapshotPage = {
+      id: 'rch-home',
+      title: 'Hospital home',
+      fullPath: '/',
+      templateKey: 'marketing/home-default',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: {
+            heading: 'Our work',
+            body: 'The hospital supports health services for children.'
+          },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: { importSource: 'https://www.rch.org.au/home/' },
+      sharedComponentIds: []
+    };
+
+    expect(buildCmsPresentationContext(page).pageKind).toBe('institutional');
   });
 
   it('maps marketing home components into CMS props with region-aware nesting', async () => {
@@ -256,6 +287,121 @@ describe('PageRendererHelper', () => {
 
     expect(html).toContain('page-header');
     expect(html).toContain('Manual Page');
+  });
+
+  it('adds runtime-only CMS presentation attributes without mutating page content', async () => {
+    const page: SnapshotPage = {
+      id: 'presentation-page',
+      title: 'Royal Hospital Services',
+      fullPath: '/',
+      templateKey: 'institutional/home',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'nav-1',
+          type: 'navbar',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: { links: [{ label: 'Patients', url: '/patients' }] },
+          styles: {},
+          metadata: {}
+        },
+        {
+          id: 'hero-1',
+          type: 'hero-with-image',
+          parentId: null,
+          position: 1,
+          props: {},
+          content: { heading: 'Hospital care' },
+          styles: {},
+          metadata: {}
+        },
+        {
+          id: 'cards-1',
+          type: 'card-grid',
+          parentId: null,
+          position: 2,
+          props: {},
+          content: {
+            cards: [
+              { title: 'Emergency' },
+              { title: 'Clinics' },
+              { title: 'Research' }
+            ]
+          },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {
+        importSource: 'https://www.rch.org.au/home/'
+      },
+      sharedComponentIds: []
+    };
+    const original = JSON.parse(JSON.stringify(page));
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    const element = await PageRendererHelper({ page, sharedComponents: [], structure: undefined });
+    const html = renderToStaticMarkup(element as unknown as React.ReactElement);
+
+    expect(html).toContain('data-cms-page-kind="institutional"');
+    expect(html).toContain('data-cms-density="spacious"');
+    expect(html).toContain('data-cms-tone="brand"');
+    expect(html).toContain('data-cms-has-hero="true"');
+    expect(html).toContain('data-cms-has-navigation="true"');
+    expect(page).toEqual(original);
+  });
+
+  it('classifies digital agency imports as agency pages even when they have many cards', async () => {
+    const page: SnapshotPage = {
+      id: 'agency-page',
+      title: 'Home',
+      fullPath: '/',
+      templateKey: 'imported/home',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'hero-1',
+          type: 'hero-with-image',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: {
+            heading: 'Brighter digital experiences',
+            subheading: 'A full service digital agency creating bright digital experiences.'
+          },
+          styles: {},
+          metadata: {}
+        },
+        {
+          id: 'projects-1',
+          type: 'card-grid',
+          parentId: null,
+          position: 1,
+          props: {},
+          content: {
+            heading: 'Some of our latest projects',
+            cards: Array.from({ length: 10 }, (_, index) => ({ title: `Project ${index + 1}` }))
+          },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {
+        importSource: 'https://www.luminary.com/'
+      },
+      sharedComponentIds: []
+    };
+
+    const { PageRendererHelper } = await import('../page-renderer');
+    const element = await PageRendererHelper({ page, sharedComponents: [], structure: undefined });
+    const html = renderToStaticMarkup(element as unknown as React.ReactElement);
+
+    expect(html).toContain('data-cms-page-kind="agency"');
+    expect(html).toContain('theme-dark');
   });
 
   it('does not synthesize content from legacy props.text at render time', async () => {

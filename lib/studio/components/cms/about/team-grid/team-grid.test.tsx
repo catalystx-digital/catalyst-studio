@@ -287,7 +287,7 @@ describe('TeamGrid', () => {
     };
 
     const { container } = render(<TeamGrid {...props} />);
-    expect(container.querySelector('.cms-avatar-fallback')).toHaveTextContent('FP');
+    expect(screen.getByText('FP')).toBeInTheDocument();
   });
 
   it('accepts AI metadata without errors', () => {

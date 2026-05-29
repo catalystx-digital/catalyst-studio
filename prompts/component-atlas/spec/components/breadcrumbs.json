@@ -5,15 +5,27 @@
     "items": [
       {
         "label": "Home",
-        "url": "/"
+        "href": {
+          "type": "internal",
+          "pageId": "home",
+          "path": "/"
+        }
       },
       {
         "label": "Blog",
-        "url": "/blog"
+        "href": {
+          "type": "internal",
+          "pageId": "blog",
+          "path": "/blog"
+        }
       },
       {
         "label": "Article",
-        "url": "/blog/article"
+        "href": {
+          "type": "internal",
+          "pageId": "blog-article",
+          "path": "/blog/article"
+        }
       }
     ]
   },

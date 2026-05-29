@@ -8,6 +8,7 @@ import { Card, CardFooter, CardHeader } from '@/components/ui/card';
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { CARD_TONES, themeClass, CmsSection, cmsBody, cmsHeading, dsSpacing } from '../../_ui';
+import { resolveSmartLinkHref } from '../../_utils/smart-link';
 import type { CTASimpleProps, CTASimpleContent } from './cta-simple.types';
 import type { CTAButton } from '@/lib/studio/components/cms/_core/value-objects';
 
@@ -26,23 +27,10 @@ const ALIGNMENT = {
 
 const CARD_TONE = { surface: 'default', accent: 'accent', inverted: 'minimal' } as const;
 
-function resolveUrl(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
-  if (typeof value === 'object' && value) {
-    for (const key of ['href', 'url', 'value', 'originalUrl', 'link', 'path']) {
-      const v = (value as Record<string, unknown>)[key];
-      if (typeof v === 'string' && v.trim()) return v.trim();
-    }
-  }
-  return '';
-}
-
 function normalizeButton(btn?: CTAButton | null) {
   if (!btn) return null;
-  // Support both 'label' (standard) and 'text' (legacy) for backwards compatibility
-  const rawLabel = (btn as Record<string, unknown>).label ?? (btn as Record<string, unknown>).text;
-  const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
-  const href = resolveUrl(btn.href || btn);
+  const label = typeof btn.label === 'string' ? btn.label.trim() : '';
+  const href = resolveSmartLinkHref(btn.href);
   if (!label || !href) return null;
   return { label, href, variant: VARIANT_MAP[btn.variant ?? ''] };
 }

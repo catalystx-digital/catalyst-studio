@@ -24,6 +24,24 @@ import type { ContentFeedLayout, NormalizedContentFeedItem } from './content-fee
 const DEFAULT_COLUMNS = 3;
 const DEFAULT_GAP: CardGridClientProps['content']['gap'] = 'medium';
 
+function buildImageSrcSet(image: NormalizedContentFeedItem['image']): string | undefined {
+  const renditions = image?.renditions;
+  if (!Array.isArray(renditions)) {
+    return undefined;
+  }
+  const srcSet = renditions
+    .map(rendition => {
+      if (!rendition?.src) {
+        return null;
+      }
+      return typeof rendition.width === 'number' && rendition.width > 0
+        ? `${rendition.src} ${rendition.width}w`
+        : rendition.src;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+  return srcSet.length > 0 ? srcSet.join(', ') : undefined;
+}
+
 /**
  * Navigation helper that dispatches a test event in test mode.
  * In production, navigation is handled via the router passed to components.
@@ -125,6 +143,7 @@ function ContentFeedList({
       {items.map(item => {
         const hasMedia = Boolean(item.image);
         const publishDate = item.publishDate || item.updatedAt || item.createdAt;
+        const srcSet = buildImageSrcSet(item.image);
 
         return (
           <article
@@ -145,6 +164,8 @@ function ContentFeedList({
                   <img
                     src={item.image.src}
                     alt={item.image.alt ?? item.title}
+                    srcSet={srcSet}
+                    sizes={srcSet ? '(min-width: 768px) 33vw, 100vw' : undefined}
                     width={640}
                     height={360}
                     className="h-full w-full object-cover"

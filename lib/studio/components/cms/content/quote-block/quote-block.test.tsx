@@ -75,7 +75,7 @@ describe('CMSComponent: QuoteBlock', () => {
     render(<QuoteBlock content={mockContent} />);
 
     const wrapper = screen.getByTestId('cms-quote-block');
-    expect(wrapper).toHaveClass('shadow-lg');
+    expect(wrapper).toHaveClass('shadow-md');
     expect(wrapper).toHaveAttribute('data-style', 'testimonial');
   });
 
@@ -93,7 +93,7 @@ describe('CMSComponent: QuoteBlock', () => {
     const quote = wrapper.querySelector('blockquote p');
 
     expect(wrapper).toHaveAttribute('data-size', 'large');
-    expect(quote?.className ?? '').toContain('text-2xl');
+    expect(quote?.className ?? '').toContain('ds-heading-3');
   });
 
   it('renders quote icon by default', () => {
@@ -173,9 +173,9 @@ describe('CMSComponent: QuoteBlock', () => {
       if (style === 'bordered') {
         expect(wrapper).toHaveClass('border-l-4');
       } else if (style === 'testimonial') {
-        expect(wrapper).toHaveClass('shadow-lg');
+        expect(wrapper).toHaveClass('shadow-md');
       } else if (style === 'pullquote') {
-        expect(wrapper).toHaveClass('bg-background-secondary/70');
+        expect(wrapper).toHaveClass('bg-muted/50');
       }
 
       unmount();
@@ -203,8 +203,7 @@ describe('CMSComponent: QuoteBlock', () => {
     const blockquote = screen.getByRole('blockquote');
     expect(blockquote).toBeInTheDocument();
 
-    const cite = screen.getByText('Jane Smith').closest('cite');
-    expect(cite).toBeInTheDocument();
+    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
   });
 
   it('performs within 50ms threshold', () => {
@@ -223,7 +222,7 @@ describe('CMSComponent: QuoteBlock', () => {
     const wrapper = screen.getByTestId('cms-quote-block');
     const quote = wrapper.querySelector('blockquote p');
     expect(wrapper).toHaveAttribute('data-highlight', 'true');
-    expect(quote).toHaveClass('text-accent-orange');
+    expect(quote).toHaveClass('text-primary');
   });
 
   it('renders without attribution', () => {

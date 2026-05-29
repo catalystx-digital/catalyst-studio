@@ -6,7 +6,7 @@
     "testimonials": [
       {
         "type": "testimonial-item",
-        "id": "testimonial-alicia-m",
+        "id": "testimonial-item-alicia-m",
         "quote": "Catalyst cut our launch cycle from weeks to days -- our marketing team finally iterates at the pace of ideas.",
         "author": "Alicia Mendoza",
         "role": "VP Marketing, LumaSoft",
@@ -14,7 +14,7 @@
       },
       {
         "type": "testimonial-item",
-        "id": "testimonial-sam-r",
+        "id": "testimonial-item-sam-r",
         "quote": "The built-in approval workflows eliminated endless review threads and screenshots.",
         "author": "Sam Reid",
         "role": "Digital Director, Northwind Retail"

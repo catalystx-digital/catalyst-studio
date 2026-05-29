@@ -135,4 +135,54 @@ describe('resolveContentFeed', () => {
     expect(resolved.items[0]?.image?.src).toBe('/images/structured.jpg');
     expect(resolved.items[0]?.image?.alt).toBe('Structured thumbnail');
   });
+
+  it('resolves imported date and category aliases for pinned items', () => {
+    const content: ContentFeedContent = {
+      limit: 1,
+      pinned: [
+        {
+          id: 'pinned-aliases',
+          title: 'Pinned alias item',
+          date: '2024-06-01',
+          category: 'Events',
+        },
+      ],
+    };
+
+    const resolved = resolveContentFeed(content);
+
+    expect(resolved.items[0]?.publishDate).toBe('2024-06-01');
+    expect(resolved.items[0]?.categories).toEqual(['Events']);
+  });
+
+  it('maps schema-shaped source fields into provider query filters', () => {
+    let capturedQuery: unknown;
+    resetContentProviders();
+    registerContentProvider(ContentResource.ContentFeed, {
+      fetch: query => {
+        capturedQuery = query;
+        return { items: [], total: 0 };
+      },
+    });
+
+    const content: ContentFeedContent = {
+      source: {
+        contentTypes: ['news'],
+        pathPrefix: '/news',
+        ancestorId: 'news-root',
+        siteId: 'site-1',
+      },
+    };
+
+    resolveContentFeed(content);
+
+    expect(capturedQuery).toMatchObject({
+      filters: {
+        contentTypes: ['news'],
+        pathPrefix: '/news',
+        ancestorId: 'news-root',
+        siteId: 'site-1',
+      },
+    });
+  });
 });

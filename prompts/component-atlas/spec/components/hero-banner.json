@@ -6,7 +6,11 @@
     "body": "Secure, composable infrastructure with prebuilt workflows for governance.",
     "ctaButtons": [
       {
-        "href": "/request-access",
+        "href": {
+          "type": "internal",
+          "pageId": "request-access",
+          "path": "/request-access"
+        },
         "label": "Request Access",
         "variant": "primary"
       }

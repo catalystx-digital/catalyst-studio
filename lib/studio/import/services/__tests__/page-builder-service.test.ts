@@ -344,6 +344,7 @@ describe('PageBuilderService', () => {
 
       const pageData: PageData = {
         ...mockPageData,
+        url: 'https://example.com/',
         detectedComponents: [
           {
             id: 'hero-detection',

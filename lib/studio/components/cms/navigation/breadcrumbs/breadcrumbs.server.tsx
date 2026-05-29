@@ -19,7 +19,7 @@ interface BreadcrumbItem {
   href: string;
 }
 
-function normalizeItems(
+export function normalizeBreadcrumbItems(
   items: BreadcrumbsProps['content']['items'],
 ): BreadcrumbItem[] {
   if (!Array.isArray(items)) {
@@ -31,10 +31,33 @@ function normalizeItems(
     .map(item => {
       const label =
         typeof item.label === 'string' ? item.label.trim() : '';
-      const href = resolveLinkHref(item.href) ?? '#';
+      const href = resolveLinkHref(item.href) ?? '';
       return { label, href };
-    })
-    .filter(item => item.label.length > 0);
+    });
+}
+
+export function buildBreadcrumbTrail(
+  items: BreadcrumbsProps['content']['items'],
+  showHome = true,
+  homeLabel = 'Home',
+): BreadcrumbItem[] {
+  const normalizedItems = normalizeBreadcrumbItems(items)
+    .filter((item, index, array) => {
+      if (item.label.length === 0) return false;
+      const isLast = index === array.length - 1;
+      return isLast || item.href.length > 0;
+    });
+
+  const firstItem = normalizedItems[0];
+  const firstItemIsHome =
+    firstItem &&
+    (firstItem.href === '/' ||
+      firstItem.href === '' ||
+      firstItem.label.toLowerCase() === 'home');
+
+  return showHome && !firstItemIsHome
+    ? [{ label: homeLabel, href: '/' }, ...normalizedItems]
+    : normalizedItems;
 }
 
 export function BreadcrumbsServer({
@@ -52,21 +75,7 @@ export function BreadcrumbsServer({
     homeLabel = 'Home',
   } = content;
 
-  const normalizedItems = normalizeItems(items);
-
-  // Check if first item is already a home-like entry to avoid duplicates
-  const firstItem = normalizedItems[0];
-  const firstItemIsHome =
-    firstItem &&
-    (firstItem.href === '/' ||
-      firstItem.href === '' ||
-      firstItem.label.toLowerCase() === 'home');
-
-  // Only add Home if showHome is true AND the data doesn't already start with Home
-  const allItems =
-    showHome && !firstItemIsHome
-      ? [{ label: homeLabel, href: '/' }, ...normalizedItems]
-      : normalizedItems;
+  const allItems = buildBreadcrumbTrail(items, showHome, homeLabel);
   const shouldCollapseForMobile = allItems.length > 3;
 
   if (allItems.length === 0) {

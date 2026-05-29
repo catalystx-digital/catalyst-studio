@@ -48,11 +48,11 @@ export const ContentFeedDef = defineComponent({
       contentTypes: z.array(z.string()).optional(),
       tags: z.array(z.string()).optional(),
       categories: z.array(z.string()).optional(),
-      ancestor: z.string().optional(),
-      path: z.string().optional(),
+      ancestorId: z.string().optional(),
+      pathPrefix: z.string().optional(),
       locale: z.string().optional(),
-      site: z.string().optional(),
-    }).describe('Provider query configuration including contentTypes, tags/categories, ancestor/path scope, and locale/site scoping'),
+      siteId: z.string().optional(),
+    }).optional().describe('Provider query configuration including contentTypes, tags/categories, ancestor/path scope, and locale/site scoping'),
     pinned: z.array(ContentItemSchema).optional().describe('Pinned curated items rendered ahead of provider results with deduplication'),
     emptyCopy: z.string().optional().describe('Custom message for empty feeds'),
   }),
@@ -132,14 +132,13 @@ export const ContentFeedDef = defineComponent({
     '  - category: category/tag label if shown',
     'Never invent dates, categories, or chronology to justify using content-feed. If dates/categories are not visibly rendered and the cards are projects, case studies, services, clients, or proof points, use card-grid instead.',
     '*** IMAGE EXTRACTION: For EVERY feed item, scan for <img> tags and extract the URL into image.src.url inside a MediaReference object. Do NOT omit images when they exist in the DOM. ***',
-    'For imported/static content, populate pinned[] directly and include source: {} unless a dynamic provider query is known.',
-    'source is required by the contract. If this is truly a content-feed, include source: {} for imported/static pinned items. If the section is projects/work/case studies, do not use content-feed at all; use card-grid.',
+    'For imported/static content, populate pinned[] directly and omit source unless a real dynamic provider query is known.',
+    'source is optional. Never emit source: {} for static pinned items. If the section is projects/work/case studies, do not use content-feed at all; use card-grid.',
     'Never return content-feed with empty pinned[] when the section displays articles. Re-fetch and populate every visible item.',
     'Example payload for a news section:',
     '  {',
     '    "heading": "Latest News",',
     '    "layout": "card-grid",',
-    '    "source": {},',
     '    "pinned": [',
     '      {',
     '        "title": "Community Event Announced for March",',
@@ -181,7 +180,7 @@ export const ContentFeedDef = defineComponent({
   },
 
   // Human-readable description
-  description: 'Dynamic provider-backed content feed that supports pinned items, sorting, and list or grid layouts.',
+  description: 'Static or provider-backed content feed that supports pinned items, sorting, and list or grid layouts.',
 })
 
 // Export inferred TypeScript type

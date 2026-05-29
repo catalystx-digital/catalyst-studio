@@ -91,7 +91,7 @@ const sampleCTAContent = {
 
 // Sample content for Footer
 const sampleFooterContent = {
-  logo: 'Your Brand',
+  logo: { text: 'Your Brand', alt: 'Your Brand' },
   copyright: '© 2024 Your Company. All rights reserved.',
   columns: [
     {

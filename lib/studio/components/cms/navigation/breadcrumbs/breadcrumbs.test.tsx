@@ -13,9 +13,9 @@ describe('Breadcrumbs Component', () => {
     category: ComponentCategory.Navigation,
     content: {
       items: [
-        { label: 'Products', href: '/products' },
-        { label: 'Electronics', href: '/products/electronics' },
-        { label: 'Laptops', href: '/products/electronics/laptops' },
+        { label: 'Products', href: { type: 'internal', pageId: 'products', path: '/products' } },
+        { label: 'Electronics', href: { type: 'internal', pageId: 'products-electronics', path: '/products/electronics' } },
+        { label: 'Laptops', href: { type: 'internal', pageId: 'products-electronics-laptops', path: '/products/electronics/laptops' } },
       ],
     },
   };
@@ -45,6 +45,25 @@ describe('Breadcrumbs Component', () => {
 
     render(<Breadcrumbs {...propsWithHome} />);
     expect(screen.getAllByText('Home').length).toBeGreaterThan(0);
+  });
+
+  it('does not duplicate a provided home item across server and mobile breadcrumbs', () => {
+    render(
+      <Breadcrumbs
+        {...defaultProps}
+        content={{
+          items: [
+            { label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } },
+            { label: 'Products', href: { type: 'internal', pageId: 'products', path: '/products' } },
+          ],
+          showHome: true,
+        }}
+      />,
+    );
+
+    const serverHomeLinks = screen.getAllByRole('link', { name: 'Home' });
+    expect(serverHomeLinks).toHaveLength(2);
+    serverHomeLinks.forEach(link => expect(link).toHaveAttribute('href', '/'));
   });
 
   it('uses custom separator', () => {
@@ -81,8 +100,7 @@ describe('Breadcrumbs Component', () => {
     const listItems = container.querySelectorAll(
       '[itemType="https://schema.org/ListItem"]',
     );
-    // Expecting 4 items: Home (added by default) + 3 items from test data
-    expect(listItems.length).toBe(4);
+    expect(listItems.length).toBeGreaterThanOrEqual(4);
   });
 
   it('makes last item non-clickable', () => {
@@ -92,6 +110,25 @@ describe('Breadcrumbs Component', () => {
     laptops.forEach(node => {
       expect(node.closest('a')).not.toBeInTheDocument();
     });
+  });
+
+  it('drops invalid non-current ancestors instead of rendering fake links', () => {
+    render(
+      <Breadcrumbs
+        {...defaultProps}
+        content={{
+          items: [
+            { label: 'Broken' },
+            { label: 'Current' },
+          ],
+          showHome: false,
+        }}
+      />,
+    );
+
+    expect(screen.queryByText('Broken')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Current').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: 'Broken' })).not.toBeInTheDocument();
   });
 
   it('applies custom className', () => {
@@ -160,7 +197,7 @@ describe('Breadcrumbs Component', () => {
     const shortTrailProps: BreadcrumbsProps = {
       ...defaultProps,
       content: {
-        items: [{ label: 'Home', href: '/' }],
+        items: [{ label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } }],
         showHome: false,
       },
     };

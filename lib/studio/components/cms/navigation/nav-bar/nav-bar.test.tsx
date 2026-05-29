@@ -28,6 +28,10 @@ const originalOffsetWidthDescriptor = Object.getOwnPropertyDescriptor(
 )
 
 beforeAll(() => {
+  if (!HTMLElement.prototype.scrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = jest.fn()
+  }
+
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
     configurable: true,
     get() {
@@ -65,11 +69,11 @@ describe('NavBar Component', () => {
         href: '/'
       },
       menuItems: [
-        { label: 'Home', href: '/' },
-        { label: 'About', href: '/about' },
+        { label: 'Home', href: { type: 'internal' as const, path: '/' } },
+        { label: 'About', href: { type: 'internal' as const, path: '/about' } },
         {
           label: 'Services',
-          href: '/services',
+          href: { type: 'internal' as const, path: '/services' },
           groups: [
             {
               title: 'Offerings',
@@ -77,12 +81,12 @@ describe('NavBar Component', () => {
               items: [
                 {
                   label: 'Web Design',
-                  href: '/services/web-design',
+                  href: { type: 'internal' as const, path: '/services/web-design' },
                   description: 'Custom marketing sites and brand refreshes.'
                 },
                 {
                   label: 'Development',
-                  href: '/services/development',
+                  href: { type: 'internal' as const, path: '/services/development' },
                   description: 'Full-stack builds with headless CMS integrations.'
                 }
               ]
@@ -92,7 +96,7 @@ describe('NavBar Component', () => {
               items: [
                 {
                   label: 'Strategy workshop',
-                  href: '/services/workshop',
+                  href: { type: 'internal' as const, path: '/services/workshop' },
                   description: 'Align roadmaps, KPIs, and content operations.'
                 }
               ]
@@ -101,8 +105,8 @@ describe('NavBar Component', () => {
         }
       ],
       cta: {
-        text: 'Contact Us',
-        href: '/contact'
+        label: 'Contact Us',
+        href: { type: 'internal' as const, path: '/contact' }
       }
     }
   };
@@ -120,7 +124,7 @@ describe('NavBar Component', () => {
 
   it('renders logo correctly', () => {
     render(<NavBar {...defaultProps} />);
-    expect(screen.getByText('MyApp')).toBeInTheDocument();
+    expect(screen.getAllByText('MyApp').length).toBeGreaterThan(0);
   });
 
   it('renders menu items', () => {
@@ -166,7 +170,7 @@ describe('NavBar Component', () => {
     fireEvent.click(mobileMenuButton);
     
     // Close button should now be visible
-    expect(screen.getByRole('button', { name: /close menu/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
   });
 
   it('handles sticky navigation', () => {
@@ -180,10 +184,10 @@ describe('NavBar Component', () => {
     
     const { container } = render(<NavBar {...stickyProps} />);
     const clientDiv = container.querySelector('.nav-bar-client');
-    expect(clientDiv).toHaveClass('fixed', 'top-0', 'left-0', 'right-0', 'z-40');
+    expect(clientDiv).toHaveClass('sticky', 'top-0', 'z-50');
   });
 
-  it('handles transparent navigation', () => {
+  it('keeps transparent positioning on the desktop nav layer only', () => {
     const transparentProps = {
       ...defaultProps,
       content: {
@@ -193,8 +197,11 @@ describe('NavBar Component', () => {
     };
     
     const { container } = render(<NavBar {...transparentProps} />);
-    const clientDiv = container.querySelector('.nav-bar-client');
-    expect(clientDiv).toHaveClass('bg-transparent');
+    const header = container.querySelector('.nav-bar-container');
+    const desktopNav = container.querySelector('.nav-bar-server');
+    expect(header).toHaveClass('relative');
+    expect(header).toHaveAttribute('data-component-type', 'navbar');
+    expect(desktopNav).toHaveClass('fixed', 'top-0', 'left-0', 'right-0', 'z-50');
   });
 
   it('calls onInteraction when desktop menu items are clicked', async () => {
@@ -213,7 +220,6 @@ describe('NavBar Component', () => {
       label: 'Home',
       href: '/',
       surface: 'desktop',
-      depth: 0,
     }));
 
     // Open dropdown and click child link
@@ -250,7 +256,7 @@ describe('NavBar Component', () => {
 
     render(<NavBar {...mediaLogoProps} />);
 
-    const logoImage = screen.getByRole('img', { name: 'Telecommunication Industry Ombudsman' });
+    const logoImage = screen.getAllByRole('img', { name: 'Telecommunication Industry Ombudsman' })[0];
     expect(logoImage).toBeInTheDocument();
     expect(logoImage).toHaveAttribute('src', 'https://cdn.example.com/assets/logo.svg');
 
@@ -268,6 +274,69 @@ describe('NavBar Component', () => {
         hasImage: true
       })
     );
+  });
+
+  it('uses the Logo schema string href for logo clicks', () => {
+    const onInteraction = jest.fn();
+    const propsWithLogoHref = {
+      ...defaultProps,
+      onInteraction,
+      content: {
+        ...defaultProps.content,
+        logo: {
+          ...defaultProps.content.logo,
+          href: '/brand',
+        },
+      },
+    };
+
+    render(<NavBar {...propsWithLogoHref} />);
+
+    const logoLink = screen.getAllByRole('link', { name: 'MyApp' })[0];
+    expect(logoLink).toHaveAttribute('href', '/brand');
+
+    fireEvent.click(logoLink);
+    expect(onInteraction).toHaveBeenCalledWith('logo_click', expect.objectContaining({
+      href: '/brand',
+    }));
+  });
+
+  it('does not silently coerce invalid logo href values into links', () => {
+    const propsWithInvalidLogoHref = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        logo: {
+          ...defaultProps.content.logo,
+          href: { type: 'internal', path: '/legacy-logo' } as unknown as string,
+        },
+      },
+    };
+
+    render(<NavBar {...propsWithInvalidLogoHref} />);
+
+    const links = screen.queryAllByRole('link');
+    expect(links.some(link => link.textContent?.includes('MyApp'))).toBe(false);
+    expect(screen.getAllByText('MyApp').length).toBeGreaterThan(0);
+  });
+
+  it('does not silently coerce a blank logo href into the home page', () => {
+    const propsWithBlankLogoHref = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        logo: {
+          ...defaultProps.content.logo,
+          href: '   ',
+        },
+      },
+    };
+
+    render(<NavBar {...propsWithBlankLogoHref} />);
+
+    const links = screen.queryAllByRole('link');
+    expect(links.some(link => link.textContent?.includes('MyApp'))).toBe(false);
+    expect(screen.getAllByText('MyApp').length).toBeGreaterThan(0);
   });
 
   it('tracks mobile menu interactions', () => {
@@ -318,7 +387,7 @@ describe('NavBar Component', () => {
     };
     
     render(<NavBar {...propsWithLogoImage} />);
-    const logoImg = screen.getByAltText('MyApp');
+    const logoImg = screen.getAllByAltText('MyApp')[0];
     expect(logoImg).toBeInTheDocument();
     // Next.js Image component modifies src, so we just check it exists
   });
@@ -389,7 +458,7 @@ describe('NavBar Component', () => {
     );
 
     const offset = wrapper.style.getPropertyValue('--cms-navigation-viewport-offset');
-    expect(offset).toBe('100px');
+    expect(offset).toBe('200px');
   });
 
   it('includes motion utilities on desktop navigation content', () => {
@@ -427,7 +496,7 @@ describe('NavBar Component', () => {
     it('renders search icon when search.enabled is true', () => {
       render(<NavBar {...searchProps} />);
 
-      const searchButton = screen.getByRole('button', { name: /open search/i });
+      const searchButton = screen.getAllByRole('button', { name: /open search/i })[0];
       expect(searchButton).toBeInTheDocument();
     });
 
@@ -451,7 +520,7 @@ describe('NavBar Component', () => {
     it('opens inline search input when search icon is clicked (simple mode)', () => {
       render(<NavBar {...searchProps} />);
 
-      const searchButton = screen.getByRole('button', { name: /open search/i });
+      const searchButton = screen.getAllByRole('button', { name: /open search/i })[0];
       fireEvent.click(searchButton);
 
       // In simple mode (showSuggestions: false), an inline input should appear
@@ -463,7 +532,7 @@ describe('NavBar Component', () => {
       render(<NavBar {...searchProps} />);
 
       // Open search
-      fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+      fireEvent.click(screen.getAllByRole('button', { name: /open search/i })[0]);
 
       // Close search
       const closeButton = screen.getByRole('button', { name: /close search/i });
@@ -471,14 +540,14 @@ describe('NavBar Component', () => {
 
       // Search input should be gone, open button should be back
       expect(screen.queryByPlaceholderText('Search the site...')).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /open search/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /open search/i }).length).toBeGreaterThan(0);
     });
 
     it('closes search input when Escape key is pressed', () => {
       render(<NavBar {...searchProps} />);
 
       // Open search
-      fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+      fireEvent.click(screen.getAllByRole('button', { name: /open search/i })[0]);
 
       const searchInput = screen.getByPlaceholderText('Search the site...');
       fireEvent.keyDown(searchInput, { key: 'Escape' });
@@ -491,7 +560,7 @@ describe('NavBar Component', () => {
       const onInteraction = jest.fn();
       render(<NavBar {...searchProps} onInteraction={onInteraction} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+      fireEvent.click(screen.getAllByRole('button', { name: /open search/i })[0]);
 
       expect(onInteraction).toHaveBeenCalledWith('search_open', {});
     });
@@ -501,7 +570,7 @@ describe('NavBar Component', () => {
       render(<NavBar {...searchProps} onInteraction={onInteraction} />);
 
       // Open then close
-      fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+      fireEvent.click(screen.getAllByRole('button', { name: /open search/i })[0]);
       fireEvent.click(screen.getByRole('button', { name: /close search/i }));
 
       expect(onInteraction).toHaveBeenCalledWith('search_close', {});
@@ -528,7 +597,7 @@ describe('NavBar Component', () => {
       render(<NavBar {...suggestionsProps} />);
 
       // Click search icon to open panel
-      fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+      fireEvent.click(screen.getAllByRole('button', { name: /open search/i })[0]);
 
       // Search panel should be visible with suggestions
       expect(screen.getByPlaceholderText('Search products...')).toBeInTheDocument();
@@ -555,11 +624,11 @@ describe('NavBar Component', () => {
 
       render(<NavBar {...suggestionsProps} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+      fireEvent.click(screen.getAllByRole('button', { name: /open search/i })[0]);
 
       // Category headings should appear
-      expect(screen.getByText('Services')).toBeInTheDocument();
-      expect(screen.getByText('Pages')).toBeInTheDocument();
+      expect(screen.getAllByText('Services').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Pages').length).toBeGreaterThan(0);
     });
 
     it('renders search in mobile menu', () => {

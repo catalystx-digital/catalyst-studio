@@ -59,7 +59,7 @@ export const Default: Story = {
   args: {
     theme: 'auto',
     content: {
-      logo: 'Catalyst Studio',
+      logo: { text: 'Catalyst Studio', alt: 'Catalyst Studio' },
       description: 'Design, launch, and scale studio customer experiences without touching code.',
       columns: navigationColumns,
       socialLinks,
@@ -76,7 +76,7 @@ export const WithNewsletter: Story = {
   args: {
     theme: 'auto',
     content: {
-      logo: 'Catalyst Studio',
+      logo: { text: 'Catalyst Studio', alt: 'Catalyst Studio' },
       description: 'Subscribe for product updates, best practices, and release notes.',
       columns: navigationColumns.slice(0, 2),
       socialLinks,
@@ -95,7 +95,7 @@ export const Minimal: Story = {
   args: {
     theme: 'auto',
     content: {
-      logo: 'Catalyst Studio',
+      logo: { text: 'Catalyst Studio', alt: 'Catalyst Studio' },
       socialLinks: [socialLinks[0]],
       copyright: '© 2024 Catalyst Studio'
     }
@@ -106,7 +106,7 @@ export const DarkTheme: Story = {
   args: {
     theme: 'dark',
     content: {
-      logo: 'Catalyst Studio',
+      logo: { text: 'Catalyst Studio', alt: 'Catalyst Studio' },
       description: 'Purpose-built tools for studio experiences.',
       columns: navigationColumns,
       socialLinks,

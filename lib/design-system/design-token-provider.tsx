@@ -6,6 +6,7 @@ import {
   buildDesignTokenCssVariables,
   type DesignTokens
 } from './tokens';
+import { filterCmsScopedVariables } from './cms-token-guardrails';
 
 type CssVariableMap = Record<string, string>;
 
@@ -107,7 +108,9 @@ export function DesignTokenProvider({
 }: DesignTokenProviderProps): React.ReactElement {
   const mergedTokens = mergeDesignTokens(tokens);
   const tokenVariableMap = buildDesignTokenCssVariables(mergedTokens);
-  const overrideVariableMap = normalizeCssVariableMap(cssVariables ?? undefined);
+  const overrideVariableMap = filterCmsScopedVariables(
+    normalizeCssVariableMap(cssVariables ?? undefined)
+  );
   const mergedVariableMap = mergeCssVariables(tokenVariableMap, overrideVariableMap);
 
   const contextValue: DesignTokenContextValue = {

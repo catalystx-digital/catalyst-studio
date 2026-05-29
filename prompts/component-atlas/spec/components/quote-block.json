@@ -4,7 +4,16 @@
   "content": {
     "attribution": {
       "author": "Amelia Rogers",
-      "image": "https://cdn.example.com/customers/amelia.jpg",
+      "image": {
+        "src": {
+          "mediaId": "quote-amelia-rogers",
+          "mediaType": "image",
+          "url": "https://cdn.example.com/customers/amelia.jpg",
+          "alt": "Amelia Rogers"
+        },
+        "alt": "Amelia Rogers",
+        "originalUrl": "https://cdn.example.com/customers/amelia.jpg"
+      },
       "title": "Director of Digital, Everlake Insurance"
     },
     "heading": "Customer spotlight",

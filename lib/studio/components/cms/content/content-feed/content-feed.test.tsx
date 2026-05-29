@@ -7,6 +7,12 @@ import { ContentFeed } from './index';
 import type { ContentFeedContent } from './content-feed.types';
 import { ContentResource, registerContentProvider, resetContentProviders } from '../../_core/data-providers';
 
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+  }),
+}));
+
 describe('ContentFeed component', () => {
   beforeEach(() => {
     resetContentProviders();
@@ -142,5 +148,41 @@ describe('ContentFeed component', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('provider failed');
+  });
+
+  it('renders list feed image renditions with responsive srcset', () => {
+    const content: ContentFeedContent = {
+      heading: 'Latest posts',
+      layout: 'list',
+      pinned: [
+        {
+          id: 'post-renditions',
+          title: 'Post with responsive image',
+          image: {
+            src: 'https://cdn.example.com/post',
+            alt: 'Post image',
+            renditions: [
+              { src: 'https://cdn.example.com/post?w=400', width: 400, height: 225 },
+              { src: 'https://cdn.example.com/post?w=800', width: 800, height: 450 },
+            ],
+          },
+        },
+      ],
+    };
+
+    render(
+      <ContentFeed
+        id="feed-list-renditions"
+        type={ComponentType.ContentFeed}
+        category={ComponentCategory.Content}
+        content={content}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: 'Post image' })).toHaveAttribute(
+      'srcset',
+      'https://cdn.example.com/post?w=400 400w, https://cdn.example.com/post?w=800 800w',
+    );
+    expect(screen.getByRole('img', { name: 'Post image' })).toHaveAttribute('sizes', '(min-width: 768px) 33vw, 100vw');
   });
 });

@@ -1,5 +1,5 @@
 import { CMSComponentProps } from '../../_core/types';
-import { type MenuItem, type SocialLink } from '@/lib/studio/components/cms/_core/value-objects';
+import { type Logo, type MenuItem, type SocialLink } from '@/lib/studio/components/cms/_core/value-objects';
 
 export interface FooterColumn {
   title?: string;
@@ -11,7 +11,7 @@ export type FooterSocialLink = SocialLink
 
 export interface FooterContent {
   columns?: FooterColumn[];
-  logo?: string;
+  logo?: Logo;
   logoAlt?: string;
   /** Site/organization name used in copyright if not provided explicitly */
   siteName?: string;

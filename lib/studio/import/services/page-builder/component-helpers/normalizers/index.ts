@@ -25,12 +25,15 @@ export {
 export {
   normalizeHeroSimpleContent,
   normalizeHeroBannerContent,
-  normalizeHeroWithImageContent
+  normalizeHeroWithImageContent,
+  normalizeHeroCarouselContent,
+  normalizeHeroSplitContent
 } from './hero-normalizers'
 
 // Navigation normalizers
 export {
   normalizeNavbarContent,
+  normalizeFooterContent,
   normalizeBreadcrumbsContent
 } from './nav-normalizers'
 
@@ -38,6 +41,10 @@ export {
 export {
   normalizeTimelineContent,
   normalizeTextBlockContent,
+  normalizeHtmlBlockContent,
+  normalizeQuoteBlockContent,
+  normalizeSidemenuContent,
+  normalizeSidebarNavContent,
   normalizeContentFeedContent,
   normalizeTwoColumnContent
 } from './content-normalizers'
@@ -45,7 +52,8 @@ export {
 // CTA normalizers
 export {
   normalizeCtaWithFormContent,
-  normalizeCtaSimpleContent
+  normalizeCtaSimpleContent,
+  normalizeCtaBannerContent
 } from './cta-normalizers'
 
 // Blog normalizers
@@ -61,6 +69,7 @@ export {
 
 // Media normalizers
 export {
+  normalizeImageGalleryContent,
   normalizeVideoEmbedContent
 } from './media-normalizers'
 
@@ -69,35 +78,53 @@ export {
   normalizeStatisticsContent
 } from './data-normalizers'
 
+// Social proof normalizers
+export {
+  normalizeLogoCloudContent,
+  normalizeTestimonialsContent
+} from './social-proof-normalizers'
+
 /**
  * Map of component types to their content normalizers.
  * Use this to look up the appropriate normalizer for a component type.
  */
-import { normalizeHeroSimpleContent, normalizeHeroBannerContent, normalizeHeroWithImageContent } from './hero-normalizers'
-import { normalizeNavbarContent, normalizeBreadcrumbsContent } from './nav-normalizers'
-import { normalizeTimelineContent, normalizeTextBlockContent, normalizeContentFeedContent, normalizeTwoColumnContent } from './content-normalizers'
-import { normalizeCtaWithFormContent, normalizeCtaSimpleContent } from './cta-normalizers'
+import { normalizeHeroSimpleContent, normalizeHeroBannerContent, normalizeHeroWithImageContent, normalizeHeroCarouselContent, normalizeHeroSplitContent } from './hero-normalizers'
+import { normalizeNavbarContent, normalizeFooterContent, normalizeBreadcrumbsContent } from './nav-normalizers'
+import { normalizeTimelineContent, normalizeTextBlockContent, normalizeHtmlBlockContent, normalizeQuoteBlockContent, normalizeSidemenuContent, normalizeSidebarNavContent, normalizeContentFeedContent, normalizeTwoColumnContent } from './content-normalizers'
+import { normalizeCtaWithFormContent, normalizeCtaSimpleContent, normalizeCtaBannerContent } from './cta-normalizers'
 import { normalizeBlogPostContent, normalizeArticleHeaderContent } from './blog-normalizers'
 import { normalizeTeamGridContent } from './about-normalizers'
-import { normalizeVideoEmbedContent } from './media-normalizers'
+import { normalizeImageGalleryContent, normalizeVideoEmbedContent } from './media-normalizers'
 import { normalizeStatisticsContent } from './data-normalizers'
+import { normalizeLogoCloudContent, normalizeTestimonialsContent } from './social-proof-normalizers'
 import type { ComponentContentNormalizer } from './shared-normalizer-utils'
 
 export const COMPONENT_CONTENT_NORMALIZERS: Record<string, ComponentContentNormalizer> = {
   'hero-with-image': normalizeHeroWithImageContent,
   'hero-banner': normalizeHeroBannerContent,
   'hero-simple': normalizeHeroSimpleContent,
+  'hero-carousel': normalizeHeroCarouselContent,
+  'hero-split': normalizeHeroSplitContent,
+  'image-gallery': normalizeImageGalleryContent,
   'video-embed': normalizeVideoEmbedContent,
   breadcrumbs: normalizeBreadcrumbsContent,
   navbar: normalizeNavbarContent,
+  footer: normalizeFooterContent,
   timeline: normalizeTimelineContent,
+  'cta-banner': normalizeCtaBannerContent,
   'cta-with-form': normalizeCtaWithFormContent,
   'text-block': normalizeTextBlockContent,
+  'html-block': normalizeHtmlBlockContent,
+  'quote-block': normalizeQuoteBlockContent,
+  sidemenu: normalizeSidemenuContent,
+  'sidebar-nav': normalizeSidebarNavContent,
   statistics: normalizeStatisticsContent,
   'content-feed': normalizeContentFeedContent,
   'blog-post': normalizeBlogPostContent,
   'article-header': normalizeArticleHeaderContent,
   'team-grid': normalizeTeamGridContent,
   'cta-simple': normalizeCtaSimpleContent,
-  'two-column': normalizeTwoColumnContent
+  'two-column': normalizeTwoColumnContent,
+  'logo-cloud': normalizeLogoCloudContent,
+  testimonials: normalizeTestimonialsContent
 }

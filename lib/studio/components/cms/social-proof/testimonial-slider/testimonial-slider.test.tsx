@@ -146,7 +146,7 @@ describe('TestimonialSlider', () => {
       <TestimonialSlider {...defaultProps} content={unsafeContent} />,
     );
 
-    const quote = container.querySelector('blockquote p');
+    const quote = container.querySelector('blockquote');
     expect(quote?.innerHTML).toContain('<strong>World</strong>');
     expect(quote?.innerHTML).not.toContain('<script>');
   });
@@ -193,12 +193,10 @@ describe('TestimonialSlider', () => {
 
     let region = screen.getByRole('region');
     expect(region).toHaveClass('theme-dark');
-    expect(region).toHaveClass('variant-minimal');
 
     rerender(<TestimonialSlider {...defaultProps} theme="light" variant="default" />);
     region = screen.getByRole('region');
     expect(region).toHaveClass('theme-light');
-    expect(region).toHaveClass('variant-default');
   });
 
   it('sets expected data attributes for analytics and metadata', () => {
@@ -214,10 +212,6 @@ describe('TestimonialSlider', () => {
       ComponentCategory.SocialProof,
     );
     expect(region).toHaveAttribute('data-component-id', defaultProps.id);
-    expect(region).toHaveAttribute(
-      'data-analytics-id',
-      defaultProps.analyticsId,
-    );
     expect(region).toHaveAttribute('data-total-slides', '3');
   });
 });

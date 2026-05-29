@@ -74,7 +74,7 @@ export const CTASimpleDef = defineComponent({
     'When DOM shows the strip above nav/hero but the wrapper uses main tags, still force region="header" so styling stays scoped to the header stack. If no actionable button is present, emit a text-block banner in the header instead of dropping the alert.',
     'Trading-hours badges or status strips like "Shop today from 9AM" + "NOW OPEN" belong in cta-simple: capture the lead text in heading/body, include any inline badge text, and surface accompanying quick links (e.g., Getting Here) as either CTA buttons on the component or as a sibling feature-list.',
     'Always populate heading with the visible call-to-action text. When the UI is limited to a single link label, reuse that label for the heading so the component renders meaningful copy.',
-    'Keep primaryButton.text/url exactly as shown; only emit a standalone CTA component when the button is visually separate from surrounding copy. Inline buttons inside two-column or text sections should stay inside that parent container.',
+    'Keep primaryButton.label and primaryButton.href exactly aligned to the visible action. href must be a structured SmartLink object, not text/url legacy fields. Only emit a standalone CTA component when the button is visually separate from surrounding copy. Inline buttons inside two-column or text sections should stay inside that parent container.',
     'Hotline or contact snippets surfaced in header utility bars must either populate primaryButton (href=tel:...) on this component or emit a sibling cta-simple so the phone number is captured.',
   ],
 

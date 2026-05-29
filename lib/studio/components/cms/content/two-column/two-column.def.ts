@@ -114,7 +114,7 @@ export const TwoColumnDef = defineComponent({
     "  - breadcrumbs → for breadcrumb navigation",
     "  - html-block → for rich content/article body",
     "  - text-block → for structured text sections",
-    "  - image → for standalone images",
+    "  - image-gallery → for standalone images or small image sets",
     "  - video-embed → for video content",
     "  - cta-simple → for call-to-action buttons",
     "  - card-grid → for card layouts",

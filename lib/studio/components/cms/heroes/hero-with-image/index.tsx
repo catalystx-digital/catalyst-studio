@@ -72,12 +72,12 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
       data-component-type={type}
       theme={resolvedTheme}
       size="none"
-      className={cn('cms-hero-with-image bg-background', className)}
+      className={cn('cms-hero-with-image bg-background px-4 py-12 sm:px-6 lg:px-8 lg:py-20', className)}
       style={style}
     >
-      <div className="mx-auto grid w-full max-w-7xl md:min-h-[28rem] md:grid-cols-[2fr_1fr]">
+      <div className="mx-auto grid w-full max-w-7xl items-stretch gap-6 md:min-h-[30rem] md:grid-cols-[minmax(0,1.12fr)_minmax(20rem,0.88fr)] lg:gap-8">
         <div className={cn(
-          'relative min-h-[18rem] overflow-hidden md:min-h-[28rem]',
+          'relative min-h-[18rem] overflow-hidden rounded-2xl bg-muted shadow-sm md:min-h-[30rem]',
           !imageFirst && 'md:order-2'
         )}>
           {normalizedImg?.src ? (
@@ -99,32 +99,33 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
         </div>
 
         <div className={cn(
-          'flex min-h-[18rem] items-center bg-primary px-8 py-10 text-primary-foreground md:min-h-[28rem] lg:px-10',
+          'relative flex min-h-[18rem] items-center overflow-hidden rounded-2xl border border-border/70 bg-card px-6 py-10 text-card-foreground shadow-sm md:min-h-[30rem] md:px-8 lg:px-10',
           !imageFirst && 'md:order-1',
           alignCenter ? 'justify-center text-center' : 'justify-start text-left'
         )}>
+          <div className="absolute inset-x-0 top-0 h-1 bg-primary" aria-hidden="true" />
           <div className={cn(
-            'flex flex-col',
-            dsSpacing.gap('sm'),
+            'flex max-w-2xl flex-col',
+            dsSpacing.gap('md'),
             alignCenter ? 'items-center' : 'items-start'
           )}>
               {eyebrow && (
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary-foreground/90">
+                <p className="text-sm font-bold uppercase text-primary">
                   {eyebrow}
                 </p>
               )}
               {heading && (
-                <h1 className="text-3xl font-bold leading-tight text-primary-foreground sm:text-4xl">
+                <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl">
                   {heading}
                 </h1>
               )}
               {subheading && (
-                <p className={cn(cmsHeading(3), 'text-primary-foreground/95')}>
+                <p className={cn(cmsHeading(3), 'text-foreground/90')}>
                   {subheading}
                 </p>
               )}
               {body && (
-                <p className={cn(cmsBody(), 'text-primary-foreground/90')}>
+                <p className={cn(cmsBody('lg'), 'text-muted-foreground')}>
                   {body}
                 </p>
               )}
@@ -132,7 +133,7 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
                 <HeroCTA
                   buttons={ctaButtons as any}
                   alignment={alignment}
-                  theme="dark"
+                  theme={resolvedTheme}
                   onCtaClick={handleCtaClick as any}
                   className={dsSpacing.mt('xs')}
                 />

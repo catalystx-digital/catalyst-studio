@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
+import { isCmsScopedVariableAllowed } from './cms-token-guardrails';
 
 const CSS_VARIABLE_PATTERN = /^\s*--([^:]+):\s*([^;]+);/;
 
-function parseCssVariableLines(input: string): Array<[string, string]> {
+export function parseScopedCssVariableLines(input: string): Array<[string, string]> {
   return input
     .split('\n')
     .map(line => line.trim())
@@ -17,7 +18,8 @@ function parseCssVariableLines(input: string): Array<[string, string]> {
       const value = rawValue.trim();
       return [name, value] as [string, string];
     })
-    .filter((entry): entry is [string, string] => Boolean(entry));
+    .filter((entry): entry is [string, string] => Boolean(entry))
+    .filter(([name]) => isCmsScopedVariableAllowed(name));
 }
 
 function resolveTarget(target: HTMLElement | null | undefined): HTMLElement | null {
@@ -40,7 +42,7 @@ export function useCSSVariables(cssVariables: string | null, target: HTMLElement
       return;
     }
 
-    const entries = parseCssVariableLines(cssVariables);
+    const entries = parseScopedCssVariableLines(cssVariables);
     if (entries.length === 0) {
       return;
     }

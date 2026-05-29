@@ -62,6 +62,31 @@ describe('selectPresentationSkeleton', () => {
     expect(selection.key).toBe('agency-home')
   })
 
+  it('keeps institutional skeleton when school content also mentions digital strategy', () => {
+    const selection = selectPresentationSkeleton({
+      pageUrl: 'https://example.edu/',
+      detection: detection({
+        pageMetadata: { pageType: 'home', title: 'Example University' },
+        components: [
+          {
+            component: ComponentType.HeroWithImage,
+            type: ComponentType.HeroWithImage,
+            confidence: 0.9,
+            content: { heading: 'Education and student services' },
+          },
+          {
+            component: ComponentType.TextBlock,
+            type: ComponentType.TextBlock,
+            confidence: 0.8,
+            content: { body: 'Our digital strategy supports university students and staff.' },
+          },
+        ],
+      }),
+    })
+
+    expect(selection.key).toBe('institutional-home')
+  })
+
   it('does not classify generic content feeds as institutional without institutional evidence', () => {
     const selection = selectPresentationSkeleton({
       pageUrl: 'https://example.com/',

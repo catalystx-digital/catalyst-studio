@@ -15,6 +15,7 @@ import {
   normalizeBooleanFlag,
   isRecord,
   extractLinkUrl,
+  pruneObjectAgainstContract,
   type LocalNormalizationWarning,
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
@@ -73,6 +74,8 @@ const MENU_ITEM_CHILD_KEYS = new Set(['children'])
 const MENU_ITEM_IMAGE_KEYS = new Set(['image', 'imageUrl', 'imageSrc', 'thumbnail', 'media', 'picture', 'photo'])
 const ROW_STYLE_KEYS = new Set(['backgroundColor', 'textColor', 'borderColor'])
 const SMART_LINK_TYPES = new Set(['internal', 'external', 'email', 'phone', 'anchor'])
+const SOCIAL_PLATFORMS = new Set(['facebook', 'twitter', 'linkedin', 'instagram', 'youtube', 'github', 'website'])
+type FooterSocialPlatform = 'facebook' | 'twitter' | 'linkedin' | 'instagram' | 'youtube' | 'github' | 'website'
 
 function isLogoImageShaped(value: unknown): boolean {
   if (typeof value === 'string') {
@@ -99,6 +102,73 @@ function isMediaReferenceLike(value: unknown): value is Record<string, any> {
     typeof value.mediaId === 'string' &&
     typeof value.mediaType === 'string' &&
     (value.url == null || typeof value.url === 'string')
+}
+
+function pageIdFromPath(path: string): string {
+  return path.replace(/^\/+|\/+$/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'home'
+}
+
+function normalizeSmartLink(value: unknown): Record<string, any> | undefined {
+  if (isRecord(value)) {
+    const type = normalizeString(value.type)?.toLowerCase()
+    if (type === 'internal') {
+      const path = extractLinkUrl(value.path ?? value.href ?? value.url)
+      return path
+        ? {
+            type: 'internal',
+            pageId: normalizeString(value.pageId) ?? pageIdFromPath(path),
+            path,
+            ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {})
+          }
+        : undefined
+    }
+    if (type === 'external') {
+      const url = extractLinkUrl(value.url ?? value.href)
+      if (!url) return undefined
+      const normalizedUrl = url.startsWith('//')
+        ? `https:${url}`
+        : /^[\w.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(url)
+          ? `https://${url}`
+          : url
+      return /^https?:\/\//i.test(normalizedUrl)
+        ? {
+            type: 'external',
+            url: normalizedUrl,
+            ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {}),
+            ...(typeof value.openInNewTab === 'boolean' ? { openInNewTab: value.openInNewTab } : {})
+          }
+        : undefined
+    }
+    if (type === 'email' || type === 'phone' || type === 'anchor') {
+      const href = extractLinkUrl(value.href ?? value.url ?? value.path)
+      return href
+        ? {
+            type,
+            href,
+            ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {})
+          }
+        : undefined
+    }
+  }
+
+  const raw = extractLinkUrl(value)
+  if (raw) {
+    if (raw.startsWith('#')) return { type: 'anchor', href: raw }
+    if (raw.startsWith('mailto:')) return { type: 'email', href: raw }
+    if (raw.startsWith('tel:')) return { type: 'phone', href: raw }
+    const href = raw.startsWith('//')
+      ? `https:${raw}`
+      : /^[\w.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(raw)
+        ? `https://${raw}`
+        : raw
+    if (/^https?:\/\//i.test(href)) return { type: 'external', url: href }
+    return { type: 'internal', pageId: pageIdFromPath(href), path: href }
+  }
+
+  if (!isRecord(value)) {
+    return undefined
+  }
+  return undefined
 }
 
 function extractStructuredLogoImage(
@@ -626,6 +696,359 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   return { content: normalized, warnings }
 }
 
+function normalizeFooterMenuItem(
+  value: unknown,
+  warnings: LocalNormalizationWarning[],
+  fieldPath: string
+): Record<string, any> | undefined {
+  if (!isRecord(value)) {
+    warnings.push({
+      issue: 'invalid-subcomponent',
+      message: `Dropped footer menu item at "${fieldPath}" because it is not an object.`,
+      field: fieldPath,
+      childType: 'footer-link'
+    })
+    return undefined
+  }
+
+  const label =
+    normalizeString(value.label) ??
+    normalizeString(value.text) ??
+    normalizeString(value.title) ??
+    normalizeString(value.name)
+  if (!label) {
+    warnings.push({
+      issue: 'missing-required-field',
+      message: `Dropped footer menu item at "${fieldPath}" because it has no label.`,
+      field: fieldPath,
+      childType: 'footer-link'
+    })
+    return undefined
+  }
+
+  for (const unsupported of ['type', 'id']) {
+    if (unsupported in value) {
+      warnings.push({
+        issue: 'unknown-field',
+        message: `Removed unsupported footer menu item field "${unsupported}".`,
+        field: `${fieldPath}.${unsupported}`,
+        childType: 'footer-link',
+        details: { field: unsupported }
+      })
+    }
+  }
+
+  const href = normalizeSmartLink(value.href ?? value.url ?? value.link ?? value.path)
+  const rawLinkValue = value.href ?? value.url ?? value.link ?? value.path
+  if (typeof rawLinkValue === 'string') {
+    warnings.push({
+      issue: 'suspicious-value',
+      message: `Normalized footer string link at "${fieldPath}" into a structured SmartLink.`,
+      field: `${fieldPath}.href`,
+      childType: 'footer-link'
+    })
+  } else {
+    for (const alias of ['url', 'link', 'path']) {
+      if (alias in value && !('href' in value)) {
+        warnings.push({
+          issue: 'unknown-field',
+          message: `Normalized footer link alias "${alias}" into href.`,
+          field: `${fieldPath}.${alias}`,
+          childType: 'footer-link',
+          details: { field: alias }
+        })
+      }
+    }
+  }
+  const children = Array.isArray(value.children)
+    ? value.children
+        .map((child, index) => normalizeFooterMenuItem(child, warnings, `${fieldPath}.children.${index}`))
+        .filter((child): child is Record<string, any> => Boolean(child))
+    : undefined
+  const groups = Array.isArray(value.groups)
+    ? value.groups
+        .filter(isRecord)
+        .map((group, groupIndex) => {
+          const items = Array.isArray(group.items)
+            ? group.items
+                .map((item, itemIndex) => normalizeFooterMenuItem(item, warnings, `${fieldPath}.groups.${groupIndex}.items.${itemIndex}`))
+                .filter((item): item is Record<string, any> => Boolean(item))
+            : undefined
+          return {
+            ...(normalizeString(group.title) ? { title: normalizeString(group.title) } : {}),
+            ...(normalizeString(group.description) ? { description: normalizeString(group.description) } : {}),
+            ...(items && items.length > 0 ? { items } : {})
+          }
+        })
+        .filter(group => Object.keys(group).length > 0)
+    : undefined
+
+  return {
+    label,
+    ...(href ? { href } : {}),
+    ...(normalizeString(value.description) ? { description: normalizeString(value.description) } : {}),
+    ...(normalizeString(value.icon) ? { icon: normalizeString(value.icon) } : {}),
+    ...(children && children.length > 0 ? { children } : {}),
+    ...(groups && groups.length > 0 ? { groups } : {}),
+    ...(typeof value.external === 'boolean' ? { external: value.external } : {}),
+    ...(typeof value.panelOffset === 'number' ? { panelOffset: value.panelOffset } : {}),
+    ...(typeof value.panelWidth === 'number' || typeof value.panelWidth === 'string' ? { panelWidth: value.panelWidth } : {}),
+    ...(value.panelAlign === 'start' || value.panelAlign === 'center' || value.panelAlign === 'end' ? { panelAlign: value.panelAlign } : {})
+  }
+}
+
+function normalizeFooterColumns(value: unknown, warnings: LocalNormalizationWarning[]): Record<string, any>[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+  const columns = value
+    .map((entry, index) => {
+      if (!isRecord(entry)) {
+        warnings.push({
+          issue: 'invalid-subcomponent',
+          message: `Dropped footer column ${index} because it is not an object.`,
+          field: `columns.${index}`,
+          childType: 'footer-column'
+        })
+        return undefined
+      }
+      const linksSource = Array.isArray(entry.links)
+        ? entry.links
+        : Array.isArray(entry.items)
+          ? entry.items
+          : Array.isArray(entry.children)
+            ? entry.children
+            : []
+      const links = linksSource
+        .map((link, linkIndex) => normalizeFooterMenuItem(link, warnings, `columns.${index}.links.${linkIndex}`))
+        .filter((link): link is Record<string, any> => Boolean(link))
+      const title = normalizeString(entry.title) ?? normalizeString(entry.heading) ?? normalizeString(entry.label)
+      for (const unsupported of ['type', 'id']) {
+        if (unsupported in entry) {
+          warnings.push({
+            issue: 'unknown-field',
+            message: `Removed unsupported footer column field "${unsupported}".`,
+            field: `columns.${index}.${unsupported}`,
+            childType: 'footer-column',
+            details: { field: unsupported }
+          })
+        }
+      }
+      if (!title && links.length === 0) {
+        return undefined
+      }
+      return {
+        ...(title ? { title } : {}),
+        ...(links.length > 0 ? { links } : {})
+      }
+    })
+    .filter((column): column is Record<string, any> => Boolean(column))
+  return columns.length > 0 ? columns : undefined
+}
+
+function normalizeSocialPlatform(value: unknown): FooterSocialPlatform {
+  const normalized = normalizeString(value)?.toLowerCase().replace(/[^a-z]/g, '')
+  if (!normalized) return 'website'
+  if (normalized === 'x' || normalized === 'twitter') return 'twitter'
+  if (normalized === 'linkedinin' || normalized === 'linkedin') return 'linkedin'
+  return SOCIAL_PLATFORMS.has(normalized) ? normalized as FooterSocialPlatform : 'website'
+}
+
+function inferSocialPlatformFromUrl(url: string): FooterSocialPlatform {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host.includes('facebook.')) return 'facebook'
+    if (host.includes('twitter.') || host === 'x.com' || host.endsWith('.x.com')) return 'twitter'
+    if (host.includes('linkedin.')) return 'linkedin'
+    if (host.includes('instagram.')) return 'instagram'
+    if (host.includes('youtube.') || host.includes('youtu.be')) return 'youtube'
+    if (host.includes('github.')) return 'github'
+  } catch {
+    // Keep generic website platform when URL parsing fails.
+  }
+  return 'website'
+}
+
+function normalizeFooterSocialLinks(value: unknown, warnings: LocalNormalizationWarning[]): Record<string, any>[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+  const links: Record<string, any>[] = value
+    .map((entry, index) => {
+      if (!isRecord(entry)) {
+        warnings.push({
+          issue: 'invalid-subcomponent',
+          message: `Dropped footer social link ${index} because it is not an object.`,
+          field: `socialLinks.${index}`,
+          childType: 'footer-social-link'
+        })
+        return undefined
+      }
+      const url = extractLinkUrl(entry.url ?? entry.href ?? entry.link)
+      if (!url) {
+        warnings.push({
+          issue: 'missing-required-field',
+          message: `Dropped footer social link ${index} because it has no URL.`,
+          field: `socialLinks.${index}`,
+          childType: 'footer-social-link'
+        })
+        return undefined
+      }
+      const platform = normalizeString(entry.platform)
+        ? normalizeSocialPlatform(entry.platform)
+        : inferSocialPlatformFromUrl(url)
+      for (const unsupported of ['type', 'id']) {
+        if (unsupported in entry) {
+          warnings.push({
+            issue: 'unknown-field',
+            message: `Removed unsupported footer social link field "${unsupported}".`,
+            field: `socialLinks.${index}.${unsupported}`,
+            childType: 'footer-social-link',
+            details: { field: unsupported }
+          })
+        }
+      }
+      return {
+        platform,
+        url,
+        ...(normalizeString(entry.icon) ? { icon: normalizeString(entry.icon) } : {}),
+        ...(normalizeString(entry.label) ? { label: normalizeString(entry.label) } : {})
+      }
+    })
+    .filter((link): link is NonNullable<typeof link> => Boolean(link))
+  return links.length > 0 ? links : undefined
+}
+
+function normalizeFooterLogo(flattened: Record<string, any>): Record<string, any> | undefined {
+  const logoSource = flattened.logo ?? flattened.logoImage ?? flattened.logoUrl ?? flattened.logoSrc ?? flattened.brandLogo
+  const fallbackAlt =
+    normalizeString(flattened.logoAlt) ??
+    normalizeString(flattened.siteName) ??
+    normalizeString(flattened.brand) ??
+    normalizeString(flattened.title)
+  const fallbackText =
+    normalizeString(flattened.logoText) ??
+    normalizeString(flattened.siteName) ??
+    normalizeString(flattened.brand)
+
+  if (isRecord(logoSource)) {
+    const structured = extractStructuredLogoImage(logoSource, fallbackAlt)
+    if (structured) {
+      return {
+        ...structured,
+        ...(fallbackText && !structured.text ? { text: fallbackText } : {})
+      }
+    }
+    const normalized = normalizeImage(logoSource, fallbackAlt)
+    if (normalized) {
+      return {
+        ...(normalized.mediaId
+          ? { src: { mediaId: normalized.mediaId, mediaType: 'image', ...(normalized.src ? { url: normalized.src } : {}) } }
+          : {}),
+        ...(normalized.alt ? { alt: normalized.alt } : fallbackAlt ? { alt: fallbackAlt } : {}),
+        ...(normalized.originalUrl ?? normalized.src ? { originalUrl: normalized.originalUrl ?? normalized.src } : {}),
+        ...(fallbackText ? { text: fallbackText } : {})
+      }
+    }
+    const text = extractTextLogo(logoSource, fallbackAlt, fallbackText, true)
+    return text
+  }
+
+  const logoString = normalizeString(logoSource)
+  if (logoString) {
+    const looksLikeImage = /^https?:\/\//i.test(logoString) || logoString.startsWith('/') || /\.(svg|png|jpe?g|webp|gif|avif)(\?|$)/i.test(logoString)
+    return looksLikeImage
+      ? { originalUrl: logoString, ...(fallbackAlt ? { alt: fallbackAlt } : {}) }
+      : { text: logoString, ...(fallbackAlt ? { alt: fallbackAlt } : {}) }
+  }
+
+  return fallbackText ? { text: fallbackText, ...(fallbackAlt ? { alt: fallbackAlt } : {}) } : undefined
+}
+
+export const normalizeFooterContent: ComponentContentNormalizer = (
+  rawContent: Record<string, any>,
+  options: { parentCanonicalType: string; pageUrl?: string }
+) => {
+  const warnings: LocalNormalizationWarning[] = []
+  const flattened = expandSourceRecord(rawContent, {
+    canonicalType: 'footer',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'content',
+    index: 0,
+    pageUrl: options.pageUrl
+  })
+  const normalized: Record<string, any> = { ...flattened }
+
+  const columns = normalizeFooterColumns(flattened.columns ?? flattened.sections ?? flattened.groups, warnings)
+  if (columns) normalized.columns = columns
+
+  const legalLinksSource = flattened.legalLinks ?? flattened.legal ?? flattened.policyLinks
+  if (Array.isArray(legalLinksSource)) {
+    const legalLinks = legalLinksSource
+      .map((link, index) => normalizeFooterMenuItem(link, warnings, `legalLinks.${index}`))
+      .filter((link): link is Record<string, any> => Boolean(link))
+    if (legalLinks.length > 0) normalized.legalLinks = legalLinks
+  }
+
+  const socialLinks = normalizeFooterSocialLinks(flattened.socialLinks ?? flattened.social ?? flattened.socials, warnings)
+  if (socialLinks) normalized.socialLinks = socialLinks
+
+  const logo = normalizeFooterLogo(flattened)
+  if (logo) normalized.logo = logo
+
+  const newsletterSource = isRecord(flattened.newsletter) ? flattened.newsletter : undefined
+  if (newsletterSource) {
+    const heading = normalizeString(newsletterSource.heading ?? newsletterSource.title ?? newsletterSource.label)
+    if (heading) {
+      normalized.newsletter = {
+        heading,
+        ...(normalizeString(newsletterSource.description ?? newsletterSource.body ?? newsletterSource.text)
+          ? { description: normalizeString(newsletterSource.description ?? newsletterSource.body ?? newsletterSource.text) }
+          : {}),
+        ...(normalizeString(newsletterSource.placeholder) ? { placeholder: normalizeString(newsletterSource.placeholder) } : {}),
+        ...(normalizeString(newsletterSource.buttonText ?? newsletterSource.buttonLabel ?? newsletterSource.cta)
+          ? { buttonText: normalizeString(newsletterSource.buttonText ?? newsletterSource.buttonLabel ?? newsletterSource.cta) }
+          : {})
+      }
+    } else {
+      delete normalized.newsletter
+      warnings.push({
+        issue: 'missing-required-field',
+        message: 'Dropped footer newsletter because it has no heading.',
+        field: 'newsletter',
+        childType: 'footer'
+      })
+    }
+  }
+
+  ;[
+    'sections',
+    'groups',
+    'legal',
+    'policyLinks',
+    'social',
+    'socials',
+    'logoImage',
+    'logoUrl',
+    'logoSrc',
+    'brandLogo',
+    'logoText',
+    'logoAlt',
+    'region',
+    'type',
+    'id'
+  ].forEach(key => {
+    if (key in normalized && key !== 'logo') delete normalized[key]
+  })
+
+  const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'footer', {
+    childType: 'footer'
+  })
+  warnings.push(...pruneWarnings)
+
+  return { content: pruned, warnings }
+}
+
 function deriveBreadcrumbLabel(item: Record<string, any>, fallbackHomeLabel?: string): string | undefined {
   const explicit =
     normalizeString(item.label) ??
@@ -667,31 +1090,28 @@ function normalizeBreadcrumbItem(
   const label = deriveBreadcrumbLabel(source, fallbackHomeLabel)
 
   if (sourceType && SMART_LINK_TYPES.has(sourceType)) {
+    const href = normalizeSmartLink(source)
     return {
       ...(label ? { label } : {}),
-      href: {
-        type: source.type,
-        ...(source.pageId ? { pageId: source.pageId } : {}),
-        ...(source.path ? { path: source.path } : {}),
-        ...(source.url ? { url: source.url } : {}),
-        ...(source.email ? { email: source.email } : {}),
-        ...(source.phone ? { phone: source.phone } : {}),
-        ...(source.anchor ? { anchor: source.anchor } : {})
-      }
+      ...(href ? { href } : {})
     }
   }
 
   if (hrefSource) {
+    const href = normalizeSmartLink(hrefSource)
     return {
       ...(label ? { label } : {}),
-      href: hrefSource,
+      ...(href ? { href } : {}),
       ...(typeof source.external === 'boolean' ? { external: source.external } : {}),
       ...(typeof source.target === 'string' ? { target: source.target } : {})
     }
   }
 
+  const href = normalizeSmartLink(source.url ?? source.link ?? source.path ?? source.href)
+
   return {
     ...(label ? { label } : {}),
+    ...(href ? { href } : {}),
     ...(typeof source.external === 'boolean' ? { external: source.external } : {}),
     ...(typeof source.target === 'string' ? { target: source.target } : {})
   }
@@ -718,5 +1138,21 @@ export const normalizeBreadcrumbsContent: ComponentContentNormalizer = (
       .filter((item): item is Record<string, any> => Boolean(item))
   }
 
-  return { content: normalized, warnings }
+  const separator = normalizeString(normalized.separator)
+  if (separator === '/' || separator === '>' || separator === '→' || separator === '•') {
+    normalized.separator = separator
+  } else {
+    delete normalized.separator
+  }
+
+  if ('showHome' in normalized) {
+    normalized.showHome = normalizeBooleanFlag(normalized.showHome)
+  }
+
+  const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'breadcrumbs', {
+    childType: 'breadcrumbs'
+  })
+  warnings.push(...pruneWarnings)
+
+  return { content: pruned, warnings }
 }

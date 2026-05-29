@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import type { NavBarSearch } from './nav-bar.types';
 import { SearchPanel } from './search-panel';
 
@@ -50,14 +51,16 @@ export function SearchToggle({ search, onInteraction }: SearchToggleProps) {
 
   // Always show search icon button
   const searchButton = (
-    <button
+    <Button
       type="button"
       onClick={handleOpen}
-      className="rounded-full p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+      variant="ghost"
+      size="icon"
+      className="text-muted-foreground hover:bg-muted/70 hover:text-foreground"
       aria-label="Open search"
     >
       <Search className="h-5 w-5" />
-    </button>
+    </Button>
   );
 
   // If using rich search panel with suggestions
@@ -91,9 +94,9 @@ export function SearchToggle({ search, onInteraction }: SearchToggleProps) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder={search.placeholder || 'Search...'}
           className={cn(
-            'h-9 w-48 rounded-full border border-border/50 bg-muted/40 pl-9 pr-4',
+            'h-9 w-48 rounded-md border border-input bg-background pl-9 pr-4',
             'text-sm text-foreground placeholder:text-muted-foreground',
-            'focus:w-64 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/30',
+            'focus:w-64 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             'transition-[width,border-color,box-shadow] duration-200',
           )}
           onKeyDown={(e) => {
@@ -101,14 +104,16 @@ export function SearchToggle({ search, onInteraction }: SearchToggleProps) {
           }}
         />
       </div>
-      <button
+      <Button
         type="button"
         onClick={handleClose}
-        className="rounded-full p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground hover:bg-muted/70 hover:text-foreground"
         aria-label="Close search"
       >
         <X className="h-4 w-4" />
-      </button>
+      </Button>
     </form>
   );
 }

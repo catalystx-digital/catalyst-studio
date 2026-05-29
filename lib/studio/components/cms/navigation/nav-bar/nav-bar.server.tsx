@@ -163,7 +163,7 @@ function DropdownLink({
     <NavigationMenuLink
       key={`${parentLabel}-${groupIndex}-${item.label}-${childIndex}`}
       asChild
-      className="group flex flex-col rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/80 data-[active=true]:bg-accent/10"
+      className="group flex flex-col rounded-md px-3 py-2.5 transition-colors hover:bg-muted/80 data-[active=true]:bg-accent/10"
       data-active={isActive ? 'true' : undefined}
     >
       <Link
@@ -233,7 +233,7 @@ function NavMenuItem({
         </NavigationMenuTrigger>
         <NavigationMenuContent
           style={panelWidth ? { width: panelWidth } : undefined}
-          className="rounded-xl border bg-popover p-4 shadow-lg"
+          className="cms-navigation-content rounded-md border bg-popover p-4 shadow-lg"
         >
           <div className={cn('grid', dsSpacing.gap('md'), combinedGroups.length > 1 && 'sm:grid-cols-2')}>
             {combinedGroups.map((group, groupIndex) => (
@@ -271,7 +271,7 @@ function NavMenuItem({
     <NavigationMenuItem>
       <NavigationMenuLink
         asChild
-        className="inline-flex h-10 items-center justify-center px-4 py-2 text-base font-medium rounded-md hover:bg-muted/60 data-[active=true]:bg-accent/10 data-[active=true]:font-semibold whitespace-nowrap"
+        className="inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/60 data-[active=true]:bg-accent/10 data-[active=true]:font-semibold whitespace-nowrap"
         data-active={isActive ? 'true' : undefined}
       >
         <Link
@@ -372,7 +372,7 @@ function ImportedPrimaryNavLink({
       target={item.external ? '_blank' : undefined}
       rel={item.external ? 'noopener noreferrer' : undefined}
       className={cn(
-        'flex min-h-10 flex-1 items-center justify-center px-4 py-2 text-center text-sm font-semibold transition-colors',
+        'flex min-h-11 flex-1 items-center justify-center px-4 py-2.5 text-center text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         hasSourceStyle ? 'hover:brightness-95 data-[active=true]:brightness-90' : 'hover:bg-primary/90 data-[active=true]:bg-primary/90',
         className ?? 'text-primary-foreground'
       )}
@@ -489,7 +489,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
   // Note: normalizedMenuItems always has items (fallback is applied in useMemo above)
   const primaryNav = (
     <div className="flex items-center gap-4">
-      <NavigationMenu delayDuration={200} skipDelayDuration={100}>
+      <NavigationMenu className="cms-navigation-menu" delayDuration={200} skipDelayDuration={100}>
         <NavigationMenuList>
           {normalizedMenuItems.map((item, index) => (
             <NavMenuItem
@@ -520,7 +520,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
     const primaryRowStyle = rowStyleToCss(content.styles?.primaryRow);
     const primaryItemStyles = buildPrimaryItemStyleMap(content.styles);
     const primaryRowTextClass = primaryRowStyle?.color ? 'text-current' : 'text-primary-foreground';
-    const primaryRowBorderClass = primaryRowStyle?.borderColor ? 'border-current/40' : 'border-background/70';
+    const primaryRowBorderClass = primaryRowStyle?.borderColor ? 'border-current/30' : 'border-background/60';
     const importedNavClassName = cn(
       'nav-bar-server hidden w-full lg:block bg-background text-foreground',
       sticky ? 'sticky top-0 z-50' : 'relative',
@@ -557,7 +557,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
 
         <div className="bg-primary" style={primaryRowStyle} data-imported-primary-nav>
           <div className="cms-container">
-            <div className="flex min-h-10 items-stretch">
+            <div className="flex min-h-11 items-stretch">
               {normalizedMenuItems.map((item, index) => {
                 const primaryItemStyle = primaryItemStyles.get(normalizeStyleLabel(item.label));
                 const primaryItemTextClass = primaryItemStyle?.color ? 'text-current' : primaryRowTextClass;
@@ -579,7 +579,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
                 );
               })}
               {search?.enabled && (
-                <div className={cn('flex min-h-10 items-center justify-center border-r px-4', primaryRowBorderClass, primaryRowTextClass)}>
+                <div className={cn('flex min-h-11 items-center justify-center border-r px-4', primaryRowBorderClass, primaryRowTextClass)}>
                   <SearchToggle search={search} onInteraction={emitInteraction} />
                 </div>
               )}

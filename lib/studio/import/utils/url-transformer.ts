@@ -89,6 +89,32 @@ const IMAGE_PATH_PATTERNS = [
   /\/cdn-cgi\/image/i,
 ]
 
+const TRUSTED_EXTENSIONLESS_IMAGE_HOSTS: Array<string | RegExp> = [
+  /^cdn\./i,
+  /^assets\./i,
+  /^images\./i,
+  /^media\./i,
+  /^static\./i,
+  /(^|\.)cloudfront\.net$/i,
+  /(^|\.)akamaihd\.net$/i,
+  /(^|\.)storage\.googleapis\.com$/i,
+  /(^|\.)cdn\.shopify\.com$/i,
+]
+
+function matchesHostPattern(hostname: string, pattern: string | RegExp): boolean {
+  return typeof pattern === 'string' ? hostname === pattern.toLowerCase() : pattern.test(hostname)
+}
+
+function isTrustedExtensionlessImageHost(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.toLowerCase()
+    return TRUSTED_EXTENSIONLESS_IMAGE_HOSTS.some(pattern => matchesHostPattern(hostname, pattern))
+  } catch {
+    return false
+  }
+}
+
 /**
  * Checks if a URL looks like an image URL based on extension or path patterns.
  *
@@ -127,6 +153,14 @@ export function isLikelyImageUrl(url: unknown): boolean {
   // Check for image-related path patterns
   for (const pattern of IMAGE_PATH_PATTERNS) {
     if (pattern.test(cleanUrl)) {
+      return true
+    }
+  }
+
+  if (isTrustedExtensionlessImageHost(trimmed)) {
+    const pathname = cleanUrl.replace(/^https?:\/\/[^/]+/, '')
+    const lastSegment = pathname.split('/').filter(Boolean).pop() || ''
+    if (lastSegment && !cleanUrl.endsWith('/')) {
       return true
     }
   }

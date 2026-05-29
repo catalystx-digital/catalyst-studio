@@ -59,7 +59,7 @@ describe('HeroWithImage', () => {
   it('renders as a split image and copy hero instead of a full-screen overlay', () => {
     const { container } = render(<HeroWithImage {...mockProps} />);
 
-    expect(container.innerHTML).toContain('md:grid-cols-[2fr_1fr]');
+    expect(container.innerHTML).toContain('md:grid-cols-[minmax(0,1.12fr)_minmax(20rem,0.88fr)]');
     expect(container.innerHTML).not.toContain('min-h-screen');
   });
 });

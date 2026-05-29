@@ -70,7 +70,8 @@ export const ImageGalleryDef = defineComponent({
   // LLM extraction directives
   directives: [
     'Data requirements: Populate images[] with every visible gallery image in DOM order.',
-    'Each image object MUST include: url (absolute image URL), alt (accessible description).',
+    'Each image object MUST include either src as a media reference when mediaId is available, or originalUrl as the absolute image URL.',
+    'Always include alt when accessible text is known.',
     'Optional image fields: caption, width, height.',
     'Set displayMode to "grid", "carousel", or "masonry" based on the layout.',
     'Set columns to match the grid column count (2-6).',
@@ -83,8 +84,8 @@ export const ImageGalleryDef = defineComponent({
     'Example payload:',
     '  {',
     '    "images": [',
-    '      { "url": "https://example.com/img1.jpg", "alt": "Gallery image 1", "caption": "Spring collection" },',
-    '      { "url": "https://example.com/img2.jpg", "alt": "Gallery image 2" }',
+    '      { "originalUrl": "https://example.com/img1.jpg", "alt": "Gallery image 1", "caption": "Spring collection" },',
+    '      { "originalUrl": "https://example.com/img2.jpg", "alt": "Gallery image 2" }',
     '    ],',
     '    "displayMode": "grid",',
     '    "columns": 3,',

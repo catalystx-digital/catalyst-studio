@@ -6,22 +6,42 @@
       {
         "alt": "Acme",
         "id": "acme",
-        "src": "https://cdn.example.com/logos/acme.svg"
+        "src": {
+          "mediaId": "atlas-acme-logo",
+          "mediaType": "image",
+          "url": "https://cdn.example.com/logos/acme.svg"
+        },
+        "originalUrl": "https://cdn.example.com/logos/acme.svg"
       },
       {
         "alt": "Northwind",
         "id": "northwind",
-        "src": "https://cdn.example.com/logos/northwind.svg"
+        "src": {
+          "mediaId": "atlas-northwind-logo",
+          "mediaType": "image",
+          "url": "https://cdn.example.com/logos/northwind.svg"
+        },
+        "originalUrl": "https://cdn.example.com/logos/northwind.svg"
       },
       {
         "alt": "Globex",
         "id": "globex",
-        "src": "https://cdn.example.com/logos/globex.svg"
+        "src": {
+          "mediaId": "atlas-globex-logo",
+          "mediaType": "image",
+          "url": "https://cdn.example.com/logos/globex.svg"
+        },
+        "originalUrl": "https://cdn.example.com/logos/globex.svg"
       },
       {
         "alt": "Initech",
         "id": "initech",
-        "src": "https://cdn.example.com/logos/initech.svg"
+        "src": {
+          "mediaId": "atlas-initech-logo",
+          "mediaType": "image",
+          "url": "https://cdn.example.com/logos/initech.svg"
+        },
+        "originalUrl": "https://cdn.example.com/logos/initech.svg"
       }
     ],
     "caption": "Trusted by experience-driven teams"

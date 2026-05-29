@@ -15,7 +15,7 @@ describe('LogoStrip', () => {
         id: '1',
         src: '/images/logo1.png',
         alt: 'Company A',
-        link: 'https://company-a.com'
+        href: { type: 'external', url: 'https://company-a.com' }
       },
       {
         id: '2',
@@ -32,7 +32,7 @@ describe('LogoStrip', () => {
         id: '4',
         src: '/images/logo4.png',
         alt: 'Company D',
-        link: 'https://company-d.com'
+        href: { type: 'external', url: 'https://company-d.com' }
       }
     ],
     size: 'medium',

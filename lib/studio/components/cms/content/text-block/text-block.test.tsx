@@ -49,8 +49,8 @@ describe('TextBlock Component', () => {
   });
 
   it('applies correct alignment classes', () => {
-    const { container, rerender } = render(<TextBlock {...defaultProps} />);
-    expect(container.firstChild).toHaveClass('text-left');
+    const { rerender } = render(<TextBlock {...defaultProps} />);
+    expect(screen.getByTestId('cms-text-block-body')).toHaveClass('text-left');
 
     rerender(
       <TextBlock
@@ -62,11 +62,11 @@ describe('TextBlock Component', () => {
   });
 
   it('applies theme classes correctly', () => {
-    const { container, rerender } = render(<TextBlock {...defaultProps} />);
-    expect(container.firstChild).toHaveClass('cms-card');
+    const { container, rerender } = render(<TextBlock {...defaultProps} theme="light" />);
+    expect(container.querySelector('.theme-light')).toBeInTheDocument();
 
     rerender(<TextBlock {...defaultProps} theme="dark" />);
-    expect(container.firstChild).toHaveClass('theme-dark');
+    expect(container.querySelector('.theme-dark')).toBeInTheDocument();
   });
 
   it('applies column classes when specified', () => {

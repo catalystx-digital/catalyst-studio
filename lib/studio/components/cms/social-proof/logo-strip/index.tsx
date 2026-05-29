@@ -88,22 +88,22 @@ function prepareLogos(logos: LogoItem[]): PreparedLogo[] {
     typeof value === 'string' ? value.trim() : '';
 
   logos.forEach((logo) => {
-    const base = (safeStringTrim(logo.id) || safeStringTrim(logo.src) || '').toLowerCase();
+    const base = (safeStringTrim(logo.id) || safeStringTrim(logo.originalUrl) || '').toLowerCase();
     keyCounts.set(base, (keyCounts.get(base) ?? 0) + 1);
   });
 
   return logos.map((logo, index) => {
-    const base = (safeStringTrim(logo.id) || safeStringTrim(logo.src) || '').toLowerCase();
+    const base = (safeStringTrim(logo.id) || safeStringTrim(logo.originalUrl) || '').toLowerCase();
     const needsSuffix = base === '' || (keyCounts.get(base) ?? 0) > 1;
     const key = needsSuffix ? `${base || 'logo'}-${index}` : base;
 
     const sanitizedAlt = sanitizePlainText(String(logo.alt ?? ''));
     const sanitizedCaption = sanitizeCaption(logo.caption);
-    const resolvedHref = resolveSmartLinkHref(logo.href) ?? resolveSmartLinkHref(logo.link);
+    const resolvedHref = resolveSmartLinkHref(logo.href);
     const validatedHref = validateUrl(resolvedHref, {
       fallback: '',
     });
-    const validatedSrc = resolveImageSource(logo.src) ?? '';
+    const validatedSrc = resolveImageSource(logo) ?? '';
     const resolvedId = safeStringTrim(logo.id) || key;
     const altText = sanitizedAlt || 'Company logo';
 

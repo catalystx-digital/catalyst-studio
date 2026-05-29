@@ -5,7 +5,11 @@
     "body": "Catalyst Studio pairs structured components with best-practice templates so every team can move quickly.",
     "ctaButtons": [
       {
-        "href": "/signup",
+        "href": {
+          "type": "internal",
+          "pageId": "signup",
+          "path": "/signup"
+        },
         "label": "Start building",
         "variant": "primary"
       }

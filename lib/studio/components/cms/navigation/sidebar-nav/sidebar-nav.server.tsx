@@ -120,8 +120,11 @@ export function SidebarNavServer({
 }: SidebarNavProps & SidebarNavStyleProps) {
   const { title, items, currentPath, showExpandIcons = true, maxDepth, showBackLink, backLink } =
     content
+  const sections = Array.isArray(content.sections)
+    ? content.sections.filter(section => Array.isArray(section.items) && section.items.length > 0)
+    : []
 
-  if (!items || items.length === 0) {
+  if ((!items || items.length === 0) && sections.length === 0) {
     return null
   }
 
@@ -155,19 +158,44 @@ export function SidebarNavServer({
         <h3 className="text-sm font-semibold text-foreground mb-3 px-3">{title}</h3>
       )}
 
-      {/* Navigation items */}
-      <ul className="space-y-1" role="list">
-        {items.map((item, index) => (
-          <NavItem
-            key={`${resolveNavHref(item.href) ?? item.label}-${index}`}
-            item={item}
-            currentPath={currentPath}
-            depth={0}
-            maxDepth={maxDepth}
-            showExpandIcons={showExpandIcons}
-          />
-        ))}
-      </ul>
+      {sections.length > 0 ? (
+        <div className="space-y-4">
+          {sections.map((section, sectionIndex) => (
+            <div key={`${section.heading ?? 'section'}-${sectionIndex}`}>
+              {section.heading && (
+                <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {section.heading}
+                </h4>
+              )}
+              <ul className="space-y-1" role="list">
+                {section.items.map((item, index) => (
+                  <NavItem
+                    key={`${resolveNavHref(item.href) ?? item.label}-${sectionIndex}-${index}`}
+                    item={item}
+                    currentPath={currentPath}
+                    depth={0}
+                    maxDepth={maxDepth}
+                    showExpandIcons={showExpandIcons}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <ul className="space-y-1" role="list">
+          {items.map((item, index) => (
+            <NavItem
+              key={`${resolveNavHref(item.href) ?? item.label}-${index}`}
+              item={item}
+              currentPath={currentPath}
+              depth={0}
+              maxDepth={maxDepth}
+              showExpandIcons={showExpandIcons}
+            />
+          ))}
+        </ul>
+      )}
     </nav>
   )
 }

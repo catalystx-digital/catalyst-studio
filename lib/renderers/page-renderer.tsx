@@ -3,6 +3,10 @@ import { DesignTokenProvider } from '@/lib/design-system/design-token-provider';
 import { DesignSystemScope } from '@/lib/design-system/design-system-scope';
 import type { DesignTokens } from '@/lib/design-system/tokens';
 import { renderCMSComponents } from '@/lib/studio/components/cms/_factory/renderer.server';
+import {
+  buildCmsPresentationContext,
+  cmsPresentationAttributes
+} from './cms-presentation';
 import type {
   CMSComponentProps,
   ComponentType,
@@ -311,11 +315,14 @@ function resolvePageTheme(nodes: ComponentTreeNode[]): ComponentTheme {
     }
   }
 
-  return 'dark';
+  return 'light';
 }
 
-function buildPageRootClasses(theme: ComponentTheme | undefined): string {
-  const normalizedTheme = !theme || theme === 'auto' ? 'dark' : theme;
+function buildPageRootClasses(theme: ComponentTheme | undefined, pageKind?: string): string {
+  const normalizedTheme =
+    pageKind === 'agency'
+      ? 'dark'
+      : (!theme || theme === 'auto' ? 'light' : theme);
 
   return [
     'cms-page-root',
@@ -586,7 +593,9 @@ export async function PageRendererHelper({
 
   const tree = buildComponentTree(componentInstances);
   const rootTheme = resolvePageTheme(tree);
-  const rootClasses = buildPageRootClasses(rootTheme);
+  const presentationContext = buildCmsPresentationContext(page);
+  const rootClasses = buildPageRootClasses(rootTheme, presentationContext.pageKind);
+  const presentationAttrs = cmsPresentationAttributes(presentationContext);
   const sharedMap = new Map(sharedComponents.map(component => [component.id, component]));
   const pageDesignTokens = extractPageDesignTokens(page);
 
@@ -603,7 +612,7 @@ export async function PageRendererHelper({
         tokens={pageDesignTokens?.tokens}
         cssVariables={pageDesignTokens?.cssVariables ?? null}
       >
-        <div className={rootClasses}>
+        <div className={rootClasses} {...presentationAttrs}>
           <div className="cms-page-container">
             {shouldRenderPageHeader(page) && (
               <div className="page-header mb-8">

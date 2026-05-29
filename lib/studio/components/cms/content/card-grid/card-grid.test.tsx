@@ -293,6 +293,28 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByRole('link', { name: 'Learn more' }).closest('[class*="justify-center"]')).toBeInTheDocument();
   });
 
+  it('renders title-only link cards as intentional quick-link cards', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          heading: 'Quick Links',
+          cards: [
+            {
+              id: 'quick-link',
+              title: 'Your guide to the RCH',
+              href: '/guide',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const card = container.querySelector('.cms-card-grid-card')!;
+    expect(card).toHaveClass('bg-card/95', 'border-border/70', 'min-h-24', 'justify-between');
+    expect(screen.getByRole('link', { name: 'Learn more' }).closest('[class*="justify-start"]')).toBeInTheDocument();
+  });
+
   it('can disable first-card feature spanning for feed-like grids', () => {
     const { container } = render(
       <CardGrid

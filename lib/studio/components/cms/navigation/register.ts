@@ -17,6 +17,7 @@ import { FooterDef } from './footer/footer.def';
 import { MobileMenuDef } from './mobile-menu/mobile-menu.def';
 import { BreadcrumbsDef } from './breadcrumbs/breadcrumbs.def';
 import { SidebarNavDef } from './sidebar-nav/sidebar-nav.def';
+import { SideMenuDef } from './sidemenu/sidemenu.def';
 
 /**
  * Register all navigation components with the factory
@@ -62,6 +63,13 @@ export function registerNavigationComponents(): void {
       metadata: detectionToAIMetadata(SidebarNavDef.detection!, ComponentType.SidebarNav),
       schema: SidebarNavDef.schema,
       description: SidebarNavDef.description
+    },
+    {
+      type: ComponentType.SideMenu,
+      component: SidebarNavAdapter,
+      metadata: detectionToAIMetadata(SideMenuDef.detection!, ComponentType.SideMenu),
+      schema: SideMenuDef.schema,
+      description: SideMenuDef.description
     }
   ]);
 

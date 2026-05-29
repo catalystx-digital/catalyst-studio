@@ -7,6 +7,15 @@ const SAFE_URL_PROTOCOLS = ['http:', 'https:', 'data:'];
 const SAFE_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 const SAFE_IMAGE_TRUSTED_HOSTS: Array<string | RegExp> = [
   /(^|\.)intelligencebank\.com$/i,
+  /^cdn\./i,
+  /^assets\./i,
+  /^images\./i,
+  /^media\./i,
+  /^static\./i,
+  /(^|\.)cloudfront\.net$/i,
+  /(^|\.)akamaihd\.net$/i,
+  /(^|\.)storage\.googleapis\.com$/i,
+  /(^|\.)cdn\.shopify\.com$/i,
 ];
 export const SAFE_VIDEO_EXTENSIONS = [
   '.mp4',

@@ -1,6 +1,7 @@
 import React from 'react'
 import { notFound, redirect, unstable_rethrow } from 'next/navigation'
 import { PageRendererHelper } from '@/lib/renderers/page-renderer'
+import { isCmsScopedVariableAllowed } from '@/lib/design-system/cms-token-guardrails'
 import { prisma } from '@/lib/prisma'
 import { UrlResolver } from '@/lib/services/url-resolution/url-resolver'
 import {
@@ -77,6 +78,35 @@ function extractRedirectTarget(metadata: Record<string, unknown> | undefined): s
   }
 
   return null
+}
+
+const CSS_VARIABLE_PATTERN = /^\s*--([^:]+):\s*([^;]+);/
+
+function buildScopedDesignSystemCss(css: string | null): string | null {
+  if (!css) {
+    return null
+  }
+
+  const entries = css
+    .split('\n')
+    .map(line => line.trim())
+    .map(line => {
+      const match = line.match(CSS_VARIABLE_PATTERN)
+      if (!match) {
+        return null
+      }
+      const [, rawName, rawValue] = match
+      const name = rawName.startsWith('--') ? rawName.trim() : `--${rawName.trim()}`
+      const value = rawValue.trim()
+      return isCmsScopedVariableAllowed(name) ? `  ${name}: ${value};` : null
+    })
+    .filter((line): line is string => Boolean(line))
+
+  if (entries.length === 0) {
+    return null
+  }
+
+  return `[data-design-system-scope="true"] {\n${entries.join('\n')}\n}`
 }
 
 function formatResolverError(error: unknown, requestPath: string, websiteId: string): string {
@@ -394,6 +424,7 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
 
     const duration = Date.now() - startTime
     const designSystemCss = await resolveDesignSystemCss(websiteId, designConcept)
+    const scopedDesignSystemCss = buildScopedDesignSystemCss(designSystemCss)
     console.info('[LocalPreview] Resolved page', {
       path: requestPath,
       websiteId,
@@ -405,10 +436,10 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
 
     return (
       <div className="min-h-screen bg-background text-foreground">
-        {designSystemCss && (
+        {scopedDesignSystemCss && (
           <style
             id="studio-local-preview-design-system"
-            dangerouslySetInnerHTML={{ __html: designSystemCss }}
+            dangerouslySetInnerHTML={{ __html: scopedDesignSystemCss }}
           />
         )}
         <PageRendererHelper

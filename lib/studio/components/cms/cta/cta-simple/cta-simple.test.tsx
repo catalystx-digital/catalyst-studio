@@ -14,12 +14,12 @@ describe('CTASimple Component', () => {
       heading: 'Join Catalyst today',
       body: 'Unlock studio templates and AI powered workflows.',
       primaryButton: {
-        text: 'Get Started',
-        url: '/start',
+        label: 'Get Started',
+        href: { type: 'internal', pageId: 'start', path: '/start' },
       },
       secondaryButton: {
-        text: 'Learn More',
-        url: '/learn',
+        label: 'Learn More',
+        href: { type: 'internal', pageId: 'learn', path: '/learn' },
       },
       alignment: 'center' as const,
       backgroundVariant: 'accent' as const,
@@ -47,15 +47,15 @@ describe('CTASimple Component', () => {
     expect(onInteraction).toHaveBeenCalledTimes(2);
   });
 
-  it('supports button URLs provided as asset reference objects', () => {
+  it('renders structured SmartLink button hrefs', () => {
     render(
       <CTASimple
         {...baseProps}
         content={{
           ...baseProps.content,
           primaryButton: {
-            text: 'Get Started',
-            url: { originalUrl: 'https://example.com/join' },
+            label: 'Get Started',
+            href: { type: 'external', url: 'https://example.com/join' },
           },
           secondaryButton: undefined,
         }}
@@ -64,5 +64,23 @@ describe('CTASimple Component', () => {
 
     const link = screen.getByRole('link', { name: 'Get Started' });
     expect(link).toHaveAttribute('href', 'https://example.com/join');
+  });
+
+  it('does not render legacy text/url buttons', () => {
+    render(
+      <CTASimple
+        {...baseProps}
+        content={{
+          ...baseProps.content,
+          primaryButton: {
+            text: 'Legacy',
+            url: '/legacy',
+          } as any,
+          secondaryButton: undefined,
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Legacy' })).not.toBeInTheDocument();
   });
 });

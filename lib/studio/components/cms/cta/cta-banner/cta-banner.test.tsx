@@ -17,11 +17,11 @@ describe('CTABanner Component', () => {
       subheading: 'Deploy your Catalyst site with a single click.',
       primaryButton: {
         label: 'Get Started',
-        href: '/start',
+        href: { type: 'internal', pageId: 'start', path: '/start' },
       },
       secondaryButton: {
         label: 'Contact Sales',
-        href: '/contact',
+        href: { type: 'internal', pageId: 'contact', path: '/contact' },
       },
       alignment: 'center' as const,
     },
@@ -106,7 +106,7 @@ describe('CTABanner Component', () => {
     expect(container.querySelector('.bg-gradient-to-r.from-black\\/70')).toBeInTheDocument();
   });
 
-  it('normalizes media reference background images without rendering object URLs', () => {
+  it('does not render object-shaped background images', () => {
     const { container } = render(
       <CTABanner
         {...baseProps}
@@ -124,8 +124,8 @@ describe('CTABanner Component', () => {
     );
 
     const card = container.querySelector('.cms-cta-banner .rounded-xl') as HTMLElement;
-    expect(card.style.backgroundImage).toContain('media-banner.png');
     expect(card.style.backgroundImage).not.toContain('[object Object]');
+    expect(card.style.backgroundImage).toBe('');
   });
 
   it('omits links when no buttons are provided', () => {
@@ -141,5 +141,23 @@ describe('CTABanner Component', () => {
     );
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('does not render legacy text/url buttons', () => {
+    render(
+      <CTABanner
+        {...baseProps}
+        content={{
+          ...baseProps.content,
+          primaryButton: {
+            text: 'Legacy',
+            url: '/legacy',
+          } as any,
+          secondaryButton: undefined,
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Legacy' })).not.toBeInTheDocument();
   });
 });

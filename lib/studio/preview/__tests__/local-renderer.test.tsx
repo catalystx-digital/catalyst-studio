@@ -272,7 +272,7 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     })
 
     const html = renderToStaticMarkup(element as React.ReactElement)
-    expect(html).toContain('studio-local-preview-design-system')
+    expect(html).not.toContain('studio-local-preview-design-system')
     expect(html).toContain('Rendered page')
     expect(mockPageRendererHelper).toHaveBeenCalledWith(expect.objectContaining({
       page: expect.objectContaining({
@@ -299,6 +299,10 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
       data: resolvedPage(),
     })
     mockFindDesignSystem.mockResolvedValue({ id: 'design-system-1', tokens })
+    mockGenerateStrictDesignSystemCss.mockReturnValueOnce(`:root {
+  --primary: 240 5.9% 10%;
+  --background: 0 0% 100%;
+}`)
 
     const { renderLocalWebsitePreview } = await import('../local-renderer')
     const element = await renderLocalWebsitePreview({
@@ -308,6 +312,9 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
 
     const html = renderToStaticMarkup(element as React.ReactElement)
     expect(html).toContain('studio-local-preview-design-system')
+    expect(html).toContain('[data-design-system-scope="true"]')
+    expect(html).toContain('--primary: 240 5.9% 10%;')
+    expect(html).not.toContain('--background')
     expect(mockGenerateStrictDesignSystemCss).toHaveBeenCalledWith(tokens, {
       websiteId: 'website-1',
       designSystemId: 'design-system-1',

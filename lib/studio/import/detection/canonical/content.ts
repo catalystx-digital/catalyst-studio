@@ -80,16 +80,19 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
       columns: 3,
       images: [
         {
-          url: 'https://cdn.example.com/gallery/office-1.jpg',
+          src: { mediaId: 'sample-gallery-office-1', mediaType: 'image', url: 'https://cdn.example.com/gallery/office-1.jpg' },
+          originalUrl: 'https://cdn.example.com/gallery/office-1.jpg',
           alt: 'Team working in modern office',
           caption: 'Collaboration in Catalyst Studio.'
         },
         {
-          url: 'https://cdn.example.com/gallery/office-2.jpg',
+          src: { mediaId: 'sample-gallery-office-2', mediaType: 'image', url: 'https://cdn.example.com/gallery/office-2.jpg' },
+          originalUrl: 'https://cdn.example.com/gallery/office-2.jpg',
           alt: 'Product manager reviewing designs'
         },
         {
-          url: 'https://cdn.example.com/gallery/office-3.jpg',
+          src: { mediaId: 'sample-gallery-office-3', mediaType: 'image', url: 'https://cdn.example.com/gallery/office-3.jpg' },
+          originalUrl: 'https://cdn.example.com/gallery/office-3.jpg',
           alt: 'Developer presenting results'
         }
       ],
@@ -154,7 +157,6 @@ export const contentCanonicalDefinitions: CanonicalComponentDefinition[] = [
       heading: 'Latest News',
       layout: 'card-grid',
       limit: 6,
-      source: {},
       pinned: [
         { title: 'School Holidays Announced', href: { type: 'internal', pageId: 'news-holidays-2024', path: '/news/holidays-2024' }, excerpt: 'Important dates for the upcoming term break...', date: '2024-02-20', category: 'Announcements' },
         { title: 'Community Event Success', href: { type: 'internal', pageId: 'news-community-event', path: '/news/community-event' }, excerpt: 'Thank you to everyone who attended...', date: '2024-02-18', category: 'Events' }

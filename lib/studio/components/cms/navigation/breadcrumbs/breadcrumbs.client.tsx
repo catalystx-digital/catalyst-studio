@@ -14,34 +14,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { cmsBody } from '../../_ui/typography';
 import { BreadcrumbsProps } from './breadcrumbs.types';
+import { buildBreadcrumbTrail } from './breadcrumbs.server';
 
 type NormalizedItem = { label: string; href: string };
 type DisplayEntry =
   | { kind: 'item'; item: NormalizedItem; index: number }
   | { kind: 'ellipsis'; key: string };
-
-function normalizeItems(
-  items: BreadcrumbsProps['content']['items'],
-): NormalizedItem[] {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-
-  return items
-    .filter(
-      item =>
-        item &&
-        typeof item === 'object' &&
-        typeof item.label === 'string',
-    )
-    .map(item => ({
-      label: item.label.trim(),
-      href:
-        typeof item.href === 'string' && item.href.trim().length > 0
-          ? item.href.trim()
-          : '#',
-    }));
-}
 
 export function BreadcrumbsClient({
   id,
@@ -50,11 +28,6 @@ export function BreadcrumbsClient({
   variant,
   onInteraction,
 }: BreadcrumbsProps) {
-  const normalizedItems = React.useMemo(
-    () => normalizeItems(content.items),
-    [content.items],
-  );
-
   const allItems = React.useMemo(() => {
     const showHome = content.showHome !== false;
     const homeLabel =
@@ -63,15 +36,8 @@ export function BreadcrumbsClient({
         ? content.homeLabel.trim()
         : 'Home';
 
-    if (showHome) {
-      return [
-        { label: homeLabel, href: '/' },
-        ...normalizedItems,
-      ];
-    }
-
-    return normalizedItems;
-  }, [content.homeLabel, content.showHome, normalizedItems]);
+    return buildBreadcrumbTrail(content.items, showHome, homeLabel);
+  }, [content.homeLabel, content.items, content.showHome]);
 
   const shouldCollapse = allItems.length > 3;
 

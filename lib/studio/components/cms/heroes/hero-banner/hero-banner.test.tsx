@@ -187,6 +187,6 @@ describe('HeroBanner Component', () => {
     
     render(<HeroBanner {...propsWithVariants} />);
     const button = screen.getByRole('link', { name: 'Primary' });
-    expect(button).toHaveClass('border-2', 'border-current');
+    expect(button).toHaveClass('border', 'border-input');
   });
 });

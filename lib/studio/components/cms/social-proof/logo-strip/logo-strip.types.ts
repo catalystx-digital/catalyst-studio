@@ -13,8 +13,7 @@ export interface LogoStripContent extends ComponentContent {
 
 export interface LogoItem extends Image {
   id: string;
-  link?: string;
-  href?: SmartLink | string;
+  href?: SmartLink;
   caption?: RichText;
 }
 

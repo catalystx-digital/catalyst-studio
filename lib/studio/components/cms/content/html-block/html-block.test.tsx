@@ -13,9 +13,9 @@ import { ComponentType, ComponentCategory } from '../../_core/types';
 describe('HTMLBlock', () => {
   const mockProps = {
     id: 'html-1',
-    type: ComponentType.HTMLBlock,
+    type: ComponentType.HtmlBlock,
     category: ComponentCategory.Content,
-    content: { html: '<p>Safe content</p>' }
+    content: { bodyHtml: '<p>Safe content</p>' }
   };
 
   it('should render HTML content', () => {
@@ -24,13 +24,13 @@ describe('HTMLBlock', () => {
   });
 
   it('should sanitize XSS attempts', () => {
-    const xss = { ...mockProps, content: { html: '<script>alert("XSS")</script><p>Safe</p>' } };
+    const xss = { ...mockProps, content: { bodyHtml: '<script>alert("XSS")</script><p>Safe</p>' } };
     render(<HTMLBlock {...xss} />);
     expect(screen.queryByText(/alert/)).not.toBeInTheDocument();
   });
 
   it('should handle empty HTML', () => {
-    const empty = { ...mockProps, content: { html: '' } };
+    const empty = { ...mockProps, content: { bodyHtml: '' } };
     const { container } = render(<HTMLBlock {...empty} />);
     expect(container).toBeInTheDocument();
   });

@@ -19,10 +19,13 @@ export interface ContentFeedSource {
   contentTypes?: string[];
   tags?: string[];
   categories?: string[];
+  path?: string;
   pathPrefix?: string;
+  ancestor?: string;
   ancestorId?: string;
   includeDescendants?: boolean;
   locale?: string;
+  site?: string;
   siteId?: string;
 }
 
@@ -48,6 +51,8 @@ export interface ContentFeedItem extends ComponentContent {
   href?: SmartLink | string;
   url?: string;
   image?: ContentFeedImage | string;
+  date?: string;
+  category?: string;
   tags?: string[];
   categories?: string[];
   publishDate?: string;

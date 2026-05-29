@@ -24,7 +24,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
         alt: 'Team collaborating on a product launch'
       },
       ctaButtons: [
-        { label: 'Book a Demo', href: { type: 'internal', pageId: 'contact', path: '/contact' }, variant: 'default' },
+        { label: 'Book a Demo', href: { type: 'internal', pageId: 'contact', path: '/contact' }, variant: 'primary' },
         { label: 'View Pricing', href: { type: 'internal', pageId: 'pricing', path: '/pricing' }, variant: 'outline' }
       ]
     }
@@ -50,7 +50,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       },
       mediaPosition: 'right',
       ctaButtons: [
-        { label: 'Shop Now', href: { type: 'internal', pageId: 'products-ridge-carbon', path: '/products/ridge-carbon' }, variant: 'default' },
+        { label: 'Shop Now', href: { type: 'internal', pageId: 'products-ridge-carbon', path: '/products/ridge-carbon' }, variant: 'primary' },
         { label: 'Compare Wallets', href: { type: 'internal', pageId: 'products', path: '/products#compare' }, variant: 'outline' }
       ]
     }
@@ -74,7 +74,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
             },
             alt: 'Model wearing spring fashion'
           },
-          cta: { label: 'Explore Collection', href: { type: 'internal', pageId: 'collections-spring', path: '/collections/spring' } }
+          ctaButtons: [{ label: 'Explore Collection', href: { type: 'internal', pageId: 'collections-spring', path: '/collections/spring' }, variant: 'primary' }]
         },
         {
           heading: 'Members Save 20%',
@@ -87,11 +87,11 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
             },
             alt: 'Close-up of loyalty card'
           },
-          cta: { label: 'Join Loyalty', href: { type: 'internal', pageId: 'loyalty', path: '/loyalty' } }
+          ctaButtons: [{ label: 'Join Loyalty', href: { type: 'internal', pageId: 'loyalty', path: '/loyalty' }, variant: 'secondary' }]
         }
       ],
-      autoplay: true,
-      intervalMs: 6000
+      autoPlay: true,
+      autoPlayInterval: 6000
     }
   },
   {
@@ -124,7 +124,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       body: 'Secure, composable infrastructure with prebuilt workflows for governance.',
       backgroundImage: 'https://cdn.example.com/hero/banner-bg.jpg',
       ctaButtons: [
-        { label: 'Request Access', href: { type: 'internal', pageId: 'request-access', path: '/request-access' }, variant: 'default' }
+        { label: 'Request Access', href: { type: 'internal', pageId: 'request-access', path: '/request-access' }, variant: 'primary' }
       ]
     }
   },
@@ -139,7 +139,7 @@ export const heroCanonicalDefinitions: CanonicalComponentDefinition[] = [
       subheading: 'Use our AI-assisted editor to launch campaigns faster with built-in guardrails.',
       body: 'Catalyst Studio pairs structured components with best-practice templates so every team can move quickly.',
       ctaButtons: [
-        { label: 'Start building', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'default' }
+        { label: 'Start building', href: { type: 'internal', pageId: 'signup', path: '/signup' }, variant: 'primary' }
       ]
     }
   },

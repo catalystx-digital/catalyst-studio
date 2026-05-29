@@ -4,7 +4,6 @@ import { type CTAButton } from '@/lib/studio/components/cms/_core/value-objects'
 export type CTABannerButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost' | 'link' | 'destructive' | 'primary';
 
 // CTAButtonConfig now uses the registry CTAButton type
-// Note: CTAButton supports both 'text'/'label' and 'href'/'url' for compatibility
 export type CTAButtonConfig = CTAButton & {
   variant?: CTABannerButtonVariant; // Extended to support additional variants
 };
@@ -12,7 +11,7 @@ export type CTAButtonConfig = CTAButton & {
 export interface CTABannerContent {
   heading: string;
   subheading?: string;
-  primaryButton: CTAButtonConfig;
+  primaryButton?: CTAButtonConfig;
   secondaryButton?: CTAButtonConfig;
   backgroundColor?: string;
   backgroundImage?: string;

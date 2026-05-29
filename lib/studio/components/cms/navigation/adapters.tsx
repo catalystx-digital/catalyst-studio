@@ -206,7 +206,7 @@ export const FooterAdapter: React.FC<CMSComponentProps> = (props) => {
 
   const footerContent: FooterContent = {
     ...(columns ? { columns } : {}),
-    ...(typeof base.logo === 'string' ? { logo: base.logo } : {}),
+    ...(typeof base.logo === 'string' || isPlainObject(base.logo) ? { logo: base.logo as FooterContent['logo'] } : {}),
     ...(typeof base.logoAlt === 'string' ? { logoAlt: base.logoAlt } : {}),
     ...(typeof base.siteName === 'string' ? { siteName: base.siteName } : {}),
     ...(typeof base.description === 'string' ? { description: base.description } : {}),
@@ -281,7 +281,12 @@ function normalizeSidebarNavItems(rawItems: unknown[]): SidebarNavItem[] {
     .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
     .map((item) => {
       const label = typeof item.label === 'string' ? item.label : '';
-      const href = typeof item.href === 'string' ? item.href : '';
+      const href: SidebarNavItem['href'] | '' =
+        typeof item.href === 'string'
+          ? item.href
+          : isLinkValue(item.href)
+            ? item.href as SidebarNavItem['href']
+            : '';
 
       const result: SidebarNavItem = {
         label,
@@ -309,7 +314,40 @@ function normalizeSidebarNavItems(rawItems: unknown[]): SidebarNavItem[] {
 
       return result;
     })
-    .filter((item) => item.label && typeof item.href === 'string' && item.href.length > 0);
+    .filter((item) =>
+      item.label &&
+      (
+        (typeof item.href === 'string' && item.href.length > 0) ||
+        isLinkValue(item.href)
+      )
+    );
+}
+
+function normalizeSidebarNavSections(rawSections: unknown): NonNullable<SidebarNavContent['sections']> {
+  if (!Array.isArray(rawSections)) {
+    return [];
+  }
+
+  return rawSections
+    .filter(isPlainObject)
+    .map((section) => {
+      const items = normalizeSidebarNavItems(
+        Array.isArray(section.items)
+          ? section.items
+          : Array.isArray(section.links)
+            ? section.links
+            : []
+      );
+      return {
+        ...(typeof section.heading === 'string'
+          ? { heading: section.heading }
+          : typeof section.title === 'string'
+            ? { heading: section.title }
+            : {}),
+        items
+      };
+    })
+    .filter((section) => section.items.length > 0);
 }
 
 /**
@@ -319,11 +357,13 @@ export const SidebarNavAdapter: React.FC<CMSComponentProps> = (props) => {
   const raw = readRuntimeContent(props.content);
   const base = asRecord(raw);
   const items = normalizeSidebarNavItems(base.items);
+  const sections = normalizeSidebarNavSections(base.sections);
   const backLink = asRecord(base.backLink);
-  const hasBackLink = typeof backLink.label === 'string' && typeof backLink.href === 'string';
+  const hasBackLink = typeof backLink.label === 'string' && (typeof backLink.href === 'string' || isLinkValue(backLink.href));
 
   const sidebarNavContent: SidebarNavContent = {
     items,
+    ...(sections.length > 0 ? { sections } : {}),
     title: typeof base.title === 'string' ? base.title : undefined,
     currentPath: typeof base.currentPath === 'string' ? base.currentPath : undefined,
     showExpandIcons: typeof base.showExpandIcons === 'boolean' ? base.showExpandIcons : undefined,

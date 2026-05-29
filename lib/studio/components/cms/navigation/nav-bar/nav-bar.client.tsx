@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { NavBarProps, MenuItem } from './nav-bar.types';
 import { normalizeCTA, normalizeMenuItems, resolveHref } from './nav-bar.transform';
 import { buildHrefActiveChecker, buildMenuItemActiveChecker, normalizePathname } from './nav-bar.utils';
 import { SearchToggle } from './search-toggle';
 import { NAVBAR_HEIGHT } from './nav-bar.constants';
+import { NavLogo } from './nav-logo';
 
 export function NavBarClient({ content, className, onInteraction }: NavBarProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,30 +84,7 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
     )}>
       <Sheet open={isOpen} onOpenChange={handleOpenChange}>
         <div className={cn('flex items-center justify-between px-4', NAVBAR_HEIGHT.DEFAULT)}>
-          {logo && (
-            <Link href={logo.href ?? '/'} className="flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-              {/* width/height prevent CLS. CSS h-8 w-auto handles actual sizing. */}
-              {logo.src ? (
-                <img src={logo.src.url} alt={logo.alt || 'Logo'} width={150} height={32} className="h-8 w-auto object-contain" loading="eager" />
-              ) : (
-                (() => {
-                  const label = (logo.alt || logo.text || 'Logo').trim();
-                  const firstLetter = label.charAt(0).toUpperCase();
-                  const restOfName = label.length > 1 ? label : null;
-                  return (
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-base font-bold">
-                        {firstLetter}
-                      </span>
-                      {restOfName && (
-                        <span className="text-lg font-semibold tracking-tight">{restOfName}</span>
-                      )}
-                    </div>
-                  );
-                })()
-              )}
-            </Link>
-          )}
+          <NavLogo logo={logo} onInteraction={emit} />
           <div className="flex items-center gap-2">
             {search?.enabled && (
               <SearchToggle search={search} onInteraction={emit} />
@@ -120,13 +98,18 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
         </div>
 
         <SheetContent side="right" hideClose className="flex w-72 flex-col gap-0 p-0">
-          <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center justify-between gap-2 p-4 border-b">
             <SheetTitle>Menu</SheetTitle>
-            <SheetClose asChild>
-              <Button variant="ghost" size="icon" aria-label="Close">
-                <X className="h-5 w-5" />
-              </Button>
-            </SheetClose>
+            <div className="flex items-center gap-2">
+              {search?.enabled && (
+                <SearchToggle search={search} onInteraction={emit} />
+              )}
+              <SheetClose asChild>
+                <Button variant="ghost" size="icon" aria-label="Close">
+                  <X className="h-5 w-5" />
+                </Button>
+              </SheetClose>
+            </div>
           </div>
           <SheetDescription className="sr-only">Navigation menu</SheetDescription>
 

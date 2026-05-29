@@ -18,7 +18,12 @@
         "displayMode": "grid",
         "images": [
           {
-            "url": "https://cdn.example.com/library/editor.jpg",
+            "src": {
+              "mediaId": "detected:two-column-editor",
+              "mediaType": "image",
+              "url": "https://cdn.example.com/library/editor.jpg"
+            },
+            "originalUrl": "https://cdn.example.com/library/editor.jpg",
             "alt": "Team collaborating in the editor"
           }
         ]

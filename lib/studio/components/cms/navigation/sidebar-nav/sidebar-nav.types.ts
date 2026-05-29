@@ -38,6 +38,11 @@ export interface SidebarNavItem {
 export interface SidebarNavContent {
   /** Optional title for the sidebar section (e.g., "In this section") */
   title?: string
+  /** Grouped navigation sections */
+  sections?: Array<{
+    heading?: string
+    items: SidebarNavItem[]
+  }>
   /** Navigation items */
   items: SidebarNavItem[]
   /** Current path to highlight active items */

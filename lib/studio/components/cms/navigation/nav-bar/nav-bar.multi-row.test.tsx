@@ -39,7 +39,7 @@ describe('NavBar imported multi-row layout', () => {
           transparent: false,
           logo: {
             text: 'MyApp',
-            href: { type: 'internal', path: '/' },
+            href: '/',
           },
           utilityNav: [
             { label: 'Home', href: { type: 'internal', path: '/' } },

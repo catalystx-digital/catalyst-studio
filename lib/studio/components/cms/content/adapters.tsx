@@ -9,7 +9,7 @@
 import React from 'react';
 import { ComponentType, ComponentCategory } from '../_core/types';
 import { readRuntimeContent } from '../_core/utils';
-import { validateImageUrl } from '../_utils/url-validation';
+import { normalizeCmsImage } from '../_utils/media-reference';
 import type { CMSComponentProps } from '../_core/types';
 import { TextBlock } from './text-block';
 import { TwoColumn } from './two-column';
@@ -79,27 +79,16 @@ export const ImageGalleryAdapter: React.FC<CMSComponentProps> = (props) => {
 
   const images = rawImages
     .map((entry): GalleryImage | null => {
-      if (!entry || typeof entry !== 'object') {
+      const record = entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? entry as Record<string, unknown>
+        : {};
+      const normalizedImage = normalizeCmsImage(entry);
+
+      if (!normalizedImage) {
         return null;
       }
 
-      const record = entry as Record<string, unknown>;
-      const primaryUrl =
-        (record.url as string | Record<string, unknown> | null | undefined) ??
-        undefined;
-      const secondaryUrl =
-        (record.src as string | Record<string, unknown> | null | undefined) ??
-        undefined;
-      const urlInput =
-        (primaryUrl ?? secondaryUrl) ??
-        (record as Record<string, unknown>);
-      const resolvedUrl = validateImageUrl(urlInput);
-
-      if (!resolvedUrl) {
-        return null;
-      }
-
-      const altValue = record.alt ?? record.title ?? record.name ?? '';
+      const altValue = record.alt ?? record.title ?? record.name;
       const captionValue = record.caption ?? record.description ?? record.subtitle;
       const widthValue = record.width ?? record.imageWidth ?? record.originalWidth;
       const heightValue = record.height ?? record.imageHeight ?? record.originalHeight;
@@ -107,6 +96,11 @@ export const ImageGalleryAdapter: React.FC<CMSComponentProps> = (props) => {
       const mediaId =
         typeof record.mediaId === 'string'
           ? record.mediaId
+          : record.src && typeof record.src === 'object'
+            ? (() => {
+                const nested = record.src as Record<string, unknown>;
+                return typeof nested.mediaId === 'string' ? nested.mediaId : undefined;
+              })()
           : record.url && typeof record.url === 'object'
             ? (() => {
                 const nested = record.url as Record<string, unknown>;
@@ -115,11 +109,13 @@ export const ImageGalleryAdapter: React.FC<CMSComponentProps> = (props) => {
             : undefined;
 
       return {
-        url: resolvedUrl,
-        alt: typeof altValue === 'string' ? altValue : '',
+        url: normalizedImage.src,
+        alt: typeof altValue === 'string' ? altValue : normalizedImage.alt ?? '',
         caption: typeof captionValue === 'string' ? captionValue : undefined,
         width: typeof widthValue === 'number' ? widthValue : undefined,
         height: typeof heightValue === 'number' ? heightValue : undefined,
+        ...(record.src && typeof record.src === 'object' ? { src: record.src as GalleryImage['src'] } : {}),
+        originalUrl: normalizedImage.originalUrl ?? normalizedImage.src,
         ...(mediaId ? { mediaId } : {})
       };
     })

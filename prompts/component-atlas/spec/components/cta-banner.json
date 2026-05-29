@@ -6,13 +6,21 @@
     "fullWidth": true,
     "heading": "Launch your next experience",
     "primaryButton": {
-      "text": "Start free trial",
-      "url": "/signup",
+      "label": "Start free trial",
+      "href": {
+        "type": "internal",
+        "pageId": "signup",
+        "path": "/signup"
+      },
       "variant": "primary"
     },
     "secondaryButton": {
-      "text": "Talk to sales",
-      "url": "/contact/sales",
+      "label": "Talk to sales",
+      "href": {
+        "type": "internal",
+        "pageId": "contact-sales",
+        "path": "/contact/sales"
+      },
       "variant": "outline"
     },
     "subheading": "See how teams ship new campaigns in days, not weeks."

@@ -8,13 +8,21 @@
     "eyebrow": "Ready to move faster?",
     "heading": "See Catalyst Studio in action",
     "primaryButton": {
-      "text": "Book a demo",
-      "url": "/contact",
+      "label": "Book a demo",
+      "href": {
+        "type": "internal",
+        "pageId": "contact",
+        "path": "/contact"
+      },
       "variant": "primary"
     },
     "secondaryButton": {
-      "text": "View pricing",
-      "url": "/pricing",
+      "label": "View pricing",
+      "href": {
+        "type": "internal",
+        "pageId": "pricing",
+        "path": "/pricing"
+      },
       "variant": "outline"
     }
   },

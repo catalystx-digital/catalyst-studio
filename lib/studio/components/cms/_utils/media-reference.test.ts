@@ -105,4 +105,17 @@ describe('CMS media reference normalization', () => {
       alt: 'Article',
     })
   })
+
+  it('accepts extensionless CDN image URLs used by imported content feeds', () => {
+    expect(
+      normalizeCmsImage({
+        originalUrl: 'https://cdn.example.com/media/abc123',
+        alt: 'CMS thumbnail',
+      })
+    ).toEqual({
+      src: 'https://cdn.example.com/media/abc123',
+      alt: 'CMS thumbnail',
+      originalUrl: 'https://cdn.example.com/media/abc123',
+    })
+  })
 })

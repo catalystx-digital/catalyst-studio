@@ -62,20 +62,20 @@ export function selectPresentationSkeleton(input: {
   const hasInstitutionalSignals =
     /hospital|education|school|university|government|public sector|council|community health|patient|student/.test(corpus)
 
-  if (hasAgencySignals || (hasLogoCloud && cardGridCount > 0)) {
-    return {
-      key: 'agency-home',
-      confidence: hasHero ? 0.82 : 0.64,
-      reason: 'Homepage has agency/brand signals or social-proof layout evidence.',
-      diagnostics: [],
-    }
-  }
-
   if (hasInstitutionalSignals) {
     return {
       key: 'institutional-home',
       confidence: hasHero ? 0.78 : 0.6,
       reason: 'Homepage has institutional/content-rich signals.',
+      diagnostics: [],
+    }
+  }
+
+  if (hasAgencySignals || (hasLogoCloud && cardGridCount > 0)) {
+    return {
+      key: 'agency-home',
+      confidence: hasHero ? 0.82 : 0.64,
+      reason: 'Homepage has agency/brand signals or social-proof layout evidence.',
       diagnostics: [],
     }
   }

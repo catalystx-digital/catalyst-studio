@@ -630,14 +630,6 @@ export const catalystPlugin = plugin.withOptions<{}>(() => {
 
     addUtilities(bodyUtilities);
 
-    // NOTE: .cms-* CSS styling rules were removed in Phase 9 (shadcn Purity)
-    // These CSS rules competed with shadcn's built-in styling. Components now use shadcn directly.
-    //
-    // IMPORTANT: The .cms-* class NAMES still exist in component JSX (e.g., className="cms-location-map")
-    // These are intentionally kept for: (1) test selectors, (2) DevTools identification
-    // They add no styling overhead since no CSS targets them.
-    // See: docs/prd-design-system-phase9-shadcn-purity.md, docs/prd-design-system-phase11-shadcn-alignment-audit.md
-
     // Add responsive design token utilities
     addUtilities({
       '.text-responsive-xs': {

@@ -5,6 +5,40 @@ import {
   isFatalNormalizationIssue
 } from '../page-builder/normalization-telemetry'
 import { SUBCOMPONENT_NORMALIZERS } from '../page-builder/subcomponent-normalizers'
+import { ContentFeedDef } from '@/lib/studio/components/cms/content/content-feed/content-feed.def'
+import { HtmlBlockDef } from '@/lib/studio/components/cms/content/html-block/html-block.def'
+import { TextBlockDef } from '@/lib/studio/components/cms/content/text-block/text-block.def'
+import { TwoColumnDef } from '@/lib/studio/components/cms/content/two-column/two-column.def'
+import { CTABannerDef } from '@/lib/studio/components/cms/cta/cta-banner/cta-banner.def'
+import { CTASimpleDef } from '@/lib/studio/components/cms/cta/cta-simple/cta-simple.def'
+import { StatisticsDef } from '@/lib/studio/components/cms/data/statistics/statistics.def'
+import { TeamGridDef } from '@/lib/studio/components/cms/about/team-grid/team-grid.def'
+import { QuoteBlockDef } from '@/lib/studio/components/cms/content/quote-block/quote-block.def'
+import { HeroBannerDef } from '@/lib/studio/components/cms/heroes/hero-banner/hero-banner.def'
+import { HeroCarouselDef } from '@/lib/studio/components/cms/heroes/hero-carousel/hero-carousel.def'
+import { HeroSimpleDef } from '@/lib/studio/components/cms/heroes/hero-simple/hero-simple.def'
+import { HeroSplitDef } from '@/lib/studio/components/cms/heroes/hero-split/hero-split.def'
+import { HeroWithImageDef } from '@/lib/studio/components/cms/heroes/hero-with-image/hero-with-image.def'
+import { BreadcrumbsDef } from '@/lib/studio/components/cms/navigation/breadcrumbs/breadcrumbs.def'
+import { FooterDef } from '@/lib/studio/components/cms/navigation/footer/footer.def'
+import { SideMenuDef } from '@/lib/studio/components/cms/navigation/sidemenu/sidemenu.def'
+import { LogoStripDef } from '@/lib/studio/components/cms/social-proof/logo-strip/logo-strip.def'
+import { TestimonialSliderDef } from '@/lib/studio/components/cms/social-proof/testimonial-slider/testimonial-slider.def'
+import ctaBannerAtlasSpec from '@/prompts/component-atlas/spec/components/cta-banner.json'
+import ctaSimpleAtlasSpec from '@/prompts/component-atlas/spec/components/cta-simple.json'
+import breadcrumbAtlasSpec from '@/prompts/component-atlas/spec/components/breadcrumb.json'
+import breadcrumbsAtlasSpec from '@/prompts/component-atlas/spec/components/breadcrumbs.json'
+import heroBannerAtlasSpec from '@/prompts/component-atlas/spec/components/hero-banner.json'
+import heroCarouselAtlasSpec from '@/prompts/component-atlas/spec/components/hero-carousel.json'
+import heroSimpleAtlasSpec from '@/prompts/component-atlas/spec/components/hero-simple.json'
+import heroSplitAtlasSpec from '@/prompts/component-atlas/spec/components/hero-split.json'
+import heroWithImageAtlasSpec from '@/prompts/component-atlas/spec/components/hero-with-image.json'
+import logoCloudAtlasSpec from '@/prompts/component-atlas/spec/components/logo-cloud.json'
+import quoteBlockAtlasSpec from '@/prompts/component-atlas/spec/components/quote-block.json'
+import statisticsAtlasSpec from '@/prompts/component-atlas/spec/components/statistics.json'
+import teamGridAtlasSpec from '@/prompts/component-atlas/spec/components/team-grid.json'
+import testimonialsAtlasSpec from '@/prompts/component-atlas/spec/components/testimonials.json'
+import sidemenuAtlasSpec from '@/prompts/component-atlas/spec/components/sidemenu.json'
 import type { DetectionResult, ComponentType as ImportComponentType } from '../interfaces'
 
 const baseBounds = { x: 0, y: 0, width: 100, height: 100 }
@@ -55,6 +89,105 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(payload.props).not.toHaveProperty('text')
   })
 
+  it('normalizes text-block aliases and numeric fields into schema-valid content', () => {
+    const detection: DetectionResult = {
+      id: 'text-block-aliases',
+      type: 'text-block',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        heading: 'Welcome',
+        bodyHtml: '<p>Hello from imported HTML.</p>',
+        alignment: 'justify',
+        columns: '2',
+        headingLevel: 'h3',
+        region: 'main'
+      }
+    }
+
+    const props = extractComponentProps(detection, createComponentType('text-block'))
+
+    expect(props.content).toEqual({
+      heading: 'Welcome',
+      body: '<p>Hello from imported HTML.</p>',
+      alignment: 'justify',
+      columns: 2,
+      headingLevel: 3
+    })
+    expect(TextBlockDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('normalizes html-block aliases into schema-valid bodyHtml content', () => {
+    const detection: DetectionResult = {
+      id: 'html-block-aliases',
+      type: 'html-block',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        title: 'About this service',
+        html: '<p>Long-form content belongs here.</p>',
+        url: '/source-page',
+        body: '<p>Lower priority body.</p>',
+        region: 'main'
+      }
+    }
+
+    const props = extractComponentProps(detection, createComponentType('html-block'))
+
+    expect(props.content).toEqual({
+      title: 'About this service',
+      bodyHtml: '<p>Long-form content belongs here.</p>',
+      sourceUrl: '/source-page'
+    })
+    expect(HtmlBlockDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('normalizes quote-block aliases and attribution media into schema-valid content', () => {
+    const detection: DetectionResult = {
+      type: 'quote-block',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        text: 'This service changed how our team works.',
+        person: 'Mina Patel',
+        role: 'Operations Director',
+        organization: 'Northwind Health',
+        avatar: 'https://cdn.example.com/customers/mina.jpg',
+        style: 'testimonial',
+        alignment: 'center',
+        size: 'large'
+      }
+    }
+
+    const props = extractComponentPayload(detection, createComponentType('quote-block'))
+
+    expect(props.content).toEqual({
+      quote: 'This service changed how our team works.',
+      attribution: {
+        author: 'Mina Patel',
+        title: 'Operations Director',
+        organization: 'Northwind Health',
+        image: {
+          src: {
+            mediaId: 'detected:cdn-example-com-customers-mina-jpg',
+            mediaType: 'image',
+            url: 'https://cdn.example.com/customers/mina.jpg',
+            alt: 'Mina Patel'
+          },
+          alt: 'Mina Patel',
+          originalUrl: 'https://cdn.example.com/customers/mina.jpg'
+        }
+      },
+      style: 'testimonial',
+      align: 'center',
+      size: 'large'
+    })
+    expect(QuoteBlockDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
   it('coerces schema-valid team-grid column strings without defaulting invalid values', () => {
     const validDetection: DetectionResult = {
       type: 'team-grid',
@@ -93,6 +226,93 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       mobile: '3',
       tablet: 'wide'
     })
+  })
+
+  it('normalizes team-grid member aliases into schema-valid members', () => {
+    const detection: DetectionResult = {
+      type: 'team-grid',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        heading: 'Leadership',
+        staff: [
+          {
+            fullName: 'Ava Chen',
+            role: 'Chief Product Officer',
+            avatar: { src: 'https://cdn.example.com/team/ava.jpg', alt: 'Ava Chen portrait' },
+            linkedIn: 'https://linkedin.com/in/ava',
+            profileUrl: '/team/ava-chen'
+          },
+          { title: 'Missing name' }
+        ]
+      }
+    }
+
+    const props = extractComponentPayload(detection, createComponentType('team-grid'))
+
+    expect(props.content.members).toEqual([
+      {
+        id: 'team-member-ava-chen',
+        name: 'Ava Chen',
+        title: 'Chief Product Officer',
+        photo: 'https://cdn.example.com/team/ava.jpg',
+        photoAlt: 'Ava Chen portrait',
+        linkedin: 'https://linkedin.com/in/ava',
+        profileUrl: '/team/ava-chen'
+      }
+    ])
+    expect(TeamGridDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'team-grid',
+          issue: 'missing-required-field',
+          field: 'members'
+        })
+      ])
+    )
+  })
+
+  it('normalizes statistics aliases into schema-valid stat items', () => {
+    const detection: DetectionResult = {
+      type: 'statistics',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        title: 'Impact',
+        columns: '4',
+        metrics: [
+          { title: 'Patient visits', number: '12,500', suffix: '+', deltaValue: '8', trend: 'up' },
+          { value: 99 }
+        ]
+      }
+    }
+
+    const props = extractComponentPayload(detection, createComponentType('statistics'))
+
+    expect(props.content).toMatchObject({
+      title: 'Impact',
+      columns: 4,
+      stats: [
+        {
+          id: 'stat-patient-visits',
+          label: 'Patient visits',
+          value: 12500,
+          suffix: '+',
+          delta: { value: 8, trend: 'up' }
+        }
+      ]
+    })
+    expect(StatisticsDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'statistics',
+          issue: 'missing-required-field',
+          field: 'stats'
+        })
+      ])
+    )
   })
 
   it('classifies fatal and nonfatal normalization issues', () => {
@@ -134,21 +354,45 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(props.content?.ctaButtons).toEqual([
       {
         label: 'Contact us',
-        href: '/complaints',
+        href: {
+          type: 'internal',
+          pageId: 'complaints',
+          path: '/complaints'
+        },
         variant: 'primary',
         external: true,
         icon: 'arrow-right'
       },
       {
         label: 'See pricing',
-        href: '/pricing',
+        href: {
+          type: 'internal',
+          pageId: 'pricing',
+          path: '/pricing'
+        },
         variant: 'outline'
       }
     ])
 
     expect(props.content?.supportingLinks).toEqual([
-      expect.objectContaining({ label: 'Learn more', href: '/about', external: true }),
-      expect.objectContaining({ label: 'Docs', href: '/resources', icon: 'book' })
+      expect.objectContaining({
+        label: 'Learn more',
+        href: {
+          type: 'internal',
+          pageId: 'about',
+          path: '/about'
+        },
+        external: true
+      }),
+      expect.objectContaining({
+        label: 'Docs',
+        href: {
+          type: 'internal',
+          pageId: 'resources',
+          path: '/resources'
+        },
+        icon: 'book'
+      })
     ])
 
     const warnings = consumeNormalizationWarnings()
@@ -226,6 +470,64 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(props.content?.background).toBeUndefined()
     expect(props.content?.backgroundPosition).toBeUndefined()
     expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('normalizes breadcrumb url aliases into schema-valid links', () => {
+    const detection: DetectionResult = {
+      id: 'breadcrumbs-url-aliases',
+      type: 'breadcrumbs',
+      bounds: baseBounds,
+      content: {
+        items: [
+          { label: 'Home', url: '/' },
+          { label: 'Resources', href: 'example.com/resources' },
+          { type: 'anchor', label: 'Section', href: '#section' }
+        ],
+        separator: '>',
+        showHome: 'false',
+        region: 'header'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('breadcrumbs'))
+
+    expect(props.content).toEqual({
+      items: [
+        {
+          label: 'Home',
+          href: {
+            type: 'internal',
+            pageId: 'home',
+            path: '/'
+          }
+        },
+        {
+          label: 'Resources',
+          href: {
+            type: 'external',
+            url: 'https://example.com/resources'
+          }
+        },
+        {
+          label: 'Section',
+          href: {
+            type: 'anchor',
+            href: '#section',
+            label: 'Section'
+          }
+        }
+      ],
+      separator: '>',
+      showHome: false
+    })
+    expect(BreadcrumbsDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('keeps breadcrumb atlas samples schema-valid', () => {
+    expect(BreadcrumbsDef.schema.safeParse(breadcrumbsAtlasSpec.content).success).toBe(true)
+    expect(BreadcrumbsDef.schema.safeParse(breadcrumbAtlasSpec.content).success).toBe(true)
   })
 
   it('does not warn for malformed hero background candidates when another candidate is usable', () => {
@@ -475,20 +777,88 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       layout: 'image-left',
       image: {
         originalUrl: 'https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2021-squares/why-us-still-deciding.jpg',
-        src: 'https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2021-squares/why-us-still-deciding.jpg',
+        src: {
+          mediaType: 'image',
+          mediaId: 'detected:www-parra-catholic-edu-au-media-project-cedp-cat',
+          url: 'https://www.parra.catholic.edu.au/-/media/project/cedp/cathedparra/images/page-images/2021-squares/why-us-still-deciding.jpg',
+          alt: 'St John XXIII Catholic College Stanhope - Catholic Schools Parramatta Diocese Ltd'
+        },
         alt: 'St John XXIII Catholic College Stanhope - Catholic Schools Parramatta Diocese Ltd'
       },
       ctaButtons: [
         {
           label: 'Find a school',
-          href: '/our-schools/find-a-school',
-          variant: 'primary',
-          style: 'primary'
+          href: {
+            type: 'internal',
+            pageId: 'our-schools-find-a-school',
+            path: '/our-schools/find-a-school'
+          },
+          variant: 'primary'
         }
       ]
     })
 
     expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('keeps core hero atlas samples schema-valid', () => {
+    expect(HeroSimpleDef.schema.safeParse(heroSimpleAtlasSpec.content).success).toBe(true)
+    expect(HeroBannerDef.schema.safeParse(heroBannerAtlasSpec.content).success).toBe(true)
+    expect(HeroWithImageDef.schema.safeParse(heroWithImageAtlasSpec.content).success).toBe(true)
+    expect(HeroCarouselDef.schema.safeParse(heroCarouselAtlasSpec.content).success).toBe(true)
+    expect(HeroSplitDef.schema.safeParse(heroSplitAtlasSpec.content).success).toBe(true)
+  })
+
+  it('normalizes hero-carousel legacy slide aliases into schema-valid slides', () => {
+    const detection: DetectionResult = {
+      id: 'hero-carousel-legacy',
+      type: 'hero-carousel',
+      bounds: baseBounds,
+      content: {
+        autoplay: 'true',
+        intervalMs: '6000',
+        slides: [
+          {
+            heading: 'Spring Collection',
+            image: 'https://cdn.example.com/hero/spring.jpg',
+            alt: 'Spring fashion',
+            cta: { text: 'Shop now', url: '/shop', style: 'filled' }
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-carousel'))
+
+    expect(props.content).toMatchObject({
+      autoPlay: true,
+      autoPlayInterval: 6000,
+      slides: [
+        {
+          heading: 'Spring Collection',
+          image: {
+            src: {
+              mediaType: 'image',
+              url: 'https://cdn.example.com/hero/spring.jpg'
+            },
+            originalUrl: 'https://cdn.example.com/hero/spring.jpg'
+          },
+          ctaButtons: [
+            {
+              label: 'Shop now',
+              href: {
+                type: 'internal',
+                pageId: 'shop',
+                path: '/shop'
+              },
+              variant: 'primary'
+            }
+          ]
+        }
+      ]
+    })
+    expect(HeroCarouselDef.schema.safeParse(props.content).success).toBe(true)
   })
 
   it.each([
@@ -541,8 +911,11 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     const props = extractComponentProps(detection, createComponentType('hero-with-image'))
     expect(props.content?.image).toEqual(
       expect.objectContaining({
-        mediaId: 'nested-hero-media',
-        src: 'https://cdn.example.com/assets/hero-nested-object.jpg',
+        src: expect.objectContaining({
+          mediaId: 'nested-hero-media',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/assets/hero-nested-object.jpg'
+        }),
         originalUrl: 'https://cdn.example.com/assets/hero-nested-object.jpg'
       })
     )
@@ -569,8 +942,11 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     expect(props.content?.image).toEqual(
       expect.objectContaining({
-        mediaId: 'media-123',
-        src: 'https://cdn.example.com/assets/hero.jpg',
+        src: expect.objectContaining({
+          mediaId: 'media-123',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/assets/hero.jpg'
+        }),
         originalUrl: 'https://cdn.example.com/assets/hero.jpg'
       })
     )
@@ -596,7 +972,10 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     expect(props.content?.image).toEqual(
       expect.objectContaining({
-        mediaId: 'media-missing-src'
+        src: expect.objectContaining({
+          mediaId: 'media-missing-src',
+          mediaType: 'image'
+        })
       })
     )
 
@@ -664,13 +1043,22 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(props.content).toMatchObject({
       heading: 'Check coverage',
       image: {
-        src: 'https://cdn.example.com/hero.jpg',
+        src: {
+          mediaType: 'image',
+          mediaId: 'detected:cdn-example-com-hero-jpg',
+          url: 'https://cdn.example.com/hero.jpg',
+          alt: 'Coverage map'
+        },
         alt: 'Coverage map'
       },
       ctaButtons: [
         {
           label: 'See plans',
-          href: '/plans',
+          href: {
+            type: 'internal',
+            pageId: 'plans',
+            path: '/plans'
+          },
           variant: 'secondary'
         }
       ]
@@ -742,14 +1130,586 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       reverseOnMobile: true,
       gap: 'medium',
       leftColumn: [
-        { type: 'text-block' },
-        { type: 'cta-simple' }
+        {
+          type: 'text-block',
+          content: expect.objectContaining({
+            body: '<p>We back every learner with personalised attention.</p>'
+          })
+        },
+        {
+          type: 'cta-simple',
+          content: expect.objectContaining({
+            primaryButton: {
+              label: 'Explore programs',
+              href: {
+                type: 'internal',
+                pageId: 'programs',
+                path: '/programs'
+              },
+              variant: 'primary',
+              external: true
+            }
+          })
+        }
       ],
       rightColumn: [
-        { type: 'image-gallery' }
+        {
+          type: 'image-gallery',
+          content: expect.objectContaining({
+            images: [
+              expect.objectContaining({
+                originalUrl: 'https://cdn.example.com/library/students.jpg'
+              })
+            ]
+          })
+        }
       ]
     })
-    expect(consumeNormalizationWarnings()).toHaveLength(0)
+    expect(TwoColumnDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'two-column',
+          issue: 'suspicious-value',
+          message: expect.stringContaining('legacy text/url/link fields')
+        })
+      ])
+    )
+  })
+
+  it('normalizes image-gallery media aliases into canonical image entries', () => {
+    const detection: DetectionResult = {
+      id: 'gallery-1',
+      type: 'image-gallery',
+      bounds: baseBounds,
+      content: {
+        images: [
+          'https://cdn.example.com/gallery/office-1.jpg',
+          {
+            url: 'https://cdn.example.com/gallery/office-2.jpg',
+            alt: 'Office collaboration',
+            caption: 'Collaboration space',
+            width: '1200',
+            height: '800'
+          },
+          {
+            src: {
+              mediaId: 'media-gallery-3',
+              mediaType: 'image',
+              url: 'https://cdn.example.com/gallery/office-3.jpg'
+            },
+            alt: 'Design review'
+          }
+        ],
+        layout: 'masonry',
+        columns: '4',
+        gap: 'compact',
+        showCaptions: 'yes',
+        enableLightbox: 'false',
+        heading: 'Gallery heading'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('image-gallery'))
+
+    expect(props.content).toEqual({
+      images: [
+        {
+          originalUrl: 'https://cdn.example.com/gallery/office-1.jpg',
+          alt: 'Gallery image 1'
+        },
+        {
+          originalUrl: 'https://cdn.example.com/gallery/office-2.jpg',
+          alt: 'Office collaboration',
+          caption: 'Collaboration space',
+          width: 1200,
+          height: 800
+        },
+        {
+          src: {
+            mediaId: 'media-gallery-3',
+            mediaType: 'image',
+            url: 'https://cdn.example.com/gallery/office-3.jpg',
+            alt: 'Design review'
+          },
+          originalUrl: 'https://cdn.example.com/gallery/office-3.jpg',
+          alt: 'Design review'
+        }
+      ],
+      displayMode: 'masonry',
+      columns: 4,
+      spacing: 'tight',
+      showCaptions: true,
+      enableLightbox: false
+    })
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'image-gallery',
+          field: 'heading',
+          issue: 'unknown-field'
+        })
+      ])
+    )
+  })
+
+  it('reports invalid image-gallery images instead of persisting empty media entries', () => {
+    const detection: DetectionResult = {
+      id: 'gallery-invalid',
+      type: 'image-gallery',
+      bounds: baseBounds,
+      content: {
+        images: [
+          '/departments/about/',
+          null
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('image-gallery'))
+    const warnings = consumeNormalizationWarnings()
+
+    expect(props.content.images).toEqual([])
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'image-gallery',
+          field: 'images.0',
+          issue: 'invalid-value'
+        }),
+        expect.objectContaining({
+          parentType: 'image-gallery',
+          field: 'images.1',
+          issue: 'invalid-value'
+        })
+      ])
+    )
+  })
+
+  it('drops image-gallery media references without renderable URLs', () => {
+    const detection: DetectionResult = {
+      id: 'gallery-media-id-only',
+      type: 'image-gallery',
+      bounds: baseBounds,
+      content: {
+        images: [
+          {
+            src: {
+              mediaId: 'media-without-url',
+              mediaType: 'image'
+            },
+            alt: 'Missing resolved URL'
+          },
+          {
+            src: {
+              mediaId: 'media-with-url',
+              mediaType: 'image',
+              url: 'https://cdn.example.com/gallery/valid.jpg'
+            },
+            alt: 'Resolved URL'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('image-gallery'))
+    const warnings = consumeNormalizationWarnings()
+
+    expect(props.content.images).toEqual([
+      {
+        src: {
+          mediaId: 'media-with-url',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/gallery/valid.jpg',
+          alt: 'Resolved URL'
+        },
+        originalUrl: 'https://cdn.example.com/gallery/valid.jpg',
+        alt: 'Resolved URL'
+      }
+    ])
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'image-gallery',
+          field: 'images.0',
+          issue: 'invalid-value'
+        })
+      ])
+    )
+  })
+
+  it('normalizes content-feed item aliases into strict pinned entries', () => {
+    const detection: DetectionResult = {
+      id: 'content-feed-1',
+      type: 'content-feed',
+      bounds: baseBounds,
+      content: {
+        heading: 'Latest news',
+        layout: 'tiles',
+        source: {
+          path: '/news',
+          ancestor: 'news-root',
+          site: 'site-1'
+        },
+        items: [
+          {
+            headline: 'Hospital update published',
+            summary: 'A short update from the team.',
+            url: '/news/hospital-update',
+            thumbnailUrl: 'https://cdn.example.com/news/update.jpg',
+            publishDate: '2024-05-01',
+            categories: ['News'],
+            trackingId: 'unsupported'
+          },
+          {
+            title: 'Media announcement',
+            href: { type: 'external', url: 'https://example.com/media' },
+            image: {
+              src: {
+                mediaId: 'media-feed-2',
+                mediaType: 'image',
+                url: 'https://cdn.example.com/news/media.jpg'
+              },
+              alt: 'Media room'
+            },
+            tag: 'Media'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('content-feed'))
+    const warnings = consumeNormalizationWarnings()
+
+    expect(props.content).toEqual({
+      heading: 'Latest news',
+      layout: 'card-grid',
+      source: {
+        pathPrefix: '/news',
+        ancestorId: 'news-root',
+        siteId: 'site-1'
+      },
+      pinned: [
+        {
+          title: 'Hospital update published',
+          excerpt: 'A short update from the team.',
+          href: {
+            type: 'internal',
+            pageId: 'news-hospital-update',
+            path: '/news/hospital-update'
+          },
+          image: {
+            alt: 'Hospital update published',
+            originalUrl: 'https://cdn.example.com/news/update.jpg'
+          },
+          date: '2024-05-01',
+          category: 'News'
+        },
+        {
+          title: 'Media announcement',
+          href: { type: 'external', url: 'https://example.com/media' },
+          image: {
+            src: {
+              mediaId: 'media-feed-2',
+              mediaType: 'image',
+              url: 'https://cdn.example.com/news/media.jpg',
+              alt: 'Media room'
+            },
+            alt: 'Media room',
+            originalUrl: 'https://cdn.example.com/news/media.jpg'
+          },
+          category: 'Media'
+        }
+      ]
+    })
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'content-feed',
+          field: 'pinned',
+          issue: 'unknown-field'
+        })
+      ])
+    )
+    expect(ContentFeedDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
+  it('drops content-feed pinned entries without titles and images without renderable URLs', () => {
+    const detection: DetectionResult = {
+      id: 'content-feed-invalid',
+      type: 'content-feed',
+      bounds: baseBounds,
+      content: {
+        pinned: [
+          { excerpt: 'Missing title', href: '/news/missing-title' },
+          {
+            title: 'Valid title',
+            image: {
+              src: {
+                mediaId: 'media-no-url',
+                mediaType: 'image'
+              },
+              alt: 'No URL'
+            }
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('content-feed'))
+    const warnings = consumeNormalizationWarnings()
+
+    expect(props.content.pinned).toEqual([
+      {
+        title: 'Valid title'
+      }
+    ])
+    expect(props.content.source).toBeUndefined()
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'content-feed',
+          field: 'pinned',
+          issue: 'missing-required-field'
+        }),
+        expect.objectContaining({
+          parentType: 'content-feed',
+          field: 'pinned.1.image',
+          issue: 'invalid-value'
+        })
+      ])
+    )
+    expect(ContentFeedDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
+  it('preserves extensionless CDN thumbnail URLs for content-feed imports', () => {
+    const detection: DetectionResult = {
+      id: 'content-feed-extensionless-cdn',
+      type: 'content-feed',
+      bounds: baseBounds,
+      content: {
+        pinned: [
+          {
+            title: 'Extensionless CDN image',
+            thumbnailUrl: 'https://cdn.example.com/post'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('content-feed'))
+
+    expect(props.content.pinned).toEqual([
+      {
+        title: 'Extensionless CDN image',
+        image: {
+          alt: 'Extensionless CDN image',
+          originalUrl: 'https://cdn.example.com/post'
+        }
+      }
+    ])
+    expect(ContentFeedDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([])
+  })
+
+  it('canonicalizes typed content-feed link objects before schema validation', () => {
+    const detection: DetectionResult = {
+      id: 'content-feed-typed-links',
+      type: 'content-feed',
+      bounds: baseBounds,
+      content: {
+        pinned: [
+          {
+            title: 'External link with href',
+            href: {
+              type: 'external',
+              href: 'https://example.com/news/external'
+            }
+          },
+          {
+            title: 'Bare domain external link',
+            href: {
+              type: 'external',
+              url: 'example.com/news/bare'
+            }
+          },
+          {
+            title: 'Internal link with href',
+            href: {
+              type: 'internal',
+              href: '/news/internal'
+            }
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('content-feed'))
+
+    expect(props.content.pinned).toEqual([
+      {
+        title: 'External link with href',
+        href: {
+          type: 'external',
+          url: 'https://example.com/news/external'
+        }
+      },
+      {
+        title: 'Bare domain external link',
+        href: {
+          type: 'external',
+          url: 'https://example.com/news/bare'
+        }
+      },
+      {
+        title: 'Internal link with href',
+        href: {
+          type: 'internal',
+          pageId: 'news-internal',
+          path: '/news/internal'
+        }
+      }
+    ])
+    expect(ContentFeedDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([])
+  })
+
+  it('normalizes logo-cloud aliases into schema-valid logo items', () => {
+    const detection: DetectionResult = {
+      id: 'logo-cloud-1',
+      type: 'logo-cloud',
+      bounds: baseBounds,
+      content: {
+        caption: 'Trusted by leading teams',
+        logoSize: 'large',
+        grayscale: 'false',
+        animateScroll: 'yes',
+        logos: [
+          {
+            name: 'Acme',
+            url: 'https://cdn.example.com/logos/acme',
+            link: 'https://acme.example.com',
+            caption: 'Launch partner'
+          },
+          {
+            id: 'northwind',
+            src: {
+              mediaId: 'media-northwind',
+              mediaType: 'image',
+              url: 'https://cdn.example.com/logos/northwind.svg'
+            },
+            alt: 'Northwind'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('logo-cloud'))
+
+    expect(props.content).toEqual({
+      caption: 'Trusted by leading teams',
+      size: 'large',
+      grayscale: false,
+      animateScroll: true,
+      logos: [
+        {
+          id: 'acme',
+          alt: 'Acme',
+          originalUrl: 'https://cdn.example.com/logos/acme',
+          href: {
+            type: 'external',
+            url: 'https://acme.example.com'
+          },
+          caption: 'Launch partner'
+        },
+        {
+          id: 'northwind',
+          src: {
+            mediaId: 'media-northwind',
+            mediaType: 'image',
+            url: 'https://cdn.example.com/logos/northwind.svg',
+            alt: 'Northwind'
+          },
+          alt: 'Northwind',
+          originalUrl: 'https://cdn.example.com/logos/northwind.svg'
+        }
+      ]
+    })
+    expect(LogoStripDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.0.href',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
+  it('normalizes logo-cloud collection aliases and bare logo hrefs', () => {
+    const detection: DetectionResult = {
+      id: 'logo-cloud-aliases',
+      type: 'logo-cloud',
+      bounds: baseBounds,
+      content: {
+        brands: [
+          {
+            name: 'Bare Domain',
+            logo: 'https://cdn.example.com/logos/bare.svg',
+            website: 'www.bare-example.com'
+          },
+          {
+            name: 'Protocol Relative',
+            logo: 'https://cdn.example.com/logos/protocol.svg',
+            website: '//protocol.example.com'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('logo-cloud'))
+
+    expect(props.content.logos).toEqual([
+      expect.objectContaining({
+        id: 'bare-domain',
+        originalUrl: 'https://cdn.example.com/logos/bare.svg',
+        href: { type: 'external', url: 'https://www.bare-example.com' }
+      }),
+      expect.objectContaining({
+        id: 'protocol-relative',
+        originalUrl: 'https://cdn.example.com/logos/protocol.svg',
+        href: { type: 'external', url: 'https://protocol.example.com' }
+      })
+    ])
+    expect(LogoStripDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.0.href',
+          issue: 'suspicious-value'
+        }),
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.1.href',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
+  it('keeps the logo-cloud atlas sample schema-valid', () => {
+    expect(LogoStripDef.schema.safeParse(logoCloudAtlasSpec.content).success).toBe(true)
   })
 
   it('normalizes nested sidemenu aliases inside two-column columns', () => {
@@ -805,7 +1765,62 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
-  it('passes cta-simple payloads through unchanged', () => {
+  it('normalizes sidemenu section links into schema-valid grouped items', () => {
+    const detection: DetectionResult = {
+      id: 'sidemenu-section-links',
+      type: 'sidemenu',
+      bounds: baseBounds,
+      content: {
+        title: 'Resources',
+        sections: [
+          {
+            heading: 'Documentation',
+            links: [
+              { label: 'Overview', href: '/docs' },
+              { label: 'External', href: 'example.com/docs' }
+            ]
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('sidemenu'))
+
+    expect(props.content).toEqual({
+      title: 'Resources',
+      sections: [
+        {
+          heading: 'Documentation',
+          items: [
+            {
+              label: 'Overview',
+              href: {
+                type: 'internal',
+                pageId: 'docs',
+                path: '/docs'
+              }
+            },
+            {
+              label: 'External',
+              href: {
+                type: 'external',
+                url: 'https://example.com/docs'
+              }
+            }
+          ]
+        }
+      ]
+    })
+    expect(SideMenuDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('keeps the sidemenu atlas sample schema-valid', () => {
+    expect(SideMenuDef.schema.safeParse(sidemenuAtlasSpec.content).success).toBe(true)
+  })
+
+  it('normalizes cta-simple legacy buttons into schema-valid CTAButton objects', () => {
     const detection: DetectionResult = {
       id: 'cta-simple-1',
       type: 'cta-simple',
@@ -832,10 +1847,141 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, createComponentType('cta-simple'))
 
-    const { region: _region, ...expectedContent } = detection.content as Record<string, unknown>
-    expect(props.content).toMatchObject(expectedContent)
+    expect(props.content).toMatchObject({
+      heading: 'Explore our 80 schools',
+      body: 'Catholic schools have a history of academic excellence.',
+      primaryButton: {
+        label: 'Find a school',
+        href: {
+          type: 'internal',
+          pageId: 'our-schools-find-a-school',
+          path: '/our-schools/find-a-school'
+        },
+        variant: 'primary'
+      },
+      secondaryButton: {
+        label: 'Contact us',
+        href: {
+          type: 'internal',
+          pageId: 'contact',
+          path: '/contact'
+        },
+        variant: 'secondary'
+      },
+      alignment: 'center',
+      backgroundVariant: 'surface'
+    })
     expect(props.content).not.toHaveProperty('region')
-    expect(consumeNormalizationWarnings()).toHaveLength(0)
+    expect(CTASimpleDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'cta-simple',
+          issue: 'suspicious-value',
+          message: expect.stringContaining('legacy text/url/link fields')
+        })
+      ])
+    )
+  })
+
+  it('normalizes cta-banner legacy buttons and media references into schema-valid content', () => {
+    const detection: DetectionResult = {
+      id: 'cta-banner-1',
+      type: 'cta-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Support the hospital',
+        subheading: 'Your support helps children and families.',
+        primaryButton: {
+          text: 'Donate now',
+          url: '/donate',
+          variant: 'filled'
+        },
+        secondaryButton: {
+          label: 'Learn more',
+          href: 'www.example.com/support',
+          variant: 'ghost'
+        },
+        backgroundImage: {
+          src: {
+            mediaId: 'detected:cta-bg',
+            mediaType: 'image',
+            url: 'https://cdn.example.com/cta-bg.jpg'
+          }
+        },
+        fullWidth: 'true',
+        alignment: 'center',
+        region: 'main'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('cta-banner'))
+
+    expect(props.content).toMatchObject({
+      heading: 'Support the hospital',
+      subheading: 'Your support helps children and families.',
+      primaryButton: {
+        label: 'Donate now',
+        href: {
+          type: 'internal',
+          pageId: 'donate',
+          path: '/donate'
+        },
+        variant: 'primary'
+      },
+      secondaryButton: {
+        label: 'Learn more',
+        href: {
+          type: 'external',
+          url: 'https://www.example.com/support'
+        },
+        variant: 'outline'
+      },
+      backgroundImage: 'https://cdn.example.com/cta-bg.jpg',
+      fullWidth: true,
+      alignment: 'center'
+    })
+    expect(props.content).not.toHaveProperty('region')
+    expect(CTABannerDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
+  it('preserves typed CTA SmartLinks for email and phone buttons', () => {
+    const detection: DetectionResult = {
+      id: 'cta-simple-smartlinks',
+      type: 'cta-simple',
+      bounds: baseBounds,
+      content: {
+        heading: 'Need help?',
+        primaryButton: {
+          label: 'Email us',
+          href: { type: 'email', href: 'hello@example.com' }
+        },
+        secondaryButton: {
+          label: 'Call now',
+          href: { type: 'phone', href: '+61234567890' }
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('cta-simple'))
+
+    expect(props.content?.primaryButton?.href).toEqual({ type: 'email', href: 'hello@example.com' })
+    expect(props.content?.secondaryButton?.href).toEqual({ type: 'phone', href: '+61234567890' })
+    expect(CTASimpleDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
+  it('keeps CTA atlas samples schema-valid', () => {
+    expect(CTASimpleDef.schema.safeParse(ctaSimpleAtlasSpec.content).success).toBe(true)
+    expect(CTABannerDef.schema.safeParse(ctaBannerAtlasSpec.content).success).toBe(true)
+  })
+
+  it('keeps statistics quote team and testimonials atlas samples schema-valid', () => {
+    expect(StatisticsDef.schema.safeParse(statisticsAtlasSpec.content).success).toBe(true)
+    expect(QuoteBlockDef.schema.safeParse(quoteBlockAtlasSpec.content).success).toBe(true)
+    expect(TeamGridDef.schema.safeParse(teamGridAtlasSpec.content).success).toBe(true)
+    expect(TestimonialSliderDef.schema.safeParse(testimonialsAtlasSpec.content).success).toBe(true)
   })
 
   it('sets timeline variant to progress when progress cues are present', () => {
@@ -906,42 +2052,59 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     )
   })
 
-  it('passes testimonials payloads through unchanged', () => {
+  it('normalizes testimonials aliases into schema-valid testimonial items', () => {
     const detection: DetectionResult = {
       id: 'testimonials-1',
       type: 'testimonials',
       bounds: baseBounds,
       content: {
-        testimonials: [
+        reviews: [
           {
             type: 'testimonial-item',
-            id: 'testimonial-item-julie-waddell',
-            quote: 'We encourage our students to embrace their culture.',
-            author: 'Julie Waddell',
-            role: 'Jarara Indigenous Education Unit',
-            avatar: 'https://cdn.example.com/avatars/julie.jpg'
+            text: 'We encourage our students to embrace their culture.',
+            person: 'Julie Waddell',
+            title: 'Jarara Indigenous Education Unit',
+            image: { src: 'https://cdn.example.com/avatars/julie.jpg' },
+            rating: '5',
+            extra: 'remove me'
           },
           {
             type: 'testimonial-item',
-            id: 'testimonial-item-emilio-nacua',
-            quote: 'Our school helps students choose their future.',
-            author: 'Emilio Nacua',
-            role: 'Student, Parramatta Marist High',
-            avatar: 'https://cdn.example.com/avatars/emilio.jpg'
+            author: 'Missing Quote'
           }
         ],
-        autoPlayInterval: 5000,
-        showNavigation: true
+        autoPlayInterval: '5000',
+        showNavigation: 'true'
       },
       metadata: {}
     }
 
     const props = extractComponentProps(detection, createComponentType('testimonials'))
 
-    const { region: _region, ...expectedContent } = detection.content as Record<string, unknown>
-    expect(props.content).toMatchObject(expectedContent)
-    expect(props.content).not.toHaveProperty('region')
-    expect(consumeNormalizationWarnings()).toHaveLength(0)
+    expect(props.content).toEqual({
+      testimonials: [
+        {
+          id: 'testimonial-item-julie-waddell',
+          quote: 'We encourage our students to embrace their culture.',
+          author: 'Julie Waddell',
+          role: 'Jarara Indigenous Education Unit',
+          avatar: 'https://cdn.example.com/avatars/julie.jpg',
+          rating: 5
+        }
+      ],
+      autoPlayInterval: 5000,
+      showNavigation: true
+    })
+    expect(TestimonialSliderDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'testimonials',
+          issue: 'missing-required-field',
+          field: 'testimonials'
+        })
+      ])
+    )
   })
 
   it('warns and drops invalid testimonial entries while preserving valid ones', () => {
@@ -1024,7 +2187,43 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const propsWithSlides = extractComponentProps(detection, heroCarouselType)
 
-    expect(propsWithSlides.content?.slides).toEqual(detection.content.slides)
+    expect(propsWithSlides.content?.slides).toEqual([
+      {
+        id: 'detector-slide-1',
+        heading: 'Coffee with a Cop',
+        body: 'Join local officers for conversations over coffee.',
+        image: {
+          src: {
+            mediaType: 'image',
+            mediaId: 'detected:cdn-example-com-hero-coffee-jpg',
+            url: 'https://cdn.example.com/hero/coffee.jpg',
+            alt: 'Community members enjoying coffee with officers.'
+          },
+          originalUrl: 'https://cdn.example.com/hero/coffee.jpg',
+          alt: 'Community members enjoying coffee with officers.'
+        },
+        ctaButtons: [
+          {
+            label: 'Read more',
+            href: {
+              type: 'internal',
+              pageId: 'promotions-coffee-with-a-cop',
+              path: '/promotions/coffee-with-a-cop'
+            },
+            variant: 'primary'
+          },
+          {
+            label: 'Plan your visit',
+            href: {
+              type: 'internal',
+              pageId: 'visit',
+              path: '/visit'
+            },
+            variant: 'secondary'
+          }
+        ]
+      }
+    ])
     expect(propsWithSlides).not.toHaveProperty('slides')
     expect(consumeNormalizationWarnings()).toHaveLength(0)
 
@@ -1038,7 +2237,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const propsWithoutSlides = extractComponentProps(detectionWithoutSlides, heroCarouselType)
 
-    expect(propsWithoutSlides.content?.slides).toBeUndefined()
+    expect(propsWithoutSlides.content?.slides).toEqual([])
     expect(propsWithoutSlides).not.toHaveProperty('slides')
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
@@ -1091,8 +2290,17 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
 
-  it('passes footer payloads through without restructuring', () => {
+  it('normalizes footer links, socials, and logo into schema-valid content', () => {
     const rawFooter = {
+      logo: {
+        src: {
+          mediaId: 'footer-logo-media',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/logo.svg'
+        },
+        alt: 'Catalyst'
+      },
+      description: 'Digital experience platform',
       columns: [
         {
           type: 'columnItem',
@@ -1129,8 +2337,8 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         {
           type: 'socialLinkItem',
           id: 'socialLinkItem-twitter',
-          platform: 'twitter',
-          url: 'https://twitter.com/catalyst',
+          platform: 'X',
+          href: 'https://x.com/catalyst',
           label: 'Twitter'
         }
       ],
@@ -1147,9 +2355,70 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     const props = extractComponentProps(detection, createComponentType('footer'))
 
-    const { region: _region, ...expectedFooter } = rawFooter
-    expect(props.content).toEqual(expectedFooter)
-    expect(consumeNormalizationWarnings()).toHaveLength(0)
+    expect(props.content).toEqual({
+      logo: {
+        src: {
+          mediaId: 'footer-logo-media',
+          mediaType: 'image',
+          url: 'https://cdn.example.com/logo.svg',
+          alt: 'Catalyst'
+        },
+        alt: 'Catalyst',
+        originalUrl: 'https://cdn.example.com/logo.svg'
+      },
+      description: 'Digital experience platform',
+      columns: [
+        {
+          title: 'Company',
+          links: [
+            {
+              label: 'About',
+              href: {
+                type: 'internal',
+                pageId: 'about',
+                path: '/about'
+              },
+              external: false
+            },
+            {
+              label: 'Careers',
+              href: {
+                type: 'external',
+                url: 'https://jobs.example.com'
+              },
+              external: true
+            }
+          ]
+        }
+      ],
+      legalLinks: [
+        {
+          label: 'Privacy Policy',
+          href: {
+            type: 'internal',
+            pageId: 'privacy',
+            path: '/privacy'
+          },
+          external: false
+        }
+      ],
+      socialLinks: [
+        {
+          platform: 'twitter',
+          url: 'https://x.com/catalyst',
+          label: 'Twitter'
+        }
+      ]
+    })
+    expect(FooterDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'footer',
+          issue: 'unknown-field'
+        })
+      ])
+    )
   })
 
   it('does not inject defaults for empty cta-with-form payloads', () => {

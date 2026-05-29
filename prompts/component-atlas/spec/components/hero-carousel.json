@@ -10,12 +10,21 @@
         "heading": "Spring Collection Drop",
         "image": {
           "alt": "Model wearing spring fashion",
-          "src": "https://cdn.example.com/hero/spring-drop.jpg"
+          "src": {
+            "mediaId": "detected:spring-drop",
+            "mediaType": "image",
+            "url": "https://cdn.example.com/hero/spring-drop.jpg"
+          },
+          "originalUrl": "https://cdn.example.com/hero/spring-drop.jpg"
         },
         "subheading": "Limited-edition styles inspired by city skylines.",
         "ctaButtons": [
           {
-            "href": "/collections/spring",
+            "href": {
+              "type": "internal",
+              "pageId": "collections-spring",
+              "path": "/collections/spring"
+            },
             "label": "Explore Collection",
             "variant": "primary"
           }
@@ -26,12 +35,21 @@
         "heading": "Members Save 20%",
         "image": {
           "alt": "Close-up of loyalty card",
-          "src": "https://cdn.example.com/hero/members.jpg"
+          "src": {
+            "mediaId": "detected:members",
+            "mediaType": "image",
+            "url": "https://cdn.example.com/hero/members.jpg"
+          },
+          "originalUrl": "https://cdn.example.com/hero/members.jpg"
         },
         "subheading": "Unlock early access and exclusive drops.",
         "ctaButtons": [
           {
-            "href": "/loyalty",
+            "href": {
+              "type": "internal",
+              "pageId": "loyalty",
+              "path": "/loyalty"
+            },
             "label": "Join Loyalty",
             "variant": "secondary"
           }

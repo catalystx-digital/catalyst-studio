@@ -213,6 +213,20 @@ function isCompactIconCard(card: NormalizedCardItem): boolean {
   );
 }
 
+function isTitleOnlyLinkCard(card: NormalizedCardItem): boolean {
+  return (
+    Boolean(card.link) &&
+    !getImageFromCard(card) &&
+    !card.icon &&
+    !card.description &&
+    !card.metadata?.author &&
+    !card.metadata?.date &&
+    !card.metadata?.category &&
+    !(Array.isArray(card.metadata?.tags) && card.metadata.tags.length > 0) &&
+    !(Array.isArray(card.actions) && card.actions.length > 0)
+  );
+}
+
 export function CardGridClient({
   content,
   className,
@@ -397,7 +411,7 @@ export function CardGridClient({
     );
   };
 
-  const renderLinkFooter = (card: NormalizedCardItem, compact = false) => {
+  const renderLinkFooter = (card: NormalizedCardItem, compact = false, alignStart = false) => {
     // Skip if card has explicit actions (buttons) or no link at all
     if (!card.link || (card.actions && card.actions.length > 0)) {
       return null;
@@ -415,6 +429,7 @@ export function CardGridClient({
           'flex items-center gap-3 p-[var(--component-padding)] pt-0',
           resolvedThemeClass,
           compact && 'justify-center p-4 pt-0',
+          alignStart && 'justify-start px-5 pb-5 pt-0',
         )}
       >
         <Button
@@ -521,6 +536,7 @@ export function CardGridClient({
   const renderCardBody = (card: NormalizedCardItem, isOverlay = false) => (
     (() => {
       const compactIconCard = isCompactIconCard(card);
+      const titleOnlyLinkCard = isTitleOnlyLinkCard(card);
       const hasBodyContent =
         Boolean(card.description) ||
         Boolean(card.metadata?.author) ||
@@ -538,6 +554,7 @@ export function CardGridClient({
           cardStyle === 'compact' ? dsSpacing.padding('md') : dsSpacing.padding('lg'),
           isOverlay && `lg:${dsSpacing.padding('xl')}`,
           compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
+          titleOnlyLinkCard && 'justify-start px-5 pb-2 pt-5',
         )}
       >
         {card.badge && (
@@ -552,7 +569,11 @@ export function CardGridClient({
           </span>
         )}
 
-        <CardTitle className={cn('line-clamp-2', compactIconCard ? 'text-base' : 'text-xl')}>
+        <CardTitle className={cn(
+          'line-clamp-2',
+          compactIconCard ? 'text-base' : 'text-xl',
+          titleOnlyLinkCard && 'text-base font-semibold leading-snug',
+        )}>
           {card.title}
         </CardTitle>
       </CardHeader>
@@ -582,7 +603,7 @@ export function CardGridClient({
       )}
 
       {renderActions(card)}
-      {renderLinkFooter(card, compactIconCard)}
+      {renderLinkFooter(card, compactIconCard || titleOnlyLinkCard, titleOnlyLinkCard)}
     </>
       );
     })()
@@ -603,6 +624,7 @@ export function CardGridClient({
         // Skip rendering image for cards with custom background color (solid color cards)
         const media = hasCustomBg ? null : renderImage(card, imagePosition);
         const compactIconCard = isCompactIconCard(card);
+        const titleOnlyLinkCard = isTitleOnlyLinkCard(card);
         const cardTheme = backgroundImage ? 'dark' : resolvedTheme;
 
         // Featured card styling: first card can span 2 columns when we have 3+ columns
@@ -630,14 +652,15 @@ export function CardGridClient({
               'cms-card-grid-card flex h-full flex-col overflow-hidden relative group',
               // Subtle shadow for depth
               !backgroundImage && 'shadow-sm',
-              // Stitch design: muted background for non-colored cards
-              !hasCustomBg && !backgroundImage && 'bg-muted/30 border-0',
+              // Let shadcn Card provide the foundation; keep imported cards crisp.
+              !hasCustomBg && !backgroundImage && 'bg-card/95 border-border/70',
               // Focus and hover states - shadcn-style subtle effects
-              clickable && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              clickable && 'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               cardStyle === 'horizontal' && !backgroundImage && 'md:flex-row',
               cardStyle === 'compact' && 'md:max-w-md',
               backgroundImage && 'border-0 bg-transparent text-foreground shadow-none',
               compactIconCard && 'justify-start',
+              titleOnlyLinkCard && 'min-h-24 justify-between',
               // Featured card styling - subtle emphasis
               isFeatured && 'md:col-span-2 border-primary/20',
               // Custom background styling - use white/light text for dark backgrounds

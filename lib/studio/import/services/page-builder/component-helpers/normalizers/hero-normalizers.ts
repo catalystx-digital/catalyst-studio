@@ -49,6 +49,114 @@ function isMediaReferenceLike(value: unknown): value is Record<string, any> {
     (value.url == null || typeof value.url === 'string')
 }
 
+function pageIdFromPath(path: string): string {
+  return path.replace(/^\/+|\/+$/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'home'
+}
+
+function normalizeHeroSmartLink(value: unknown): Record<string, any> | undefined {
+  if (isRecord(value)) {
+    const type = normalizeString(value.type)?.toLowerCase()
+    if (type === 'internal') {
+      const path = extractLinkUrl(value.path ?? value.href ?? value.url)
+      return path
+        ? {
+            type: 'internal',
+            pageId: normalizeString(value.pageId) ?? pageIdFromPath(path),
+            path,
+            ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {})
+          }
+        : undefined
+    }
+    if (type === 'external') {
+      const url = extractLinkUrl(value.url ?? value.href)
+      if (!url) return undefined
+      const normalizedUrl = url.startsWith('//')
+        ? `https:${url}`
+        : /^[\w.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(url)
+          ? `https://${url}`
+          : url
+      return /^https?:\/\//i.test(normalizedUrl)
+        ? {
+            type: 'external',
+            url: normalizedUrl,
+            ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {}),
+            ...(typeof value.openInNewTab === 'boolean' ? { openInNewTab: value.openInNewTab } : {})
+          }
+        : undefined
+    }
+    if (type === 'email' || type === 'phone' || type === 'anchor') {
+      const href = extractLinkUrl(value.href ?? value.url ?? value.path)
+      return href
+        ? {
+            type,
+            href,
+            ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {})
+          }
+        : undefined
+    }
+  }
+
+  const raw = extractLinkUrl(value)
+  if (!raw) return undefined
+  const href = raw.startsWith('//')
+    ? `https:${raw}`
+    : /^[\w.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(raw)
+      ? `https://${raw}`
+      : raw
+  if (href.startsWith('#')) return { type: 'anchor', href }
+  if (href.startsWith('mailto:')) return { type: 'email', href }
+  if (href.startsWith('tel:')) return { type: 'phone', href }
+  if (/^https?:\/\//i.test(href)) return { type: 'external', url: href }
+  return { type: 'internal', pageId: pageIdFromPath(href), path: href }
+}
+
+function normalizeHeroCtaVariant(value: unknown): 'primary' | 'secondary' | 'outline' | undefined {
+  const variant = normalizeString(value)?.toLowerCase()
+  if (variant === 'primary' || variant === 'secondary' || variant === 'outline') return variant
+  if (variant === 'default' || variant === 'accent' || variant === 'filled' || variant === 'solid') return 'primary'
+  if (variant === 'neutral') return 'secondary'
+  if (variant === 'ghost' || variant === 'link') return 'outline'
+  return undefined
+}
+
+function stableMediaIdFromUrl(url: string, fallback: string): string {
+  const clean = url
+    .replace(/^https?:\/\//i, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .slice(0, 48)
+  return `detected:${clean || fallback}`
+}
+
+function normalizeHeroImageValue(
+  value: unknown,
+  fallbackAlt: string | undefined,
+  fallbackId: string
+): Record<string, any> | undefined {
+  if (isRecord(value)) {
+    const structured = extractStructuredImage(value, fallbackAlt)
+    if (structured) return structured
+  }
+
+  const normalized = normalizeImage(value, fallbackAlt)
+  const url = normalized?.src ?? normalized?.originalUrl ?? extractLinkUrl(value)
+  const alt = normalized?.alt ?? fallbackAlt
+  if (!url && !normalized?.mediaId) return undefined
+
+  return {
+    src: {
+      mediaId: normalized?.mediaId ?? stableMediaIdFromUrl(url ?? fallbackId, fallbackId),
+      mediaType: 'image',
+      ...(url ? { url } : {}),
+      ...(alt ? { alt } : {})
+    },
+    ...(alt ? { alt } : {}),
+    ...(url ? { originalUrl: normalized?.originalUrl ?? url } : {}),
+    ...(normalized?.renditions ? { renditions: normalized.renditions } : {})
+  }
+}
+
 function extractStructuredImage(
   value: Record<string, any>,
   fallbackAlt: string | undefined
@@ -76,6 +184,23 @@ function extractStructuredImage(
       : typeof srcCandidate.url === 'string'
         ? { originalUrl: srcCandidate.url }
         : {})
+  }
+}
+
+function getMissingMediaUrlWarning(
+  image: Record<string, any>,
+  options: { index: number; childType: string }
+): LocalNormalizationWarning | undefined {
+  const src = image.src
+  if (!isRecord(src) || typeof src.mediaId !== 'string' || typeof src.url === 'string') {
+    return undefined
+  }
+  return {
+    issue: 'media-src-missing',
+    message: 'Hero image mediaId detected without a usable src.',
+    field: 'image',
+    childType: options.childType,
+    details: { index: options.index, mediaId: src.mediaId }
   }
 }
 
@@ -129,7 +254,31 @@ function collectHeroCtaPayloads(
       pageUrl: options.pageUrl
     })
 
-    normalizedCtas.push(expanded)
+    const label =
+      normalizeString(expanded.label) ??
+      normalizeString(expanded.text) ??
+      normalizeString(expanded.title) ??
+      normalizeString(expanded.name)
+    const href = normalizeHeroSmartLink(expanded.href ?? expanded.url ?? expanded.link ?? expanded.path)
+    if (!label || !href) {
+      warnings.push({
+        issue: 'invalid-subcomponent',
+        message: `Dropped CTA at index ${index} because label or href is missing.`,
+        field: 'ctaButtons',
+        childType: 'cta-button',
+        details: { index, labelPresent: Boolean(label), hrefPresent: Boolean(href) }
+      })
+      return
+    }
+
+    const variant = normalizeHeroCtaVariant(expanded.variant ?? expanded.style ?? expanded.buttonStyle)
+    normalizedCtas.push({
+      label,
+      href,
+      ...(variant ? { variant } : {}),
+      ...(normalizeString(expanded.icon) ? { icon: normalizeString(expanded.icon) } : {}),
+      ...(typeof expanded.external === 'boolean' ? { external: expanded.external } : {})
+    })
   })
 
   return { ctas: normalizedCtas, warnings }
@@ -430,10 +579,7 @@ export const normalizeHeroSimpleContent: ComponentContentNormalizer = (
       normalizeString(expanded.text) ??
       normalizeString(expanded.title) ??
       normalizeString(expanded.name)
-    const href =
-      extractLinkUrl(expanded.href) ??
-      extractLinkUrl(expanded.url) ??
-      extractLinkUrl(expanded.link)
+    const href = normalizeHeroSmartLink(expanded.href ?? expanded.url ?? expanded.link ?? expanded.path)
 
     if (!label || !href) {
       return
@@ -675,21 +821,6 @@ function normalizeHeroWithImageImageCandidate(
     return {}
   }
 
-  if (typeof candidate === 'string') {
-    const normalizedAsset = normalizeImage(candidate)
-    if (normalizedAsset?.src) {
-      return { image: { ...normalizedAsset } }
-    }
-    return {
-      warning: createMalformedImageWarning({
-        field: 'image',
-        childType: 'hero-with-image-image',
-        index: options.index,
-        message: 'Dropped hero image missing src.'
-      })
-    }
-  }
-
   if (Array.isArray(candidate)) {
     for (let idx = 0; idx < candidate.length; idx += 1) {
       const { image, warning } = normalizeHeroWithImageImageCandidate(candidate[idx], {
@@ -708,6 +839,10 @@ function normalizeHeroWithImageImageCandidate(
   }
 
   if (!isRecord(candidate)) {
+    if (typeof candidate === 'string') {
+      const image = normalizeHeroImageValue(candidate, undefined, `hero-with-image-${options.index}`)
+      if (image) return { image }
+    }
     return {
       warning: createMalformedImageWarning({
         field: 'image',
@@ -733,9 +868,15 @@ function normalizeHeroWithImageImageCandidate(
     normalizeString(expanded.title) ??
     normalizeString(expanded.name) ??
     normalizeString(expanded.description)
-  const structuredImage = extractStructuredImage(expanded, fallbackAlt)
+  const structuredImage = normalizeHeroImageValue(expanded, fallbackAlt, `hero-with-image-${options.index}`)
   if (structuredImage) {
-    return { image: structuredImage }
+    return {
+      image: structuredImage,
+      warning: getMissingMediaUrlWarning(structuredImage, {
+        index: options.index,
+        childType: 'hero-with-image-image'
+      })
+    }
   }
   const normalizedAsset: NormalizedImageValue | undefined = normalizeImage(expanded, fallbackAlt)
   const src =
@@ -941,5 +1082,178 @@ export const normalizeHeroWithImageContent: ComponentContentNormalizer = (
     }
   })
 
-  return { content: normalized, warnings }
+  const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'hero-with-image', {
+    childType: 'hero-with-image'
+  })
+  if (pruneWarnings.length > 0) {
+    warnings.push(...pruneWarnings)
+  }
+
+  return { content: pruned, warnings }
+}
+
+function normalizeHeroAlignment(value: unknown): 'left' | 'center' | 'right' | undefined {
+  const normalized = normalizeString(value)?.toLowerCase()
+  if (normalized === 'left' || normalized === 'center' || normalized === 'right') return normalized
+  return undefined
+}
+
+function normalizeHeroTheme(value: unknown): 'light' | 'dark' | 'auto' | undefined {
+  const normalized = normalizeString(value)?.toLowerCase()
+  if (normalized === 'light' || normalized === 'dark' || normalized === 'auto') return normalized
+  return undefined
+}
+
+function normalizeHeroHeight(value: unknown): 'small' | 'medium' | 'large' | 'full' | undefined {
+  const normalized = normalizeString(value)?.toLowerCase()
+  if (normalized === 'small' || normalized === 'medium' || normalized === 'large' || normalized === 'full') return normalized
+  return undefined
+}
+
+function normalizeHeroCarouselSlide(
+  value: unknown,
+  index: number,
+  options: { parentCanonicalType: string; pageUrl?: string },
+  warnings: LocalNormalizationWarning[]
+): Record<string, any> | undefined {
+  if (!isRecord(value)) {
+    warnings.push({
+      issue: 'invalid-subcomponent',
+      message: `Dropped hero-carousel slide ${index} because payload is not an object.`,
+      field: 'slides',
+      childType: 'hero-carousel-slide',
+      details: { index }
+    })
+    return undefined
+  }
+
+  const flattened = expandSourceRecord(value, {
+    canonicalType: 'hero-carousel-slide',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'slides',
+    index,
+    pageUrl: options.pageUrl
+  })
+  const slide: Record<string, any> = {}
+  ;['id', 'heading', 'subheading', 'eyebrow', 'kicker', 'body', 'summary', 'description', 'analyticsId', 'backgroundColor'].forEach(key => {
+    const text = normalizeString(flattened[key])
+    if (text) slide[key] = text
+  })
+  const theme = normalizeHeroTheme(flattened.theme)
+  if (theme) slide.theme = theme
+  const alignment = normalizeHeroAlignment(flattened.alignment)
+  if (alignment) slide.alignment = alignment
+
+  const image = normalizeHeroImageValue(
+    flattened.image ?? flattened.backgroundImage ?? flattened.media ?? flattened.src ?? flattened.url,
+    normalizeString(flattened.alt ?? flattened.imageAlt ?? flattened.title ?? flattened.heading),
+    `hero-carousel-${index + 1}`
+  )
+  if (image) slide.image = image
+
+  const overlaySource = isRecord(flattened.overlay) ? flattened.overlay : flattened
+  const overlay: Record<string, any> = {}
+  const overlayColor = normalizeString(overlaySource.color ?? overlaySource.overlayColor)
+  const overlayOpacity = normalizeOverlayOpacityValue(overlaySource.opacity ?? overlaySource.overlayOpacity)
+  const overlayGradient = normalizeString(overlaySource.gradient ?? overlaySource.overlayGradient)
+  if (overlayColor) overlay.color = overlayColor
+  if (overlayOpacity !== undefined) overlay.opacity = overlayOpacity
+  if (overlayGradient) overlay.gradient = overlayGradient
+  if (Object.keys(overlay).length > 0) slide.overlay = overlay
+
+  const ctaSource = flattened.ctaButtons ?? flattened.ctas ?? flattened.buttons ?? flattened.cta
+  const { ctas, warnings: ctaWarnings } = collectHeroCtaPayloads(ctaSource, {
+    parentCanonicalType: options.parentCanonicalType,
+    pageUrl: options.pageUrl,
+    canonicalType: 'hero-carousel-cta'
+  })
+  warnings.push(...ctaWarnings)
+  if (ctas.length > 0) slide.ctaButtons = ctas
+
+  return slide
+}
+
+export const normalizeHeroCarouselContent: ComponentContentNormalizer = (
+  rawContent: Record<string, any>,
+  options: { parentCanonicalType: string; pageUrl?: string }
+) => {
+  const warnings: LocalNormalizationWarning[] = []
+  const flattened = expandSourceRecord(rawContent, {
+    canonicalType: 'hero-carousel',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'content',
+    index: 0,
+    pageUrl: options.pageUrl
+  })
+  const normalized: Record<string, any> = { ...flattened }
+  normalized.slides = Array.isArray(flattened.slides)
+    ? flattened.slides
+        .map((slide, index) => normalizeHeroCarouselSlide(slide, index, options, warnings))
+        .filter((slide): slide is Record<string, any> => Boolean(slide))
+    : []
+
+  if ('autoplay' in normalized && !('autoPlay' in normalized)) normalized.autoPlay = normalizeBooleanFlag(normalized.autoplay)
+  if ('autoPlay' in normalized) normalized.autoPlay = normalizeBooleanFlag(normalized.autoPlay)
+  if ('intervalMs' in normalized && !('autoPlayInterval' in normalized)) normalized.autoPlayInterval = Number(normalized.intervalMs)
+  if ('autoPlayInterval' in normalized) normalized.autoPlayInterval = Number(normalized.autoPlayInterval)
+  ;['pauseOnHover', 'showIndicators', 'showControls', 'loop'].forEach(key => {
+    if (key in normalized) normalized[key] = normalizeBooleanFlag(normalized[key])
+  })
+  const height = normalizeHeroHeight(normalized.height)
+  if (height) normalized.height = height
+  else delete normalized.height
+  const alignment = normalizeHeroAlignment(normalized.alignment)
+  if (alignment) normalized.alignment = alignment
+  else delete normalized.alignment
+  const theme = normalizeHeroTheme(normalized.theme)
+  if (theme) normalized.theme = theme
+  else delete normalized.theme
+  if (normalized.indicatorStyle !== 'dots' && normalized.indicatorStyle !== 'bars') delete normalized.indicatorStyle
+  if (normalized.transitionStyle !== 'fade' && normalized.transitionStyle !== 'slide') delete normalized.transitionStyle
+  delete normalized.autoplay
+  delete normalized.intervalMs
+
+  const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'hero-carousel', {
+    childType: 'hero-carousel'
+  })
+  warnings.push(...pruneWarnings)
+  return { content: pruned, warnings }
+}
+
+export const normalizeHeroSplitContent: ComponentContentNormalizer = (
+  rawContent: Record<string, any>,
+  options: { parentCanonicalType: string; pageUrl?: string }
+) => {
+  const warnings: LocalNormalizationWarning[] = []
+  const flattened = expandSourceRecord(rawContent, {
+    canonicalType: 'hero-split',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'content',
+    index: 0,
+    pageUrl: options.pageUrl
+  })
+  const normalized: Record<string, any> = { ...flattened }
+  const mediaSource = isRecord(flattened.media) ? flattened.media : flattened.image
+  const image = normalizeHeroImageValue(mediaSource, normalizeString(flattened.media?.alt ?? flattened.alt), 'hero-split-media')
+  if (image?.src) {
+    normalized.media = {
+      type: 'image',
+      src: image.src,
+      ...(image.alt ? { alt: image.alt } : {})
+    }
+  }
+  const position = normalizeString(flattened.mediaPosition)?.toLowerCase()
+  if (position === 'left' || position === 'right') normalized.mediaPosition = position
+  const { ctas, warnings: ctaWarnings } = collectHeroCtaPayloads(flattened.ctaButtons, {
+    parentCanonicalType: options.parentCanonicalType,
+    pageUrl: options.pageUrl,
+    canonicalType: 'hero-split-cta'
+  })
+  warnings.push(...ctaWarnings)
+  if (ctas.length > 0) normalized.ctaButtons = ctas
+  const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(normalized, 'hero-split', {
+    childType: 'hero-split'
+  })
+  warnings.push(...pruneWarnings)
+  return { content: pruned, warnings }
 }

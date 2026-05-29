@@ -135,7 +135,8 @@ describe('navigation adapters', () => {
           socialLinks: [
             { platform: 'Twitter', url: 'https://example.com/twitter' },
             { platform: 'github', url: 'https://example.com/github', label: 'GitHub' }
-          ]
+          ],
+          logo: 'Catalyst'
         }}
       />
     );
@@ -144,6 +145,7 @@ describe('navigation adapters', () => {
 
     expect(content).not.toHaveProperty('copyright');
     expect(content).not.toHaveProperty('legalLinks');
+    expect(content.logo).toBe('Catalyst');
     expect(content.columns).toEqual([
           {
             title: 'Canonical Column',
@@ -178,7 +180,7 @@ describe('navigation adapters', () => {
     expect(content).toEqual({ menuItems: [] });
   });
 
-  it('does not map sidebar text/url aliases or default back links', () => {
+  it('keeps sidebar navigation to canonical links and grouped sections', () => {
     render(
       <SidebarNavAdapter
         {...baseProps}
@@ -186,11 +188,19 @@ describe('navigation adapters', () => {
         content={{
           items: [
             { text: 'Legacy Text', url: '/legacy-url' },
-            { label: 'Canonical', href: '/canonical' },
+            { label: 'Canonical', href: link('/canonical') },
             { label: 'No Href', url: '/no-href' }
           ],
-          links: [{ label: 'Legacy Source', href: '/legacy-source' }],
-          backLink: {}
+          sections: [
+            {
+              heading: 'Section',
+              links: [
+                { label: 'Child', href: link('/child') }
+              ]
+            }
+          ],
+          backLink: { label: 'Back', href: link('/parent') },
+          showBackLink: true
         }}
       />
     );
@@ -198,10 +208,16 @@ describe('navigation adapters', () => {
     const content = mockSidebarNav.mock.calls[0][0].content;
 
     expect(content.items).toEqual([
-      { label: 'Canonical', href: '/canonical' }
+      { label: 'Canonical', href: link('/canonical') }
     ]);
-    expect(content.backLink).toBeUndefined();
-    expect(content.showBackLink).toBeUndefined();
+    expect(content.sections).toEqual([
+      {
+        heading: 'Section',
+        items: [{ label: 'Child', href: link('/child') }]
+      }
+    ]);
+    expect(content.backLink).toEqual({ label: 'Back', href: link('/parent') });
+    expect(content.showBackLink).toBe(true);
   });
 
   it('passes canonical breadcrumbs content through', () => {

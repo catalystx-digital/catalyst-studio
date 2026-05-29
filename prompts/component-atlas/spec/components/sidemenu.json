@@ -5,35 +5,43 @@
     "sections": [
       {
         "heading": "Documentation",
-        "links": [
+        "items": [
           {
-            "type": "nav-menu-item",
-            "id": "sidemenu-docs-overview",
             "label": "Overview",
-            "href": "/docs"
+            "href": {
+              "type": "internal",
+              "pageId": "docs",
+              "path": "/docs"
+            }
           },
           {
-            "type": "nav-menu-item",
-            "id": "sidemenu-docs-api",
             "label": "API Reference",
-            "href": "/docs/api"
+            "href": {
+              "type": "internal",
+              "pageId": "docs-api",
+              "path": "/docs/api"
+            }
           }
         ]
       },
       {
         "heading": "Support",
-        "links": [
+        "items": [
           {
-            "type": "nav-menu-item",
-            "id": "sidemenu-support-contact",
             "label": "Contact",
-            "href": "/support/contact"
+            "href": {
+              "type": "internal",
+              "pageId": "support-contact",
+              "path": "/support/contact"
+            }
           },
           {
-            "type": "nav-menu-item",
-            "id": "sidemenu-support-status",
             "label": "Status",
-            "href": "/status"
+            "href": {
+              "type": "internal",
+              "pageId": "status",
+              "path": "/status"
+            }
           }
         ]
       }

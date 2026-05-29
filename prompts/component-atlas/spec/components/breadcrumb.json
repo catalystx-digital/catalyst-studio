@@ -5,15 +5,27 @@
     "items": [
       {
         "label": "Home",
-        "url": "/"
+        "href": {
+          "type": "internal",
+          "pageId": "home",
+          "path": "/"
+        }
       },
       {
         "label": "Section",
-        "url": "/section"
+        "href": {
+          "type": "internal",
+          "pageId": "section",
+          "path": "/section"
+        }
       },
       {
         "label": "Current Page",
-        "url": "/section/current"
+        "href": {
+          "type": "internal",
+          "pageId": "section-current",
+          "path": "/section/current"
+        }
       }
     ]
   },

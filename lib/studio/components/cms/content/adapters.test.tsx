@@ -4,6 +4,7 @@ import { render } from '@testing-library/react';
 import {
   AccordionAdapter,
   CardItemAdapter,
+  ImageGalleryAdapter,
   TabsAdapter,
   TwoColumnAdapter
 } from './adapters';
@@ -26,10 +27,15 @@ jest.mock('./card-item', () => ({
   CardItem: jest.fn(() => null)
 }));
 
+jest.mock('./image-gallery', () => ({
+  ImageGallery: jest.fn(() => null)
+}));
+
 const { TwoColumn } = require('./two-column') as { TwoColumn: jest.Mock };
 const { Accordion } = require('./accordion') as { Accordion: jest.Mock };
 const { Tabs } = require('./tabs') as { Tabs: jest.Mock };
 const { CardItem } = require('./card-item') as { CardItem: jest.Mock };
+const { ImageGallery } = require('./image-gallery') as { ImageGallery: jest.Mock };
 
 const baseProps = (type: ComponentType, content: unknown): CMSComponentProps => ({
   id: `${type}-test`,
@@ -46,6 +52,7 @@ describe('content adapters canonical shape handling', () => {
     Accordion.mockClear();
     Tabs.mockClear();
     CardItem.mockClear();
+    ImageGallery.mockClear();
   });
 
   it('does not map legacy TwoColumn leftColumn/rightColumn into areas', () => {
@@ -103,5 +110,40 @@ describe('content adapters canonical shape handling', () => {
     expect(CardItem.mock.calls[0][0].content).toEqual(content);
     expect(CardItem.mock.calls[0][0].content.title).toBeUndefined();
     expect(CardItem.mock.calls[0][0].content.image).toBeUndefined();
+  });
+
+  it('preserves image gallery string URL entries at the adapter edge', () => {
+    const content = {
+      images: [
+        'https://cdn.example.com/gallery/office-1.jpg',
+        {
+          src: {
+            mediaId: 'media-gallery-2',
+            mediaType: 'image',
+            url: 'https://cdn.example.com/gallery/office-2.jpg',
+            alt: 'Office detail'
+          },
+          caption: 'Brand detail'
+        }
+      ],
+      displayMode: 'grid'
+    };
+
+    render(<ImageGalleryAdapter {...baseProps(ComponentType.ImageGallery, content)} />);
+
+    expect(ImageGallery).toHaveBeenCalledTimes(1);
+    expect(ImageGallery.mock.calls[0][0].content.images).toEqual([
+      expect.objectContaining({
+        url: 'https://cdn.example.com/gallery/office-1.jpg',
+        alt: '',
+        originalUrl: 'https://cdn.example.com/gallery/office-1.jpg'
+      }),
+      expect.objectContaining({
+        url: 'https://cdn.example.com/gallery/office-2.jpg',
+        alt: 'Office detail',
+        caption: 'Brand detail',
+        originalUrl: 'https://cdn.example.com/gallery/office-2.jpg'
+      })
+    ]);
   });
 });

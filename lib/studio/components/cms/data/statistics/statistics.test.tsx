@@ -103,16 +103,16 @@ describe('Statistics Component', () => {
     const statElements = screen.getAllByRole('status');
     
     // Check that the first stat has + prefix (customers)
-    expect(statElements[0].parentElement?.textContent).toContain('+');
+    expect(statElements[0].closest('.flex')?.textContent).toContain('+');
     
     // Check that the second stat has % suffix (satisfaction)
-    expect(statElements[1].parentElement?.textContent).toContain('%');
+    expect(statElements[1].closest('.flex')?.textContent).toContain('%');
     
     // Check that the third stat has /7 suffix (support)
-    expect(statElements[2].parentElement?.textContent).toContain('/7');
+    expect(statElements[2].closest('.flex')?.textContent).toContain('/7');
     
     // Check that the fourth stat has $ prefix (revenue)
-    expect(statElements[3].parentElement?.textContent).toContain('$');
+    expect(statElements[3].closest('.flex')?.textContent).toContain('$');
   });
 
   it('renders descriptions when provided', () => {
@@ -230,10 +230,10 @@ describe('Statistics Component', () => {
   it('renders delta badges with correct styling', () => {
     render(<Statistics {...defaultProps} />);
     const positiveDelta = screen.getByText('+12.5%');
-    expect(positiveDelta.className).toContain('bg-accent-greenLight');
+    expect(positiveDelta.className).toContain('text-success');
 
     const negativeDelta = screen.getByText('-4.2%');
-    expect(negativeDelta.className).toContain('bg-accent-redLight');
+    expect(negativeDelta.className).toContain('text-destructive');
   });
 
   it('renders within performance threshold', () => {

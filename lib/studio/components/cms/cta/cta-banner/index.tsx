@@ -8,7 +8,6 @@ import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { CmsSection, cmsBody, cmsHeading, dsSpacing } from '../../_ui';
 import { resolveSmartLinkHref } from '../../_utils/smart-link';
-import { normalizeImage } from '../../_utils/image-normalization';
 import type { CTABannerProps, CTABannerContent } from './cta-banner.types';
 
 export type { CTABannerProps, CTABannerContent } from './cta-banner.types';
@@ -41,7 +40,7 @@ function sanitizeClassName(className?: string): string {
 const CTABannerComponent: React.FC<CTABannerProps> = ({ id, type, content, className, style, theme, onInteraction }) => {
   const { heading, subheading, backgroundColor, textColor, alignment = 'center', backgroundImage, fullWidth } = content ?? {};
   const sanitizedClassName = sanitizeClassName(className);
-  const normalizedBackgroundImage = normalizeImage(backgroundImage as any)?.src;
+  const normalizedBackgroundImage = typeof backgroundImage === 'string' ? backgroundImage.trim() : '';
 
   const primaryBtn = normalizeButton(content?.primaryButton);
   const secondaryBtn = normalizeButton(content?.secondaryButton);

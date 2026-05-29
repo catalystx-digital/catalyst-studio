@@ -30,6 +30,12 @@ function normalizeArray(value: unknown): string[] {
     .filter((entry): entry is string => Boolean(entry));
 }
 
+function normalizeCategoryList(item: ContentFeedItem): string[] {
+  const categories = normalizeArray(item.categories ?? item.metadata?.categories);
+  const category = normalizeString(item.category);
+  return category && !categories.includes(category) ? [category, ...categories] : categories;
+}
+
 function resolveItemKey(item: ContentFeedItem, index: number): string {
   const candidates = [
     normalizeString(item.id),
@@ -56,9 +62,10 @@ function normalizeItem(item: ContentFeedItem, index: number, isPinned = false): 
   const href = resolveSmartLinkHref(item.href) ?? normalizeString(item.url);
 
   const tags = normalizeArray(item.tags ?? item.metadata?.tags);
-  const categories = normalizeArray(item.categories ?? item.metadata?.categories);
+  const categories = normalizeCategoryList(item);
 
   const publishDate =
+    normalizeString(item.date) ??
     normalizeString(item.publishDate) ??
     normalizeString(item.metadata?.publishDate) ??
     normalizeString(item.metadata?.date);
@@ -194,11 +201,11 @@ export function resolveContentFeed(content: ContentFeedContent): ResolvedContent
         contentTypes: source.contentTypes,
         tags: source.tags,
         categories: source.categories,
-        ancestorId: source.ancestorId,
-        pathPrefix: source.pathPrefix,
+        ancestorId: source.ancestorId ?? source.ancestor,
+        pathPrefix: source.pathPrefix ?? source.path,
         includeDescendants: source.includeDescendants ?? true,
         locale: source.locale,
-        siteId: source.siteId,
+        siteId: source.siteId ?? source.site,
         excludeIds: Array.from(pinnedKeys),
         sortField: sorting.field,
       },

@@ -254,26 +254,37 @@ describe('ComponentBuilder inline CTA merging for two-column', () => {
     metadata: {}
   }
 
-  it('moves leading CTAs into the previous two-column text block', () => {
+  it('keeps leading CTAs as standalone components instead of merging into two-column text', () => {
     const detections = [cloneDetection(ctaDetection), cloneDetection(twoColumnDetection)]
     const instances = builder.mapToComponentInstances(detections, types)
 
-    expect(instances).toHaveLength(1)
-    expect(instances[0].type).toBe('two-column')
-
-    const leftArea = ((instances[0].content as any).areas.left as any[])[0]
-    expect(leftArea.content.body).toContain('href="/about"')
-    expect(leftArea.content.body).toContain('Learn more')
+    expect(instances).toHaveLength(2)
+    expect(instances[0].type).toBe('cta-simple')
+    expect(instances[0].content).toMatchObject({
+      heading: 'Learn more about us',
+      primaryButton: {
+        label: 'Learn more',
+        href: { type: 'internal', pageId: 'about', path: '/about' }
+      }
+    })
+    expect(instances[1].type).toBe('two-column')
+    expect((instances[1].content as any).leftColumn[0].content.body).toBe('<p>We help resolve issues.</p>')
   })
 
-  it('moves trailing CTAs into the preceding two-column text block', () => {
+  it('keeps trailing CTAs as standalone components instead of merging into two-column text', () => {
     const detections = [cloneDetection(twoColumnDetection), cloneDetection(ctaDetection)]
     const instances = builder.mapToComponentInstances(detections, types)
 
-    expect(instances).toHaveLength(1)
-    const leftArea = ((instances[0].content as any).areas.left as any[])[0]
-    expect(leftArea.content.body).toContain('href="/about"')
-    expect(leftArea.content.body).toContain('Learn more')
+    expect(instances).toHaveLength(2)
+    expect(instances[0].type).toBe('two-column')
+    expect((instances[0].content as any).leftColumn[0].content.body).toBe('<p>We help resolve issues.</p>')
+    expect(instances[1].type).toBe('cta-simple')
+    expect(instances[1].content).toMatchObject({
+      primaryButton: {
+        label: 'Learn more',
+        href: { type: 'internal', pageId: 'about', path: '/about' }
+      }
+    })
   })
 })
 
@@ -708,7 +719,7 @@ describe('ComponentBuilder normalization', () => {
     expect(cards).toEqual(rawCards)
   })
 
-  it('preserves contract-compliant footer payloads', () => {
+  it('normalizes footer payloads into canonical links and media', () => {
     const rawFooter = {
       columns: [
         {
@@ -807,8 +818,40 @@ describe('ComponentBuilder normalization', () => {
     const [instance] = builder.mapToComponentInstances([detection], [footerType])
     const footerContent = instance.content
 
-    const { region: _region, ...expectedFooter } = rawFooter
-    expect(footerContent).toMatchObject(expectedFooter)
+    expect(footerContent).toMatchObject({
+      columns: [
+        {
+          title: 'Company',
+          links: [
+            { label: 'About', href: { type: 'internal', pageId: 'about', path: '/about' }, external: false },
+            { label: 'Careers', href: { type: 'external', url: 'https://jobs.example.com' }, external: true }
+          ]
+        },
+        {
+          title: 'Resources',
+          links: [
+            { label: 'Docs', href: { type: 'internal', pageId: 'docs', path: '/docs' }, external: false }
+          ]
+        }
+      ],
+      legalLinks: [
+        { label: 'Privacy Policy', href: { type: 'internal', pageId: 'privacy', path: '/privacy' }, external: false },
+        { label: 'Terms of Service', href: { type: 'internal', pageId: 'terms', path: '/terms' }, external: false }
+      ],
+      socialLinks: [
+        { platform: 'twitter', url: 'https://twitter.com/catalyst', label: 'Twitter' },
+        { platform: 'linkedin', url: 'https://linkedin.com/company/catalyst', label: 'LinkedIn' }
+      ],
+      newsletter: rawFooter.newsletter,
+      logo: {
+        alt: 'Catalyst Studio',
+        originalUrl: '/assets/logo.svg'
+      },
+      description: 'Build better experiences with Catalyst Studio.',
+      copyright: '© 2024 Catalyst Studio',
+      backgroundColor: '#000000',
+      textColor: '#ffffff'
+    })
   })
 
   it('preserves contract-compliant promo items', () => {

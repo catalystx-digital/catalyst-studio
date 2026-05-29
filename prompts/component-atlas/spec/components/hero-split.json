@@ -5,12 +5,20 @@
     "body": "Carbon fiber panels keep cards secure while the RFID-blocking design protects your identity.",
     "ctaButtons": [
       {
-        "href": "/products/ridge-carbon",
+        "href": {
+          "type": "internal",
+          "pageId": "products-ridge-carbon",
+          "path": "/products/ridge-carbon"
+        },
         "label": "Shop Now",
         "variant": "primary"
       },
       {
-        "href": "/products#compare",
+        "href": {
+          "type": "internal",
+          "pageId": "products",
+          "path": "/products#compare"
+        },
         "label": "Compare Wallets",
         "variant": "outline"
       }
@@ -18,7 +26,11 @@
     "heading": "Meet the Ridge Carbon Wallet",
     "media": {
       "alt": "Carbon wallet resting on desk accessories",
-      "src": "https://cdn.example.com/products/ridge-wallet.jpg",
+      "src": {
+        "mediaId": "detected:ridge-wallet",
+        "mediaType": "image",
+        "url": "https://cdn.example.com/products/ridge-wallet.jpg"
+      },
       "type": "image"
     },
     "mediaPosition": "right",

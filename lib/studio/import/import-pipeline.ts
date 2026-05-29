@@ -968,11 +968,24 @@ export class ImportPipeline {
     const imageSet = new Set<string>()
     const textPatternSet = new Set<string>()
     const componentUsageMap = new Map<string, number>()
+    const collectImageUrl = (value: unknown): void => {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        imageSet.add(value.trim())
+        return
+      }
+      if (!value || typeof value !== 'object') {
+        return
+      }
+      const record = value as Record<string, unknown>
+      collectImageUrl(record.url)
+      collectImageUrl(record.originalUrl)
+      collectImageUrl(record.src)
+    }
     for (const r of results) {
       for (const c of r.components) {
-        if (c.content?.image) imageSet.add(c.content.image)
-        if (Array.isArray(c.content?.images)) c.content.images.forEach((i: string) => imageSet.add(i))
-        if (c.content?.backgroundImage) imageSet.add(c.content.backgroundImage)
+        collectImageUrl(c.content?.image)
+        if (Array.isArray(c.content?.images)) c.content.images.forEach(collectImageUrl)
+        collectImageUrl(c.content?.backgroundImage)
         if (c.content?.heading) textPatternSet.add('heading')
         if (c.content?.subheading) textPatternSet.add('subheading')
         if (c.content?.body) textPatternSet.add('body')

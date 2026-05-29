@@ -4,7 +4,6 @@ import React, { useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { validateImageUrl } from '../../_utils/url-validation';
-import { resolveHref } from './nav-bar.transform';
 import type { NavBarProps } from './nav-bar.types';
 
 type LogoConfig = NonNullable<NavBarProps['content']['logo']>;
@@ -21,6 +20,14 @@ const normalizeStaticSrc = (src: string) => {
   if (src.startsWith('/')) return src;
   if (src.startsWith('./')) return src.slice(1);
   return `/${src}`;
+};
+
+const resolveLogoHref = (href: LogoConfig['href']) => {
+  if (typeof href !== 'string') {
+    return undefined;
+  }
+  const trimmed = href.trim();
+  return trimmed || undefined;
 };
 
 export function NavLogo({ logo, onInteraction }: NavLogoProps) {
@@ -143,7 +150,15 @@ export function NavLogo({ logo, onInteraction }: NavLogoProps) {
 
   if (!media) return null;
 
-  const href = resolveHref(normalizedLogo.href) ?? '/';
+  const href = resolveLogoHref(normalizedLogo.href);
+
+  if (!href) {
+    return (
+      <div className="flex items-center" aria-label={label}>
+        {media}
+      </div>
+    );
+  }
 
   return (
     <Link

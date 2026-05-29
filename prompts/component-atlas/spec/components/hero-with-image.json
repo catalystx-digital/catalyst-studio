@@ -5,12 +5,20 @@
     "body": "Catalyst Studio unifies content, design, and AI workflows so your team ships faster.",
     "ctaButtons": [
       {
-        "href": "/contact",
+        "href": {
+          "type": "internal",
+          "pageId": "contact",
+          "path": "/contact"
+        },
         "label": "Book a Demo",
         "variant": "primary"
       },
       {
-        "href": "/pricing",
+        "href": {
+          "type": "internal",
+          "pageId": "pricing",
+          "path": "/pricing"
+        },
         "label": "View Pricing",
         "variant": "outline"
       }
@@ -18,7 +26,12 @@
     "heading": "Transform Your Digital Experiences",
     "image": {
       "alt": "Team collaborating on a product launch",
-      "src": "https://cdn.example.com/hero/scene.jpg"
+      "src": {
+        "mediaId": "detected:hero-scene",
+        "mediaType": "image",
+        "url": "https://cdn.example.com/hero/scene.jpg"
+      },
+      "originalUrl": "https://cdn.example.com/hero/scene.jpg"
     },
     "subheading": "Design, launch, and iterate omnichannel sites in minutes."
   },
