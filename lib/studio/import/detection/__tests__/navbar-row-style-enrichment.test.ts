@@ -12,6 +12,32 @@ function navbar(content: Record<string, unknown>): DetectedComponent {
 }
 
 describe('navbar row style enrichment', () => {
+  it('sets root row background color for single-row navbar source evidence', () => {
+    const components = [
+      navbar({
+        menuItems: [
+          { label: 'Insights' },
+          { label: 'About' },
+          { label: 'Careers' }
+        ]
+      })
+    ]
+
+    enrichNavbarRowStylesFromEvidence(components, [
+      {
+        tag: 'header',
+        bgColor: '#ffffff',
+        text: 'Insights About Careers Contact Us'
+      }
+    ])
+
+    expect(components[0].content.styles).toEqual({
+      rootRow: {
+        backgroundColor: '#ffffff'
+      }
+    })
+  })
+
   it('sets primary row background color when source evidence matches multiple primary labels', () => {
     const components = [
       navbar({

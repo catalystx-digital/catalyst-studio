@@ -2562,6 +2562,9 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         primaryNavBackgroundColor: '#6f8434',
         primaryNavTextColor: '#ffffff',
         primaryRowBorderColor: 'rgba(255, 255, 255, 0.6)',
+        rootRowBackgroundColor: '#ffffff',
+        rootRowTextColor: '#111827',
+        rootRowBorderColor: '#e5e7eb',
         topRowBackgroundColor: '#ffffff',
         topRowTextColor: '#334e5c',
         styles: {
@@ -2587,6 +2590,11 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     const props = extractComponentProps(detection, createComponentType('navbar'))
 
     expect(props.content?.styles).toEqual({
+      rootRow: {
+        backgroundColor: '#ffffff',
+        textColor: '#111827',
+        borderColor: '#e5e7eb'
+      },
       utilityRow: {
         backgroundColor: '#ffffff',
         textColor: '#334e5c'
@@ -2604,6 +2612,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         }
       ]
     })
+    expect(props.content?.rootRowBackgroundColor).toBeUndefined()
     expect(props.content?.primaryNavBackgroundColor).toBeUndefined()
     expect(props.content?.topRowBackgroundColor).toBeUndefined()
     expect(consumeNormalizationWarnings()).toEqual(

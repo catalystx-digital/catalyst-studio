@@ -61,6 +61,12 @@ describe('navigation adapters', () => {
             { type: ComponentType.NavMenuItem, content: { label: 'Wrapped', href: '/wrapped' } }
           ],
           styles: {
+            rootRow: {
+              backgroundColor: '#ffffff',
+              textColor: '#111827',
+              borderColor: '#e5e7eb',
+              ignored: 'drop me'
+            },
             primaryRow: {
               backgroundColor: '#6f8434',
               textColor: '#ffffff',
@@ -97,6 +103,11 @@ describe('navigation adapters', () => {
       { label: 'URL only' }
     ]);
     expect(content.styles).toEqual({
+      rootRow: {
+        backgroundColor: '#ffffff',
+        textColor: '#111827',
+        borderColor: '#e5e7eb'
+      },
       primaryRow: {
         backgroundColor: '#6f8434',
         textColor: '#ffffff'

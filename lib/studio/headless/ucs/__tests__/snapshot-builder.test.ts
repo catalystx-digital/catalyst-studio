@@ -1,4 +1,6 @@
-import { buildUcsSiteSnapshot, normalizeAssetUrl } from '../snapshot-builder'
+import { ComponentType } from '@/lib/studio/components/cms/_core/types'
+import type { ComponentInstance } from '@/lib/studio/types/site-builder/component-instance'
+import { buildUcsSiteSnapshot, enrichComponentFromShared, normalizeAssetUrl } from '../snapshot-builder'
 
 describe('normalizeAssetUrl', () => {
   const origin = 'https://example.com'
@@ -669,5 +671,75 @@ describe('buildUcsSiteSnapshot', () => {
       })
     ]))
     expect(diagnostics.map(diagnostic => diagnostic.message).join('\n')).not.toContain('Falling back')
+  })
+})
+
+describe('enrichComponentFromShared', () => {
+  it('preserves shared navbar row styles for preview rendering', () => {
+    const component: ComponentInstance = {
+      id: 'navbar-instance',
+      type: 'navbar',
+      componentType: ComponentType.NavBar,
+      parentId: null,
+      position: 0,
+      props: { sharedComponentId: 'shared-navbar' },
+      content: {},
+      styles: {},
+      metadata: {}
+    }
+
+    const enriched = enrichComponentFromShared(component, [
+      {
+        id: 'shared-navbar',
+        name: 'Shared Navbar',
+        componentType: ComponentType.NavBar,
+        content: {
+          menuItems: [{ label: 'Insights', href: '/insights' }],
+          styles: {
+            rootRow: {
+              backgroundColor: '#ffffff',
+              textColor: '#111827',
+              borderColor: '#e5e7eb',
+              ignored: 'drop me'
+            },
+            ignoredRow: {
+              backgroundColor: '#000000'
+            },
+            primaryItems: [
+              {
+                label: 'Insights',
+                backgroundColor: '#000000',
+                color: '#ffffff',
+                ignored: 'drop me'
+              },
+              {
+                label: 'Invalid',
+                backgroundColor: 'red; color: white'
+              }
+            ]
+          }
+        },
+        config: {}
+      }
+    ])
+
+    expect(enriched.content).toMatchObject({
+      styles: {
+        rootRow: {
+          backgroundColor: '#ffffff',
+          textColor: '#111827',
+          borderColor: '#e5e7eb'
+        },
+        primaryItems: [
+          {
+            label: 'Insights',
+            backgroundColor: '#000000',
+            textColor: '#ffffff'
+          }
+        ]
+      }
+    })
+    expect((enriched.content as Record<string, any>).styles).not.toHaveProperty('ignoredRow')
+    expect(enriched.type).toBe(ComponentType.NavBar)
   })
 })

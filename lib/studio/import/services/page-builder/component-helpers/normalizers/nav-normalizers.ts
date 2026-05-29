@@ -400,6 +400,29 @@ function normalizeNavbarStyles(
         })
         .filter((item): item is { label: string } & Record<string, string> => Boolean(item))
     : undefined
+  const rootRow =
+    normalizeRowStyle(stylesSource.rootRow, warnings, 'styles.rootRow') ??
+    normalizeRowStyle(flattened.rootRowStyle, warnings, 'rootRowStyle') ??
+    normalizeRowStyle(flattened.rootRow, warnings, 'rootRow') ??
+    normalizeRowStyle(flattened.logoRowStyle, warnings, 'logoRowStyle') ??
+    normalizeRowStyle(flattened.logoRow, warnings, 'logoRow') ??
+    normalizeRowStyle(flattened.navbarRowStyle, warnings, 'navbarRowStyle') ??
+    normalizeRowStyle({
+      backgroundColor:
+        flattened.rootRowBackgroundColor ??
+        flattened.logoRowBackgroundColor ??
+        flattened.navbarRowBackgroundColor,
+      textColor:
+        flattened.rootRowTextColor ??
+        flattened.rootRowForegroundColor ??
+        flattened.logoRowTextColor ??
+        flattened.logoRowForegroundColor ??
+        flattened.navbarRowTextColor,
+      borderColor:
+        flattened.rootRowBorderColor ??
+        flattened.logoRowBorderColor ??
+        flattened.navbarRowBorderColor
+    }, warnings, 'rootRow')
   const primaryRow =
     normalizeRowStyle(stylesSource.primaryRow, warnings, 'styles.primaryRow') ??
     normalizeRowStyle(flattened.primaryRowStyle, warnings, 'primaryRowStyle') ??
@@ -445,6 +468,7 @@ function normalizeNavbarStyles(
     }, warnings, 'utilityRow')
 
   const styles: Record<string, any> = {
+    ...(rootRow ? { rootRow } : {}),
     ...(utilityRow ? { utilityRow } : {}),
     ...(primaryRow ? { primaryRow } : {}),
     ...(primaryItems && primaryItems.length > 0 ? { primaryItems } : {})
@@ -495,6 +519,22 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
     'primaryNavBorderColor',
     'mainRowBorderColor',
     'audienceRowBorderColor',
+    'rootRowStyle',
+    'rootRow',
+    'logoRowStyle',
+    'logoRow',
+    'navbarRowStyle',
+    'rootRowBackgroundColor',
+    'logoRowBackgroundColor',
+    'navbarRowBackgroundColor',
+    'rootRowTextColor',
+    'rootRowForegroundColor',
+    'logoRowTextColor',
+    'logoRowForegroundColor',
+    'navbarRowTextColor',
+    'rootRowBorderColor',
+    'logoRowBorderColor',
+    'navbarRowBorderColor',
     'utilityRowStyle',
     'utilityRow',
     'topRowStyle',

@@ -13,12 +13,14 @@ import { buildHrefActiveChecker, buildMenuItemActiveChecker, normalizePathname }
 import { SearchToggle } from './search-toggle';
 import { NAVBAR_HEIGHT } from './nav-bar.constants';
 import { NavLogo } from './nav-logo';
+import { rowStyleToCss } from './nav-row-style';
 
 export function NavBarClient({ content, className, onInteraction }: NavBarProps) {
   const [isOpen, setIsOpen] = useState(false);
   // Default to sticky behavior
   const sticky = content.sticky !== false; // Default true
   const { logo, search } = content;
+  const rootRowStyle = rowStyleToCss(content.styles?.rootRow);
 
   const menuItems = useMemo(() => normalizeMenuItems(content.menuItems), [content.menuItems]);
   const cta = useMemo(() => normalizeCTA(content.cta), [content.cta]);
@@ -81,7 +83,9 @@ export function NavBarClient({ content, className, onInteraction }: NavBarProps)
       sticky && 'sticky top-0 z-50',
       'bg-background text-foreground border-b border-border shadow-sm',
       className,
-    )}>
+    )}
+    style={rootRowStyle}
+    >
       <Sheet open={isOpen} onOpenChange={handleOpenChange}>
         <div className={cn('flex items-center justify-between px-4', NAVBAR_HEIGHT.DEFAULT)}>
           <NavLogo logo={logo} onInteraction={emit} />

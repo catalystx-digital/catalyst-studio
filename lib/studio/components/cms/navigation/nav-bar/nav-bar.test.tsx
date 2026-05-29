@@ -300,6 +300,77 @@ describe('NavBar Component', () => {
     expect(logoImage).toHaveAttribute('src', 'https://www.luminary.com/_astro/luminary-logo-midnight.svg');
   });
 
+  it('applies source-captured single-row navbar surface colors', () => {
+    const mediaLogoProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        logo: {
+          ...(defaultProps.content.logo ?? {}),
+          alt: 'Luminary Logo',
+          src: {
+            mediaId: 'detected:luminary-logo-midnight',
+            mediaType: 'image' as const,
+            url: 'https://www.luminary.com/_astro/luminary-logo-midnight.svg',
+          },
+        },
+        styles: {
+          rootRow: {
+            backgroundColor: '#ffffff',
+            textColor: '#111827',
+            borderColor: '#e5e7eb',
+          },
+        },
+      },
+    };
+
+    const { container } = render(<NavBar {...mediaLogoProps} />);
+
+    const desktopNav = container.querySelector('.nav-bar-server');
+    const mobileNav = container.querySelector('.nav-bar-client');
+    expect(desktopNav).toHaveStyle({ backgroundColor: '#ffffff', color: '#111827', borderColor: '#e5e7eb' });
+    expect(mobileNav).toHaveStyle({ backgroundColor: '#ffffff', color: '#111827', borderColor: '#e5e7eb' });
+  });
+
+  it('derives readable foreground when source row evidence only includes background color', () => {
+    const propsWithBackgroundOnly = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        styles: {
+          rootRow: {
+            backgroundColor: '#ffffff',
+          },
+        },
+      },
+    };
+
+    const { container } = render(<NavBar {...propsWithBackgroundOnly} />);
+
+    const desktopNav = container.querySelector('.nav-bar-server');
+    const mobileNav = container.querySelector('.nav-bar-client');
+    expect(desktopNav).toHaveStyle({ backgroundColor: '#ffffff', color: '#111827' });
+    expect(mobileNav).toHaveStyle({ backgroundColor: '#ffffff', color: '#111827' });
+  });
+
+  it('derives readable foreground for 4-digit hex row backgrounds', () => {
+    const propsWithShortHexBackground = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        styles: {
+          rootRow: {
+            backgroundColor: '#ffff',
+          },
+        },
+      },
+    };
+
+    const { container } = render(<NavBar {...propsWithShortHexBackground} />);
+
+    expect(container.querySelector('.nav-bar-server')).toHaveStyle({ color: '#111827' });
+  });
+
   it('uses the Logo schema string href for logo clicks', () => {
     const onInteraction = jest.fn();
     const propsWithLogoHref = {

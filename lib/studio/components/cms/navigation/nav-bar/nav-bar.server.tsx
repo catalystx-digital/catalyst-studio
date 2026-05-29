@@ -18,12 +18,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { cmsBody, dsSpacing } from '../../_ui';
 import type { ComponentTheme } from '../../_core/types';
-import { NavBarProps, MenuItem, CTAButton, NavBarRowStyle } from './nav-bar.types';
+import { NavBarProps, MenuItem, CTAButton } from './nav-bar.types';
 import { normalizeCTA, normalizeMenuItems, resolveHref } from './nav-bar.transform';
 import { buildHrefActiveChecker, buildMenuItemActiveChecker, normalizePathname } from './nav-bar.utils';
 import { SearchToggle } from './search-toggle';
 import { NavLogo } from './nav-logo';
 import { getNavbarHeightClass } from './nav-bar.constants';
+import { normalizeStyleLabel, rowStyleToCss } from './nav-row-style';
 
 // CTA variant mappings
 const CTA_VARIANT_MAP: Record<NonNullable<CTAButton['variant']>, 'default' | 'secondary' | 'outline'> = {
@@ -38,50 +39,6 @@ function resolveCtaVariant(variant: CTAButton['variant'], theme?: ComponentTheme
     return 'outline';
   }
   return mapped;
-}
-
-function isSafeCssColor(value: unknown): value is string {
-  if (typeof value !== 'string') {
-    return false;
-  }
-  const color = value.trim();
-  if (!color || /[;{}]/.test(color)) {
-    return false;
-  }
-  return (
-    /^#[0-9a-f]{3,8}$/i.test(color) ||
-    /^rgba?\(\s*[\d.\s,%]+\)$/i.test(color) ||
-    /^hsla?\(\s*[\d.\s,%degturnrad]+\)$/i.test(color) ||
-    /^var\(--[a-z0-9-_]+\)$/i.test(color)
-  );
-}
-
-function rowStyleToCss(style: NavBarRowStyle | undefined): React.CSSProperties | undefined {
-  if (!style || typeof style !== 'object') {
-    return undefined;
-  }
-  const backgroundColor = isSafeCssColor((style as Record<string, unknown>).backgroundColor)
-    ? ((style as Record<string, string>).backgroundColor.trim())
-    : undefined;
-  const textColorValue = (style as Record<string, unknown>).textColor ?? (style as Record<string, unknown>).color;
-  const color = isSafeCssColor(textColorValue)
-    ? String(textColorValue).trim()
-    : undefined;
-  const borderColor = isSafeCssColor((style as Record<string, unknown>).borderColor)
-    ? ((style as Record<string, string>).borderColor.trim())
-    : undefined;
-
-  const css: React.CSSProperties = {
-    ...(backgroundColor ? { backgroundColor } : {}),
-    ...(color ? { color } : {}),
-    ...(borderColor ? { borderColor } : {})
-  };
-
-  return Object.keys(css).length > 0 ? css : undefined;
-}
-
-function normalizeStyleLabel(label: string): string {
-  return label.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function buildPrimaryItemStyleMap(styles: NavBarProps['content']['styles'] | undefined): Map<string, React.CSSProperties> {
@@ -427,6 +384,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
   const transparentProp = content.transparent;
   const { search, ariaLabel } = content;
   const navLabel = (ariaLabel ?? '').trim() || 'Primary navigation';
+  const rootRowStyle = rowStyleToCss(content.styles?.rootRow);
 
   // Detect if page has a hero section (for auto transparent mode)
   const [hasHero, setHasHero] = useState(false);
@@ -528,7 +486,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
     );
 
     return (
-      <nav aria-label={navLabel} className={importedNavClassName}>
+      <nav aria-label={navLabel} className={importedNavClassName} style={rootRowStyle}>
         <div className="border-b border-border bg-background" style={utilityRowStyle}>
           <div className="cms-container">
             <div className="flex min-h-20 items-center justify-between gap-6 py-4">
@@ -600,7 +558,7 @@ export function NavBarServer({ content, className, theme, onInteraction }: NavBa
           data-navbar-spacer
         />
       )}
-      <nav aria-label={navLabel} className={navClassName}>
+      <nav aria-label={navLabel} className={navClassName} style={rootRowStyle}>
         {/* Utility Navigation Row (conditional) */}
         {hasUtilityNav && (
           <div className={cn(

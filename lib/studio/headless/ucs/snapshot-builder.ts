@@ -850,6 +850,73 @@ type NormalizedMenuItem = {
   children?: NormalizedMenuItem[]
 }
 
+type NormalizedNavItemStyle = Record<string, string> & { label: string }
+
+function isSafeNavCssColor(value: unknown): value is string {
+  if (typeof value !== 'string') {
+    return false
+  }
+  const color = value.trim()
+  if (!color || /[;{}]/.test(color)) {
+    return false
+  }
+  return (
+    /^#[0-9a-f]{3,8}$/i.test(color) ||
+    /^rgba?\(\s*[\d.\s,%]+\)$/i.test(color) ||
+    /^hsla?\(\s*[\d.\s,%degturnrad]+\)$/i.test(color) ||
+    /^var\(--[a-z0-9-_]+\)$/i.test(color)
+  )
+}
+
+function normalizeNavRowStyle(style: unknown): Record<string, string> | undefined {
+  if (!isRecord(style)) {
+    return undefined
+  }
+
+  const backgroundColor = isSafeNavCssColor(style.backgroundColor) ? style.backgroundColor.trim() : undefined
+  const textColorSource = style.textColor ?? style.color
+  const textColor = isSafeNavCssColor(textColorSource) ? textColorSource.trim() : undefined
+  const borderColor = isSafeNavCssColor(style.borderColor) ? style.borderColor.trim() : undefined
+  const normalized = {
+    ...(backgroundColor ? { backgroundColor } : {}),
+    ...(textColor ? { textColor } : {}),
+    ...(borderColor ? { borderColor } : {})
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+function normalizeNavStyles(styles: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(styles)) {
+    return undefined
+  }
+
+  const rootRow = normalizeNavRowStyle(styles.rootRow)
+  const utilityRow = normalizeNavRowStyle(styles.utilityRow)
+  const primaryRow = normalizeNavRowStyle(styles.primaryRow)
+  const primaryItems = Array.isArray(styles.primaryItems)
+    ? styles.primaryItems
+        .filter(isRecord)
+        .map(item => {
+          if (typeof item.label !== 'string') {
+            return undefined
+          }
+          const rowStyle = normalizeNavRowStyle(item)
+          return rowStyle ? { label: item.label, ...rowStyle } : undefined
+        })
+        .filter((item): item is NormalizedNavItemStyle => Boolean(item))
+    : undefined
+
+  const normalized = {
+    ...(rootRow ? { rootRow } : {}),
+    ...(utilityRow ? { utilityRow } : {}),
+    ...(primaryRow ? { primaryRow } : {}),
+    ...(primaryItems && primaryItems.length > 0 ? { primaryItems } : {})
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
 function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<string, unknown> {
   const source = isRecord(content) ? content : {}
   const container = isRecord(source.content) ? (source.content as Record<string, unknown>) : source
@@ -971,6 +1038,15 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
 
   const normalized: Record<string, unknown> = {
     menuItems
+  }
+
+  const styles = normalizeNavStyles(isRecord(container.styles)
+    ? container.styles
+    : isRecord(source.styles)
+      ? source.styles
+      : undefined)
+  if (styles) {
+    normalized.styles = styles
   }
 
   if (logo) {

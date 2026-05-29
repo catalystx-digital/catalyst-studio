@@ -236,7 +236,23 @@ export function enrichNavbarRowStylesFromEvidence(
     if (component.type !== 'navbar' || component.component !== 'navbar') {
       continue
     }
+
     if (component.content?.layout !== 'multi-row') {
+      const rootBackgroundColor =
+        resolveDominantRowColor(evidenceNodes, getMenuLabels(component, 'menuItems')) ??
+        resolveDominantRowColor(evidenceNodes, getMenuLabels(component, 'utilityNav'))
+
+      if (!rootBackgroundColor) {
+        continue
+      }
+
+      component.content.styles = {
+        ...(isRecord(component.content.styles) ? component.content.styles : {}),
+        rootRow: {
+          ...(isRecord(component.content.styles?.rootRow) ? component.content.styles.rootRow : {}),
+          backgroundColor: rootBackgroundColor
+        }
+      }
       continue
     }
     const primaryBackgroundColor = resolveDominantRowColor(evidenceNodes, getMenuLabels(component, 'menuItems'))

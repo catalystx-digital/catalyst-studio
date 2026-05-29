@@ -21,6 +21,7 @@ const NavBarItemStyleSchema = NavBarRowStyleSchema.extend({
 })
 
 const NavBarStylesSchema = z.object({
+  rootRow: NavBarRowStyleSchema.optional().describe('Styles for the single-row navbar or outer/logo row when no separate utility row exists'),
   utilityRow: NavBarRowStyleSchema.optional().describe('Styles for the logo/utility/CTA row in multi-row headers'),
   primaryRow: NavBarRowStyleSchema.optional().describe('Styles for the primary category/audience row in multi-row headers'),
   primaryItems: z.array(NavBarItemStyleSchema).optional().describe('Source-captured styles for individual primary nav items'),
@@ -129,7 +130,7 @@ export const NavBarDef = defineComponent({
     'menuItems is required. Always emit menuItems as an array. Populate every visible primary navigation link in DOM order; if no primary navigation links exist after fetching the header, emit menuItems: [] rather than omitting the field.',
     'Logos must return logo.src as a MediaReference object ({ mediaId, mediaType: "image", url }) and logo.originalUrl as an absolute URL, plus alt/href metadata. logo.href is a plain string URL/path, not a SmartLink object. When the DOM supplies only a relative path, resolve it before populating src.url/originalUrl; missing originalUrl requires re-fetching the header.',
     'Navbar CTA variant must be one of the CTAButton contract values (primary, secondary, outline). Do not copy CSS class names such as "btn btn-skin-2" into variant; map prominent filled CTAs to primary, alternate filled CTAs to secondary, outlined/ghost CTAs to outline, or omit variant if uncertain.',
-    'For multi-row headers, capture actual computed row colors when available. Put the logo/utility row colors in styles.utilityRow, the primary/category row colors in styles.primaryRow, and per-link category colors in styles.primaryItems[]. Use backgroundColor, textColor, and borderColor with source CSS values such as "#6f8434", "rgb(111, 132, 52)", or "hsl(...)". Do not invent colors.',
+    'Capture actual computed navbar row colors when available. For single-row headers, put the logo/navigation row colors in styles.rootRow. For multi-row headers, put the logo/utility row colors in styles.utilityRow, the primary/category row colors in styles.primaryRow, and per-link category colors in styles.primaryItems[]. Use backgroundColor, textColor, and borderColor with source CSS values such as "#ffffff", "#6f8434", "rgb(111, 132, 52)", or "hsl(...)". Do not invent colors.',
     'SEARCH DETECTION: When a search icon, search input, or search button appears in the header/navbar, set search.enabled=true. Extract search.placeholder from the input placeholder attribute verbatim (including punctuation). If suggestions or recent searches are visible, set search.showSuggestions=true and populate search.suggestions[] with { text, category?, url? } for each item. Extract search.action from the form action URL if detectable.',
     'Do NOT emit a separate search-bar component—search functionality is part of navbar. Example search payload:',
     '  "search": {',

@@ -53,6 +53,8 @@ export interface NavBarItemStyle extends NavBarRowStyle {
 }
 
 export interface NavBarStyles {
+  /** Styles for the single-row navbar or outer/logo row when no separate utility row exists. */
+  rootRow?: NavBarRowStyle;
   /** Styles for the logo/utility/CTA row in multi-row headers. */
   utilityRow?: NavBarRowStyle;
   /** Styles for the primary category/audience row in multi-row headers. */

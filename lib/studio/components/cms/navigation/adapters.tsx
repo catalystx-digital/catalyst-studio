@@ -106,6 +106,7 @@ function canonicalNavStyles(value: unknown): NavBarStyles | undefined {
     return undefined;
   }
 
+  const rootRow = canonicalNavRowStyle(value.rootRow);
   const utilityRow = canonicalNavRowStyle(value.utilityRow);
   const primaryRow = canonicalNavRowStyle(value.primaryRow);
   const primaryItems = Array.isArray(value.primaryItems)
@@ -124,6 +125,7 @@ function canonicalNavStyles(value: unknown): NavBarStyles | undefined {
         .filter((item): item is NavBarItemStyle => Boolean(item))
     : undefined;
   const styles: NavBarStyles = {
+    ...(rootRow ? { rootRow } : {}),
     ...(utilityRow ? { utilityRow } : {}),
     ...(primaryRow ? { primaryRow } : {}),
     ...(primaryItems && primaryItems.length > 0 ? { primaryItems } : {})
