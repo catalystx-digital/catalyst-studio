@@ -9,7 +9,7 @@ export interface TokenColor {
   value: string
   name?: string
   confidence: number
-  source: 'css-var' | 'literal' | 'llm' | 'shuffle'
+  source: 'css-var' | 'literal' | 'llm' | 'shuffle' | 'fallback'
   usageCount?: number
   hex?: string
   rgba?: string

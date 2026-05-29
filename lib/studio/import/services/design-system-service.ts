@@ -92,6 +92,113 @@ export interface DesignSystemProcessingResult {
   }
 }
 
+export function buildBrandingDesignSystem(brandingData: {
+  primaryColors?: string[]
+  fonts?: string[]
+  visualStyle?: string
+}): DesignSystem {
+  const providedPrimaryColors = (brandingData.primaryColors ?? [])
+    .map(color => color.trim())
+    .filter(Boolean)
+  const providedFonts = (brandingData.fonts ?? [])
+    .map(font => font.trim())
+    .filter(Boolean)
+  const primaryColors = providedPrimaryColors.length > 0 ? providedPrimaryColors : ['#2563eb']
+  const fonts = providedFonts.length > 0 ? providedFonts : ['Inter']
+  const hasColorEvidence = providedPrimaryColors.length > 0
+  const hasFontEvidence = providedFonts.length > 0
+  const llmTokenConfidence = 0.4
+  const fallbackTokenConfidence = 0.1
+  const tokenConfidence = (hasEvidence: boolean) => hasEvidence ? llmTokenConfidence : fallbackTokenConfidence
+  const metadataConfidence = hasColorEvidence || hasFontEvidence
+    ? (Number(hasColorEvidence) + Number(hasFontEvidence)) / 5
+    : fallbackTokenConfidence
+
+  return {
+    palette: {
+      primary: primaryColors.map((color, index) => ({
+        value: color,
+        name: `primary-${index + 1}`,
+        confidence: tokenConfidence(hasColorEvidence),
+        source: hasColorEvidence ? 'llm' as const : 'fallback' as const,
+        usageCount: hasColorEvidence ? 1 : 0,
+        hex: color.startsWith('#') ? color : undefined
+      })),
+      secondary: [],
+      accent: [],
+      neutral: [],
+      surface: [{
+        value: '#ffffff',
+        name: 'surface-1',
+        confidence: fallbackTokenConfidence,
+        source: 'fallback' as const,
+        usageCount: 0,
+        hex: '#ffffff'
+      }]
+    },
+    typography: {
+      heading: fonts.slice(0, 2).map((font, index) => ({
+        fontFamily: font,
+        name: `heading-${index + 1}`,
+        confidence: tokenConfidence(hasFontEvidence),
+        source: hasFontEvidence ? 'llm' as const : 'fallback' as const,
+        usageCount: hasFontEvidence ? 1 : 0
+      })),
+      body: fonts.slice(2, 4).map((font, index) => ({
+        fontFamily: font,
+        name: `body-${index + 1}`,
+        confidence: tokenConfidence(hasFontEvidence),
+        source: hasFontEvidence ? 'llm' as const : 'fallback' as const,
+        usageCount: hasFontEvidence ? 1 : 0
+      })),
+      ui: fonts.slice(0, 1).map((font, index) => ({
+        fontFamily: font,
+        name: `ui-${index + 1}`,
+        confidence: tokenConfidence(hasFontEvidence),
+        source: hasFontEvidence ? 'llm' as const : 'fallback' as const,
+        usageCount: hasFontEvidence ? 1 : 0
+      }))
+    },
+    spacing: {
+      name: 'spacing-scale',
+      values: [
+        { step: 1, value: 4, name: 'xs' },
+        { step: 2, value: 8, name: 'sm' },
+        { step: 3, value: 16, name: 'md' },
+        { step: 4, value: 24, name: 'lg' },
+        { step: 5, value: 32, name: 'xl' }
+      ],
+      unit: 'px',
+      base: 4,
+      confidence: fallbackTokenConfidence,
+      source: 'inferred' as const
+    },
+    radii: {
+      name: 'border-radius-scale',
+      values: [
+        { step: 1, value: 0, name: 'none' },
+        { step: 2, value: 4, name: 'sm' },
+        { step: 3, value: 8, name: 'md' },
+        { step: 4, value: 12, name: 'lg' }
+      ],
+      unit: 'px',
+      confidence: fallbackTokenConfidence,
+      source: 'inferred' as const
+    },
+    shadows: [],
+    effects: [],
+    metadata: {
+      sourceUrls: [],
+      capturedAt: new Date().toISOString(),
+      confidence: metadataConfidence,
+      extractionMethod: 'deterministic',
+      version: '1.0.0'
+    },
+    diagnostics: [],
+    version: '1.0.0'
+  }
+}
+
 export class DesignSystemService {
   private repository: DesignSystemRepository
   private prisma: PrismaClient
@@ -367,83 +474,7 @@ export class DesignSystemService {
     sourceJobId?: string
   ): Promise<string | null> {
     try {
-      // Create a minimal design system from branding data
-      const fallbackDesignSystem: DesignSystem = {
-        palette: {
-          primary: (brandingData.primaryColors || ['#2563eb']).map((color, index) => ({
-            value: color,
-            name: `primary-${index + 1}`,
-            confidence: 0.6,
-            source: 'llm' as const,
-            usageCount: 1,
-            hex: color.startsWith('#') ? color : undefined
-          })),
-          secondary: [],
-          accent: [],
-          neutral: [],
-          surface: [{ value: '#ffffff', name: 'surface-1', confidence: 0.6, source: 'llm' as const, usageCount: 1 }]
-        },
-        typography: {
-          heading: (brandingData.fonts || ['Inter']).slice(0, 2).map((font, index) => ({
-            fontFamily: font,
-            name: `heading-${index + 1}`,
-            confidence: 0.6,
-            source: 'llm' as const,
-            usageCount: 1
-          })),
-          body: (brandingData.fonts || ['Inter']).slice(2, 4).map((font, index) => ({
-            fontFamily: font,
-            name: `body-${index + 1}`,
-            confidence: 0.6,
-            source: 'llm' as const,
-            usageCount: 1
-          })),
-          ui: (brandingData.fonts || ['Inter']).slice(0, 1).map((font, index) => ({
-            fontFamily: font,
-            name: `ui-${index + 1}`,
-            confidence: 0.6,
-            source: 'llm' as const,
-            usageCount: 1
-          }))
-        },
-        spacing: {
-          name: 'spacing-scale',
-          values: [
-            { step: 1, value: 4, name: 'xs' },
-            { step: 2, value: 8, name: 'sm' },
-            { step: 3, value: 16, name: 'md' },
-            { step: 4, value: 24, name: 'lg' },
-            { step: 5, value: 32, name: 'xl' }
-          ],
-          unit: 'px',
-          base: 4,
-          confidence: 0.4,
-          source: 'inferred' as const
-        },
-        radii: {
-          name: 'border-radius-scale',
-          values: [
-            { step: 1, value: 0, name: 'none' },
-            { step: 2, value: 4, name: 'sm' },
-            { step: 3, value: 8, name: 'md' },
-            { step: 4, value: 12, name: 'lg' }
-          ],
-          unit: 'px',
-          confidence: 0.4,
-          source: 'inferred' as const
-        },
-        shadows: [],
-        effects: [],
-        metadata: {
-          sourceUrls: [],
-          capturedAt: new Date().toISOString(),
-          confidence: 0.6,
-          extractionMethod: 'deterministic',
-          version: '1.0.0'
-        },
-        diagnostics: [],
-        version: '1.0.0'
-      }
+      const fallbackDesignSystem = buildBrandingDesignSystem(brandingData)
 
       const concept = await this.ensureDefaultConcept(websiteId)
       const persistedDesignSystem = await this.repository.createFromCaptured(

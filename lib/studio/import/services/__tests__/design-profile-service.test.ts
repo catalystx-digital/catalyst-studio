@@ -93,4 +93,16 @@ describe('buildImportDesignProfile', () => {
       ])
     )
   })
+
+  it('flags a zero-confidence design system result as low confidence', () => {
+    const profile = buildImportDesignProfile({
+      sourceUrl: 'https://example.com/',
+      designSystemResult: {
+        metrics: { confidence: 0 },
+      } as unknown as DesignSystemProcessingResult,
+      detections: [],
+    })
+
+    expect(profile.diagnostics.map(diagnostic => diagnostic.code)).toContain('DESIGN_PROFILE_LOW_CONFIDENCE')
+  })
 })

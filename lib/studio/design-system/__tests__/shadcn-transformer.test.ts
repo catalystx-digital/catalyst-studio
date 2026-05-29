@@ -94,6 +94,19 @@ describe('toShadcnVariables', () => {
     expect(result.extraction).toHaveProperty('detectedCount')
     expect(result.extraction).toHaveProperty('defaultCount')
   })
+
+  it('bases confidence on detected variables instead of filled shadcn defaults', () => {
+    const capture = createMockCapture({
+      primary: { hex: '#ff0000', rgb: 'rgb(255,0,0)', occurrences: 10, cssProperties: [], sampleSelectors: [] },
+    })
+    const result = toShadcnVariables(capture)
+    const totalVariables = Object.keys(SHADCN_DEFAULTS).length
+
+    expect(result.extraction.detectedCount).toBe(3)
+    expect(result.extraction.defaultCount).toBe(totalVariables - 3)
+    expect(result.extraction.confidence).toBeCloseTo(3 / totalVariables)
+    expect(result.extraction.source).toBe('mixed')
+  })
 })
 
 describe('toShadcnVariables - Brand + Semantic Base + Polish approach', () => {

@@ -131,7 +131,7 @@ export function buildImportDesignProfile(input: {
       message: 'Design profile could not use DOM probe evidence.',
     })
   }
-  if (confidence > 0 && confidence < 0.35) {
+  if (input.designSystemResult && confidence < 0.35) {
     diagnostics.push({
       code: 'DESIGN_PROFILE_LOW_CONFIDENCE',
       severity: 'warning',

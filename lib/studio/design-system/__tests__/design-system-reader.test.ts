@@ -140,7 +140,37 @@ describe('getNormalizedDesignSystem', () => {
 
     expect(result).toHaveProperty('variables')
     expect(result).toHaveProperty('extraction')
-    expect(result.extraction.source).toBe('detected')
+    expect(result.extraction.source).toBe('default')
+  })
+
+  it('preserves fallback/default provenance when normalizing legacy branding tokens', () => {
+    const legacyFormat: Partial<DesignSystem> = {
+      palette: {
+        primary: [{ value: '#2563eb', hex: '#2563eb', confidence: 0.1, source: 'fallback' }],
+        secondary: [],
+        accent: [],
+        neutral: [],
+        surface: [{ value: '#ffffff', hex: '#ffffff', confidence: 0.1, source: 'fallback' }],
+      },
+      typography: {
+        heading: [{ fontFamily: 'Inter', confidence: 0.1, source: 'fallback' }],
+        body: [],
+        ui: [{ fontFamily: 'Inter', confidence: 0.1, source: 'fallback' }],
+      },
+      spacing: { name: 'spacing-scale', values: [], unit: 'px', confidence: 0.1, source: 'inferred' },
+      radii: { name: 'radius-scale', values: [], unit: 'px', confidence: 0.1, source: 'inferred' },
+      metadata: { capturedAt: '2024-01-01', confidence: 0.1 },
+      shadows: [],
+      effects: [],
+      diagnostics: [],
+      version: '1.0.0',
+    }
+    const result = getNormalizedDesignSystem(legacyFormat)
+
+    expect(result.extraction.source).toBe('default')
+    expect(result.extraction.confidence).toBe(0.1)
+    expect(result.extraction.detectedCount).toBe(0)
+    expect(result.extraction.defaultCount).toBe(Object.keys(SHADCN_DEFAULTS).length)
   })
 
   it('should return defaults for unknown format', () => {

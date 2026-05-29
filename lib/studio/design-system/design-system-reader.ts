@@ -432,6 +432,41 @@ export function legacyToShadcnVariables(designSystem: DesignSystem): Record<stri
   return getShadcnVariablesWithDefaults(variables, 'light')
 }
 
+function isSourceBackedLegacyToken(token: { source?: string; confidence?: number } | undefined): boolean {
+  if (!token) return false
+  if (token.source === 'fallback') return false
+  if (token.source === 'inferred') return false
+  return typeof token.confidence === 'number' ? token.confidence >= 0.2 : true
+}
+
+function getLegacyExtractionCounts(designSystem: DesignSystem, variables: Record<string, string>): {
+  detectedCount: number
+  defaultCount: number
+  source: ShadcnDesignSystemTokens['extraction']['source']
+} {
+  const totalVariables = Object.keys(SHADCN_DEFAULTS).length
+  let detectedCount = 0
+
+  if (designSystem.aliases?.cssVariables) {
+    detectedCount = Object.keys(designSystem.aliases.cssVariables).length
+  } else {
+    if (isSourceBackedLegacyToken(designSystem.palette?.surface?.[0])) detectedCount += 1
+    if (isSourceBackedLegacyToken(designSystem.palette?.primary?.[0])) detectedCount += 1
+    if (isSourceBackedLegacyToken(designSystem.palette?.secondary?.[0])) detectedCount += 1
+    if (isSourceBackedLegacyToken(designSystem.palette?.accent?.[0])) detectedCount += 1
+    if (isSourceBackedLegacyToken(designSystem.palette?.neutral?.[0])) detectedCount += 3
+    if (isSourceBackedLegacyToken(designSystem.radii)) detectedCount += 1
+  }
+
+  detectedCount = Math.min(detectedCount, Object.keys(variables).length, totalVariables)
+  const defaultCount = Math.max(0, totalVariables - detectedCount)
+  return {
+    detectedCount,
+    defaultCount,
+    source: detectedCount === 0 ? 'default' : defaultCount === 0 ? 'detected' : 'mixed',
+  }
+}
+
 /**
  * Get shadcn CSS variables from any format of stored tokens
  *
@@ -481,6 +516,7 @@ export function getNormalizedDesignSystem(tokens: unknown): ShadcnDesignSystemTo
   // Convert from legacy
   if (isLegacyFormat(tokens)) {
     const variables = legacyToShadcnVariables(tokens)
+    const extractionCounts = getLegacyExtractionCounts(tokens, variables)
 
     // Convert legacy typography if present
     const typography = convertLegacyTypography(tokens.typography)
@@ -499,9 +535,7 @@ export function getNormalizedDesignSystem(tokens: unknown): ShadcnDesignSystemTo
       extraction: {
         timestamp: isValidDateString(capturedAt) ? capturedAt : new Date().toISOString(),
         confidence: isValidNumber(confidence) ? confidence : 0.5,
-        source: 'detected',
-        detectedCount: Object.keys(variables).length,
-        defaultCount: 0,
+        ...extractionCounts,
       },
     }
   }
