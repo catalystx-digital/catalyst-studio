@@ -71,6 +71,20 @@ function setButtonVariant(
   })
 }
 
+function hasUsableImage(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false
+  }
+  const src = value.src
+  if (typeof src === 'string' && src.trim().length > 0) {
+    return true
+  }
+  if (isRecord(src) && typeof src.url === 'string' && src.url.trim().length > 0) {
+    return true
+  }
+  return typeof value.originalUrl === 'string' && value.originalUrl.trim().length > 0
+}
+
 function normalizeCtaButtons(
   component: DetectedComponent,
   mutations: DesignFitMutation[],
@@ -113,13 +127,34 @@ function fitCardGrid(
   mutations: DesignFitMutation[],
 ): void {
   if (!Array.isArray(component.content?.cards)) return
-  const cardCount = component.content.cards.length
+  const cards = component.content.cards.filter(isRecord)
+  const cardCount = cards.length
+  const imageCount = cards.filter(card => hasUsableImage(card.image) || hasUsableImage(card.thumbnail)).length
+  const imageRatio = cardCount > 0 ? imageCount / cardCount : 0
+  const textOnly = imageCount === 0
+  const twoCardEditorial = cardCount === 2 && imageCount === 2
+  const imageHeavy = imageRatio >= 0.5
   const columns = cardCount >= 4 ? 4 : cardCount === 2 ? 2 : 3
-  setIfMissing(component, mutations, 'columns', columns, 'presentation-skeleton.card-grid')
-  setIfMissing(component, mutations, 'gap', 'medium', 'presentation-skeleton.card-grid')
-  setIfMissing(component, mutations, 'cardStyle', 'vertical', 'presentation-skeleton.card-grid')
-  setIfMissing(component, mutations, 'imagePosition', 'top', 'presentation-skeleton.card-grid')
-  setIfMissing(component, mutations, 'imageAspectRatio', '16:9', 'presentation-skeleton.card-grid')
+  setIfMissing(component, mutations, 'columns', columns, 'card-grid.source-shape.columns')
+  setIfMissing(component, mutations, 'gap', 'medium', 'card-grid.source-shape.spacing')
+
+  if (textOnly) {
+    setIfMissing(component, mutations, 'cardStyle', 'compact', 'card-grid.source-shape.text-only')
+    return
+  }
+
+  if (twoCardEditorial) {
+    setIfMissing(component, mutations, 'cardStyle', 'horizontal', 'card-grid.source-shape.two-card-editorial')
+    setIfMissing(component, mutations, 'imagePosition', 'left', 'card-grid.source-shape.two-card-editorial')
+    setIfMissing(component, mutations, 'imageAspectRatio', '4:3', 'card-grid.source-shape.two-card-editorial')
+    return
+  }
+
+  if (imageHeavy) {
+    setIfMissing(component, mutations, 'cardStyle', 'vertical', 'card-grid.source-shape.image-heavy')
+    setIfMissing(component, mutations, 'imagePosition', 'top', 'card-grid.source-shape.image-heavy')
+    setIfMissing(component, mutations, 'imageAspectRatio', '16:9', 'card-grid.source-shape.image-heavy')
+  }
 }
 
 function fitLogoCloud(

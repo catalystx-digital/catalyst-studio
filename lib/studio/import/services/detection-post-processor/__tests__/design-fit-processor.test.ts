@@ -33,7 +33,11 @@ describe('applyDesignFit', () => {
       confidence: 0.9,
       content: {
         heading: 'Services',
-        cards: [{ title: 'Strategy' }, { title: 'Design' }, { title: 'Build' }],
+        cards: [
+          { title: 'Strategy', image: { src: { mediaId: 'strategy', mediaType: 'image', url: 'https://example.com/strategy.jpg' } } },
+          { title: 'Design', image: { src: { mediaId: 'design', mediaType: 'image', url: 'https://example.com/design.jpg' } } },
+          { title: 'Build', image: { src: { mediaId: 'build', mediaType: 'image', url: 'https://example.com/build.jpg' } } },
+        ],
       },
     }] as DetectedComponent[]
 
@@ -54,6 +58,103 @@ describe('applyDesignFit', () => {
       'imagePosition',
       'imageAspectRatio',
     ])
+  })
+
+  it('uses compact presentation for text-only quick link grids', () => {
+    const components = [{
+      component: ComponentType.CardGrid,
+      type: ComponentType.CardGrid,
+      confidence: 0.9,
+      content: {
+        heading: 'Quick links',
+        cards: [{ title: 'Admissions' }, { title: 'Contact' }, { title: 'Support' }],
+      },
+    }] as DetectedComponent[]
+
+    const result = applyDesignFit(components, { designProfile, skeleton })
+
+    expect(result.components[0].content).toMatchObject({
+      columns: 3,
+      gap: 'medium',
+      cardStyle: 'compact',
+    })
+    expect(result.components[0].content).not.toHaveProperty('imagePosition')
+    expect(result.components[0].content).not.toHaveProperty('imageAspectRatio')
+    expect(result.mutations.map(mutation => mutation.evidence)).toContain('card-grid.source-shape.text-only')
+  })
+
+  it('uses horizontal presentation for two-card editorial image grids', () => {
+    const components = [{
+      component: ComponentType.CardGrid,
+      type: ComponentType.CardGrid,
+      confidence: 0.9,
+      content: {
+        heading: 'Featured stories',
+        cards: [
+          { title: 'Story 1', image: { src: { mediaId: 'story-1', mediaType: 'image', url: 'https://example.com/story-1.jpg' } } },
+          { title: 'Story 2', image: { src: { mediaId: 'story-2', mediaType: 'image', url: 'https://example.com/story-2.jpg' } } },
+        ],
+      },
+    }] as DetectedComponent[]
+
+    const result = applyDesignFit(components, { designProfile, skeleton })
+
+    expect(result.components[0].content).toMatchObject({
+      columns: 2,
+      gap: 'medium',
+      cardStyle: 'horizontal',
+      imagePosition: 'left',
+      imageAspectRatio: '4:3',
+    })
+    expect(result.mutations.map(mutation => mutation.evidence)).toContain('card-grid.source-shape.two-card-editorial')
+  })
+
+  it('preserves explicit card-grid presentation props', () => {
+    const components = [{
+      component: ComponentType.CardGrid,
+      type: ComponentType.CardGrid,
+      confidence: 0.9,
+      content: {
+        heading: 'Projects',
+        cardStyle: 'vertical',
+        imagePosition: 'background',
+        imageAspectRatio: '1:1',
+        cards: [
+          { title: 'Project 1', image: { src: { mediaId: 'project-1', mediaType: 'image', url: 'https://example.com/project-1.jpg' } } },
+          { title: 'Project 2', image: { src: { mediaId: 'project-2', mediaType: 'image', url: 'https://example.com/project-2.jpg' } } },
+        ],
+      },
+    }] as DetectedComponent[]
+
+    const result = applyDesignFit(components, { designProfile, skeleton })
+
+    expect(result.components[0].content).toMatchObject({
+      cardStyle: 'vertical',
+      imagePosition: 'background',
+      imageAspectRatio: '1:1',
+    })
+  })
+
+  it('does not treat image objects without URLs as image-heavy evidence', () => {
+    const components = [{
+      component: ComponentType.CardGrid,
+      type: ComponentType.CardGrid,
+      confidence: 0.9,
+      content: {
+        heading: 'Links',
+        cards: [
+          { title: 'One', image: { alt: 'Decorative' } },
+          { title: 'Two' },
+        ],
+      },
+    }] as DetectedComponent[]
+
+    const result = applyDesignFit(components, { designProfile, skeleton })
+
+    expect(result.components[0].content).toMatchObject({
+      cardStyle: 'compact',
+    })
+    expect(result.components[0].content).not.toHaveProperty('imagePosition')
   })
 
   it('does not invent navbar behavior or colors from global profile tokens', () => {
