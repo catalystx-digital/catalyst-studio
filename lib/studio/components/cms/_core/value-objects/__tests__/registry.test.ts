@@ -279,6 +279,22 @@ describe('ValueObjectRegistry', () => {
         expect(result.success).toBe(true)
       })
 
+      it('allows null Logo width and height when dimensions are unknown', () => {
+        const logoWithUnknownDimensions = {
+          src: { mediaId: 'logo-media', mediaType: 'image' as const },
+          alt: 'Logo',
+          width: null,
+          height: null,
+        }
+
+        const result = LogoSchema.safeParse(logoWithUnknownDimensions)
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data.width).toBeNull()
+          expect(result.data.height).toBeNull()
+        }
+      })
+
       it('rejects invalid Logo data types', () => {
         const invalidLogo = {
           src: 123, // Should be string

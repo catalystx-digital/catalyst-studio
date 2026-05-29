@@ -15,9 +15,9 @@ export const LogoSchema = z.object({
   /** Link destination when logo is clicked */
   href: z.string().optional().describe('URL to navigate when clicked'),
   /** Logo image width in pixels */
-  width: z.number().optional().describe('Image width in pixels'),
+  width: z.number().nullable().optional().describe('Image width in pixels'),
   /** Logo image height in pixels */
-  height: z.number().optional().describe('Image height in pixels'),
+  height: z.number().nullable().optional().describe('Image height in pixels'),
   /** Original source URL before CDN rewriting */
   originalUrl: z.string().optional().describe('Original URL before CDN processing'),
   /** Generated rendition variants */

@@ -37,11 +37,13 @@ export function NavLogo({ logo, onInteraction }: NavLogoProps) {
     const rawSrc =
       typeof logo.src === 'string'
         ? logo.src
-        : typeof (logo as { src?: { src?: string; originalUrl?: string } })?.src?.src === 'string'
-          ? (logo as { src?: { src?: string; originalUrl?: string } }).src?.src
-          : typeof (logo as { src?: { src?: string; originalUrl?: string } })?.src?.originalUrl === 'string'
-            ? (logo as { src?: { src?: string; originalUrl?: string } }).src?.originalUrl
-            : undefined;
+        : typeof (logo as { src?: { url?: string; src?: string; originalUrl?: string } })?.src?.url === 'string'
+          ? (logo as { src?: { url?: string; src?: string; originalUrl?: string } }).src?.url
+          : typeof (logo as { src?: { url?: string; src?: string; originalUrl?: string } })?.src?.src === 'string'
+            ? (logo as { src?: { url?: string; src?: string; originalUrl?: string } }).src?.src
+            : typeof (logo as { src?: { url?: string; src?: string; originalUrl?: string } })?.src?.originalUrl === 'string'
+              ? (logo as { src?: { url?: string; src?: string; originalUrl?: string } }).src?.originalUrl
+              : undefined;
     const sanitizedSrc = rawSrc ? validateImageUrl(rawSrc) : undefined;
 
     const normalizedRenditions = Array.isArray(logo.renditions)

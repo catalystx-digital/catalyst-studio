@@ -276,6 +276,30 @@ describe('NavBar Component', () => {
     );
   });
 
+  it('renders logo image from canonical MediaReference url', () => {
+    const mediaLogoProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        logo: {
+          ...(defaultProps.content.logo ?? {}),
+          alt: 'Luminary Logo',
+          src: {
+            mediaId: 'logo-media',
+            mediaType: 'image' as const,
+            url: 'https://www.luminary.com/_astro/luminary-logo-midnight.svg',
+          },
+        },
+      },
+    };
+
+    render(<NavBar {...mediaLogoProps} />);
+
+    const logoImage = screen.getAllByRole('img', { name: 'Luminary Logo' })[0];
+    expect(logoImage).toBeInTheDocument();
+    expect(logoImage).toHaveAttribute('src', 'https://www.luminary.com/_astro/luminary-logo-midnight.svg');
+  });
+
   it('uses the Logo schema string href for logo clicks', () => {
     const onInteraction = jest.fn();
     const propsWithLogoHref = {
