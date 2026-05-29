@@ -401,7 +401,71 @@ describe('PageRendererHelper', () => {
     const html = renderToStaticMarkup(element as unknown as React.ReactElement);
 
     expect(html).toContain('data-cms-page-kind="agency"');
-    expect(html).toContain('theme-dark');
+    expect(html).toContain('theme-light');
+  });
+
+  it('does not classify a page as agency from a hard-coded source domain alone', () => {
+    const page: SnapshotPage = {
+      id: 'domain-only-page',
+      title: 'Home',
+      fullPath: '/',
+      templateKey: 'imported/home',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: {
+            heading: 'Welcome',
+            body: 'Helpful information for visitors.'
+          },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {
+        importSource: 'https://www.luminary.com/'
+      },
+      sharedComponentIds: []
+    };
+
+    expect(buildCmsPresentationContext(page).pageKind).toBe('generic');
+  });
+
+  it('does not classify a page as agency from agency wording in the source URL alone', () => {
+    const page: SnapshotPage = {
+      id: 'url-keyword-page',
+      title: 'Home',
+      fullPath: '/',
+      templateKey: 'imported/home',
+      templateProps: {},
+      regions: [],
+      components: [
+        {
+          id: 'text-1',
+          type: 'text-block',
+          parentId: null,
+          position: 0,
+          props: {},
+          content: {
+            heading: 'Welcome',
+            body: 'Helpful information for visitors.'
+          },
+          styles: {},
+          metadata: {}
+        }
+      ],
+      metadata: {
+        importSource: 'https://example-agency.test/portfolio'
+      },
+      sharedComponentIds: []
+    };
+
+    expect(buildCmsPresentationContext(page).pageKind).toBe('generic');
   });
 
   it('does not synthesize content from legacy props.text at render time', async () => {

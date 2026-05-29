@@ -318,11 +318,8 @@ function resolvePageTheme(nodes: ComponentTreeNode[]): ComponentTheme {
   return 'light';
 }
 
-function buildPageRootClasses(theme: ComponentTheme | undefined, pageKind?: string): string {
-  const normalizedTheme =
-    pageKind === 'agency'
-      ? 'dark'
-      : (!theme || theme === 'auto' ? 'light' : theme);
+function buildPageRootClasses(theme: ComponentTheme | undefined): string {
+  const normalizedTheme = !theme || theme === 'auto' ? 'light' : theme;
 
   return [
     'cms-page-root',
@@ -594,7 +591,7 @@ export async function PageRendererHelper({
   const tree = buildComponentTree(componentInstances);
   const rootTheme = resolvePageTheme(tree);
   const presentationContext = buildCmsPresentationContext(page);
-  const rootClasses = buildPageRootClasses(rootTheme, presentationContext.pageKind);
+  const rootClasses = buildPageRootClasses(rootTheme);
   const presentationAttrs = cmsPresentationAttributes(presentationContext);
   const sharedMap = new Map(sharedComponents.map(component => [component.id, component]));
   const pageDesignTokens = extractPageDesignTokens(page);

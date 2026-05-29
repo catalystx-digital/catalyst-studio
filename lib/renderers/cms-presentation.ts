@@ -84,6 +84,7 @@ function inferPageKind(page: SnapshotPage, components: ComponentInstance[]): Pag
       .slice(0, 5000)
   );
   const pageHaystack = `${templateKey} ${title} ${importSource} ${pageTag}`;
+  const nonUrlHaystack = `${templateKey} ${title} ${pageTag} ${contentText}`;
   const haystack = `${pageHaystack} ${contentText}`;
 
   if (haystack.match(/\b(hospital|health|university|school|government|council|foundation|institution)\b/)) {
@@ -91,8 +92,7 @@ function inferPageKind(page: SnapshotPage, components: ComponentInstance[]): Pag
   }
 
   if (
-    haystack.match(/\b(agency|studio|portfolio|case-study|case studies|digital experiences|latest projects|what we deliver)\b/) ||
-    haystack.includes('luminary.com')
+    nonUrlHaystack.match(/\b(agency|studio|portfolio|case-study|case studies|digital experiences|latest projects|what we deliver)\b/)
   ) {
     return 'agency';
   }
