@@ -75,9 +75,9 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
       className={cn('cms-hero-with-image bg-background px-4 py-12 sm:px-6 lg:px-8 lg:py-20', className)}
       style={style}
     >
-      <div className="mx-auto grid w-full max-w-7xl items-stretch gap-6 md:min-h-[30rem] md:grid-cols-[minmax(0,1.12fr)_minmax(20rem,0.88fr)] lg:gap-8">
+      <div className="mx-auto grid w-full max-w-7xl items-center gap-8 md:min-h-[30rem] md:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:gap-12">
         <div className={cn(
-          'relative min-h-[18rem] overflow-hidden rounded-2xl bg-muted shadow-sm md:min-h-[30rem]',
+          'relative min-h-[18rem] overflow-hidden rounded-xl bg-muted md:min-h-[30rem]',
           !imageFirst && 'md:order-2'
         )}>
           {normalizedImg?.src ? (
@@ -98,12 +98,13 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
           )}
         </div>
 
-        <div className={cn(
-          'relative flex min-h-[18rem] items-center overflow-hidden rounded-2xl border border-border/70 bg-card px-6 py-10 text-card-foreground shadow-sm md:min-h-[30rem] md:px-8 lg:px-10',
-          !imageFirst && 'md:order-1',
-          alignCenter ? 'justify-center text-center' : 'justify-start text-left'
-        )}>
-          <div className="absolute inset-x-0 top-0 h-1 bg-primary" aria-hidden="true" />
+        <div
+          data-hero-copy-panel
+          className={cn(
+            'relative flex min-h-[18rem] items-center px-0 py-6 text-foreground md:min-h-[30rem] md:px-2 lg:px-4',
+            !imageFirst && 'md:order-1',
+            alignCenter ? 'justify-center text-center' : 'justify-start text-left'
+          )}>
           <div className={cn(
             'flex max-w-2xl flex-col',
             dsSpacing.gap('md'),

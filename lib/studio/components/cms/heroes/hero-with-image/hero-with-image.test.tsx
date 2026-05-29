@@ -59,7 +59,19 @@ describe('HeroWithImage', () => {
   it('renders as a split image and copy hero instead of a full-screen overlay', () => {
     const { container } = render(<HeroWithImage {...mockProps} />);
 
-    expect(container.innerHTML).toContain('md:grid-cols-[minmax(0,1.12fr)_minmax(20rem,0.88fr)]');
+    expect(container.innerHTML).toContain('md:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)]');
     expect(container.innerHTML).not.toContain('min-h-screen');
+  });
+
+  it('does not frame the copy panel as a card by default', () => {
+    const { container } = render(<HeroWithImage {...mockProps} />);
+
+    const copyPanel = container.querySelector('[data-hero-copy-panel]');
+    expect(copyPanel).toBeInTheDocument();
+    expect(copyPanel).not.toHaveClass('bg-card');
+    expect(copyPanel).not.toHaveClass('border');
+    expect(copyPanel).not.toHaveClass('border-border/70');
+    expect(copyPanel).not.toHaveClass('shadow-sm');
+    expect(copyPanel?.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
   });
 });
