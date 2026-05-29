@@ -4,7 +4,7 @@ import {
   getNormalizationWarningSeverity,
   isFatalNormalizationIssue
 } from '../page-builder/normalization-telemetry'
-import { SUBCOMPONENT_NORMALIZERS } from '../page-builder/subcomponent-normalizers'
+import { normalizeImage, SUBCOMPONENT_NORMALIZERS } from '../page-builder/subcomponent-normalizers'
 import { ContentFeedDef } from '@/lib/studio/components/cms/content/content-feed/content-feed.def'
 import { HtmlBlockDef } from '@/lib/studio/components/cms/content/html-block/html-block.def'
 import { TextBlockDef } from '@/lib/studio/components/cms/content/text-block/text-block.def'
@@ -68,6 +68,51 @@ function extractComponentProps(detection: DetectionResult, componentType: Import
   const payload = extractComponentPayload(detection, componentType)
   return { ...payload.props, content: payload.content }
 }
+
+it('selects the largest usable srcset image candidate during normalization', () => {
+  const image = normalizeImage({
+    src: 'https://cdn.example.com/hero.jpg?w=320',
+    srcset: [
+      'https://cdn.example.com/hero.jpg?w=320 320w',
+      'https://cdn.example.com/hero.jpg?w=780 780w',
+      'https://cdn.example.com/hero.jpg?w=1200 1200w'
+    ].join(', '),
+    alt: 'Hero'
+  })
+
+  expect(image).toMatchObject({
+    src: 'https://cdn.example.com/hero.jpg?w=1200',
+    originalUrl: 'https://cdn.example.com/hero.jpg?w=1200',
+    alt: 'Hero'
+  })
+  expect(image).not.toHaveProperty('renditions')
+})
+
+it('parses raw srcset-shaped image strings instead of treating them as URLs', () => {
+  const image = normalizeImage(
+    'https://cdn.example.com/hero.jpg?w=320 320w, https://cdn.example.com/hero.jpg?w=1200 1200w',
+    'Hero'
+  )
+
+  expect(image).toEqual({
+    src: 'https://cdn.example.com/hero.jpg?w=1200',
+    originalUrl: 'https://cdn.example.com/hero.jpg?w=1200',
+    alt: 'Hero'
+  })
+})
+
+it('parses srcset-shaped values from non-srcset image fields', () => {
+  const image = normalizeImage({
+    src: 'https://cdn.example.com/hero.jpg?w=320 320w, https://cdn.example.com/hero.jpg?w=1200 1200w',
+    alt: 'Hero'
+  })
+
+  expect(image).toMatchObject({
+    src: 'https://cdn.example.com/hero.jpg?w=1200',
+    originalUrl: 'https://cdn.example.com/hero.jpg?w=1200',
+    alt: 'Hero'
+  })
+})
 
 describe('normalizeComponentContent through extractComponentPayload', () => {
   beforeEach(() => {

@@ -196,6 +196,46 @@ export interface NormalizeImageOptions {
   field?: string
 }
 
+type SrcsetCandidate = { src: string; width?: number | null; height?: number | null; score: number }
+
+function parseSrcsetCandidates(value: string): SrcsetCandidate[] {
+  return value
+    .split(',')
+    .map(entry => entry.trim())
+    .map((entry): SrcsetCandidate | null => {
+      const [src, descriptor] = entry.split(/\s+/, 2)
+      if (!src || !isProcessableUrl(src) || isDefinitelyPageUrl(src)) {
+        return null
+      }
+      const widthMatch = descriptor?.match(/^(\d+)w$/i)
+      const densityMatch = descriptor?.match(/^([\d.]+)x$/i)
+      const width = widthMatch ? Number(widthMatch[1]) : undefined
+      const density = densityMatch ? Number(densityMatch[1]) : undefined
+      const score = typeof width === 'number' && Number.isFinite(width)
+        ? width
+        : typeof density === 'number' && Number.isFinite(density)
+          ? density * 1000
+          : 0
+
+      return {
+        src,
+        ...(Number.isFinite(width) ? { width } : {}),
+        height: null,
+        score
+      }
+    })
+    .filter((candidate): candidate is SrcsetCandidate => candidate !== null)
+    .sort((a, b) => b.score - a.score)
+}
+
+function isSrcsetLike(value: string): boolean {
+  return /(?:^|,\s*)\S+\s+(?:\d+w|[\d.]+x)(?:\s*,|$)/i.test(value.trim())
+}
+
+function selectLargestSrcsetCandidate(value: string): string | undefined {
+  return parseSrcsetCandidates(value)[0]?.src
+}
+
 export function normalizeImage(
   value: unknown,
   fallbackAlt?: string,
@@ -206,6 +246,17 @@ export function normalizeImage(
   }
   if (typeof value === 'string') {
     const trimmed = value.trim()
+    if (isSrcsetLike(trimmed)) {
+      const largestCandidate = selectLargestSrcsetCandidate(trimmed)
+      if (!largestCandidate) {
+        return undefined
+      }
+      return {
+        src: largestCandidate,
+        originalUrl: largestCandidate,
+        ...(fallbackAlt ? { alt: fallbackAlt } : {})
+      }
+    }
     // Must be a processable URL
     if (!isProcessableUrl(trimmed)) {
       return undefined
@@ -254,20 +305,24 @@ export function normalizeImage(
   }
 
   const visited = new WeakSet<object>()
-  const urlBuckets: Record<UrlBucket, Set<string>> = {
-    signed: new Set(),
-    public: new Set(),
-    explicit: new Set(),
-    original: new Set()
+  const urlBuckets: Record<UrlBucket, Map<string, number>> = {
+    signed: new Map(),
+    public: new Map(),
+    explicit: new Map(),
+    original: new Map()
   }
   const altCandidates: string[] = []
   let mediaId: string | undefined
 
-  const addUrlCandidate = (bucket: UrlBucket, candidate: unknown) => {
+  const addUrlCandidate = (bucket: UrlBucket, candidate: unknown, score = 0) => {
     if (typeof candidate !== 'string') {
       return
     }
     const trimmed = candidate.trim()
+    if (isSrcsetLike(trimmed)) {
+      addSrcsetCandidates(bucket, trimmed)
+      return
+    }
     if (!trimmed || !isProcessableUrl(trimmed)) {
       return
     }
@@ -282,7 +337,20 @@ export function normalizeImage(
       }
       return
     }
-    urlBuckets[bucket].add(trimmed)
+    const existingScore = urlBuckets[bucket].get(trimmed)
+    if (existingScore === undefined || score > existingScore) {
+      urlBuckets[bucket].set(trimmed, score)
+    }
+  }
+
+  const addSrcsetCandidates = (bucket: UrlBucket, candidate: unknown) => {
+    if (typeof candidate !== 'string') {
+      return
+    }
+    const parsed = parseSrcsetCandidates(candidate)
+    parsed.forEach(entry => {
+      addUrlCandidate(bucket, entry.src, entry.score)
+    })
   }
 
   const recordAltCandidate = (candidate: unknown) => {
@@ -313,6 +381,7 @@ export function normalizeImage(
 
     for (const [key, raw] of Object.entries(input)) {
       const normalizedKey = key.trim().toLowerCase()
+      const isSrcsetKey = normalizedKey === 'srcset' || normalizedKey.endsWith('srcset')
       const bucket =
         URL_BUCKET_KEY_LOOKUP.get(normalizedKey) ??
         (normalizedKey === 'src' ||
@@ -333,14 +402,22 @@ export function normalizeImage(
           : undefined)
 
       if (typeof raw === 'string') {
-        addUrlCandidate(bucket ?? ('explicit' as UrlBucket), raw)
+        if (isSrcsetKey) {
+          addSrcsetCandidates(bucket ?? ('explicit' as UrlBucket), raw)
+        } else {
+          addUrlCandidate(bucket ?? ('explicit' as UrlBucket), raw)
+        }
         continue
       }
 
       if (Array.isArray(raw)) {
         raw.forEach(entry => {
           if (typeof entry === 'string') {
-            addUrlCandidate(bucket ?? ('explicit' as UrlBucket), entry)
+            if (isSrcsetKey) {
+              addSrcsetCandidates(bucket ?? ('explicit' as UrlBucket), entry)
+            } else {
+              addUrlCandidate(bucket ?? ('explicit' as UrlBucket), entry)
+            }
           } else if (isRecord(entry)) {
             visit(entry)
           }
@@ -359,8 +436,13 @@ export function normalizeImage(
   visit(value)
 
   const pickFromBucket = (bucket: UrlBucket): string | undefined => {
-    const first = urlBuckets[bucket].values().next()
-    return first.done ? undefined : first.value
+    let selected: { url: string; score: number } | undefined
+    for (const [url, score] of urlBuckets[bucket].entries()) {
+      if (!selected || score > selected.score) {
+        selected = { url, score }
+      }
+    }
+    return selected?.url
   }
 
   const resolvedSrc =
