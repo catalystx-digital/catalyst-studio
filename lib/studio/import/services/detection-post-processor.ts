@@ -30,6 +30,7 @@ import { tagPageComponents, tagListingComponents } from './detection-post-proces
 import { enrichComponentImages } from './detection-post-processor/image-enrichment-processor'
 import { enrichHeroContent } from './detection-post-processor/hero-content-enrichment'
 import { recoverMissingHomepageHero } from './detection-post-processor/hero-recovery-processor'
+import { recoverSourceNarrativeSections } from './detection-post-processor/source-narrative-recovery-processor'
 import { completeCardGridsFromSource } from './detection-post-processor/card-grid-completion-processor'
 import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
@@ -124,6 +125,14 @@ export function adjustDetectedComponents(
     domSnapshot: options.domSnapshot,
     pageUrl: options.pageUrl
   }))
+
+  withTelemetry('sourceNarrativeRecovery', cloned, (c) => {
+    const recovered = recoverSourceNarrativeSections(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl
+    })
+    c.splice(0, c.length, ...recovered)
+  })
 
   withTelemetry('cardGridCompletion', cloned, (c) => completeCardGridsFromSource(c, {
     domSnapshot: options.domSnapshot,
