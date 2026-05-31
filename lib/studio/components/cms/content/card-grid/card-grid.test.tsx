@@ -493,6 +493,44 @@ describe('CMSComponent: CardGrid', () => {
     expect(firstCard.querySelector('img')).toHaveClass('h-full', 'w-full', 'object-cover');
   });
 
+  it('uses high-contrast readable treatment for background-image cards', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'emergency-status',
+              title: 'Emergency Department status',
+              description: 'View the page for a real time guide to how busy we are.',
+              image: {
+                src: 'https://assets.example.com/emergency-status.jpg',
+                alt: 'Emergency Department status',
+              },
+              href: '/emergency/status/',
+            },
+          ],
+          imagePosition: 'background',
+          columns: 1,
+        }}
+      />,
+    );
+
+    const card = container.querySelector('.cms-card-grid-card')!;
+    const overlay = card.querySelector('.bg-gradient-to-t')!;
+    expect(card).toHaveClass('theme-dark');
+    expect(overlay).toHaveClass('from-black/90', 'via-black/65', 'to-black/25');
+    expect(screen.getByText('Emergency Department status')).toHaveClass('text-white', 'drop-shadow-sm');
+    expect(screen.getByText('View the page for a real time guide to how busy we are.')).toHaveClass(
+      'text-white/85',
+      'drop-shadow-sm',
+    );
+    expect(screen.getByRole('link', { name: 'Learn more about Emergency Department status' })).toHaveClass(
+      'text-white/90',
+      'hover:text-white',
+      'drop-shadow-sm',
+    );
+  });
+
   it('uses compact mobile media density for standard project cards while preserving desktop ratio', () => {
     const { container } = render(
       <CardGrid

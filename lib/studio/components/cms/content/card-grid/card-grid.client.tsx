@@ -438,6 +438,7 @@ export function CardGridClient({
       highContrast?: boolean;
       dense?: boolean;
       denseMobile?: boolean;
+      overlay?: boolean;
     } = {},
   ) => {
     if (!card.link) {
@@ -450,6 +451,7 @@ export function CardGridClient({
       highContrast = false,
       dense = false,
       denseMobile = false,
+      overlay = false,
     } = options;
 
     // P1 Fix: Show visible CTA for clickable cards without explicit linkText
@@ -475,6 +477,7 @@ export function CardGridClient({
           className={cn(
             'px-0 text-base font-medium hover:underline underline-offset-4',
             highContrast && 'text-card-foreground/85 hover:text-card-foreground',
+            overlay && 'text-white/90 hover:text-white drop-shadow-sm',
           )}
           onClick={(event) => {
             event.stopPropagation();
@@ -599,6 +602,7 @@ export function CardGridClient({
           dsSpacing.gap('sm'),
           cardStyle === 'compact' ? dsSpacing.padding('md') : dsSpacing.padding('lg'),
           isOverlay && `lg:${dsSpacing.padding('xl')}`,
+          isOverlay && 'mt-auto text-white',
           compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
           titleOnlyLinkCard && 'justify-start px-5 pb-2 pt-5',
           quickLinkGrid && 'justify-start px-4 pb-2 pt-3 sm:px-5 sm:pt-4',
@@ -620,6 +624,7 @@ export function CardGridClient({
         <CardTitle className={cn(
           'line-clamp-2',
           compactIconCard || quickLinkGrid ? 'text-base' : denseMediaCard ? 'text-lg sm:text-xl' : 'text-xl',
+          isOverlay && 'text-white drop-shadow-sm',
           titleOnlyLinkCard && 'text-base font-semibold leading-snug',
           quickLinkGrid && 'font-semibold leading-snug',
         )}>
@@ -639,12 +644,20 @@ export function CardGridClient({
               : dsSpacing.padding('lg'),
             'pt-0',
             isOverlay && `lg:${dsSpacing.px('xl')}`,
+            isOverlay && 'text-white',
             compactIconCard && 'items-center text-center',
             denseMediaCard && 'px-4 pb-4 sm:px-6 sm:pb-6',
           )}
         >
           {card.description && (
-            <p className={cmsBody('md', undefined, denseMediaCard ? 'line-clamp-2 sm:line-clamp-3' : 'line-clamp-3')}>{card.description}</p>
+            <p
+              className={cn(
+                cmsBody('md', undefined, denseMediaCard ? 'line-clamp-2 sm:line-clamp-3' : 'line-clamp-3'),
+                isOverlay && 'text-white/85 drop-shadow-sm',
+              )}
+            >
+              {card.description}
+            </p>
           )}
 
           {renderMetadata(card)}
@@ -659,6 +672,7 @@ export function CardGridClient({
         highContrast: quickLinkGrid,
         dense: quickLinkGrid,
         denseMobile: denseMediaCard,
+        overlay: isOverlay,
       })}
     </>
       );
@@ -758,7 +772,7 @@ export function CardGridClient({
                         loading={imageLoading}
                       />
                       <div
-                        className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"
+                        className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/65 to-black/25"
                         aria-hidden="true"
                       />
                     </>
