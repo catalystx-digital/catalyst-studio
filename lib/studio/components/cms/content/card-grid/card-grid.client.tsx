@@ -47,6 +47,13 @@ const MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP = {
   '3:2': 'aspect-[16/10] sm:aspect-[3/2]',
 } as const;
 
+const FEED_MEDIA_ASPECT_RATIO_CLASS_MAP = {
+  '16:9': 'aspect-[5/2] sm:aspect-[16/9]',
+  '4:3': 'aspect-[2/1] sm:aspect-[4/3]',
+  '1:1': 'aspect-[2/1] sm:aspect-square',
+  '3:2': 'aspect-[2/1] sm:aspect-[3/2]',
+} as const;
+
 const CARD_VARIANT_TONES: Record<NonNullable<NormalizedCardItem['variant']>, CmsCardTone> = {
   accent: 'accent',
   muted: 'muted',
@@ -66,6 +73,8 @@ const DEFAULT_CARD_TONE: CmsCardTone = 'default';
 const DEFAULT_ASPECT_RATIO = '16:9' as const;
 const CARD_IMAGE_SIZES =
   '(max-width: 768px) 100vw, (max-width: 1280px) 45vw, 33vw';
+const EDITORIAL_FEED_HEADING_PATTERN =
+  /\b(news|blog|posts|articles|updates|announcements|stories|press|media)\b/i;
 
 function navigateTo(url?: string): void {
   if (!url) {
@@ -268,6 +277,14 @@ export function CardGridClient({
   const imagePosition = content.imagePosition ?? (hasColoredCards ? 'top' : 'left');
   const aspectRatioKey = content.imageAspectRatio ?? DEFAULT_ASPECT_RATIO;
   const imageLoading = content.imageLoading ?? 'lazy';
+  const editorialGridDensity =
+    typeof content.heading === 'string' &&
+    EDITORIAL_FEED_HEADING_PATTERN.test(content.heading) &&
+    cards.length >= 3 &&
+    cards.some(card => Boolean(card.description) && Boolean(getImageFromCard(card)));
+  const feedDensity =
+    content.density === 'feed' ||
+    (content.density !== 'default' && editorialGridDensity);
   const resolvedTheme = resolveTheme(theme);
   const quickLinkGrid =
     !content.heading &&
@@ -373,7 +390,7 @@ export function CardGridClient({
             )}
           >
             {item.icon}
-            <span className="font-medium">{item.label}</span>
+            <span className={cn('font-medium', feedDensity && 'text-xs')}>{item.label}</span>
           </CmsBadge>
         ))}
       </div>
@@ -439,6 +456,7 @@ export function CardGridClient({
       dense?: boolean;
       denseMobile?: boolean;
       overlay?: boolean;
+      feedDense?: boolean;
     } = {},
   ) => {
     if (!card.link) {
@@ -452,6 +470,7 @@ export function CardGridClient({
       dense = false,
       denseMobile = false,
       overlay = false,
+      feedDense = false,
     } = options;
 
     // P1 Fix: Show visible CTA for clickable cards without explicit linkText
@@ -469,6 +488,7 @@ export function CardGridClient({
           alignStart && 'justify-start px-5 pb-5 pt-0',
           dense && 'px-4 pb-4 sm:px-5 sm:pb-5',
           denseMobile && 'px-4 pb-4 sm:px-6 sm:pb-6',
+          feedDense && 'px-4 pb-3 sm:px-5 sm:pb-4',
         )}
       >
         <Button
@@ -478,6 +498,7 @@ export function CardGridClient({
             'px-0 text-base font-medium hover:underline underline-offset-4',
             highContrast && 'text-card-foreground/85 hover:text-card-foreground',
             overlay && 'text-white/90 hover:text-white drop-shadow-sm',
+            feedDense && 'text-sm sm:text-base',
           )}
           onClick={(event) => {
             event.stopPropagation();
@@ -542,7 +563,9 @@ export function CardGridClient({
           <div
             className={cn(
               'relative h-full w-full overflow-hidden rounded-t-xl',
-              MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
+              feedDensity
+                ? FEED_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey]
+                : MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
               'md:rounded-none',
               orderClass,
             )}
@@ -565,7 +588,9 @@ export function CardGridClient({
       <div
         className={cn(
           'overflow-hidden rounded-none rounded-t-xl group',
-          MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
+          feedDensity
+            ? FEED_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey]
+            : MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
         )}
       >
         <CardImage
@@ -586,6 +611,7 @@ export function CardGridClient({
     (() => {
       const compactIconCard = isCompactIconCard(card);
       const titleOnlyLinkCard = isTitleOnlyLinkCard(card);
+      const feedDenseCard = feedDensity && denseMediaCard;
       const hasBodyContent =
         Boolean(card.description) ||
         Boolean(card.metadata?.author) ||
@@ -607,6 +633,7 @@ export function CardGridClient({
           titleOnlyLinkCard && 'justify-start px-5 pb-2 pt-5',
           quickLinkGrid && 'justify-start px-4 pb-2 pt-3 sm:px-5 sm:pt-4',
           denseMediaCard && 'px-4 py-4 sm:px-6 sm:py-6',
+          feedDenseCard && 'px-4 py-3 sm:px-5 sm:py-4',
         )}
       >
         {card.badge && (
@@ -623,7 +650,13 @@ export function CardGridClient({
 
         <CardTitle className={cn(
           'line-clamp-2',
-          compactIconCard || quickLinkGrid ? 'text-base' : denseMediaCard ? 'text-lg sm:text-xl' : 'text-xl',
+          compactIconCard || quickLinkGrid
+            ? 'text-base'
+            : feedDenseCard
+              ? 'text-base sm:text-lg'
+              : denseMediaCard
+                ? 'text-lg sm:text-xl'
+                : 'text-xl',
           isOverlay && 'text-white drop-shadow-sm',
           titleOnlyLinkCard && 'text-base font-semibold leading-snug',
           quickLinkGrid && 'font-semibold leading-snug',
@@ -647,12 +680,17 @@ export function CardGridClient({
             isOverlay && 'text-white',
             compactIconCard && 'items-center text-center',
             denseMediaCard && 'px-4 pb-4 sm:px-6 sm:pb-6',
+            feedDenseCard && 'gap-2 px-4 pb-3 sm:px-5 sm:pb-4',
           )}
         >
           {card.description && (
             <p
               className={cn(
-                cmsBody('md', undefined, denseMediaCard ? 'line-clamp-2 sm:line-clamp-3' : 'line-clamp-3'),
+                cmsBody(
+                  feedDenseCard ? 'sm' : 'md',
+                  undefined,
+                  feedDenseCard ? 'line-clamp-2' : denseMediaCard ? 'line-clamp-2 sm:line-clamp-3' : 'line-clamp-3',
+                ),
                 isOverlay && 'text-white/85 drop-shadow-sm',
               )}
             >
@@ -673,6 +711,7 @@ export function CardGridClient({
         dense: quickLinkGrid,
         denseMobile: denseMediaCard,
         overlay: isOverlay,
+        feedDense: feedDenseCard,
       })}
     </>
       );

@@ -98,6 +98,7 @@ export function CardGridServer({
     imageAspectRatio: content.imageAspectRatio ?? '16:9',
     imageLoading: content.imageLoading,
     featureFirstCard: content.featureFirstCard,
+    density: content.density,
     ...(filters.length > 0 ? { filters } : {}),
   };
 

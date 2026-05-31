@@ -85,6 +85,7 @@ export interface CardGridContent {
   imageAspectRatio?: '16:9' | '4:3' | '1:1' | '3:2';
   imageLoading?: 'lazy' | 'eager';
   featureFirstCard?: boolean;
+  density?: 'default' | 'feed';
   filters?: CardGridFilter[];
 }
 

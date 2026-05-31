@@ -131,6 +131,36 @@ describe('ContentFeed component', () => {
     expect(screen.getByRole('img', { name: 'Post with image' })).toHaveAttribute('loading', 'eager');
   });
 
+  it('renders card-grid feeds with compact feed density', () => {
+    const content: ContentFeedContent = {
+      heading: 'Latest posts',
+      layout: 'card-grid',
+      pinned: [
+        {
+          id: 'post-compact',
+          title: 'Compact feed post',
+          excerpt: 'A feed summary should stay compact in repeated news sections.',
+          image: 'https://example.com/post-compact.jpg',
+          date: '2026-05-18',
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ContentFeed
+        id="feed-density"
+        type={ComponentType.ContentFeed}
+        category={ComponentCategory.Content}
+        content={content}
+      />,
+    );
+
+    const mediaWrapper = container.querySelector('.cms-card-grid-card img')?.parentElement;
+    expect(mediaWrapper).toHaveClass('aspect-[5/2]', 'sm:aspect-[16/9]');
+    expect(screen.getByText('Compact feed post')).toHaveClass('text-base', 'sm:text-lg');
+    expect(screen.getByText('A feed summary should stay compact in repeated news sections.')).toHaveClass('ds-body-sm', 'line-clamp-2');
+  });
+
   it('shows empty state when no items are available', () => {
     registerContentProvider(ContentResource.ContentFeed, {
       fetch: () => ({ items: [], total: 0 }),

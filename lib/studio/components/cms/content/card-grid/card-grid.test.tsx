@@ -567,6 +567,159 @@ describe('CMSComponent: CardGrid', () => {
     expect(footer).toHaveClass('px-4', 'pb-4', 'sm:px-6', 'sm:pb-6');
   });
 
+  it('uses feed density only for feed-like card grids', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          density: 'feed',
+          heading: 'Latest posts',
+          imageAspectRatio: '16:9',
+          cards: [
+            {
+              id: 'feed-post',
+              title: 'AI does not change your strategy',
+              description: 'Strategy Director Emma Andrews lifts the lid on how AI changes delivery.',
+              image: {
+                src: 'https://assets.example.com/post.jpg',
+                alt: 'AI strategy',
+              },
+              href: '/insights/ai-strategy/',
+              metadata: {
+                date: '2026-05-18',
+                tags: ['Pinned'],
+              },
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const card = container.querySelector('.cms-card-grid-card')!;
+    const mediaWrapper = card.querySelector('img')?.parentElement;
+    const footer = screen.getByRole('link', { name: 'Learn more about AI does not change your strategy' }).closest('div');
+
+    expect(mediaWrapper).toHaveClass('aspect-[5/2]', 'sm:aspect-[16/9]');
+    expect(screen.getByText('AI does not change your strategy')).toHaveClass('text-base', 'sm:text-lg');
+    expect(screen.getByText('Strategy Director Emma Andrews lifts the lid on how AI changes delivery.')).toHaveClass('ds-body-sm', 'line-clamp-2');
+    expect(screen.getByText('2026-05-18')).toHaveClass('text-xs');
+    expect(footer).toHaveClass('px-4', 'pb-3', 'sm:px-5', 'sm:pb-4');
+  });
+
+  it('uses feed density for existing editorial card grids without compressing project grids', () => {
+    const { container, rerender } = render(
+      <CardGrid
+        content={{
+          heading: 'RCH News',
+          cards: [
+            {
+              id: 'news-1',
+              title: 'Hospital story',
+              description: 'A summary for a hospital news article.',
+              image: { src: 'https://assets.example.com/news-1.jpg', alt: 'Hospital story' },
+              href: '/news/story/',
+            },
+            {
+              id: 'news-2',
+              title: 'Research update',
+              description: 'A summary for a research update.',
+              image: { src: 'https://assets.example.com/news-2.jpg', alt: 'Research update' },
+              href: '/news/research/',
+            },
+            {
+              id: 'news-3',
+              title: 'Community story',
+              description: 'A summary for a community story.',
+              image: { src: 'https://assets.example.com/news-3.jpg', alt: 'Community story' },
+              href: '/news/community/',
+            },
+          ],
+          columns: 3,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Hospital story')).toHaveClass('text-base', 'sm:text-lg');
+    expect(screen.getByText('A summary for a hospital news article.')).toHaveClass('ds-body-sm', 'line-clamp-2');
+    expect(container.querySelector('.cms-card-grid-card img')?.parentElement).toHaveClass('aspect-[5/2]');
+
+    rerender(
+      <CardGrid
+        content={{
+          heading: 'Latest projects',
+          cards: [
+            {
+              id: 'project-1',
+              title: 'Digital project',
+              description: 'A project summary should keep the richer card treatment.',
+              image: { src: 'https://assets.example.com/project.jpg', alt: 'Digital project' },
+              href: '/work/project/',
+            },
+            {
+              id: 'project-2',
+              title: 'Commerce project',
+              description: 'Another project summary.',
+              image: { src: 'https://assets.example.com/project-2.jpg', alt: 'Commerce project' },
+              href: '/work/project-2/',
+            },
+            {
+              id: 'project-3',
+              title: 'Strategy project',
+              description: 'A strategy project summary.',
+              image: { src: 'https://assets.example.com/project-3.jpg', alt: 'Strategy project' },
+              href: '/work/project-3/',
+            },
+          ],
+          columns: 3,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Digital project')).toHaveClass('text-lg', 'sm:text-xl');
+    expect(screen.getByText('A project summary should keep the richer card treatment.')).toHaveClass('ds-body-md', 'sm:line-clamp-3');
+  });
+
+  it('lets editorial-looking grids explicitly opt out of feed density', () => {
+    render(
+      <CardGrid
+        content={{
+          heading: 'Customer Stories',
+          density: 'default',
+          cards: [
+            {
+              id: 'story-1',
+              title: 'Featured customer story',
+              description: 'A rich story card should keep the standard treatment when density is default.',
+              image: { src: 'https://assets.example.com/story-1.jpg', alt: 'Featured customer story' },
+              href: '/stories/featured/',
+            },
+            {
+              id: 'story-2',
+              title: 'Another customer story',
+              description: 'Another rich story card.',
+              image: { src: 'https://assets.example.com/story-2.jpg', alt: 'Another customer story' },
+              href: '/stories/another/',
+            },
+            {
+              id: 'story-3',
+              title: 'Third customer story',
+              description: 'A third rich story card.',
+              image: { src: 'https://assets.example.com/story-3.jpg', alt: 'Third customer story' },
+              href: '/stories/third/',
+            },
+          ],
+          columns: 3,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Featured customer story')).toHaveClass('text-lg', 'sm:text-xl');
+    expect(screen.getByText('A rich story card should keep the standard treatment when density is default.')).toHaveClass(
+      'ds-body-md',
+      'sm:line-clamp-3',
+    );
+  });
+
   it('keeps horizontal media cards compact on mobile and horizontal on desktop', () => {
     const { container } = render(
       <CardGrid

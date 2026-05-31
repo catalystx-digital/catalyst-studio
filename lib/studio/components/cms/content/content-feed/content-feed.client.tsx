@@ -107,6 +107,7 @@ function toCardGridContent(items: NormalizedContentFeedItem[]): CardGridClientPr
     imageAspectRatio: '16:9',
     imageLoading: 'eager',
     featureFirstCard: false,
+    density: 'feed',
   };
 }
 
