@@ -604,6 +604,25 @@ function firstHeroSlide(content: Record<string, unknown>): Record<string, unknow
   return undefined
 }
 
+function hasPreservableTopHeroCarousel(components: DetectedComponent[]): boolean {
+  const firstHero = components.find(component => HERO_TYPES.has(String(component.type)))
+  if (!firstHero || firstHero.type !== ComponentType.HeroCarousel) {
+    return false
+  }
+
+  const content = isPlainObject(firstHero.content) ? firstHero.content : {}
+  const slides = Array.isArray(content.slides) ? content.slides : []
+  const meaningfulSlides = slides.filter((slide) => {
+    if (!isPlainObject(slide)) return false
+    const slideContent = isPlainObject(slide.content) ? slide.content : slide
+    const heading = text(slideContent.heading ?? slideContent.title)
+    const image = slideContent.image ?? slideContent.backgroundImage
+    return Boolean(heading && image)
+  })
+
+  return meaningfulSlides.length >= 2
+}
+
 function institutionalTitle(metadata: PageMetadata | undefined, fallback: unknown): { title?: string; source?: string } {
   const metadataTitle = text(metadata?.title)
   const cleanMetadataTitle = cleanDuplicatedTitle(metadataTitle)
@@ -976,6 +995,9 @@ export function composeInstitutionalHomepageIfEligible(
   }
   if (!hasInstitutionalEvidence(baseComponents, options.pageMetadata)) {
     return skipped(baseComponents, 'institutional-evidence-missing')
+  }
+  if (hasPreservableTopHeroCarousel(baseComponents)) {
+    return skipped(baseComponents, 'preserve-source-hero-carousel')
   }
 
   const cloned = baseComponents.map(component => cloneComponent(component))

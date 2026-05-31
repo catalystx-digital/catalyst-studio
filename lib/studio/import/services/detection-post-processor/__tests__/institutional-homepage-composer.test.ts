@@ -264,6 +264,97 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     expect(result.components[1].type).toBe(ComponentType.HeroWithImage)
   })
 
+  it('preserves a sourced multi-slide hero carousel instead of collapsing it to one hero', () => {
+    const components = baseComponents()
+    components[1] = component(ComponentType.HeroCarousel, {
+      slides: [
+        {
+          content: {
+            heading: 'Appointment notifications now straight to your phone',
+            body: 'Outpatient appointment changes will be sent via text message.',
+            image: { src: { url: 'https://example.org/appointments.jpg' }, alt: 'Appointment message' },
+          },
+        },
+        {
+          content: {
+            heading: 'Teen Health Info fact sheets now live',
+            body: 'Plain language health topics for young people.',
+            image: { src: { url: 'https://example.org/teen-health.jpg' }, alt: 'Teen health information' },
+          },
+        },
+        {
+          content: {
+            heading: 'My Hospital Portal',
+            body: 'Connect with your medical record.',
+            image: { src: { url: 'https://example.org/portal.jpg' }, alt: 'Portal preview' },
+          },
+        },
+      ],
+    }, { source: 'source-carousel-enrichment' })
+
+    const result = composeInstitutionalHomepageIfEligible(components, {
+      pageUrl: 'https://example.org/home/',
+      pageMetadata: {
+        title: 'Example Children Hospital',
+        pageType: 'home',
+        description: 'Hospital care for patients.',
+      },
+      designProfile,
+      presentationSkeleton: skeleton,
+    })
+
+    expect(result.applied).toBe(false)
+    expect(result.audit.reason).toBe('preserve-source-hero-carousel')
+    expect(result.components[1].type).toBe(ComponentType.HeroCarousel)
+    expect((result.components[1].content.slides as unknown[])).toHaveLength(3)
+    expect(result.components[3].content.cards).toEqual([
+      expect.objectContaining({ title: 'Your guide', backgroundColor: '#0076ad' }),
+      expect.objectContaining({ title: 'Kids Health Info', backgroundColor: '#fdb913' }),
+      expect.objectContaining({ title: 'Clinical Practice Guidelines', backgroundColor: '#82c341' }),
+      expect.objectContaining({ title: 'My Hospital Portal', backgroundColor: '#f26c52' }),
+    ])
+  })
+
+  it('does not skip composition for a lower-page carousel after another source hero', () => {
+    const components = baseComponents()
+    components[1] = component(ComponentType.HeroWithImage, {
+      heading: 'Hospital care for families',
+      body: 'Specialist care for children and families.',
+      image: { src: { url: 'https://example.org/hero.jpg' }, alt: 'Hospital entrance' },
+    })
+    components.push(component(ComponentType.HeroCarousel, {
+      slides: [
+        {
+          content: {
+            heading: 'Story one',
+            image: { src: { url: 'https://example.org/story-one.jpg' }, alt: 'Story one' },
+          },
+        },
+        {
+          content: {
+            heading: 'Story two',
+            image: { src: { url: 'https://example.org/story-two.jpg' }, alt: 'Story two' },
+          },
+        },
+      ],
+    }))
+
+    const result = composeInstitutionalHomepageIfEligible(components, {
+      pageUrl: 'https://example.org/home/',
+      pageMetadata: {
+        title: 'Example Children Hospital',
+        pageType: 'home',
+        description: 'Hospital care for patients.',
+      },
+      designProfile,
+      presentationSkeleton: skeleton,
+    })
+
+    expect(result.applied).toBe(true)
+    expect(result.components[1].type).toBe(ComponentType.HeroWithImage)
+    expect(result.audit.reason).toBe('institutional homepage evidence satisfied')
+  })
+
   it('omits copied hero CTA buttons without usable hrefs', () => {
     const components = baseComponents()
     components[1] = component(ComponentType.HeroCarousel, {
