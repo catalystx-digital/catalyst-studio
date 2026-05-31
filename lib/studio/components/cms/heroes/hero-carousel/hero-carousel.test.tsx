@@ -92,7 +92,32 @@ describe('HeroCarousel component', () => {
 
     const slides = screen.getAllByRole('group', { hidden: true });
     expect(slides[0]).toHaveAttribute('data-active', 'true');
+    expect(slides[0]).toHaveClass('visible', 'z-10');
+    expect(slides[0]).not.toHaveAttribute('inert');
     expect(slides[1]).toHaveAttribute('aria-hidden', 'true');
+    expect(slides[1]).toHaveAttribute('inert');
+    expect(slides[1]).toHaveClass('invisible', 'z-0', 'pointer-events-none');
+  });
+
+  it('keeps inactive slide content visually isolated from the active hero panel', () => {
+    const { container } = render(<HeroCarousel {...defaultProps} />);
+
+    const slidePanels = container.querySelectorAll('.cms-hero-carousel-slide');
+    expect(slidePanels).toHaveLength(3);
+    expect(slidePanels[0]).toHaveClass('visible', 'z-10', 'opacity-100');
+    expect(slidePanels[1]).toHaveClass('invisible', 'z-0', 'opacity-0', 'pointer-events-none');
+    expect(slidePanels[2]).toHaveClass('invisible', 'z-0', 'opacity-0', 'pointer-events-none');
+    expect(slidePanels[1]).toHaveAttribute('inert');
+    expect(slidePanels[2]).toHaveAttribute('inert');
+  });
+
+  it('positions carousel controls below the mobile content panel and restores side controls on larger screens', () => {
+    const { container } = render(<HeroCarousel {...defaultProps} />);
+
+    const controls = container.querySelector('.cms-hero-carousel [class*="bottom-10"]');
+    expect(controls).toHaveClass('bottom-10', 'sm:inset-x-0', 'sm:inset-y-0', 'sm:bottom-auto');
+    expect(screen.getByRole('button', { name: 'Previous slide' })).toHaveClass('h-10', 'w-10', 'sm:h-12', 'sm:w-12');
+    expect(screen.getByRole('button', { name: 'Next slide' })).toHaveClass('h-10', 'w-10', 'sm:h-12', 'sm:w-12');
   });
 
   it('advances to the next slide when the next control is clicked', () => {

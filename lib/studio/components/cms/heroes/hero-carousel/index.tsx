@@ -590,10 +590,10 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
                   ? 'transform-gpu transition-[transform,opacity] duration-700 ease-catalyst'
                   : 'transition-opacity duration-700 ease-out',
                 isActive
-                  ? transitionClass
+                  ? cn('visible z-10', transitionClass)
                   : transitionStyle === 'slide'
-                    ? 'pointer-events-none translate-x-full opacity-0'
-                    : 'pointer-events-none opacity-0',
+                    ? 'invisible z-0 pointer-events-none translate-x-full opacity-0'
+                    : 'invisible z-0 pointer-events-none opacity-0',
                 !slide.backgroundImage && !slide.backgroundColor && 'bg-muted',
               )}
               data-active={isActive}
@@ -601,6 +601,7 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
               aria-roledescription="slide"
               aria-label={`${index + 1} of ${totalSlides}`}
               aria-hidden={isActive ? undefined : true}
+              inert={isActive ? undefined : true}
               style={{
                 backgroundColor: fallbackBg,
               }}
@@ -641,8 +642,8 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
                   {/* Left-aligned card overlay using design system tokens */}
                   <div
                     className={cn(
-                      'flex w-full max-w-xl flex-col justify-center relative',
-                      'bg-primary rounded-2xl p-8',
+                      'relative flex w-full max-w-[calc(100vw-2rem)] flex-col justify-center sm:max-w-xl',
+                      'rounded-xl bg-primary p-6 sm:rounded-2xl sm:p-8',
                       dsSpacing.gap('md'),
                       'items-start text-left',
                     )}
@@ -721,15 +722,16 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
       {showControls && totalSlides > 1 ? (
         <div
           className={cn(
-            'pointer-events-none absolute inset-y-0 z-30 flex w-full items-center justify-between',
-            containerPadding,
+            'pointer-events-none absolute inset-x-4 bottom-10 z-30 flex items-center justify-between',
+            'sm:inset-x-0 sm:inset-y-0 sm:bottom-auto sm:w-full',
+            'sm:px-6 lg:px-8',
           )}
         >
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="pointer-events-auto h-12 w-12 rounded-full bg-background/70 backdrop-blur-sm border border-border/50 shadow-lg hover:bg-background/90 hover:shadow-xl transition-[background-color,box-shadow]"
+            className="pointer-events-auto h-10 w-10 rounded-full border border-border/50 bg-background/70 shadow-lg backdrop-blur-sm transition-[background-color,box-shadow] hover:bg-background/90 hover:shadow-xl sm:h-12 sm:w-12"
             aria-label="Previous slide"
             onClick={() => {
               temporarilyPause();
@@ -742,7 +744,7 @@ const HeroCarouselComponent: React.FC<HeroCarouselProps> = ({
             type="button"
             size="icon"
             variant="ghost"
-            className="pointer-events-auto h-12 w-12 rounded-full bg-background/70 backdrop-blur-sm border border-border/50 shadow-lg hover:bg-background/90 hover:shadow-xl transition-[background-color,box-shadow]"
+            className="pointer-events-auto h-10 w-10 rounded-full border border-border/50 bg-background/70 shadow-lg backdrop-blur-sm transition-[background-color,box-shadow] hover:bg-background/90 hover:shadow-xl sm:h-12 sm:w-12"
             aria-label="Next slide"
             onClick={() => {
               temporarilyPause();
