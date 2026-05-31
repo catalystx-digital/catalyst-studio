@@ -303,9 +303,10 @@ describe('enrichHeroCarouselFromSource', () => {
         {
           label: 'Click here',
           href: {
-            url: 'https://poll.example/food/',
             type: 'external',
+            url: 'https://poll.example/food/',
           },
+          variant: 'primary',
         },
       ],
     })
@@ -363,6 +364,72 @@ describe('enrichHeroCarouselFromSource', () => {
     ])
     expect(result[2].type).toBe('card-grid')
     expect((result[2].content as any).cards).toEqual([{ title: 'Quick link' }])
+  })
+
+  it('drops non-actionable source carousel links before persistence normalization', () => {
+    const html = `
+      <div id="rch-featured-carousel" class="carousel slide hidden-xs">
+        <div class="carousel-inner">
+          <div class="item" style="background-image:url('/hero_images/one.jpg')">
+            <h2>First source slide</h2>
+            <p>First copy. <a href="javascript:void(0)">Click here</a></p>
+          </div>
+          <div class="item" style="background-image:url('/hero_images/two.jpg')">
+            <h2>Second source slide</h2>
+            <p>Second copy. <a href="#">Click here</a></p>
+          </div>
+          <div class="item" style="background-image:url('/hero_images/three.jpg')">
+            <h2>Third source slide</h2>
+            <p>Third copy. <a href="/valid-link/">Click here</a></p>
+          </div>
+          <div class="item" style="background-image:url('/hero_images/four.jpg')">
+            <h2>Fourth source slide</h2>
+            <p>Fourth copy. <a href="//poll.example/protocol-relative/">Click here</a></p>
+          </div>
+        </div>
+      </div>
+      <div id="rch-featured-carousel-xs"></div>
+    `
+    const components = [
+      component('navbar', {}, 'header'),
+      component('hero-carousel', {
+        slides: [
+          { id: 'slide-1', heading: 'First source slide', image: { src: { url: '/hero_images/one.jpg' } } },
+          { id: 'slide-2', heading: 'Second source slide', image: { src: { url: '/hero_images/two.jpg' } } },
+        ],
+      }, 'hero'),
+    ]
+
+    const result = enrichHeroCarouselFromSource(components, {
+      domSnapshot: html,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })
+
+    const slides = result[1].content.slides as any[]
+    expect(slides).toHaveLength(4)
+    expect(slides[0].ctaButtons).toBeUndefined()
+    expect(slides[1].ctaButtons).toBeUndefined()
+    expect(slides[2].ctaButtons).toEqual([
+      {
+        label: 'Click here',
+        href: {
+          type: 'internal',
+          pageId: 'valid-link',
+          path: '/valid-link/',
+        },
+        variant: 'primary',
+      },
+    ])
+    expect(slides[3].ctaButtons).toEqual([
+      {
+        label: 'Click here',
+        href: {
+          type: 'external',
+          url: 'https://poll.example/protocol-relative/',
+        },
+        variant: 'primary',
+      },
+    ])
   })
 
   it('does not consume later sections that happen to overlap carousel titles', () => {

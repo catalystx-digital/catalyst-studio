@@ -1,5 +1,5 @@
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
-import { resolveAssetUrl } from './utils'
+import { normalizeHref, resolveAssetUrl } from './utils'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -204,6 +204,54 @@ function buildMediaReference(url: string, title: string): Record<string, unknown
   }
 }
 
+function buildSourceCta(rawHref: unknown, pageUrl?: string): Record<string, unknown> | undefined {
+  const href = normalizeHref(rawHref, pageUrl)
+  if (!href) {
+    return undefined
+  }
+
+  if (href.startsWith('#')) {
+    return {
+      label: 'Click here',
+      href: { type: 'anchor', href },
+      variant: 'primary',
+    }
+  }
+
+  const resolvedHref = resolveAssetUrl(href, pageUrl)
+  const resolved = resolvedHref.startsWith('//') ? `https:${resolvedHref}` : resolvedHref
+  if (!/^https?:\/\//i.test(resolved)) {
+    return undefined
+  }
+
+  if (pageUrl) {
+    try {
+      const targetUrl = new URL(resolved)
+      const sourceUrl = new URL(pageUrl)
+      if (targetUrl.origin === sourceUrl.origin) {
+        const path = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`
+        return {
+          label: 'Click here',
+          href: {
+            type: 'internal',
+            pageId: slugify(targetUrl.pathname),
+            path,
+          },
+          variant: 'primary',
+        }
+      }
+    } catch {
+      return undefined
+    }
+  }
+
+  return {
+    label: 'Click here',
+    href: { url: resolved, type: 'external' },
+    variant: 'primary',
+  }
+}
+
 const ITEM_START_PATTERN = /<div\b[^>]*\bclass\s*=\s*(["'])[^"']*\bitem\b[^"']*\1[^>]*>/gi
 const RCH_FEATURED_CAROUSEL_START_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])rch-featured-carousel\1[^>]*>/i
 const RCH_FEATURED_CAROUSEL_END_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])(?:rch-featured-carousel-xs|rch-quicklinks|rch-news-carousel|fd-news-carousel)\1[^>]*>/i
@@ -283,7 +331,7 @@ function extractSourceCarouselSlides(domSnapshot: string | null | undefined, pag
     const imageCandidate = IMG_PATTERN.exec(itemHtml)?.[2] ?? BACKGROUND_PATTERN.exec(itemHtml)?.[2]
     const imageUrl = imageCandidate ? resolveAssetUrl(imageCandidate, pageUrl) : undefined
     const hrefCandidate = HREF_PATTERN.exec(itemHtml)?.[2]
-    const hrefUrl = hrefCandidate ? resolveAssetUrl(hrefCandidate, pageUrl) : undefined
+    const cta = buildSourceCta(hrefCandidate, pageUrl)
 
     seenTitles.add(normalized)
     slides.push({
@@ -291,7 +339,7 @@ function extractSourceCarouselSlides(domSnapshot: string | null | undefined, pag
       heading: title,
       ...(body ? { body } : {}),
       ...(imageUrl ? { image: buildMediaReference(imageUrl, title) } : {}),
-      ...(hrefUrl ? { ctaButtons: [{ label: 'Click here', href: { url: hrefUrl, type: 'external' }, variant: 'primary' }] } : {}),
+      ...(cta ? { ctaButtons: [cta] } : {}),
     })
   }
 
