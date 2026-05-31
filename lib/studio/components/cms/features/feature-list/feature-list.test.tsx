@@ -64,6 +64,76 @@ describe('Component: FeatureList', () => {
     expect(screen.getByText('🔧')).toBeInTheDocument();
   });
 
+  it('does not invent checkmark icons when items omit icons', () => {
+    render(
+      <FeatureList
+        {...mockProps}
+        content={{
+          items: [
+            {
+              title: 'Admissions',
+              description: 'Information for patients and families',
+              link: { url: '/admissions' },
+            },
+            {
+              title: 'Clinical resources',
+              link: { text: 'Open resources', url: '/resources' },
+            },
+          ],
+          layout: 'vertical',
+        }}
+      />,
+    );
+
+    expect(screen.queryByText('✓')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Learn more/i })).toHaveAttribute('href', '/admissions');
+    expect(screen.getByRole('link', { name: /Open resources/i })).toHaveAttribute('href', '/resources');
+  });
+
+  it('renders iconless linked resource lists with full-width text composition', () => {
+    const { container } = render(
+      <FeatureList
+        {...mockProps}
+        content={{
+          items: [
+            {
+              title: 'Patient resources',
+              link: { url: '/patient-resources' },
+            },
+          ],
+          layout: 'horizontal',
+        }}
+      />,
+    );
+
+    const cardContent = container.querySelector('.cms-feature-list [class*="p-6"]');
+    const textWrapper = screen.getByText('Patient resources').closest('.flex-1');
+    expect(cardContent).toHaveClass('items-start', 'text-left');
+    expect(textWrapper).toHaveClass('w-full');
+    expect(container.querySelector('.bg-primary\\/10')).not.toBeInTheDocument();
+  });
+
+  it('keeps highlighted badges aligned without icons', () => {
+    render(
+      <FeatureList
+        {...mockProps}
+        content={{
+          items: [
+            {
+              title: 'Important resource',
+              highlighted: true,
+              highlightLabel: 'Important',
+            },
+          ],
+          layout: 'vertical',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Important')).toBeInTheDocument();
+    expect(screen.getByText('Important resource').parentElement).toHaveClass('w-full');
+  });
+
   it('handles vertical layout correctly', () => {
     render(<FeatureList {...mockProps} />);
     const listContainer = screen.getByTestId('feature-list-items');

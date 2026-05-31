@@ -36,7 +36,6 @@ interface NormalizedFeatureListItem {
   highlightLabel?: string;
 }
 
-const DEFAULT_ICON = '✓';
 const DEFAULT_LINK_TEXT = 'Learn more';
 const DEFAULT_HIGHLIGHT_LABEL = 'Featured';
 const CARD_TONE: CmsCardTone = 'minimal';
@@ -94,7 +93,7 @@ function normalizeItems(items: unknown): NormalizedFeatureListItem[] {
       const descriptionCandidate =
         typeof item.description === 'string' ? item.description : undefined;
 
-      const iconCandidate = extractIcon(item.icon) ?? DEFAULT_ICON;
+      const iconCandidate = extractIcon(item.icon);
 
       const linkCandidate = extractLink(item.link);
 
@@ -197,10 +196,10 @@ class FeatureListBase extends BaseComponent<FeatureListProps> {
               </CmsAlert>
             ) : (
               normalizedItems.map((item, index) => {
-                const iconElement = resolveCmsIcon(item.icon ?? DEFAULT_ICON, {
+                const iconElement = resolveCmsIcon(item.icon, {
                   className: resolvedLayout === 'horizontal' ? 'size-6' : 'size-5',
-                  fallback: DEFAULT_ICON,
                 });
+                const hasIcon = Boolean(iconElement);
 
                 return (
                   <Card
@@ -217,9 +216,10 @@ class FeatureListBase extends BaseComponent<FeatureListProps> {
                         resolvedLayout === 'horizontal'
                           ? 'flex-col items-center text-center'
                           : 'flex-row items-start text-left',
+                        !hasIcon && 'items-start text-left',
                       )}
                     >
-                      {iconElement && (
+                      {hasIcon && (
                         <span
                           className={cn(
                             'flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary',
@@ -230,8 +230,8 @@ class FeatureListBase extends BaseComponent<FeatureListProps> {
                           {iconElement}
                         </span>
                       )}
-                      <div className={cn('flex flex-1 flex-col gap-2', resolvedLayout === 'horizontal' && 'items-center')}>
-                        <div className="flex items-start justify-between gap-2">
+                      <div className={cn('flex flex-1 flex-col gap-2', resolvedLayout === 'horizontal' && hasIcon && 'items-center', !hasIcon && 'w-full')}>
+                        <div className="flex w-full items-start justify-between gap-2">
                           <h4 className="font-semibold leading-none tracking-tight">{item.title}</h4>
                           {item.highlighted && resolvedLayout !== 'horizontal' && (
                             <CmsBadge variant="accent" theme={this.props.theme} className="shrink-0">
