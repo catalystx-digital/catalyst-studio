@@ -362,6 +362,30 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByRole('link', { name: 'Learn more about Kids Health Info' })).toHaveAttribute('href', '/kidsinfo/');
   });
 
+  it('wraps heading and cards in the shared section container for imported rhythm', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          heading: 'Resources',
+          subheading: 'Useful links and updates',
+          cards: [
+            {
+              id: 'guide',
+              title: 'Guide',
+              href: '/guide/',
+            },
+          ],
+        }}
+      />,
+    );
+
+    const section = container.querySelector('section.cms-card-grid');
+    const inner = section?.firstElementChild;
+    expect(inner).toHaveClass('mx-auto', 'max-w-7xl', 'ds-gap-lg');
+    expect(section?.querySelector('header')).toHaveClass('max-w-3xl');
+    expect(screen.getByText('Useful links and updates')).toHaveClass('max-w-2xl');
+  });
+
   it('keeps headed project grids on the standard card treatment', () => {
     const { container } = render(
       <CardGrid

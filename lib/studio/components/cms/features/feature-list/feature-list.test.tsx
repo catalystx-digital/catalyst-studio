@@ -70,6 +70,13 @@ describe('Component: FeatureList', () => {
     expect(listContainer).toHaveClass('flex');
   });
 
+  it('applies the shared section container rhythm', () => {
+    const { container } = render(<FeatureList {...mockProps} />);
+    const section = container.querySelector('section.cms-feature-list');
+    const inner = section?.firstElementChild;
+    expect(inner).toHaveClass('mx-auto', 'max-w-7xl', 'ds-gap-3xl');
+  });
+
   it('handles horizontal layout correctly', () => {
     const horizontalProps = {
       ...mockProps,

@@ -101,7 +101,7 @@ export function CardGridServer({
     ...(filters.length > 0 ? { filters } : {}),
   };
 
-  const sectionClassName = cn('cms-card-grid', dsSpacing.spaceY('lg'), className);
+  const sectionClassName = cn('cms-card-grid', className);
 
   const renderFilters = () => {
     if (filters.length === 0) {
@@ -168,13 +168,15 @@ export function CardGridServer({
       theme={theme}
       variant={variant}
       className={sectionClassName}
+      container
+      containerClassName={cn('items-stretch', dsSpacing.gap('lg'))}
       size="md"
     >
       {content.heading && (
-        <header className={cn('flex flex-col', dsSpacing.gap('xs'))}>
+        <header className={cn('flex max-w-3xl flex-col', dsSpacing.gap('xs'))}>
           <h2 className={cmsHeading(2, resolvedTheme)}>{content.heading}</h2>
           {content.subheading && (
-            <p className={cmsBody('md', resolvedTheme)}>{content.subheading}</p>
+            <p className={cmsBody('md', resolvedTheme, 'max-w-2xl')}>{content.subheading}</p>
           )}
         </header>
       )}

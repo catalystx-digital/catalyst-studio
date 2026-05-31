@@ -151,6 +151,7 @@ class FeatureListBase extends BaseComponent<FeatureListProps> {
         theme={this.props.theme}
         variant={this.props.variant}
         className={cn('cms-feature-list', this.props.className)}
+        container
         containerClassName={dsSpacing.gap('3xl')}
         style={this.props.style}
         data-component-type={this.props.type}

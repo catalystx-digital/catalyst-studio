@@ -76,6 +76,36 @@ describe('ContentFeed component', () => {
     expect(firstCard).not.toHaveClass('md:col-span-2');
   });
 
+  it('uses the shared section container and header rhythm', () => {
+    const content: ContentFeedContent = {
+      heading: 'Resources',
+      subheading: 'Latest useful updates',
+      layout: 'list',
+      pinned: [
+        {
+          id: 'resource-1',
+          title: 'Resource 1',
+          excerpt: 'Useful resource summary.',
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ContentFeed
+        id="feed-section-rhythm"
+        type={ComponentType.ContentFeed}
+        category={ComponentCategory.Content}
+        content={content}
+      />,
+    );
+
+    const section = container.querySelector('section.cms-content-feed');
+    const inner = section?.firstElementChild;
+    expect(inner).toHaveClass('mx-auto', 'max-w-7xl', 'ds-gap-lg');
+    expect(section?.querySelector('header')).toHaveClass('max-w-3xl');
+    expect(screen.getByText('Latest useful updates')).toHaveClass('max-w-2xl');
+  });
+
   it('renders card-grid feed images eagerly for reliable previews', () => {
     const content: ContentFeedContent = {
       heading: 'Latest posts',

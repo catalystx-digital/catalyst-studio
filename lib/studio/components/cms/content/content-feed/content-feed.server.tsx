@@ -26,9 +26,9 @@ function buildHeader(
   }
 
   return (
-    <header className={cn('flex flex-col', dsSpacing.gap('xs'))}>
+    <header className={cn('flex max-w-3xl flex-col', dsSpacing.gap('xs'))}>
       {heading ? <h2 className={cmsHeading(2, theme)}>{heading}</h2> : null}
-      {subheading ? <p className={cmsBody('md', theme)}>{subheading}</p> : null}
+      {subheading ? <p className={cmsBody('md', theme, 'max-w-2xl')}>{subheading}</p> : null}
     </header>
   );
 }
@@ -67,7 +67,7 @@ export function ContentFeedServer(props: ContentFeedProps) {
   }
 
   const sectionClassName = buildCmsClassName({
-    base: cn('cms-content-feed', dsSpacing.spaceY('md')),
+    base: 'cms-content-feed',
     theme: resolvedTheme,
     variant,
     className,
@@ -82,6 +82,8 @@ export function ContentFeedServer(props: ContentFeedProps) {
         theme={theme}
         variant={variant}
         className={sectionClassName}
+        container
+        containerClassName={cn('items-stretch', dsSpacing.gap('lg'))}
         size="md"
       >
         {header}
@@ -105,6 +107,8 @@ export function ContentFeedServer(props: ContentFeedProps) {
         theme={theme}
         variant={variant}
         className={sectionClassName}
+        container
+        containerClassName={cn('items-stretch', dsSpacing.gap('lg'))}
         size="md"
       >
         {header}
@@ -122,6 +126,8 @@ export function ContentFeedServer(props: ContentFeedProps) {
       theme={theme}
       variant={variant}
       className={sectionClassName}
+      container
+      containerClassName={cn('items-stretch', dsSpacing.gap('lg'))}
       size="md"
     >
       {header}
