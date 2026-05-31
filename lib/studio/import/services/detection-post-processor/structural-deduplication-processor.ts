@@ -4,8 +4,10 @@ type ListingKind = 'listing' | 'other'
 
 interface SurfaceFingerprint {
   kind: ListingKind
+  componentType: string
   family: string
   titles: Set<string>
+  primaryTitles: Set<string>
   heading?: string
   hasMedia: boolean
   hasEditorialLinks: boolean
@@ -13,6 +15,13 @@ interface SurfaceFingerprint {
 }
 
 const LISTING_TYPES = new Set(['card-grid', 'content-feed', 'two-column'])
+const CAROUSEL_DUPLICATE_FRAGMENT_TYPES = new Set([
+  'cta-banner',
+  'hero-banner',
+  'hero-simple',
+  'hero-with-image',
+  'text-block',
+])
 const NEWS_HEADING_PATTERN = /\b(news|latest|updates?|stories|media|articles?)\b/i
 const EDITORIAL_PATH_PATTERN = /\/(?:news|blog|blogs|article|articles|post|posts|press|media|stories)(?:\/|$)/i
 
@@ -116,6 +125,29 @@ function heroCarouselSlideTitles(component: DetectedComponent): Set<string> {
   return titles
 }
 
+function heroCarouselPrimarySlideTitles(component: DetectedComponent): Set<string> {
+  if (component.type !== 'hero-carousel') {
+    return new Set()
+  }
+
+  const content = isRecord(component.content) ? component.content : {}
+  const slides = Array.isArray(content.slides) ? content.slides.filter(isRecord) : []
+  const titles = new Set<string>()
+
+  for (const slide of slides) {
+    const slideContent = isRecord(slide.content) ? slide.content : {}
+    const sources = [slide, slideContent]
+    for (const source of sources) {
+      const title = normalizeText(source.heading ?? source.title)
+      if (title) {
+        titles.add(title)
+      }
+    }
+  }
+
+  return titles
+}
+
 function hasImageLikeValue(value: unknown): boolean {
   if (!value) {
     return false
@@ -172,8 +204,10 @@ function fingerprint(component: DetectedComponent): SurfaceFingerprint {
     const titles = heroCarouselSlideTitles(component)
     return {
       kind: 'other',
+      componentType: String(component.type),
       family: 'hero-carousel',
       titles,
+      primaryTitles: heroCarouselPrimarySlideTitles(component),
       heading: undefined,
       hasMedia: hasImageLikeValue(component.content),
       hasEditorialLinks: false,
@@ -185,8 +219,10 @@ function fingerprint(component: DetectedComponent): SurfaceFingerprint {
     const title = getComponentTitle(component)
     return {
       kind: 'other',
+      componentType: String(component.type),
       family: title ?? String(component.type),
       titles: new Set(title ? [title] : []),
+      primaryTitles: new Set(title ? [title] : []),
       heading: title,
       hasMedia: hasImageLikeValue(component.content),
       hasEditorialLinks: false,
@@ -219,8 +255,10 @@ function fingerprint(component: DetectedComponent): SurfaceFingerprint {
 
   return {
     kind: 'listing',
+    componentType: String(component.type),
     family: familyFor(component, items),
     titles,
+    primaryTitles: new Set(titles),
     heading: getComponentTitle(component),
     hasMedia,
     hasEditorialLinks,
@@ -273,6 +311,22 @@ function duplicatesRecentHeroSequence(current: SurfaceFingerprint, previous: Sur
   const heroTitles = unionTitles(recent)
   const overlap = countOverlap(current.titles, heroTitles)
   return overlap >= 3 && overlap >= Math.ceil(heroTitles.size * 0.75)
+}
+
+function duplicatesPreviousHeroCarouselFragment(current: SurfaceFingerprint, previous: SurfaceFingerprint[]): boolean {
+  if (
+    current.kind !== 'other' ||
+    !current.heading ||
+    current.titles.size !== 1 ||
+    !CAROUSEL_DUPLICATE_FRAGMENT_TYPES.has(current.componentType)
+  ) {
+    return false
+  }
+
+  const heroTitles = unionTitles(previous
+    .filter(entry => entry.family === 'hero-carousel')
+    .map(entry => ({ ...entry, titles: entry.primaryTitles })))
+  return heroTitles.has(current.heading)
 }
 
 function duplicatesRecentMultiItemListing(current: SurfaceFingerprint, previous: SurfaceFingerprint[]): boolean {
@@ -437,6 +491,14 @@ export function collapseDuplicateListingSurfaces(components: DetectedComponent[]
     }
 
     const current = fingerprint(component)
+    if (duplicatesPreviousHeroCarouselFragment(current, retained)) {
+      console.log('[StructuralDeduplication] Dropped carousel slide fragment:', {
+        droppedComponentType: component.type,
+        title: current.heading,
+      })
+      continue
+    }
+
     if (duplicatesPreviousHeroCarousel(current, retained) || duplicatesRecentHeroSequence(current, retained)) {
       console.log('[StructuralDeduplication] Dropped carousel slide listing surface:', {
         droppedComponentType: component.type,

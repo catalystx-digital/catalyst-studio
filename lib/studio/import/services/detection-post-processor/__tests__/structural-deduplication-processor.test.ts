@@ -195,6 +195,91 @@ describe('collapseDuplicateListingSurfaces', () => {
     ])
   })
 
+  it('drops single hero and CTA fragments that repeat prior hero-carousel slide titles', () => {
+    const components = [
+      component('hero-carousel', {
+        slides: [
+          {
+            heading: 'Appointment notifications now straight to your phone',
+            body: 'Appointment copy',
+          },
+          {
+            heading: 'Flu 2026',
+            body: 'Flu copy',
+          },
+          {
+            heading: 'Introducing AI Ambient Scribes to the RCH!',
+            body: 'AI copy',
+          },
+        ],
+      }),
+      component('cta-banner', {
+        heading: 'Appointment notifications now straight to your phone',
+        subheading: 'Appointment copy',
+      }),
+      component('cta-banner', {
+        heading: 'Flu 2026',
+        subheading: 'Flu copy',
+      }),
+      component('hero-banner', {
+        heading: 'Introducing AI Ambient Scribes to the RCH!',
+        body: 'AI copy',
+      }),
+      component('card-grid', {
+        cards: [
+          { title: 'Your guide to the RCH' },
+          { title: 'Kids Health Info' },
+        ],
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual([
+      components[0],
+      components[4],
+    ])
+  })
+
+  it('keeps single fragments that do not repeat hero-carousel slide titles', () => {
+    const components = [
+      component('hero-carousel', {
+        slides: [
+          { heading: 'Featured story one' },
+          { heading: 'Featured story two' },
+        ],
+      }),
+      component('cta-banner', {
+        heading: 'Book an appointment',
+        subheading: 'Contact the clinic team.',
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
+  })
+
+  it('keeps fragments that only match carousel CTA labels or image alt text', () => {
+    const components = [
+      component('hero-carousel', {
+        slides: [
+          {
+            heading: 'Featured story one',
+            image: { alt: 'Donate' },
+            ctaButtons: [{ label: 'Donate' }],
+          },
+          {
+            heading: 'Featured story two',
+            ctaButtons: [{ label: 'Learn more' }],
+          },
+        ],
+      }),
+      component('cta-banner', {
+        heading: 'Donate',
+        subheading: 'Support the hospital foundation.',
+      }),
+    ]
+
+    expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
+  })
+
   it('keeps no-image card grids that do not mostly repeat hero-carousel slides', () => {
     const components = [
       component('hero-carousel', {
