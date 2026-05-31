@@ -8,7 +8,6 @@ import { sanitizeSemanticColor } from '@/lib/studio/design-system/utils/color-ut
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
 import {
   CmsBadge,
   CmsCardTone,
@@ -41,18 +40,11 @@ const GAP_CLASSES: Record<NonNullable<CardGridClientProps['content']['gap']>, st
   large: dsSpacing.gap('xl'),
 };
 
-const ASPECT_RATIO_VALUE_MAP = {
-  '16:9': 16 / 9,
-  '4:3': 4 / 3,
-  '1:1': 1,
-  '3:2': 3 / 2,
-} as const;
-
-const ASPECT_RATIO_CLASS_MAP = {
-  '16:9': 'aspect-[16/9]',
-  '4:3': 'aspect-[4/3]',
-  '1:1': 'aspect-square',
-  '3:2': 'aspect-[3/2]',
+const MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP = {
+  '16:9': 'aspect-[2/1] sm:aspect-[16/9]',
+  '4:3': 'aspect-[16/10] sm:aspect-[4/3]',
+  '1:1': 'aspect-[16/10] sm:aspect-square',
+  '3:2': 'aspect-[16/10] sm:aspect-[3/2]',
 } as const;
 
 const CARD_VARIANT_TONES: Record<NonNullable<NormalizedCardItem['variant']>, CmsCardTone> = {
@@ -309,8 +301,6 @@ export function CardGridClient({
     className,
   });
 
-  const ratioValue = ASPECT_RATIO_VALUE_MAP[aspectRatioKey] ?? ASPECT_RATIO_VALUE_MAP[DEFAULT_ASPECT_RATIO];
-
   const handleCardSelect = useCallback(
     (card: NormalizedCardItem, event?: React.SyntheticEvent) => {
       onCardClick?.(card.id);
@@ -447,13 +437,20 @@ export function CardGridClient({
       alignStart?: boolean;
       highContrast?: boolean;
       dense?: boolean;
+      denseMobile?: boolean;
     } = {},
   ) => {
     if (!card.link) {
       return null;
     }
 
-    const { compact = false, alignStart = false, highContrast = false, dense = false } = options;
+    const {
+      compact = false,
+      alignStart = false,
+      highContrast = false,
+      dense = false,
+      denseMobile = false,
+    } = options;
 
     // P1 Fix: Show visible CTA for clickable cards without explicit linkText
     // Use linkText if provided, otherwise default to "Learn more"
@@ -469,6 +466,7 @@ export function CardGridClient({
           compact && 'justify-center p-4 pt-0',
           alignStart && 'justify-start px-5 pb-5 pt-0',
           dense && 'px-4 pb-4 sm:px-5 sm:pb-5',
+          denseMobile && 'px-4 pb-4 sm:px-6 sm:pb-6',
         )}
       >
         <Button
@@ -541,7 +539,7 @@ export function CardGridClient({
           <div
             className={cn(
               'relative h-full w-full overflow-hidden rounded-t-xl',
-              ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
+              MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
               'md:rounded-none',
               orderClass,
             )}
@@ -561,9 +559,11 @@ export function CardGridClient({
     }
 
     return (
-      <AspectRatio
-        ratio={ratioValue}
-        className="rounded-none rounded-t-xl overflow-hidden group"
+      <div
+        className={cn(
+          'overflow-hidden rounded-none rounded-t-xl group',
+          MOBILE_MEDIA_ASPECT_RATIO_CLASS_MAP[aspectRatioKey],
+        )}
       >
         <CardImage
           src={media.src}
@@ -574,12 +574,12 @@ export function CardGridClient({
           originalUrl={media.originalUrl}
           loading={imageLoading}
         />
-      </AspectRatio>
+      </div>
     );
   };
 
   // Theme is set on parent Card - children inherit via CSS cascade
-  const renderCardBody = (card: NormalizedCardItem, isOverlay = false) => (
+  const renderCardBody = (card: NormalizedCardItem, isOverlay = false, denseMediaCard = false) => (
     (() => {
       const compactIconCard = isCompactIconCard(card);
       const titleOnlyLinkCard = isTitleOnlyLinkCard(card);
@@ -602,6 +602,7 @@ export function CardGridClient({
           compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
           titleOnlyLinkCard && 'justify-start px-5 pb-2 pt-5',
           quickLinkGrid && 'justify-start px-4 pb-2 pt-3 sm:px-5 sm:pt-4',
+          denseMediaCard && 'px-4 py-4 sm:px-6 sm:py-6',
         )}
       >
         {card.badge && (
@@ -618,7 +619,7 @@ export function CardGridClient({
 
         <CardTitle className={cn(
           'line-clamp-2',
-          compactIconCard || quickLinkGrid ? 'text-base' : 'text-xl',
+          compactIconCard || quickLinkGrid ? 'text-base' : denseMediaCard ? 'text-lg sm:text-xl' : 'text-xl',
           titleOnlyLinkCard && 'text-base font-semibold leading-snug',
           quickLinkGrid && 'font-semibold leading-snug',
         )}>
@@ -639,10 +640,11 @@ export function CardGridClient({
             'pt-0',
             isOverlay && `lg:${dsSpacing.px('xl')}`,
             compactIconCard && 'items-center text-center',
+            denseMediaCard && 'px-4 pb-4 sm:px-6 sm:pb-6',
           )}
         >
           {card.description && (
-            <p className={cmsBody('md', undefined, 'line-clamp-3')}>{card.description}</p>
+            <p className={cmsBody('md', undefined, denseMediaCard ? 'line-clamp-2 sm:line-clamp-3' : 'line-clamp-3')}>{card.description}</p>
           )}
 
           {renderMetadata(card)}
@@ -656,6 +658,7 @@ export function CardGridClient({
         alignStart: titleOnlyLinkCard || quickLinkGrid,
         highContrast: quickLinkGrid,
         dense: quickLinkGrid,
+        denseMobile: denseMediaCard,
       })}
     </>
       );
@@ -677,6 +680,14 @@ export function CardGridClient({
 
         // Skip rendering image for cards with custom background color (solid color cards)
         const media = hasCustomBg ? null : renderImage(card, imagePosition);
+        const mediaAsset = getImageFromCard(card);
+        const denseMediaCard = Boolean(
+          mediaAsset &&
+          !quickLinkGrid &&
+          !isIconLikeImage(mediaAsset) &&
+          !backgroundImage &&
+          !hasCustomBg,
+        );
         const compactIconCard = isCompactIconCard(card);
         const titleOnlyLinkCard = isTitleOnlyLinkCard(card);
         const cardTheme = backgroundImage ? 'dark' : resolvedTheme;
@@ -755,14 +766,14 @@ export function CardGridClient({
                 })()}
 
                 <div className="relative z-10 flex h-full flex-col">
-                  {renderCardBody(card, true)}
+                  {renderCardBody(card, true, denseMediaCard)}
                 </div>
               </div>
             ) : (
               <>
                 {media}
                 <div className="flex flex-1 flex-col">
-                  {renderCardBody(card, false)}
+                  {renderCardBody(card, false, denseMediaCard)}
                 </div>
               </>
             )}

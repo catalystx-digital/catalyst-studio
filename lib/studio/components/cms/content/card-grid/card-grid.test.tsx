@@ -469,6 +469,71 @@ describe('CMSComponent: CardGrid', () => {
     expect(firstCard.querySelector('img')).toHaveClass('h-full', 'w-full', 'object-cover');
   });
 
+  it('uses compact mobile media density for standard project cards while preserving desktop ratio', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          heading: 'Latest projects',
+          imageAspectRatio: '1:1',
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              description: 'A full digital ecosystem redesign for a major venue.',
+              image: {
+                src: 'https://assets.example.com/project.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const firstCard = container.querySelector('.cms-card-grid-card')!;
+    const mediaWrapper = firstCard.querySelector('img')?.parentElement;
+    const header = firstCard.querySelector('[class*="p-\\[var\\(--component-padding\\)\\]"]');
+    const footer = screen.getByRole('link', { name: 'Learn more about Product redesign' }).closest('div');
+
+    expect(firstCard).not.toHaveClass('border-l-4', 'border-l-primary/70');
+    expect(mediaWrapper).toHaveClass('aspect-[16/10]', 'sm:aspect-square');
+    expect(header).toHaveClass('px-4', 'py-4', 'sm:px-6', 'sm:py-6');
+    expect(screen.getByText('Product redesign')).toHaveClass('text-lg', 'sm:text-xl');
+    expect(screen.getByText('A full digital ecosystem redesign for a major venue.')).toHaveClass('line-clamp-2', 'sm:line-clamp-3');
+    expect(footer).toHaveClass('px-4', 'pb-4', 'sm:px-6', 'sm:pb-6');
+  });
+
+  it('keeps horizontal media cards compact on mobile and horizontal on desktop', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              description: 'A compact horizontal project summary.',
+              image: {
+                src: 'https://assets.example.com/project.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+          ],
+          cardStyle: 'horizontal',
+          imageAspectRatio: '4:3',
+          columns: 1,
+        }}
+      />,
+    );
+
+    const firstCard = container.querySelector('.cms-card-grid-card')!;
+    const mediaWrapper = firstCard.querySelector('img')?.parentElement;
+    expect(firstCard).toHaveClass('md:flex-row');
+    expect(mediaWrapper).toHaveClass('aspect-[16/10]', 'sm:aspect-[4/3]', 'md:rounded-none');
+  });
+
   it('keeps headingless photographic link grids on the standard card treatment', () => {
     const { container } = render(
       <CardGrid
@@ -501,6 +566,7 @@ describe('CMSComponent: CardGrid', () => {
     const firstCard = container.querySelector('.cms-card-grid-card')!;
     expect(firstCard).not.toHaveClass('border-l-4', 'border-l-primary/70');
     expect(firstCard.querySelector('img')).toHaveClass('h-full', 'w-full', 'object-cover');
+    expect(firstCard.querySelector('img')?.parentElement).toHaveClass('aspect-[2/1]', 'sm:aspect-[16/9]');
   });
 
   it('does not expose linked cards as duplicate named buttons', () => {
