@@ -115,4 +115,19 @@ describe('HeroWithImage', () => {
     expect(copyPanel).not.toHaveClass('min-h-[18rem]');
     expect(copyPanel).toHaveClass('md:min-h-[30rem]');
   });
+
+  it('uses calmer mobile typography and restores larger desktop heading scale', () => {
+    render(<HeroWithImage {...mockProps} />);
+
+    expect(screen.getByRole('heading', { name: 'Hero Title' })).toHaveClass(
+      'text-3xl',
+      'sm:text-4xl',
+      'lg:text-5xl',
+    );
+    expect(screen.getByText('Hero Subtitle')).toHaveClass(
+      'text-lg',
+      'sm:text-xl',
+      'leading-relaxed',
+    );
+  });
 });

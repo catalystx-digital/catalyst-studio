@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 
-import { CmsSection, cmsBody, cmsHeading, dsSpacing, resolveTheme } from '../../_ui';
+import { CmsSection, cmsBody, dsSpacing, resolveTheme } from '../../_ui';
 import { HeroWithImageProps, HeroWithImageCTA } from './hero-with-image.types';
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
@@ -116,12 +116,12 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
                 </p>
               )}
               {heading && (
-                <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl">
+                <h1 className="text-3xl font-bold leading-tight text-foreground sm:text-4xl lg:text-5xl">
                   {heading}
                 </h1>
               )}
               {subheading && (
-                <p className={cn(cmsHeading(3), 'text-foreground/90')}>
+                <p className="text-lg font-medium leading-relaxed text-foreground/90 sm:text-xl">
                   {subheading}
                 </p>
               )}

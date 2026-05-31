@@ -438,6 +438,30 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByText('Useful links and updates')).toHaveClass('max-w-2xl');
   });
 
+  it('uses reduced mobile section heading scale while restoring design-system scale on desktop', () => {
+    render(
+      <CardGrid
+        content={{
+          heading: 'Some of our latest projects',
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              href: '/work/product-redesign/',
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Some of our latest projects' })).toHaveClass(
+      'text-3xl',
+      'sm:text-4xl',
+      'lg:ds-heading-2',
+    );
+    expect(screen.getByRole('heading', { name: 'Some of our latest projects' })).not.toHaveClass('ds-heading-2');
+  });
+
   it('keeps headed project grids on the standard card treatment', () => {
     const { container } = render(
       <CardGrid

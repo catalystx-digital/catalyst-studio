@@ -5,9 +5,9 @@ import {
   CmsSection,
   buildCmsClassName,
   cmsBody,
-  cmsHeading,
   dsSpacing,
   resolveTheme,
+  themeClass,
 } from '../../_ui';
 import { shouldShowDevEmptyStateServer } from '../../_core/env-utils';
 import { normalizeCmsImage } from '../../_utils/media-reference';
@@ -174,7 +174,14 @@ export function CardGridServer({
     >
       {content.heading && (
         <header className={cn('flex max-w-3xl flex-col', dsSpacing.gap('xs'))}>
-          <h2 className={cmsHeading(2, resolvedTheme)}>{content.heading}</h2>
+          <h2
+            className={cn(
+              'text-foreground text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:ds-heading-2',
+              themeClass(resolvedTheme),
+            )}
+          >
+            {content.heading}
+          </h2>
           {content.subheading && (
             <p className={cmsBody('md', resolvedTheme, 'max-w-2xl')}>{content.subheading}</p>
           )}
