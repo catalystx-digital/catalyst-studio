@@ -74,4 +74,45 @@ describe('HeroWithImage', () => {
     expect(copyPanel).not.toHaveClass('shadow-sm');
     expect(copyPanel?.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
   });
+
+  it('keeps copy before media on mobile and restores image-left on desktop', () => {
+    const { container } = render(
+      <HeroWithImage
+        {...mockProps}
+        content={{ ...mockProps.content, layout: 'image-left' }}
+      />,
+    );
+
+    const imagePanel = container.querySelector('.cms-hero-with-image .bg-muted');
+    const copyPanel = container.querySelector('[data-hero-copy-panel]');
+    expect(copyPanel).toHaveClass('order-1', 'md:order-2');
+    expect(imagePanel).toHaveClass('order-2', 'md:order-1');
+  });
+
+  it('keeps copy before media on mobile and restores image-right on desktop', () => {
+    const { container } = render(
+      <HeroWithImage
+        {...mockProps}
+        content={{ ...mockProps.content, layout: 'image-right' }}
+      />,
+    );
+
+    const imagePanel = container.querySelector('.cms-hero-with-image .bg-muted');
+    const copyPanel = container.querySelector('[data-hero-copy-panel]');
+    expect(copyPanel).toHaveClass('order-1', 'md:order-1');
+    expect(imagePanel).toHaveClass('order-2', 'md:order-2');
+  });
+
+  it('uses compact mobile height rules while preserving desktop hero alignment', () => {
+    const { container } = render(<HeroWithImage {...mockProps} />);
+
+    const section = container.querySelector('.cms-hero-with-image');
+    const imagePanel = container.querySelector('.cms-hero-with-image .bg-muted');
+    const copyPanel = container.querySelector('[data-hero-copy-panel]');
+
+    expect(section).toHaveClass('py-8', 'sm:py-12', 'lg:py-20');
+    expect(imagePanel).toHaveClass('min-h-[14rem]', 'sm:min-h-[18rem]', 'md:min-h-[30rem]');
+    expect(copyPanel).not.toHaveClass('min-h-[18rem]');
+    expect(copyPanel).toHaveClass('md:min-h-[30rem]');
+  });
 });

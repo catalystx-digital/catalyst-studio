@@ -72,13 +72,13 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
       data-component-type={type}
       theme={resolvedTheme}
       size="none"
-      className={cn('cms-hero-with-image bg-background px-4 py-12 sm:px-6 lg:px-8 lg:py-20', className)}
+      className={cn('cms-hero-with-image bg-background px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-20', className)}
       style={style}
     >
       <div className="mx-auto grid w-full max-w-7xl items-center gap-8 md:min-h-[30rem] md:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:gap-12">
         <div className={cn(
-          'relative min-h-[18rem] overflow-hidden rounded-xl bg-muted md:min-h-[30rem]',
-          !imageFirst && 'md:order-2'
+          'relative order-2 min-h-[14rem] overflow-hidden rounded-xl bg-muted sm:min-h-[18rem] md:min-h-[30rem]',
+          imageFirst ? 'md:order-1' : 'md:order-2',
         )}>
           {normalizedImg?.src ? (
             <button type="button" onClick={handleImageClick} className="absolute inset-0 h-full w-full">
@@ -101,8 +101,8 @@ const HeroWithImageComponent: React.FC<HeroWithImageProps> = ({
         <div
           data-hero-copy-panel
           className={cn(
-            'relative flex min-h-[18rem] items-center px-0 py-6 text-foreground md:min-h-[30rem] md:px-2 lg:px-4',
-            !imageFirst && 'md:order-1',
+            'relative order-1 flex items-center px-0 py-4 text-foreground md:min-h-[30rem] md:px-2 md:py-6 lg:px-4',
+            imageFirst ? 'md:order-2' : 'md:order-1',
             alignCenter ? 'justify-center text-center' : 'justify-start text-left'
           )}>
           <div className={cn(
