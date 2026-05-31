@@ -108,7 +108,7 @@ describe('CMSComponent: CardGrid', () => {
   });
 
   it('resolves structured card and filter hrefs to renderable links', () => {
-    render(
+    const { container } = render(
       <CardGrid
         content={{
           ...mockContent,
@@ -131,7 +131,7 @@ describe('CMSComponent: CardGrid', () => {
       />,
     );
 
-    expect(screen.getByRole('link', { name: 'Learn more' })).toHaveAttribute('href', '/structured-card');
+    expect(screen.getByRole('link', { name: 'Learn more about Structured Card' })).toHaveAttribute('href', '/structured-card');
     expect(screen.getByRole('link', { name: 'Structured' })).toHaveAttribute('href', '/structured-filter');
   });
 
@@ -160,19 +160,32 @@ describe('CMSComponent: CardGrid', () => {
     expect(onCardClick).toHaveBeenCalledWith('1');
   });
 
-  it('handles keyboard navigation', () => {
+  it('handles keyboard navigation for non-linked callback cards', () => {
     const onCardClick = jest.fn();
-    render(<CardGrid content={mockContent} onCardClick={onCardClick} />);
+    render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'callback-card',
+              title: 'Callback card',
+              description: 'Uses callback interaction only.',
+            },
+          ],
+        }}
+        onCardClick={onCardClick}
+      />
+    );
 
-    const card = screen.getByText('Web Development').closest('.cms-card-grid-card')!;
+    const card = screen.getByRole('button', { name: /Callback card/ });
     fireEvent.keyDown(card, { key: 'Enter' });
 
-    expect(onCardClick).toHaveBeenCalledWith('1');
+    expect(onCardClick).toHaveBeenCalledWith('callback-card');
 
     onCardClick.mockClear();
     fireEvent.keyDown(card, { key: ' ' });
 
-    expect(onCardClick).toHaveBeenCalledWith('1');
+    expect(onCardClick).toHaveBeenCalledWith('callback-card');
   });
 
   it('applies responsive grid columns', () => {
@@ -235,13 +248,14 @@ describe('CMSComponent: CardGrid', () => {
       />,
     );
 
-    const image = screen.getByRole('img', { name: 'Digital Strategy' });
+    const image = container.querySelector('img')!;
     expect(image).toHaveClass('h-16', 'w-16', 'object-contain');
+    expect(image).toHaveAttribute('alt', '');
     expect(container.querySelector('.aspect-\\[16\\/9\\]')).not.toBeInTheDocument();
   });
 
   it('does not treat small transformed photo URLs as icons', () => {
-    render(
+    const { container } = render(
       <CardGrid
         content={{
           cards: [
@@ -260,9 +274,10 @@ describe('CMSComponent: CardGrid', () => {
       />,
     );
 
-    const image = screen.getByRole('img', { name: 'Small source photo' });
+    const image = container.querySelector('img')!;
     expect(image).not.toHaveClass('h-16', 'w-16', 'object-contain');
     expect(image).toHaveClass('h-full', 'w-full', 'object-cover');
+    expect(image).toHaveAttribute('alt', '');
   });
 
   it('renders title-only icon cards compactly without empty content space', () => {
@@ -290,7 +305,7 @@ describe('CMSComponent: CardGrid', () => {
     const card = container.querySelector('.cms-card-grid-card')!;
     expect(card.querySelector('.p-\\[var\\(--component-padding\\)\\].flex-1')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Agile Focused Delivery Icon' })).toHaveClass('h-16', 'w-16');
-    expect(screen.getByRole('link', { name: 'Learn more' }).closest('[class*="justify-center"]')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about Agile-focused delivery' }).closest('[class*="justify-center"]')).toBeInTheDocument();
   });
 
   it('renders title-only link cards as intentional quick-link cards', () => {
@@ -312,7 +327,59 @@ describe('CMSComponent: CardGrid', () => {
 
     const card = container.querySelector('.cms-card-grid-card')!;
     expect(card).toHaveClass('bg-card/95', 'border-border/70', 'min-h-24', 'justify-between');
-    expect(screen.getByRole('link', { name: 'Learn more' }).closest('[class*="justify-start"]')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]')).toBeInTheDocument();
+  });
+
+  it('does not expose linked cards as duplicate named buttons', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'kids-health-info',
+              title: 'Kids Health Info',
+              image: {
+                src: 'https://assets.example.com/kids-health-info.png',
+                alt: 'Kids Health Info',
+              },
+              href: '/kidsinfo/',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /Kids Health Info Kids Health Info/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about Kids Health Info' })).toHaveAttribute('href', '/kidsinfo/');
+    expect(container.querySelector('img')).toHaveAttribute('alt', '');
+  });
+
+  it('keeps linked cards keyboard-accessible when explicit actions are present', () => {
+    render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'linked-action-card',
+              title: 'Research program',
+              href: '/research',
+              actions: [
+                {
+                  label: 'Apply now',
+                  href: '/research/apply',
+                  variant: 'primary',
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /Research program/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about Research program' })).toHaveAttribute('href', '/research');
+    expect(screen.getByRole('button', { name: 'Apply now' })).toBeInTheDocument();
   });
 
   it('can disable first-card feature spanning for feed-like grids', () => {

@@ -34,14 +34,22 @@ function normalizeCard(card: CardItem & { bgColor?: string }): NormalizedCardIte
     backgroundColor: bgColor ?? rest.backgroundColor,
   };
 
-  const normalizedImage = normalizeCmsImage(image, imageAlt ?? rest.title);
+  const normalizedImage = normalizeCmsImage(image, imageAlt);
   if (!normalizedImage) {
     return base;
   }
 
+  const imageAltText = typeof normalizedImage.alt === 'string' ? normalizedImage.alt.trim() : '';
+  const titleText = typeof rest.title === 'string' ? rest.title.trim() : '';
+  const normalizedAlt = imageAltText.toLowerCase();
+  const normalizedTitle = titleText.toLowerCase();
+
   return {
     ...base,
-    image: normalizedImage,
+    image: {
+      ...normalizedImage,
+      alt: normalizedAlt && normalizedAlt !== normalizedTitle ? imageAltText : '',
+    },
   };
 }
 

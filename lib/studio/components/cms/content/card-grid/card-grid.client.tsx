@@ -183,7 +183,7 @@ function getImageFromCard(
 
   return {
     src,
-    alt: card.image.alt ?? card.title,
+    alt: card.image.alt ?? '',
     originalUrl: card.image.originalUrl,
     srcSet,
     sizes: srcSet ? CARD_IMAGE_SIZES : undefined,
@@ -412,8 +412,7 @@ export function CardGridClient({
   };
 
   const renderLinkFooter = (card: NormalizedCardItem, compact = false, alignStart = false) => {
-    // Skip if card has explicit actions (buttons) or no link at all
-    if (!card.link || (card.actions && card.actions.length > 0)) {
+    if (!card.link) {
       return null;
     }
 
@@ -443,6 +442,7 @@ export function CardGridClient({
         >
           <a
             href={card.link}
+            aria-label={`${displayLinkText} about ${card.title}`}
             className="inline-flex items-center gap-2 transition-colors duration-200"
           >
             <span className="text-sm sm:text-base text-inherit">{displayLinkText}</span>
@@ -615,6 +615,7 @@ export function CardGridClient({
       {cards.map((card, index) => {
         const tone = resolveTone(card.variant);
         const clickable = Boolean(card.link || onCardClick);
+        const cardButtonSemantics = Boolean(onCardClick && !card.link);
         const backgroundImage = imagePosition === 'background';
 
         // Custom background color from import - auto-detect light/dark for text contrast
@@ -668,9 +669,9 @@ export function CardGridClient({
               hasCustomBg && isLightBg && 'text-foreground border-transparent',
             )}
             onClick={clickable ? handleCardClick(card) : undefined}
-            role={clickable ? 'button' : 'article'}
-            tabIndex={clickable ? 0 : undefined}
-            onKeyDown={clickable ? handleCardKeyDown(card) : undefined}
+            role={cardButtonSemantics ? 'button' : 'article'}
+            tabIndex={cardButtonSemantics ? 0 : undefined}
+            onKeyDown={cardButtonSemantics ? handleCardKeyDown(card) : undefined}
           >
             {backgroundImage ? (
               <div className="relative flex h-full flex-col">
