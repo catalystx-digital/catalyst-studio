@@ -440,10 +440,20 @@ export function CardGridClient({
     );
   };
 
-  const renderLinkFooter = (card: NormalizedCardItem, compact = false, alignStart = false) => {
+  const renderLinkFooter = (
+    card: NormalizedCardItem,
+    options: {
+      compact?: boolean;
+      alignStart?: boolean;
+      highContrast?: boolean;
+      dense?: boolean;
+    } = {},
+  ) => {
     if (!card.link) {
       return null;
     }
+
+    const { compact = false, alignStart = false, highContrast = false, dense = false } = options;
 
     // P1 Fix: Show visible CTA for clickable cards without explicit linkText
     // Use linkText if provided, otherwise default to "Learn more"
@@ -458,12 +468,16 @@ export function CardGridClient({
           resolvedThemeClass,
           compact && 'justify-center p-4 pt-0',
           alignStart && 'justify-start px-5 pb-5 pt-0',
+          dense && 'px-4 pb-4 sm:px-5 sm:pb-5',
         )}
       >
         <Button
           asChild
           variant="link"
-          className="px-0 text-base font-medium hover:underline underline-offset-4"
+          className={cn(
+            'px-0 text-base font-medium hover:underline underline-offset-4',
+            highContrast && 'text-card-foreground/85 hover:text-card-foreground',
+          )}
           onClick={(event) => {
             event.stopPropagation();
             navigateTo(card.link);
@@ -501,7 +515,7 @@ export function CardGridClient({
           className={cn(
             'flex shrink-0 items-center justify-center',
             quickLinkGrid
-              ? 'm-5 mb-0 h-12 w-12 rounded-md border border-primary/15 bg-primary/10 p-2'
+              ? 'm-4 mb-0 h-10 w-10 rounded-md border border-primary/15 bg-primary/10 p-2 sm:m-5 sm:mb-0 sm:h-12 sm:w-12'
               : 'p-6',
             !quickLinkGrid && cardStyle === 'horizontal' ? 'md:w-32 md:py-8' : !quickLinkGrid && 'min-h-28',
           )}
@@ -587,7 +601,7 @@ export function CardGridClient({
           isOverlay && `lg:${dsSpacing.padding('xl')}`,
           compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
           titleOnlyLinkCard && 'justify-start px-5 pb-2 pt-5',
-          quickLinkGrid && 'justify-start px-5 pb-2 pt-4',
+          quickLinkGrid && 'justify-start px-4 pb-2 pt-3 sm:px-5 sm:pt-4',
         )}
       >
         {card.badge && (
@@ -637,7 +651,12 @@ export function CardGridClient({
       )}
 
       {renderActions(card)}
-      {renderLinkFooter(card, compactIconCard || titleOnlyLinkCard || quickLinkGrid, titleOnlyLinkCard || quickLinkGrid)}
+      {renderLinkFooter(card, {
+        compact: compactIconCard || titleOnlyLinkCard || quickLinkGrid,
+        alignStart: titleOnlyLinkCard || quickLinkGrid,
+        highContrast: quickLinkGrid,
+        dense: quickLinkGrid,
+      })}
     </>
       );
     })()
@@ -696,7 +715,7 @@ export function CardGridClient({
               backgroundImage && 'border-0 bg-transparent text-foreground shadow-none',
               compactIconCard && 'justify-start',
               titleOnlyLinkCard && 'min-h-24 justify-between',
-              quickLinkGrid && 'min-h-28 justify-between rounded-lg border-l-4 border-l-primary/70 bg-card hover:bg-accent/35',
+              quickLinkGrid && 'min-h-24 justify-between rounded-lg border-l-4 border-l-primary/70 bg-card hover:bg-accent/35 sm:min-h-28',
               // Featured card styling - subtle emphasis
               isFeatured && 'md:col-span-2 border-primary/20',
               // Custom background styling - use white/light text for dark backgrounds

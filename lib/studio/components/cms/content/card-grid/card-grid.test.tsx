@@ -356,10 +356,62 @@ describe('CMSComponent: CardGrid', () => {
     );
 
     const cards = container.querySelectorAll('.cms-card-grid-card');
-    expect(cards[0]).toHaveClass('border-l-4', 'border-l-primary/70', 'min-h-28');
+    expect(cards[0]).toHaveClass('border-l-4', 'border-l-primary/70', 'min-h-24', 'sm:min-h-28');
     expect(cards[0].querySelector('img')).toHaveClass('h-full', 'w-full', 'object-contain');
-    expect(screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]')).toBeInTheDocument();
+    const firstFooter = screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]');
+    expect(firstFooter).toBeInTheDocument();
+    expect(firstFooter).toHaveClass('px-4', 'pb-4', 'sm:px-5', 'sm:pb-5');
     expect(screen.getByRole('link', { name: 'Learn more about Kids Health Info' })).toHaveAttribute('href', '/kidsinfo/');
+  });
+
+  it('uses high contrast CTA styling for dark quick-link grids only', () => {
+    const { container, rerender } = render(
+      <CardGrid
+        theme="dark"
+        content={{
+          cards: [
+            {
+              id: 'guide',
+              title: 'Your guide to the RCH',
+              href: '/info/',
+            },
+            {
+              id: 'kids',
+              title: 'Kids Health Info',
+              href: '/kidsinfo/',
+            },
+          ],
+          columns: 2,
+        }}
+      />,
+    );
+
+    const quickLinkCta = screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' });
+    expect(quickLinkCta).toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
+
+    rerender(
+      <CardGrid
+        theme="dark"
+        content={{
+          heading: 'Latest projects',
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              image: {
+                src: 'https://assets.example.com/project.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const standardCta = screen.getByRole('link', { name: 'Learn more about Product redesign' });
+    expect(standardCta).not.toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
   });
 
   it('wraps heading and cards in the shared section container for imported rhythm', () => {
