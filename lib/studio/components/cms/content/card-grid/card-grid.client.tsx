@@ -227,6 +227,31 @@ function isTitleOnlyLinkCard(card: NormalizedCardItem): boolean {
   );
 }
 
+function isSimpleLinkedCard(card: NormalizedCardItem): boolean {
+  return (
+    Boolean(card.link) &&
+    !card.description &&
+    !card.metadata?.author &&
+    !card.metadata?.date &&
+    !card.metadata?.category &&
+    !(Array.isArray(card.metadata?.tags) && card.metadata.tags.length > 0) &&
+    !(Array.isArray(card.actions) && card.actions.length > 0)
+  );
+}
+
+function isQuickLinkMedia(media: { src: string; alt?: string; originalUrl?: string } | null): boolean {
+  if (!media) {
+    return true;
+  }
+
+  if (isIconLikeImage(media)) {
+    return true;
+  }
+
+  const haystack = `${media.src} ${media.originalUrl ?? ''} ${media.alt ?? ''}`.toLowerCase();
+  return /(?:^|[/?&_.-])(?:flag|poll|quick|badge|symbol|mark)(?:[._/?&=-]|$)|(?:^|[/?&_.-])sm\.(?:png|jpe?g|webp|gif|svg)(?:[?&#]|$)/.test(haystack);
+}
+
 export function CardGridClient({
   content,
   className,
@@ -252,6 +277,10 @@ export function CardGridClient({
   const aspectRatioKey = content.imageAspectRatio ?? DEFAULT_ASPECT_RATIO;
   const imageLoading = content.imageLoading ?? 'lazy';
   const resolvedTheme = resolveTheme(theme);
+  const quickLinkGrid =
+    !content.heading &&
+    cards.length >= 2 &&
+    cards.every(card => isSimpleLinkedCard(card) && isQuickLinkMedia(getImageFromCard(card)));
 
   // Memoize theme class to avoid recalculating on every render
   const resolvedThemeClass = useMemo(() => themeClass(resolvedTheme), [resolvedTheme]);
@@ -466,12 +495,15 @@ export function CardGridClient({
       return null;
     }
 
-    if (isIconLikeImage(media)) {
+    if (isIconLikeImage(media) || quickLinkGrid) {
       return (
         <div
           className={cn(
-            'flex shrink-0 items-center justify-center p-6',
-            cardStyle === 'horizontal' ? 'md:w-32 md:py-8' : 'min-h-28',
+            'flex shrink-0 items-center justify-center',
+            quickLinkGrid
+              ? 'm-5 mb-0 h-12 w-12 rounded-md border border-primary/15 bg-primary/10 p-2'
+              : 'p-6',
+            !quickLinkGrid && cardStyle === 'horizontal' ? 'md:w-32 md:py-8' : !quickLinkGrid && 'min-h-28',
           )}
         >
           <CardImage
@@ -479,7 +511,7 @@ export function CardGridClient({
             srcSet={media.srcSet}
             sizes={media.sizes}
             alt={media.alt ?? card.title}
-            className="h-16 w-16 object-contain"
+            className={quickLinkGrid ? 'h-full w-full object-contain' : 'h-16 w-16 object-contain'}
             originalUrl={media.originalUrl}
             loading={imageLoading}
           />
@@ -555,6 +587,7 @@ export function CardGridClient({
           isOverlay && `lg:${dsSpacing.padding('xl')}`,
           compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
           titleOnlyLinkCard && 'justify-start px-5 pb-2 pt-5',
+          quickLinkGrid && 'justify-start px-5 pb-2 pt-4',
         )}
       >
         {card.badge && (
@@ -571,8 +604,9 @@ export function CardGridClient({
 
         <CardTitle className={cn(
           'line-clamp-2',
-          compactIconCard ? 'text-base' : 'text-xl',
+          compactIconCard || quickLinkGrid ? 'text-base' : 'text-xl',
           titleOnlyLinkCard && 'text-base font-semibold leading-snug',
+          quickLinkGrid && 'font-semibold leading-snug',
         )}>
           {card.title}
         </CardTitle>
@@ -603,7 +637,7 @@ export function CardGridClient({
       )}
 
       {renderActions(card)}
-      {renderLinkFooter(card, compactIconCard || titleOnlyLinkCard, titleOnlyLinkCard)}
+      {renderLinkFooter(card, compactIconCard || titleOnlyLinkCard || quickLinkGrid, titleOnlyLinkCard || quickLinkGrid)}
     </>
       );
     })()
@@ -662,6 +696,7 @@ export function CardGridClient({
               backgroundImage && 'border-0 bg-transparent text-foreground shadow-none',
               compactIconCard && 'justify-start',
               titleOnlyLinkCard && 'min-h-24 justify-between',
+              quickLinkGrid && 'min-h-28 justify-between rounded-lg border-l-4 border-l-primary/70 bg-card hover:bg-accent/35',
               // Featured card styling - subtle emphasis
               isFeatured && 'md:col-span-2 border-primary/20',
               // Custom background styling - use white/light text for dark backgrounds

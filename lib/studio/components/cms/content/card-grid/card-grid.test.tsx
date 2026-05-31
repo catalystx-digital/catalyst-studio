@@ -330,6 +330,103 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]')).toBeInTheDocument();
   });
 
+  it('renders headingless simple linked grids with a compact quick-link treatment', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'guide',
+              title: 'Your guide to the RCH',
+              image: {
+                src: 'https://assets.example.com/guide-icon.png',
+                alt: 'Your guide to the RCH',
+              },
+              href: '/info/',
+            },
+            {
+              id: 'kids',
+              title: 'Kids Health Info',
+              href: '/kidsinfo/',
+            },
+          ],
+          columns: 2,
+        }}
+      />,
+    );
+
+    const cards = container.querySelectorAll('.cms-card-grid-card');
+    expect(cards[0]).toHaveClass('border-l-4', 'border-l-primary/70', 'min-h-28');
+    expect(cards[0].querySelector('img')).toHaveClass('h-full', 'w-full', 'object-contain');
+    expect(screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about Kids Health Info' })).toHaveAttribute('href', '/kidsinfo/');
+  });
+
+  it('keeps headed project grids on the standard card treatment', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          heading: 'Latest projects',
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              image: {
+                src: 'https://assets.example.com/project.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+            {
+              id: 'project-two',
+              title: 'Commerce build',
+              href: '/work/commerce-build/',
+            },
+          ],
+          columns: 2,
+        }}
+      />,
+    );
+
+    const firstCard = container.querySelector('.cms-card-grid-card')!;
+    expect(firstCard).not.toHaveClass('border-l-4', 'border-l-primary/70');
+    expect(firstCard.querySelector('img')).toHaveClass('h-full', 'w-full', 'object-cover');
+  });
+
+  it('keeps headingless photographic link grids on the standard card treatment', () => {
+    const { container } = render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              image: {
+                src: 'https://assets.example.com/work/product-redesign-feature.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+            {
+              id: 'project-two',
+              title: 'Brand platform',
+              image: {
+                src: 'https://assets.example.com/work/brand-platform-tile.webp',
+                alt: 'Brand platform',
+              },
+              href: '/work/brand-platform/',
+            },
+          ],
+          columns: 2,
+        }}
+      />,
+    );
+
+    const firstCard = container.querySelector('.cms-card-grid-card')!;
+    expect(firstCard).not.toHaveClass('border-l-4', 'border-l-primary/70');
+    expect(firstCard.querySelector('img')).toHaveClass('h-full', 'w-full', 'object-cover');
+  });
+
   it('does not expose linked cards as duplicate named buttons', () => {
     const { container } = render(
       <CardGrid
