@@ -364,7 +364,7 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByRole('link', { name: 'Learn more about Kids Health Info' })).toHaveAttribute('href', '/kidsinfo/');
   });
 
-  it('uses high contrast CTA styling for dark quick-link grids only', () => {
+  it('uses high contrast CTA styling for dark card surfaces', () => {
     const { container, rerender } = render(
       <CardGrid
         theme="dark"
@@ -410,8 +410,55 @@ describe('CMSComponent: CardGrid', () => {
       />,
     );
 
-    const standardCta = screen.getByRole('link', { name: 'Learn more about Product redesign' });
-    expect(standardCta).not.toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
+    const darkMediaCta = screen.getByRole('link', { name: 'Learn more about Product redesign' });
+    expect(darkMediaCta).toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
+
+    rerender(
+      <CardGrid
+        content={{
+          heading: 'Inherited themed projects',
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              image: {
+                src: 'https://assets.example.com/project.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const inheritedMediaCta = screen.getByRole('link', { name: 'Learn more about Product redesign' });
+    expect(inheritedMediaCta).toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
+
+    rerender(
+      <CardGrid
+        theme="light"
+        content={{
+          heading: 'Latest projects',
+          cards: [
+            {
+              id: 'project',
+              title: 'Product redesign',
+              image: {
+                src: 'https://assets.example.com/project.jpg',
+                alt: 'Product redesign',
+              },
+              href: '/work/product-redesign/',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const lightMediaCta = screen.getByRole('link', { name: 'Learn more about Product redesign' });
+    expect(lightMediaCta).not.toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
   });
 
   it('wraps heading and cards in the shared section container for imported rhythm', () => {
@@ -528,6 +575,55 @@ describe('CMSComponent: CardGrid', () => {
       'text-white/90',
       'hover:text-white',
       'drop-shadow-sm',
+    );
+  });
+
+  it('bases custom background contrast on the sanitized rendered color', () => {
+    const { container, rerender } = render(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'alert-red',
+              title: 'Imported red tile',
+              href: '/red-tile/',
+              backgroundColor: '#ff8080',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const card = container.querySelector('.cms-card-grid-card')!;
+    expect(card).toHaveClass('theme-dark', 'text-white');
+    expect(screen.getByRole('link', { name: 'Learn more about Imported red tile' })).toHaveClass(
+      'text-card-foreground/85',
+      'hover:text-card-foreground',
+    );
+
+    rerender(
+      <CardGrid
+        theme="light"
+        content={{
+          cards: [
+            {
+              id: 'dark-tile',
+              title: 'Explicit light dark tile',
+              href: '/dark-tile/',
+              backgroundColor: '#111111',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const lightSectionDarkCard = container.querySelector('.cms-card-grid-card')!;
+    expect(lightSectionDarkCard).toHaveClass('theme-dark', 'text-white');
+    expect(screen.getByRole('link', { name: 'Learn more about Explicit light dark tile' })).toHaveClass(
+      'text-card-foreground/85',
+      'hover:text-card-foreground',
     );
   });
 

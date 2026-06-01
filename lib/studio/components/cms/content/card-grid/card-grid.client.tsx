@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Calendar, ExternalLink, ImageOff, Tag, User } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { sanitizeSemanticColor } from '@/lib/studio/design-system/utils/color-utils';
+import { isLightColor, sanitizeSemanticColor } from '@/lib/studio/design-system/utils/color-utils';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -612,6 +612,10 @@ export function CardGridClient({
       const compactIconCard = isCompactIconCard(card);
       const titleOnlyLinkCard = isTitleOnlyLinkCard(card);
       const feedDenseCard = feedDensity && denseMediaCard;
+      const sanitizedBackgroundColor = sanitizeSemanticColor(card.backgroundColor);
+      const hasDarkCustomBackground = Boolean(
+        sanitizedBackgroundColor && !isLightColor(sanitizedBackgroundColor),
+      );
       const hasBodyContent =
         Boolean(card.description) ||
         Boolean(card.metadata?.author) ||
@@ -707,7 +711,11 @@ export function CardGridClient({
       {renderLinkFooter(card, {
         compact: compactIconCard || titleOnlyLinkCard || quickLinkGrid,
         alignStart: titleOnlyLinkCard || quickLinkGrid,
-        highContrast: quickLinkGrid,
+        highContrast:
+          quickLinkGrid ||
+          (!isOverlay &&
+            (hasDarkCustomBackground ||
+              (resolvedTheme !== 'light' && (denseMediaCard || feedDenseCard)))),
         dense: quickLinkGrid,
         denseMobile: denseMediaCard,
         overlay: isOverlay,
@@ -757,8 +765,7 @@ export function CardGridClient({
         // P1 Fix: Sanitize red-like colors to primary for better semantics
         const sanitizedBgColor = sanitizeSemanticColor(card.backgroundColor);
         const customBgStyle = hasCustomBg ? { backgroundColor: sanitizedBgColor } : undefined;
-        // Simple contrast check: if first hex digit > 7, it's probably a light color
-        const isLightBg = hasCustomBg && card.backgroundColor?.match(/^#([8-9a-f])/i);
+        const isLightBg = sanitizedBgColor ? isLightColor(sanitizedBgColor) : false;
 
         return (
           <Card
