@@ -347,7 +347,8 @@ export function CardGridClient({
   );
 
   // Theme is set on parent CmsCard - children inherit via CSS cascade
-  const renderMetadata = (card: NormalizedCardItem) => {
+  const renderMetadata = (card: NormalizedCardItem, options: { compact?: boolean } = {}) => {
+    const { compact = false } = options;
     const items: Array<{ key: string; icon: React.ReactNode; label: string }> = [];
 
     if (card.metadata?.author) {
@@ -386,18 +387,20 @@ export function CardGridClient({
             variant="outline"
             className={cn(
               'flex items-center bg-muted/70 border-border/70',
-              dsSpacing.gap('xxs')
+              dsSpacing.gap('xxs'),
+              compact && 'px-2 py-0 text-[11px] font-medium leading-5 bg-muted/40 text-muted-foreground border-border/50'
             )}
           >
             {item.icon}
-            <span className={cn('font-medium', feedDensity && 'text-xs')}>{item.label}</span>
+            <span className={cn('font-medium', compact ? 'text-[11px]' : feedDensity && 'text-xs')}>{item.label}</span>
           </CmsBadge>
         ))}
       </div>
     );
   };
 
-  const renderTags = (card: NormalizedCardItem) => {
+  const renderTags = (card: NormalizedCardItem, options: { compact?: boolean } = {}) => {
+    const { compact = false } = options;
     const tags = card.metadata?.tags;
     if (!tags || tags.length === 0) {
       return null;
@@ -409,6 +412,9 @@ export function CardGridClient({
           <CmsBadge
             key={`${card.id}-tag-${index}`}
             variant="neutral"
+            className={cn(
+              compact && 'px-2 py-0 text-[11px] font-medium leading-5 bg-muted/40 text-muted-foreground border border-border/50'
+            )}
           >
             {tag}
           </CmsBadge>
@@ -702,8 +708,8 @@ export function CardGridClient({
             </p>
           )}
 
-          {renderMetadata(card)}
-          {renderTags(card)}
+          {renderMetadata(card, { compact: feedDenseCard })}
+          {renderTags(card, { compact: feedDenseCard })}
         </CardContent>
       )}
 

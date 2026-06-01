@@ -159,6 +159,15 @@ describe('ContentFeed component', () => {
     expect(mediaWrapper).toHaveClass('aspect-[5/2]', 'sm:aspect-[16/9]');
     expect(screen.getByText('Compact feed post')).toHaveClass('text-base', 'sm:text-lg');
     expect(screen.getByText('A feed summary should stay compact in repeated news sections.')).toHaveClass('ds-body-sm', 'line-clamp-2');
+    expect(screen.getByText('2026-05-18')).toHaveClass('text-[11px]');
+    expect(screen.getByText('2026-05-18').closest('div')).toHaveClass(
+      'px-2',
+      'py-0',
+      'text-[11px]',
+      'bg-muted/40',
+      'text-muted-foreground',
+      'border-border/50',
+    );
   });
 
   it('shows empty state when no items are available', () => {

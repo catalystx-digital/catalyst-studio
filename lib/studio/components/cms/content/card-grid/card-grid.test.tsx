@@ -77,6 +77,7 @@ describe('CMSComponent: CardGrid', () => {
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.getByText('2024-01-15')).toBeInTheDocument();
     expect(screen.getByText('Development')).toBeInTheDocument();
+    expect(screen.getByText('2024-01-15').closest('div')).not.toHaveClass('text-[11px]', 'bg-muted/40');
   });
 
   it('renders card actions', () => {
@@ -698,7 +699,23 @@ describe('CMSComponent: CardGrid', () => {
     expect(mediaWrapper).toHaveClass('aspect-[5/2]', 'sm:aspect-[16/9]');
     expect(screen.getByText('AI does not change your strategy')).toHaveClass('text-base', 'sm:text-lg');
     expect(screen.getByText('Strategy Director Emma Andrews lifts the lid on how AI changes delivery.')).toHaveClass('ds-body-sm', 'line-clamp-2');
-    expect(screen.getByText('2026-05-18')).toHaveClass('text-xs');
+    expect(screen.getByText('2026-05-18')).toHaveClass('text-[11px]');
+    expect(screen.getByText('2026-05-18').closest('div')).toHaveClass(
+      'px-2',
+      'py-0',
+      'text-[11px]',
+      'bg-muted/40',
+      'text-muted-foreground',
+      'border-border/50',
+    );
+    expect(screen.getByText('Pinned').closest('div')).toHaveClass(
+      'px-2',
+      'py-0',
+      'text-[11px]',
+      'bg-muted/40',
+      'text-muted-foreground',
+      'border-border/50',
+    );
     expect(footer).toHaveClass('px-4', 'pb-3', 'sm:px-5', 'sm:pb-4');
   });
 
