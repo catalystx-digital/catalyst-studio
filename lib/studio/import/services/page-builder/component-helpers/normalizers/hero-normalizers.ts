@@ -260,21 +260,31 @@ function collectHeroCtaPayloads(
       normalizeString(expanded.title) ??
       normalizeString(expanded.name)
     const href = normalizeHeroSmartLink(expanded.href ?? expanded.url ?? expanded.link ?? expanded.path)
-    if (!label || !href) {
+    if (!label) {
       warnings.push({
         issue: 'invalid-subcomponent',
-        message: `Dropped CTA at index ${index} because label or href is missing.`,
+        message: `Dropped CTA at index ${index} because label is missing.`,
         field: 'ctaButtons',
         childType: 'cta-button',
-        details: { index, labelPresent: Boolean(label), hrefPresent: Boolean(href) }
+        details: { index, labelPresent: false, hrefPresent: Boolean(href) }
       })
       return
     }
 
     const variant = normalizeHeroCtaVariant(expanded.variant ?? expanded.style ?? expanded.buttonStyle)
+    if (!href && (expanded.href != null || expanded.url != null || expanded.link != null || expanded.path != null)) {
+      warnings.push({
+        issue: 'suspicious-value',
+        message: `Kept CTA at index ${index} without href because the source link was empty or unusable.`,
+        field: 'ctaButtons',
+        childType: 'cta-button',
+        details: { index, labelPresent: true, hrefPresent: false }
+      })
+    }
+
     normalizedCtas.push({
       label,
-      href,
+      ...(href ? { href } : {}),
       ...(variant ? { variant } : {}),
       ...(normalizeString(expanded.icon) ? { icon: normalizeString(expanded.icon) } : {}),
       ...(typeof expanded.external === 'boolean' ? { external: expanded.external } : {})

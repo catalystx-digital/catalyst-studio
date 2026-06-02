@@ -39,6 +39,14 @@ function normalizeSmartLink(value: unknown): Record<string, any> | undefined {
     if (type === 'external') {
       const url = extractLinkUrl(value.url ?? value.href)
       if (!url) return undefined
+      if (url.startsWith('/')) {
+        return {
+          type: 'internal',
+          pageId: pageIdFromPath(url),
+          path: url,
+          ...(normalizeString(value.label) ? { label: normalizeString(value.label) } : {})
+        }
+      }
       const normalizedUrl = url.startsWith('//')
         ? `https:${url}`
         : /^[\w.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(url)
@@ -151,14 +159,33 @@ function normalizeCtaButton(
     normalizeString(value.name)
   const href = normalizeSmartLink(value.href ?? value.url ?? value.link ?? value.path ?? value)
 
-  if (!label || !href) {
+  if (!label) {
     warnings.push({
       issue: 'invalid-subcomponent',
-      message: `Dropped ${field} missing label or href.`,
+      message: `Dropped ${field} missing label.`,
       field,
       childType: 'cta-button'
     })
     return undefined
+  }
+
+  if (!href && childType !== 'cta-banner') {
+    warnings.push({
+      issue: 'invalid-subcomponent',
+      message: `Dropped ${field} missing href.`,
+      field,
+      childType: 'cta-button'
+    })
+    return undefined
+  }
+
+  if (!href) {
+    warnings.push({
+      issue: 'suspicious-value',
+      message: `Kept ${childType}.${field} label without href because CTAButton href is optional.`,
+      field,
+      childType
+    })
   }
 
   if (typeof value.text === 'string' || typeof value.url === 'string' || typeof value.link === 'string') {
@@ -172,7 +199,7 @@ function normalizeCtaButton(
 
   return {
     label,
-    href,
+    ...(href ? { href } : {}),
     ...(normalizeCtaVariant(value.variant) ? { variant: normalizeCtaVariant(value.variant) } : {}),
     ...(normalizeString(value.icon) ? { icon: normalizeString(value.icon) } : {}),
     ...(typeof value.external === 'boolean' ? { external: value.external } : {})

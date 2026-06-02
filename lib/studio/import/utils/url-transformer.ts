@@ -92,9 +92,11 @@ const IMAGE_PATH_PATTERNS = [
 const TRUSTED_EXTENSIONLESS_IMAGE_HOSTS: Array<string | RegExp> = [
   /^cdn\./i,
   /^assets\./i,
+  /^assets[-.]/i,
   /^images\./i,
   /^media\./i,
   /^static\./i,
+  /(^|\.)kc-usercontent\.com$/i,
   /(^|\.)cloudfront\.net$/i,
   /(^|\.)akamaihd\.net$/i,
   /(^|\.)storage\.googleapis\.com$/i,

@@ -125,6 +125,11 @@ function getGridClasses(columns: NonNullable<BlogListProps['content']['columns']
   );
 }
 
+function getPostKey(post: BlogPost, index: number): string {
+  const stableId = post.id || post.slug || post.title;
+  return stableId ? `${stableId}-${index}` : `post-${index}`;
+}
+
 export const BlogList: React.FC<BlogListProps> = ({
   id,
   type = ComponentType.BlogList,
@@ -428,9 +433,9 @@ export const BlogList: React.FC<BlogListProps> = ({
         role="feed"
         aria-live="polite"
       >
-        {paginatedPosts.map((post) => (
+        {paginatedPosts.map((post, index) => (
           <BlogCard
-            key={post.id}
+            key={getPostKey(post, index)}
             {...toBlogCardProps(post, {
               theme: resolvedTheme,
               variant,

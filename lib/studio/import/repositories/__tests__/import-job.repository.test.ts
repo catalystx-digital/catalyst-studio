@@ -112,7 +112,19 @@ describe('ImportJobRepository', () => {
       })
       
       expect(mockPrismaClient.importJob.update).toHaveBeenCalled()
+      expect((mockPrismaClient.importJob.update as jest.Mock).mock.calls[0][0].data.errorMessage).toBeNull()
       expect(result).toEqual(mockJob)
+    })
+
+    it('should preserve explicit error text when update caller supplies it', async () => {
+      ;(mockPrismaClient.importJob.update as jest.Mock).mockResolvedValue({})
+
+      await repository.update('job-1', {
+        status: ImportJobStatus.COMPLETED,
+        errorMessage: 'explicit status note'
+      })
+
+      expect((mockPrismaClient.importJob.update as jest.Mock).mock.calls[0][0].data.errorMessage).toBe('explicit status note')
     })
     
     it('should throw error for oversized JSON', async () => {
@@ -200,9 +212,10 @@ describe('ImportJobRepository', () => {
       expect(updateCall.where).toEqual({ id: 'job-1' })
       expect(updateCall.data.status).toEqual(ImportJobStatus.PROCESSING)
       expect(updateCall.data.startedAt).toBeInstanceOf(Date)
+      expect(updateCall.data.errorMessage).toBeNull()
     })
     
-    it('should update status to completed with completedAt', async () => {
+    it('should update status to completed with completedAt and clear stale error text', async () => {
       ;(mockPrismaClient.importJob.update as jest.Mock).mockResolvedValue({})
       
       await repository.updateStatus('job-1', ImportJobStatus.COMPLETED)
@@ -211,6 +224,19 @@ describe('ImportJobRepository', () => {
       expect(updateCall.where).toEqual({ id: 'job-1' })
       expect(updateCall.data.status).toEqual(ImportJobStatus.COMPLETED)
       expect(updateCall.data.completedAt).toBeInstanceOf(Date)
+      expect(updateCall.data.errorMessage).toBeNull()
+    })
+
+    it('should update status to completed with warnings and clear stale error text', async () => {
+      ;(mockPrismaClient.importJob.update as jest.Mock).mockResolvedValue({})
+
+      await repository.updateStatus('job-1', ImportJobStatus.COMPLETED_WITH_WARNINGS)
+
+      const updateCall = (mockPrismaClient.importJob.update as jest.Mock).mock.calls[0][0]
+      expect(updateCall.where).toEqual({ id: 'job-1' })
+      expect(updateCall.data.status).toEqual(ImportJobStatus.COMPLETED_WITH_WARNINGS)
+      expect(updateCall.data.completedAt).toBeInstanceOf(Date)
+      expect(updateCall.data.errorMessage).toBeNull()
     })
     
     it('should update status to failed with completedAt', async () => {
@@ -222,6 +248,7 @@ describe('ImportJobRepository', () => {
       expect(updateCall.where).toEqual({ id: 'job-1' })
       expect(updateCall.data.status).toEqual(ImportJobStatus.FAILED)
       expect(updateCall.data.completedAt).toBeInstanceOf(Date)
+      expect(updateCall.data.errorMessage).toBeUndefined()
     })
   })
   

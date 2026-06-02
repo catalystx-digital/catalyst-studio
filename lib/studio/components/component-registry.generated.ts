@@ -122,7 +122,7 @@ export const COMPONENT_REGISTRY: ComponentRegistryEntry[] = [
     path: 'lib/studio/components/cms/content/content-feed',
     category: ComponentCategory.Content,
     hasAdapter: true,
-    description: "Dynamic provider-backed content feed that supports pinned items, sorting, and list or grid layouts."
+    description: "Static or provider-backed content feed that supports pinned items, sorting, and list or grid layouts."
   },
   {
     name: ComponentType.HtmlBlock,
@@ -340,6 +340,13 @@ export const COMPONENT_REGISTRY: ComponentRegistryEntry[] = [
     category: ComponentCategory.Navigation,
     hasAdapter: true,
     description: "Hierarchical sidebar navigation for \"In this section\" style navigation. Commonly used on documentation pages, content hubs, and service detail pages."
+  },
+  {
+    name: ComponentType.SideMenu,
+    path: 'lib/studio/components/cms/navigation/sidebar-nav',
+    category: ComponentCategory.Navigation,
+    hasAdapter: true,
+    description: "Vertical navigation menu for secondary pages or dashboard layouts with grouped sections or flat items."
   },
   {
     name: ComponentType.PricingCard,

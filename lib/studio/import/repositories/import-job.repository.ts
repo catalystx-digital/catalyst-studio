@@ -87,7 +87,11 @@ export class ImportJobRepository implements IImportJobRepository {
         ...(data.status !== undefined && { status: data.status }),
         ...(data.templatesGenerated !== undefined && { templatesGenerated: data.templatesGenerated as Prisma.InputJsonValue }),
         ...(data.detectionResults !== undefined && { detectionResults: data.detectionResults as Prisma.InputJsonValue }),
-        ...(data.errorMessage !== undefined && { errorMessage: data.errorMessage }),
+        ...(data.errorMessage !== undefined
+          ? { errorMessage: data.errorMessage }
+          : data.status === ImportJobStatus.COMPLETED || data.status === ImportJobStatus.COMPLETED_WITH_WARNINGS
+            ? { errorMessage: null }
+            : {}),
         ...(data.startedAt !== undefined && { startedAt: data.startedAt }),
         ...(data.completedAt !== undefined && { completedAt: data.completedAt })
       }
@@ -139,6 +143,7 @@ export class ImportJobRepository implements IImportJobRepository {
       status: ImportJobStatus
       startedAt?: Date
       completedAt?: Date
+      errorMessage?: null
     }
     
     const updateData: StatusUpdateData = {
@@ -148,11 +153,14 @@ export class ImportJobRepository implements IImportJobRepository {
     // Set timestamps based on status
     if (status === ImportJobStatus.PROCESSING) {
       updateData.startedAt = new Date()
+      updateData.errorMessage = null
     } else if (
       status === ImportJobStatus.COMPLETED ||
-      status === ImportJobStatus.COMPLETED_WITH_WARNINGS ||
-      status === ImportJobStatus.FAILED
+      status === ImportJobStatus.COMPLETED_WITH_WARNINGS
     ) {
+      updateData.completedAt = new Date()
+      updateData.errorMessage = null
+    } else if (status === ImportJobStatus.FAILED) {
       updateData.completedAt = new Date()
     }
     

@@ -529,12 +529,22 @@ function slugFromUrl(value: string, fallback: string): string {
 }
 
 function mediaReferenceFromUrl(value: string | undefined, pageUrl: string | undefined, fallback: string): Record<string, unknown> | undefined {
-  const url = normalizeHref(value, pageUrl)
+  const url = normalizeMediaUrl(value, pageUrl)
   if (!url) return undefined
   return {
     mediaId: `detected:${slugFromUrl(url, fallback)}`,
     mediaType: 'image',
     url,
+  }
+}
+
+function normalizeMediaUrl(value: unknown, pageUrl: string | undefined): string | undefined {
+  const href = normalizeHref(value, pageUrl)
+  if (!href) return undefined
+  try {
+    return new URL(href, pageUrl || 'https://example.com').toString()
+  } catch {
+    return href
   }
 }
 
@@ -575,7 +585,10 @@ function normalizeLogoValue(value: unknown, pageUrl: string | undefined): unknow
   if (logo.src) {
     const srcValue = isPlainObject(logo.src) ? logo.src : undefined
     const src = srcValue?.mediaId && srcValue.mediaType
-      ? cloneValue(srcValue)
+      ? {
+          ...cloneValue(srcValue),
+          ...(typeof srcValue.url === 'string' ? { url: normalizeMediaUrl(srcValue.url, pageUrl) ?? srcValue.url } : {}),
+        }
       : mediaReferenceFromUrl(
           typeof srcValue?.url === 'string' ? srcValue.url : typeof logo.originalUrl === 'string' ? logo.originalUrl : undefined,
           pageUrl,
@@ -583,7 +596,10 @@ function normalizeLogoValue(value: unknown, pageUrl: string | undefined): unknow
         )
     if (src) {
       logo.src = src
-      if (!logo.originalUrl && typeof (src as { url?: string }).url === 'string') {
+      const normalizedOriginalUrl = normalizeMediaUrl(logo.originalUrl, pageUrl)
+      if (normalizedOriginalUrl) {
+        logo.originalUrl = normalizedOriginalUrl
+      } else if (typeof (src as { url?: string }).url === 'string') {
         logo.originalUrl = (src as { url?: string }).url
       }
     }

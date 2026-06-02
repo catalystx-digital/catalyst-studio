@@ -1126,6 +1126,119 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     )
   })
 
+  it('preserves structured hero-with-image CTA smart links from detector output', () => {
+    const detection: DetectionResult = {
+      id: 'hero-with-image-structured-ctas',
+      type: 'hero-with-image',
+      bounds: baseBounds,
+      content: {
+        heading: 'We are Luminary',
+        image: {
+          src: {
+            mediaId: 'detected:luminary-hero',
+            mediaType: 'image',
+            url: 'https://example.com/luminary.jpg'
+          },
+          alt: 'Luminary hero'
+        },
+        ctaButtons: [
+          {
+            label: 'View the timeline',
+            href: {
+              type: 'internal',
+              pageId: 'timeline',
+              path: '/timeline'
+            },
+            variant: 'primary'
+          },
+          {
+            label: 'Visit Luminary',
+            href: {
+              type: 'external',
+              url: 'https://www.luminary.com/'
+            },
+            variant: 'secondary'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-with-image'))
+
+    expect(props.content?.ctaButtons).toEqual([
+      {
+        label: 'View the timeline',
+        href: {
+          type: 'internal',
+          pageId: 'timeline',
+          path: '/timeline'
+        },
+        variant: 'primary'
+      },
+      {
+        label: 'Visit Luminary',
+        href: {
+          type: 'external',
+          url: 'https://www.luminary.com/'
+        },
+        variant: 'secondary'
+      }
+    ])
+    expect(consumeNormalizationWarnings()).toEqual([])
+  })
+
+  it('keeps labeled hero-with-image CTA content when the source link is empty', () => {
+    const detection: DetectionResult = {
+      id: 'hero-with-image-empty-cta-href',
+      type: 'hero-with-image',
+      bounds: baseBounds,
+      content: {
+        heading: 'We are Luminary',
+        image: {
+          src: {
+            mediaId: 'detected:luminary-hero',
+            mediaType: 'image',
+            url: 'https://example.com/luminary.jpg'
+          },
+          alt: 'Luminary hero'
+        },
+        ctaButtons: [
+          {
+            label: 'Watch our showreel',
+            href: {
+              type: 'external',
+              url: ''
+            },
+            variant: 'primary'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('hero-with-image'))
+
+    expect(props.content?.ctaButtons).toEqual([
+      {
+        label: 'Watch our showreel',
+        variant: 'primary'
+      }
+    ])
+
+    const warnings = consumeNormalizationWarnings()
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'hero-with-image',
+          field: 'ctaButtons',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+    expect(warnings.some(warning => getNormalizationWarningSeverity(warning) === 'fatal')).toBe(false)
+  })
+
   it('normalizes two-column layout payloads without using props content mirrors', () => {
     const detection: DetectionResult = {
       id: 'two-column-1',
@@ -1700,6 +1813,48 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     )
   })
 
+  it('preserves extensionless Kontent asset logo URLs for logo-cloud imports', () => {
+    const detection: DetectionResult = {
+      id: 'logo-cloud-kontent-assets',
+      type: 'logo-cloud',
+      bounds: baseBounds,
+      content: {
+        logos: [
+          {
+            id: 'clipsal',
+            src: {
+              mediaId: 'detected:clipsal-logo',
+              mediaType: 'image',
+              url: 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/54398a66-317a-4eb7-b62e-a25662b73955/Clipsal%20by%20Schneider%20logo%20-%20DARK'
+            },
+            alt: 'Clipsal logo'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('logo-cloud'))
+
+    expect(props.content).toEqual({
+      logos: [
+        {
+          id: 'clipsal',
+          src: {
+            mediaId: 'detected:clipsal-logo',
+            mediaType: 'image',
+            url: 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/54398a66-317a-4eb7-b62e-a25662b73955/Clipsal%20by%20Schneider%20logo%20-%20DARK',
+            alt: 'Clipsal logo'
+          },
+          alt: 'Clipsal logo',
+          originalUrl: 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/54398a66-317a-4eb7-b62e-a25662b73955/Clipsal%20by%20Schneider%20logo%20-%20DARK'
+        }
+      ]
+    })
+    expect(LogoStripDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([])
+  })
+
   it('normalizes logo-cloud collection aliases and bare logo hrefs', () => {
     const detection: DetectionResult = {
       id: 'logo-cloud-aliases',
@@ -1989,6 +2144,70 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     })
     expect(props.content).not.toHaveProperty('region')
     expect(CTABannerDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
+  it('canonicalizes cta-banner external buttons with relative URLs as internal links', () => {
+    const detection: DetectionResult = {
+      id: 'cta-banner-relative-external',
+      type: 'cta-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Get access to our Digital Product Design Guide',
+        primaryButton: {
+          label: 'Get it now',
+          href: {
+            type: 'external',
+            url: '/digital-product-design-guide'
+          }
+        },
+        backgroundColor: '#300a44'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('cta-banner'))
+
+    expect(props.content?.primaryButton).toEqual({
+      label: 'Get it now',
+      href: {
+        type: 'internal',
+        pageId: 'digital-product-design-guide',
+        path: '/digital-product-design-guide'
+      }
+    })
+    expect(CTABannerDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([])
+  })
+
+  it('keeps labeled cta-banner buttons without href as nonfatal content', () => {
+    const detection: DetectionResult = {
+      id: 'cta-banner-label-only',
+      type: 'cta-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Talk to our team',
+        primaryButton: {
+          label: 'Contact us',
+          href: ''
+        },
+        backgroundColor: '#300a44'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('cta-banner'))
+
+    expect(props.content?.primaryButton).toEqual({
+      label: 'Contact us'
+    })
+    expect(CTABannerDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([
+      expect.objectContaining({
+        parentType: 'cta-banner',
+        field: 'primaryButton',
+        issue: 'suspicious-value'
+      })
+    ])
   })
 
   it('preserves typed CTA SmartLinks for email and phone buttons', () => {

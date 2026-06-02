@@ -111,6 +111,45 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     expect((result.components[0].metadata as any).homepageComposer.selected.titleSource).toBe('pageMetadata.title')
   })
 
+  it('normalizes relative navbar logo media URLs before schema validation', () => {
+    const components = baseComponents()
+    const navbar = components.find(entry => entry.type === ComponentType.NavBar)
+    if (!navbar) throw new Error('Expected navbar fixture')
+    navbar.content.logo = {
+      src: {
+        mediaId: 'detected:luminary-logo-midnight',
+        mediaType: 'image',
+        url: '/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
+        alt: 'Luminary Logo',
+      },
+      alt: 'Luminary Logo',
+      href: '/',
+      originalUrl: '/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
+    }
+
+    const result = composeInstitutionalHomepageIfEligible(components, {
+      pageUrl: 'https://www.luminary.com/',
+      pageMetadata: {
+        title: 'Example Children Hospital',
+        pageType: 'home',
+        description: 'Hospital care for patients and families.',
+      },
+      designProfile,
+      presentationSkeleton: skeleton,
+    })
+
+    expect(result.applied).toBe(true)
+    expect(result.components[0].content.logo).toMatchObject({
+      src: {
+        mediaId: 'detected:luminary-logo-midnight',
+        mediaType: 'image',
+        url: 'https://www.luminary.com/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
+        alt: 'Luminary Logo',
+      },
+      originalUrl: 'https://www.luminary.com/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
+    })
+  })
+
   it('does not invent navbar links or quick-link hrefs', () => {
     const result = composeInstitutionalHomepageIfEligible(baseComponents(), {
       pageUrl: 'https://example.org/',
