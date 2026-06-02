@@ -290,6 +290,20 @@ export function CardGridClient({
     !content.heading &&
     cards.length >= 2 &&
     cards.every(card => isSimpleLinkedCard(card) && isQuickLinkMedia(getImageFromCard(card)));
+  const sparseMediaGrid =
+    cards.length > 0 &&
+    cards.length <= 2 &&
+    cardStyle === 'vertical' &&
+    !feedDensity &&
+    !quickLinkGrid &&
+    (imagePosition === 'top' || imagePosition === 'left') &&
+    !hasColoredCards &&
+    cards.every(card => {
+      const media = getImageFromCard(card);
+      return Boolean(media) && !isIconLikeImage(media) && !isCompactIconCard(card) && !isTitleOnlyLinkCard(card);
+    });
+  const effectiveCardStyle = sparseMediaGrid ? 'horizontal' : cardStyle;
+  const effectiveImagePosition = sparseMediaGrid ? 'left' : imagePosition;
 
   // Memoize theme class to avoid recalculating on every render
   const resolvedThemeClass = useMemo(() => themeClass(resolvedTheme), [resolvedTheme]);
@@ -545,7 +559,7 @@ export function CardGridClient({
             quickLinkGrid
               ? 'm-4 mb-0 h-10 w-10 rounded-md border border-primary/15 bg-primary/10 p-2 sm:m-5 sm:mb-0 sm:h-12 sm:w-12'
               : 'p-6',
-            !quickLinkGrid && cardStyle === 'horizontal' ? 'md:w-32 md:py-8' : !quickLinkGrid && 'min-h-28',
+            !quickLinkGrid && effectiveCardStyle === 'horizontal' ? 'md:w-32 md:py-8' : !quickLinkGrid && 'min-h-28',
           )}
         >
           <CardImage
@@ -561,7 +575,7 @@ export function CardGridClient({
       );
     }
 
-    if (cardStyle === 'horizontal') {
+    if (effectiveCardStyle === 'horizontal') {
       const orderClass = position === 'right' ? 'md:order-last md:rounded-l-none md:rounded-r-xl' : 'md:rounded-r-none md:rounded-l-xl';
 
       return (
@@ -636,7 +650,7 @@ export function CardGridClient({
           'flex flex-col gap-2 p-[var(--component-padding)]',
           resolvedThemeClass,
           dsSpacing.gap('sm'),
-          cardStyle === 'compact' ? dsSpacing.padding('md') : dsSpacing.padding('lg'),
+            effectiveCardStyle === 'compact' ? dsSpacing.padding('md') : dsSpacing.padding('lg'),
           isOverlay && `lg:${dsSpacing.padding('xl')}`,
           isOverlay && 'mt-auto text-white',
           compactIconCard && 'items-center px-4 pb-2 pt-0 text-center',
@@ -682,7 +696,7 @@ export function CardGridClient({
             resolvedThemeClass,
             'flex flex-1 flex-col',
             dsSpacing.gap('md'),
-            cardStyle === 'compact'
+            effectiveCardStyle === 'compact'
               ? dsSpacing.padding('md')
               : dsSpacing.padding('lg'),
             'pt-0',
@@ -739,14 +753,14 @@ export function CardGridClient({
         const tone = resolveTone(card.variant);
         const clickable = Boolean(card.link || onCardClick);
         const cardButtonSemantics = Boolean(onCardClick && !card.link);
-        const backgroundImage = imagePosition === 'background';
+        const backgroundImage = effectiveImagePosition === 'background';
 
         // Custom background color from import - auto-detect light/dark for text contrast
         // Cards with backgroundColor are solid-colored cards and should NOT show images
         const hasCustomBg = Boolean(card.backgroundColor);
 
         // Skip rendering image for cards with custom background color (solid color cards)
-        const media = hasCustomBg ? null : renderImage(card, imagePosition);
+        const media = hasCustomBg ? null : renderImage(card, effectiveImagePosition);
         const mediaAsset = getImageFromCard(card);
         const denseMediaCard = Boolean(
           mediaAsset &&
@@ -787,8 +801,8 @@ export function CardGridClient({
               !hasCustomBg && !backgroundImage && 'bg-card/95 border-border/70',
               // Focus and hover states - shadcn-style subtle effects
               clickable && 'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              cardStyle === 'horizontal' && !backgroundImage && 'md:flex-row',
-              cardStyle === 'compact' && 'md:max-w-md',
+              effectiveCardStyle === 'horizontal' && !backgroundImage && 'md:flex-row',
+              effectiveCardStyle === 'compact' && 'md:max-w-md',
               backgroundImage && 'border-0 bg-transparent text-foreground shadow-none',
               compactIconCard && 'justify-start',
               titleOnlyLinkCard && 'min-h-24 justify-between',

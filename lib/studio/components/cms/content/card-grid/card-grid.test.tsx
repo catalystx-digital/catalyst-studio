@@ -664,6 +664,197 @@ describe('CMSComponent: CardGrid', () => {
     expect(footer).toHaveClass('px-4', 'pb-4', 'sm:px-6', 'sm:pb-6');
   });
 
+  it('uses desktop horizontal composition for sparse standard media grids', () => {
+    const { container, rerender } = render(
+      <CardGrid
+        content={{
+          heading: 'Telehealth appointments',
+          cards: [
+            {
+              id: 'telehealth',
+              title: 'Access to telehealth',
+              description: 'Attend appointments from home with a secure video consultation.',
+              image: {
+                src: 'https://assets.example.com/telehealth.jpg',
+                alt: 'Telehealth appointment',
+              },
+              href: '/telehealth/',
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    expect(container.querySelector('.cms-card-grid-card')).toHaveClass('md:flex-row');
+
+    rerender(
+      <CardGrid
+        content={{
+          heading: 'Support Us',
+          imagePosition: 'left',
+          cards: [
+            {
+              id: 'donate',
+              title: 'Donate today',
+              description: 'Help support children and families.',
+              image: {
+                src: 'https://assets.example.com/donate.jpg',
+                alt: 'Donate today',
+              },
+              href: '/donate/',
+            },
+            {
+              id: 'fundraise',
+              title: 'Start fundraising',
+              description: 'Create a fundraiser for the hospital.',
+              image: {
+                src: 'https://assets.example.com/fundraise.jpg',
+                alt: 'Start fundraising',
+              },
+              href: '/fundraise/',
+            },
+          ],
+          columns: 2,
+        }}
+      />,
+    );
+
+    const cards = container.querySelectorAll('.cms-card-grid-card');
+    expect(cards[0]).toHaveClass('md:flex-row');
+    expect(cards[1]).toHaveClass('md:flex-row');
+  });
+
+  it('keeps larger project grids, feed grids, and quick links out of sparse media composition', () => {
+    const { container, rerender } = render(
+      <CardGrid
+        content={{
+          heading: 'Latest projects',
+          cards: [
+            {
+              id: 'project-one',
+              title: 'Project one',
+              description: 'Project summary one.',
+              image: { src: 'https://assets.example.com/project-one.jpg', alt: 'Project one' },
+            },
+            {
+              id: 'project-two',
+              title: 'Project two',
+              description: 'Project summary two.',
+              image: { src: 'https://assets.example.com/project-two.jpg', alt: 'Project two' },
+            },
+            {
+              id: 'project-three',
+              title: 'Project three',
+              description: 'Project summary three.',
+              image: { src: 'https://assets.example.com/project-three.jpg', alt: 'Project three' },
+            },
+          ],
+          columns: 3,
+        }}
+      />,
+    );
+
+    expect(container.querySelector('.cms-card-grid-card')).not.toHaveClass('md:flex-row');
+
+    rerender(
+      <CardGrid
+        content={{
+          density: 'feed',
+          heading: 'Latest posts',
+          cards: [
+            {
+              id: 'post-one',
+              title: 'Post one',
+              description: 'Post summary one.',
+              image: { src: 'https://assets.example.com/post-one.jpg', alt: 'Post one' },
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    expect(container.querySelector('.cms-card-grid-card')).not.toHaveClass('md:flex-row');
+
+    rerender(
+      <CardGrid
+        content={{
+          cards: [
+            {
+              id: 'guide',
+              title: 'Your guide',
+              href: '/guide/',
+            },
+            {
+              id: 'portal',
+              title: 'Portal',
+              href: '/portal/',
+            },
+          ],
+          columns: 2,
+        }}
+      />,
+    );
+
+    expect(container.querySelector('.cms-card-grid-card')).not.toHaveClass('md:flex-row');
+    expect(container.querySelector('.cms-card-grid-card')).toHaveClass('border-l-4', 'border-l-primary/70');
+  });
+
+  it('does not override explicit compact or right-image media grid composition', () => {
+    const { container, rerender } = render(
+      <CardGrid
+        content={{
+          heading: 'Compact feature',
+          cardStyle: 'compact',
+          cards: [
+            {
+              id: 'compact-project',
+              title: 'Compact project',
+              description: 'A compact card should keep compact composition.',
+              image: {
+                src: 'https://assets.example.com/compact.jpg',
+                alt: 'Compact project',
+              },
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const compactCard = container.querySelector('.cms-card-grid-card')!;
+    expect(compactCard).not.toHaveClass('md:flex-row');
+    expect(compactCard).toHaveClass('md:max-w-md');
+
+    rerender(
+      <CardGrid
+        content={{
+          heading: 'Right media feature',
+          cardStyle: 'horizontal',
+          imagePosition: 'right',
+          cards: [
+            {
+              id: 'right-media',
+              title: 'Right media project',
+              description: 'A right media card should keep its image order.',
+              image: {
+                src: 'https://assets.example.com/right-media.jpg',
+                alt: 'Right media project',
+              },
+            },
+          ],
+          columns: 1,
+        }}
+      />,
+    );
+
+    const rightMediaCard = container.querySelector('.cms-card-grid-card')!;
+    const mediaColumn = rightMediaCard.querySelector('img')?.closest('.group');
+    expect(rightMediaCard).toHaveClass('md:flex-row');
+    expect(mediaColumn).toHaveClass('md:order-last');
+  });
+
   it('uses feed density only for feed-like card grids', () => {
     const { container } = render(
       <CardGrid
