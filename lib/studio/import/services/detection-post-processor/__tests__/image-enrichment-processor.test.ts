@@ -730,6 +730,293 @@ describe('image enrichment processor', () => {
     })
   })
 
+  it('repairs model-truncated image URLs from exact source image prefixes', () => {
+    const truncatedUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Desig'
+    const sourceUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Design.jpg?h=474&fm=webp'
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-with-image',
+        component: 'hero-with-image',
+        confidence: 0.95,
+        content: {
+          heading: 'A Guide to Digital Product Design',
+          image: {
+            src: {
+              mediaId: 'detected:guide',
+              mediaType: 'image',
+              url: truncatedUrl,
+            },
+            originalUrl: truncatedUrl,
+          },
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.luminary.com/a-guide-to-digital-product-design-lp',
+      resourcesSummary: {
+        anchors: [],
+        images: [
+          {
+            src: sourceUrl,
+            alt: 'A Guide to Digital Product Design',
+            pathId: 'main/hero/img',
+          },
+        ],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect(result[0].content).toMatchObject({
+      image: {
+        src: {
+          url: sourceUrl,
+        },
+        originalUrl: sourceUrl,
+      },
+    })
+    expect(result[0].metadata?.sourceEvidence).toMatchObject({
+      truncatedImageUrlCorrections: [
+        {
+          previous: truncatedUrl,
+          replacement: sourceUrl,
+          evidence: 'resources-summary',
+        },
+        {
+          previous: truncatedUrl,
+          replacement: sourceUrl,
+          evidence: 'resources-summary',
+        },
+      ],
+    })
+  })
+
+  it('uses story-header hero images as content evidence for truncated URL repair', () => {
+    const truncatedUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Desig'
+    const sourceUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Design.jpg?h=474&fm=webp'
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-with-image',
+        component: 'hero-with-image',
+        confidence: 0.95,
+        content: {
+          heading: 'A Guide to Digital Product Design',
+          image: {
+            src: {
+              mediaId: 'detected:guide',
+              mediaType: 'image',
+              url: truncatedUrl,
+            },
+          },
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="story-header header-image-crop">
+          <div class="image-wrapper">
+            <img src="${sourceUrl.replace(/&/g, '&amp;')}" alt="men holding a phone displaying online store">
+          </div>
+          <h1>A Guide to Digital Product Design</h1>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.luminary.com/a-guide-to-digital-product-design-lp',
+    })
+
+    expect(result[0].content).toMatchObject({
+      image: {
+        src: {
+          url: sourceUrl,
+        },
+      },
+    })
+  })
+
+  it('uses page-header hero images as content evidence for truncated URL repair', () => {
+    const truncatedUrl = 'https://assets.example.com/pages/services-her'
+    const sourceUrl = 'https://assets.example.com/pages/services-hero.jpg'
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-with-image',
+        component: 'hero-with-image',
+        confidence: 0.95,
+        content: {
+          heading: 'Services',
+          image: {
+            src: {
+              mediaId: 'detected:services',
+              mediaType: 'image',
+              url: truncatedUrl,
+            },
+          },
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="page-header">
+          <img src="${sourceUrl}" alt="Services">
+          <h1>Services</h1>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.example.com/services',
+    })
+
+    expect(result[0].content).toMatchObject({
+      image: {
+        src: {
+          url: sourceUrl,
+        },
+      },
+    })
+  })
+
+  it('does not use site-header wrapper images as content evidence for truncated URL repair', () => {
+    const truncatedUrl = 'https://assets.example.com/nav/header-log'
+    const sourceUrl = 'https://assets.example.com/nav/header-logo.png'
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-with-image',
+        component: 'hero-with-image',
+        confidence: 0.95,
+        content: {
+          heading: 'Welcome',
+          image: {
+            src: {
+              mediaId: 'detected:hero',
+              mediaType: 'image',
+              url: truncatedUrl,
+            },
+          },
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="site-header">
+          <img src="${sourceUrl}" alt="Example logo">
+          <nav>Home About Contact</nav>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      image: {
+        src: {
+          url: truncatedUrl,
+        },
+      },
+    })
+    expect(result[0].metadata?.sourceEvidence?.truncatedImageUrlCorrections).toBeUndefined()
+  })
+
+  it('does not rewrite complete image URLs when a longer source URL shares the prefix', () => {
+    const completeUrl = 'https://assets.example.com/images/product.jpg'
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-with-image',
+        component: 'hero-with-image',
+        confidence: 0.95,
+        content: {
+          heading: 'Product',
+          image: {
+            src: {
+              mediaId: 'detected:product',
+              mediaType: 'image',
+              url: completeUrl,
+            },
+          },
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.example.com/',
+      resourcesSummary: {
+        anchors: [],
+        images: [
+          {
+            src: 'https://assets.example.com/images/product.jpg?width=1200&format=webp',
+            alt: 'Product',
+          },
+        ],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect(result[0].content).toMatchObject({
+      image: {
+        src: {
+          url: completeUrl,
+        },
+      },
+    })
+    expect(result[0].metadata?.sourceEvidence?.truncatedImageUrlCorrections).toBeUndefined()
+  })
+
+  it('does not rewrite valid extensionless image-service URLs', () => {
+    const extensionlessUrl = 'https://assets.example.com/image/abc123'
+    const components: DetectedComponent[] = [
+      {
+        type: 'hero-with-image',
+        component: 'hero-with-image',
+        confidence: 0.95,
+        content: {
+          heading: 'Product',
+          image: {
+            src: {
+              mediaId: 'detected:product',
+              mediaType: 'image',
+              url: extensionlessUrl,
+            },
+          },
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.example.com/',
+      resourcesSummary: {
+        anchors: [],
+        images: [
+          {
+            src: 'https://assets.example.com/image/abc123-large.jpg',
+            alt: 'Product',
+          },
+        ],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect(result[0].content).toMatchObject({
+      image: {
+        src: {
+          url: extensionlessUrl,
+        },
+      },
+    })
+    expect(result[0].metadata?.sourceEvidence?.truncatedImageUrlCorrections).toBeUndefined()
+  })
+
   it('does not replace team-grid member photos without an exact source alt/name match', () => {
     const existingUrl = 'https://assets.example.com/team/bob.jpg'
     const components: DetectedComponent[] = [

@@ -148,8 +148,9 @@ function classifySection(sectionHtml: string): ExtractedImage['sectionKind'] {
   if (
     tagMatch?.[1]?.toLowerCase() === 'nav' ||
     tagMatch?.[1]?.toLowerCase() === 'header' ||
+    isSiteHeaderWrapper(openingTag) ||
     /\b(role|aria-label)\s*=\s*["'][^"']*(navigation|menu)[^"']*["']/i.test(openingTag) ||
-    /\b(class|id)\s*=\s*["'][^"']*(mega|menu|nav|navbar|dropdown|header)[^"']*["']/i.test(openingTag)
+    /\b(class|id)\s*=\s*["'][^"']*(mega|menu|nav|navbar|dropdown)[^"']*["']/i.test(openingTag)
   ) {
     return 'navigation'
   }
@@ -163,6 +164,17 @@ function classifySection(sectionHtml: string): ExtractedImage['sectionKind'] {
   }
 
   return 'content'
+}
+
+function isSiteHeaderWrapper(openingTag: string): boolean {
+  const attrValues = Array.from(openingTag.matchAll(/\b(?:class|id)\s*=\s*["']([^"']+)["']/gi))
+    .flatMap(match => (match[1] || '').toLowerCase().split(/\s+/))
+    .filter(Boolean)
+
+  return attrValues.some(value =>
+    /^(site|global|main|top|primary)[-_]?header$/.test(value) ||
+    /^header[-_]?(nav|menu|bar)$/.test(value)
+  )
 }
 
 function extractSectionText(sectionHtml: string): string {
@@ -464,6 +476,133 @@ function reconcileTeamGridMemberLinksFromSource(
         }
       }
     }
+  }
+}
+
+function reconcileTruncatedImageUrlsFromSource(
+  components: DetectedComponent[],
+  sourceImages: SourceImageEvidence[],
+  pageUrl?: string
+): void {
+  if (sourceImages.length === 0) return
+
+  for (const component of components) {
+    if (!isRecord(component.content)) continue
+
+    const corrections: Array<{
+      previous: string
+      replacement: string
+      evidence: SourceImageEvidence['evidence']
+    }> = []
+
+    replaceTruncatedImageUrls(component.content, sourceImages, pageUrl, corrections)
+
+    if (corrections.length > 0) {
+      component.metadata = {
+        ...(component.metadata || {}),
+        sourceEvidence: {
+          ...(component.metadata?.sourceEvidence || {}),
+          truncatedImageUrlCorrections: corrections
+        }
+      }
+    }
+  }
+}
+
+function replaceTruncatedImageUrls(
+  value: unknown,
+  sourceImages: SourceImageEvidence[],
+  pageUrl: string | undefined,
+  corrections: Array<{ previous: string; replacement: string; evidence: SourceImageEvidence['evidence'] }>
+): void {
+  if (!value || typeof value !== 'object') return
+
+  if (Array.isArray(value)) {
+    value.forEach(item => replaceTruncatedImageUrls(item, sourceImages, pageUrl, corrections))
+    return
+  }
+
+  const record = value as Record<string, unknown>
+  for (const key of ['url', 'src', 'originalUrl', 'backgroundImage', 'imageUrl']) {
+    const candidate = record[key]
+    if (typeof candidate !== 'string') continue
+
+    const replacement = findTruncatedImageUrlReplacement(candidate, sourceImages, pageUrl)
+    if (!replacement) continue
+
+    record[key] = replacement.url
+    corrections.push({
+      previous: normalizeToAbsolute(candidate, pageUrl),
+      replacement: replacement.url,
+      evidence: replacement.evidence
+    })
+  }
+
+  Object.values(record).forEach(child => replaceTruncatedImageUrls(child, sourceImages, pageUrl, corrections))
+}
+
+function findTruncatedImageUrlReplacement(
+  candidate: string,
+  sourceImages: SourceImageEvidence[],
+  pageUrl?: string
+): { url: string; evidence: SourceImageEvidence['evidence'] } | undefined {
+  const absoluteCandidate = normalizeToAbsolute(candidate, pageUrl)
+  if (!/^https?:\/\//i.test(absoluteCandidate)) return undefined
+  if (hasImageFileExtension(absoluteCandidate)) return undefined
+
+  const normalizedCandidate = normalizeImageUrl(absoluteCandidate, pageUrl)
+  const decodedCandidate = safeDecodeUrl(normalizedCandidate)
+
+  const matches = sourceImages
+    .map(image => ({
+      url: normalizeToAbsolute(image.src, pageUrl),
+      evidence: image.evidence
+    }))
+    .filter(image => {
+      if (!/^https?:\/\//i.test(image.url)) return false
+      const normalizedSource = normalizeImageUrl(image.url, pageUrl)
+      const decodedSource = safeDecodeUrl(normalizedSource)
+      return (
+        normalizedSource.length > normalizedCandidate.length + 4 &&
+        continuesMidToken(normalizedSource, normalizedCandidate, decodedSource, decodedCandidate) &&
+        (normalizedSource.startsWith(normalizedCandidate) || decodedSource.startsWith(decodedCandidate)) &&
+        hasImageFileExtension(image.url)
+      )
+    })
+
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+function continuesMidToken(
+  normalizedSource: string,
+  normalizedCandidate: string,
+  decodedSource: string,
+  decodedCandidate: string
+): boolean {
+  const nextNormalized = normalizedSource.startsWith(normalizedCandidate)
+    ? normalizedSource.charAt(normalizedCandidate.length)
+    : ''
+  const nextDecoded = decodedSource.startsWith(decodedCandidate)
+    ? decodedSource.charAt(decodedCandidate.length)
+    : ''
+
+  return /[a-z0-9%]/i.test(nextNormalized) || /[a-z0-9]/i.test(nextDecoded)
+}
+
+function hasImageFileExtension(src: string): boolean {
+  try {
+    const pathname = new URL(src, 'https://example.invalid').pathname
+    return /\.(avif|gif|jpe?g|png|svg|webp)$/i.test(pathname)
+  } catch {
+    return /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(src)
+  }
+}
+
+function safeDecodeUrl(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
   }
 }
 
@@ -884,6 +1023,7 @@ export function enrichComponentImages(
   if (!domSnapshot) {
     reconcileTeamGridMemberImagesFromSource(components, resourceImages, pageUrl)
     reconcileTeamGridMemberLinksFromSource(components, resourceImages, resourceLinks, pageUrl)
+    reconcileTruncatedImageUrlsFromSource(components, resourceImages, pageUrl)
     console.log('[ImageEnrichment] No DOM snapshot, skipping enrichment')
     return components
   }
@@ -907,6 +1047,7 @@ export function enrichComponentImages(
 
   reconcileTeamGridMemberImagesFromSource(components, sourceImages, pageUrl)
   reconcileTeamGridMemberLinksFromSource(components, sourceImages, sourceLinks, pageUrl)
+  reconcileTruncatedImageUrlsFromSource(components, sourceImages, pageUrl)
 
   if (domImages.length === 0) return components
 

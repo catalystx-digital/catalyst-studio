@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "linkedin.com", pathname: "/**" },
       { protocol: "https", hostname: "github.com", pathname: "/**" },
       { protocol: "https", hostname: "twitter.com", pathname: "/**" },
+      { protocol: "https", hostname: "www.rch.org.au", pathname: "/**" },
+      { protocol: "https", hostname: "blogs.rch.org.au", pathname: "/**" },
     ],
   },
   webpack: (config) => {
