@@ -40,6 +40,14 @@ import { canonicalizeComponentType } from './page-builder/component-helpers';
 import { PageBuilderService } from './page-builder-service';
 import { redirectService } from '@/lib/services/redirect-service';
 
+export const IMPORT_AUTO_APPROVE_CONFIDENCE_THRESHOLD = 0.7;
+
+export function isImportComponentAutoApproved(component: { confidence?: unknown }): boolean {
+  return typeof component.confidence === 'number'
+    ? component.confidence >= IMPORT_AUTO_APPROVE_CONFIDENCE_THRESHOLD
+    : !component.confidence;
+}
+
 interface PersistOptions {
   sitemapMetaByUrl: Map<string, SitemapMetadata>;
   orchestratorTimeoutMs?: number;
@@ -573,7 +581,7 @@ export class ImportResultHandler {
           }))
         : [];
 
-      const approvedForPage = mappedComponents.filter((component) => !component.confidence || component.confidence > 0.7);
+      const approvedForPage = mappedComponents.filter(isImportComponentAutoApproved);
       totalComponentsDetected += mappedComponents.length;
       autoApprovedComponents += approvedForPage.length;
 
