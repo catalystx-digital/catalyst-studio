@@ -135,6 +135,24 @@ function normalizeBooleanValue(value: unknown): boolean | undefined {
   return undefined
 }
 
+function repairDanglingTrustedAssetUrl(value: string | undefined): string | undefined {
+  if (!value) {
+    return value
+  }
+
+  try {
+    const parsed = new URL(value.replace(/&amp;/g, '&'))
+    if (/(^|\.)kc-usercontent\.com$/i.test(parsed.hostname) && parsed.pathname.endsWith('.')) {
+      parsed.pathname = `${parsed.pathname}png`
+      return parsed.toString()
+    }
+  } catch {
+    return value
+  }
+
+  return value
+}
+
 function normalizeCtaButton(
   value: unknown,
   field: 'primaryButton' | 'secondaryButton',
@@ -374,7 +392,18 @@ export const normalizeCtaBannerContent: ComponentContentNormalizer = (
   })
   warnings.push(...imageWarnings)
   if (backgroundImage?.src ?? backgroundImage?.originalUrl) {
-    normalized.backgroundImage = backgroundImage.src ?? backgroundImage.originalUrl
+    const rawBackgroundImageUrl = backgroundImage.src ?? backgroundImage.originalUrl
+    const repairedBackgroundImageUrl = repairDanglingTrustedAssetUrl(rawBackgroundImageUrl)
+    if (repairedBackgroundImageUrl !== rawBackgroundImageUrl) {
+      warnings.push({
+        issue: 'suspicious-value',
+        message: 'Repaired cta-banner backgroundImage URL with dangling trusted asset extension.',
+        field: 'backgroundImage',
+        childType: 'cta-banner',
+        details: { originalUrl: rawBackgroundImageUrl, repairedUrl: repairedBackgroundImageUrl }
+      })
+    }
+    normalized.backgroundImage = repairedBackgroundImageUrl
   } else {
     delete normalized.backgroundImage
   }

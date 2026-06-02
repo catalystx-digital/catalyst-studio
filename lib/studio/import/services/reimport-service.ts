@@ -1105,7 +1105,8 @@ export class ReImportService implements IReImportService {
       type: component.type,
       parentId,
       position,
-      props: this.readDetectionComponentContent(component, path),
+      props: {},
+      content: this.readDetectionComponentContent(component, path),
     }
 
     if (children !== undefined) {
@@ -1213,6 +1214,28 @@ export class ReImportService implements IReImportService {
       : undefined
   }
 
+  private getComponentRegion(component: ComponentInstance): string {
+    const propsRegion = component.props?.region
+    if (typeof propsRegion === 'string' && propsRegion.trim().length > 0) {
+      return propsRegion
+    }
+
+    const contentRegion = component.content?.region
+    if (typeof contentRegion === 'string' && contentRegion.trim().length > 0) {
+      return contentRegion
+    }
+
+    const contentMetadata = component.content?.metadata
+    if (this.isRecord(contentMetadata)) {
+      const metadataRegion = contentMetadata.region
+      if (typeof metadataRegion === 'string' && metadataRegion.trim().length > 0) {
+        return metadataRegion
+      }
+    }
+
+    return 'main'
+  }
+
   private mergeComponents(
     existing: ComponentInstance[],
     incoming: ComponentInstance[]
@@ -1223,7 +1246,7 @@ export class ReImportService implements IReImportService {
 
     // Index existing components by type + region
     for (const comp of existing) {
-      const region = (comp.props?.region as string) || 'main'
+      const region = this.getComponentRegion(comp)
       const key = `${comp.type}:${region}`
       existingByTypeAndRegion.set(key, comp)
     }
@@ -1234,7 +1257,7 @@ export class ReImportService implements IReImportService {
 
     // Process incoming components
     for (const comp of incoming) {
-      const region = (comp.props?.region as string) || 'main'
+      const region = this.getComponentRegion(comp)
       const key = `${comp.type}:${region}`
 
       if (existingByTypeAndRegion.has(key) && !usedKeys.has(key)) {
@@ -1433,25 +1456,25 @@ export class ReImportService implements IReImportService {
       where: { id: { in: sharedRefs } }
     })
 
-    // Build a map of shared component props from canonical content.
-    const sharedPropsMap = new Map<string, Record<string, unknown>>()
+    // Build a map of shared component content from canonical content.
+    const sharedContentMap = new Map<string, Record<string, unknown>>()
     for (const sc of sharedComponents) {
       const content = sc.content
       if (!this.isRecord(content)) {
         throw new Error(`Shared component ${sc.id} has invalid content`)
       }
-      sharedPropsMap.set(sc.id, content)
+      sharedContentMap.set(sc.id, content)
     }
 
-    // Update component props with latest shared data
+    // Update component content with latest shared data
     const updatedComponents = components.map(c => {
       const sharedId = this.getSharedComponentId(c)
-      if (sharedId && sharedPropsMap.has(sharedId)) {
+      if (sharedId && sharedContentMap.has(sharedId)) {
         return {
           ...c,
+          content: sharedContentMap.get(sharedId)!,
           props: {
             ...c.props,
-            ...sharedPropsMap.get(sharedId),
             sharedComponentId: sharedId // Preserve the ref
           }
         }

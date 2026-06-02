@@ -2210,6 +2210,62 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     ])
   })
 
+  it('repairs cta-banner trusted KC background image URLs with dangling extensions', () => {
+    const detection: DetectionResult = {
+      id: 'cta-banner-dangling-kc-image',
+      type: 'cta-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Supporting Partner of Beyond Blue',
+        backgroundImage: 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/034a4c92-7336-41a8-bd49-b0847153ffcb/Beyond%20Blue%20Proud%20Partner%20Graphic.'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('cta-banner'))
+
+    expect(props.content?.backgroundImage).toBe(
+      'https://assets-us-01.kc-usercontent.com/90e79cae-25c6-00b5-6f5b-27efe5c250ab/034a4c92-7336-41a8-bd49-b0847153ffcb/Beyond%20Blue%20Proud%20Partner%20Graphic.png'
+    )
+    expect(CTABannerDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([
+      expect.objectContaining({
+        parentType: 'cta-banner',
+        field: 'backgroundImage',
+        issue: 'suspicious-value',
+        message: expect.stringContaining('dangling trusted asset extension')
+      })
+    ])
+  })
+
+  it('repairs cta-banner trusted KC background image URLs with dangling extensions before query params', () => {
+    const detection: DetectionResult = {
+      id: 'cta-banner-dangling-kc-image-query',
+      type: 'cta-banner',
+      bounds: baseBounds,
+      content: {
+        heading: 'Supporting Partner of Beyond Blue',
+        backgroundImage: 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/034a4c92-7336-41a8-bd49-b0847153ffcb/Beyond%20Blue%20Proud%20Partner%20Graphic.?w=900&amp;fm=webp'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('cta-banner'))
+
+    expect(props.content?.backgroundImage).toBe(
+      'https://assets-us-01.kc-usercontent.com/90e79cae-25c6-00b5-6f5b-27efe5c250ab/034a4c92-7336-41a8-bd49-b0847153ffcb/Beyond%20Blue%20Proud%20Partner%20Graphic.png?w=900&fm=webp'
+    )
+    expect(CTABannerDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([
+      expect.objectContaining({
+        parentType: 'cta-banner',
+        field: 'backgroundImage',
+        issue: 'suspicious-value',
+        message: expect.stringContaining('dangling trusted asset extension')
+      })
+    ])
+  })
+
   it('preserves typed CTA SmartLinks for email and phone buttons', () => {
     const detection: DetectionResult = {
       id: 'cta-simple-smartlinks',

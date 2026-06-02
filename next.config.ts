@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "qicre.com", pathname: "/**" },
       { protocol: "https", hostname: "images.pexels.com", pathname: "/**" },
       { protocol: "https", hostname: "assets.mixkit.co", pathname: "/**" },
+      { protocol: "https", hostname: "**.kc-usercontent.com", pathname: "/**" },
       { protocol: "https", hostname: "www.toptal.com", pathname: "/**" },
       { protocol: "https", hostname: "www.google.com", pathname: "/**" },
       { protocol: "https", hostname: "www.facebook.com", pathname: "/**" },

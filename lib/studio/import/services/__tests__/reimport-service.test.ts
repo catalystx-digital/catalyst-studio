@@ -48,6 +48,9 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  websiteSharedComponent: {
+    findMany: jest.fn(),
+  },
   contentType: {
     findFirst: jest.fn(),
   },
@@ -86,6 +89,7 @@ describe('ReImportService', () => {
       id: 'import-job-1',
     })
     mockPrisma.importJob.update.mockResolvedValue({})
+    mockPrisma.websiteSharedComponent.findMany.mockResolvedValue([])
   })
 
   describe('validateUrls', () => {
@@ -582,6 +586,183 @@ describe('ReImportService', () => {
 
       expect(result.results[0].status).toBe('updated')
       expect(result.results[0].error).toBeUndefined()
+    })
+
+    it('persists reimported component body data as canonical content, not props', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: { components: [] },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{
+              type: 'statistics',
+              content: {
+                title: 'Some stats',
+                stats: [{ id: 'years', label: 'Years', value: 26 }],
+              },
+            }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+      })
+
+      expect(result.results[0].status).toBe('updated')
+      const updateCall = mockPrisma.websitePage.update.mock.calls[0][0]
+      const component = updateCall.data.content.components[0]
+      expect(component.content).toEqual({
+        title: 'Some stats',
+        stats: [{ id: 'years', label: 'Years', value: 26 }],
+      })
+      expect(component.props).toEqual({})
+      expect(component.props).not.toHaveProperty('stats')
+    })
+
+    it('refreshes shared component body data into canonical content during single-page reimport', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: {
+          components: [{
+            id: 'nav-1',
+            type: 'navbar',
+            parentId: null,
+            position: 0,
+            props: { sharedComponentId: 'shared-nav' },
+            content: { logo: { text: 'Old' }, menuItems: [] },
+          }],
+        },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+      mockPrisma.websitePage.findUnique.mockResolvedValueOnce({
+        ...existingPage,
+        content: {
+          components: [{
+            id: 'nav-1',
+            type: 'navbar',
+            parentId: null,
+            position: 0,
+            props: { sharedComponentId: 'shared-nav' },
+            content: { logo: { text: 'Imported' }, menuItems: [], staleBodyField: 'remove-me' },
+          }],
+        },
+      })
+      mockPrisma.websiteSharedComponent.findMany.mockResolvedValueOnce([{
+        id: 'shared-nav',
+        content: {
+          logo: { text: 'Shared Canonical' },
+          menuItems: [{ label: 'Home', href: '/' }],
+        },
+      }])
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [{ type: 'navbar', content: { logo: { text: 'Imported' }, menuItems: [] } }],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+      })
+
+      expect(result.results[0].status).toBe('updated')
+      const sharedRefreshCall = mockPrisma.websitePage.update.mock.calls[1][0]
+      const component = sharedRefreshCall.data.content.components[0]
+      expect(component.content).toEqual({
+        logo: { text: 'Shared Canonical' },
+        menuItems: [{ label: 'Home', href: '/' }],
+      })
+      expect(component.props).toEqual({ sharedComponentId: 'shared-nav' })
+      expect(component.props).not.toHaveProperty('menuItems')
+      expect(component.props).not.toHaveProperty('logo')
+      expect(component.content).not.toHaveProperty('staleBodyField')
+    })
+
+    it('matches preserved customizations by canonical content region', async () => {
+      const existingPage = {
+        id: 'page-1',
+        content: {
+          components: [
+            {
+              id: 'existing-header',
+              type: 'cta-banner',
+              parentId: null,
+              position: 0,
+              props: { customClass: 'keep-header' },
+              content: { region: 'header', heading: 'Old header' },
+            },
+            {
+              id: 'existing-main',
+              type: 'cta-banner',
+              parentId: null,
+              position: 1,
+              props: { customClass: 'keep-main' },
+              content: { region: 'main', heading: 'Old main' },
+            },
+          ],
+        },
+        metadata: { importSource: 'https://example.com/about' },
+        structures: [{ id: 'struct-1' }],
+      }
+      mockPrisma.websitePage.findFirst.mockResolvedValueOnce(existingPage)
+      mockPrisma.websitePage.update.mockResolvedValueOnce({ ...existingPage })
+      mockImportPipeline.execute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          detectedComponents: [{
+            url: 'https://example.com/about',
+            components: [
+              { type: 'cta-banner', content: { region: 'header', heading: 'New header' } },
+              { type: 'cta-banner', content: { region: 'main', heading: 'New main' } },
+            ],
+            metadata: { httpStatus: 200 },
+          }],
+        },
+      })
+
+      const result = await service.reimport({
+        websiteId: 'test-website-id',
+        urls: ['https://example.com/about'],
+        preserveCustomizations: true,
+      })
+
+      expect(result.results[0].status).toBe('updated')
+      const updateCall = mockPrisma.websitePage.update.mock.calls[0][0]
+      expect(updateCall.data.content.components).toEqual([
+        expect.objectContaining({
+          id: 'existing-header',
+          content: expect.objectContaining({ region: 'header', heading: 'New header' }),
+          props: expect.objectContaining({ customClass: 'keep-header' }),
+        }),
+        expect.objectContaining({
+          id: 'existing-main',
+          content: expect.objectContaining({ region: 'main', heading: 'New main' }),
+          props: expect.objectContaining({ customClass: 'keep-main' }),
+        }),
+      ])
+      expect(result.results[0].changes).toEqual(
+        expect.objectContaining({ componentsAdded: 0, componentsRemoved: 0, componentsUpdated: 2 })
+      )
     })
 
     it('fails page creation when no content type is configured', async () => {

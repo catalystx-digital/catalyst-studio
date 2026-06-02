@@ -333,6 +333,7 @@ export interface ComponentInstance {
   parentId: string | null
   position: number
   props: Record<string, unknown>
+  content: Record<string, unknown>
   children?: ComponentInstance[]
 }
 
