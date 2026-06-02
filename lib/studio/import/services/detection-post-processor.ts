@@ -111,7 +111,8 @@ export function adjustDetectedComponents(
   // Scans DOM for images missed by LLM detection and enriches components
   withTelemetry('imageEnrichment', cloned, (c) => enrichComponentImages(c, {
     domSnapshot: options.domSnapshot,
-    pageUrl: options.pageUrl
+    pageUrl: options.pageUrl,
+    resourcesSummary: options.resourcesSummary
   }))
 
   // Hero content enrichment from DOM snapshot

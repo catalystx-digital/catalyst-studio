@@ -13,6 +13,7 @@
  */
 
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
+import type { ResourcesSummary } from '../web-tools'
 
 /**
  * Extracted image from DOM
@@ -28,12 +29,28 @@ interface ExtractedImage {
   sectionKind?: 'logo' | 'content' | 'navigation'
 }
 
+interface SourceImageEvidence {
+  src: string
+  alt?: string
+  pathId?: string
+  evidence: 'dom-snapshot' | 'resources-summary'
+}
+
+interface SourceLinkEvidence {
+  href: string
+  text?: string
+  pathId?: string
+  html?: string
+  evidence: 'dom-snapshot' | 'resources-summary'
+}
+
 /**
  * Options for image enrichment
  */
 export interface ImageEnrichmentOptions {
   domSnapshot?: string | null
   pageUrl?: string
+  resourcesSummary?: ResourcesSummary
 }
 
 /**
@@ -232,22 +249,277 @@ function extractNearbyText(html: string, tagIndex: number): string {
  * Normalizes URL to absolute form
  */
 function normalizeToAbsolute(src: string, pageUrl?: string): string {
-  if (src.startsWith('http://') || src.startsWith('https://')) {
-    return src
+  const decodedSrc = src.replace(/&amp;/g, '&')
+  if (decodedSrc.startsWith('http://') || decodedSrc.startsWith('https://')) {
+    return decodedSrc
   }
 
-  if (!pageUrl) return src
+  if (!pageUrl) return decodedSrc
 
   try {
     const base = new URL(pageUrl)
-    return new URL(src, base.origin).href
+    return new URL(decodedSrc, base.origin).href
   } catch {
-    return src
+    return decodedSrc
   }
 }
 
 function normalizeImageUrl(src: string, pageUrl?: string): string {
   return normalizeToAbsolute(src, pageUrl).toLowerCase().replace(/&amp;/g, '&')
+}
+
+function normalizeComparableText(value: unknown): string {
+  return typeof value === 'string'
+    ? value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
+    : ''
+}
+
+function sourceImagesFromResources(resourcesSummary?: ResourcesSummary): SourceImageEvidence[] {
+  if (!resourcesSummary?.images?.length) return []
+  return resourcesSummary.images
+    .map(image => {
+      const src = (typeof image.src === 'string' ? image.src.trim() : '') || extractFirstSrcsetUrl(image.srcset)
+      if (!src || src.startsWith('data:') || isNonContentImage(src)) return null
+      return {
+        src,
+        alt: typeof image.alt === 'string' ? image.alt : undefined,
+        pathId: typeof image.pathId === 'string' ? image.pathId : undefined,
+        evidence: 'resources-summary' as const
+      }
+    })
+    .filter((image): image is SourceImageEvidence => Boolean(image))
+}
+
+function sourceLinksFromResources(resourcesSummary?: ResourcesSummary): SourceLinkEvidence[] {
+  if (!resourcesSummary?.anchors?.length) return []
+  return resourcesSummary.anchors
+    .map(anchor => {
+      const href = typeof anchor.href === 'string' ? anchor.href.trim() : ''
+      if (!href) return null
+      return {
+        href,
+        text: typeof anchor.textPreview === 'string' ? anchor.textPreview : undefined,
+        pathId: typeof anchor.pathId === 'string' ? anchor.pathId : undefined,
+        evidence: 'resources-summary' as const
+      }
+    })
+    .filter((link): link is SourceLinkEvidence => Boolean(link))
+}
+
+function extractFirstSrcsetUrl(srcset: unknown): string {
+  if (typeof srcset !== 'string') return ''
+  const first = srcset.split(',').map(entry => entry.trim()).find(Boolean)
+  return first?.split(/\s+/)[0]?.trim() ?? ''
+}
+
+function sourceImagesFromDom(images: ExtractedImage[]): SourceImageEvidence[] {
+  return images.map(image => ({
+    src: image.src,
+    alt: image.alt,
+    evidence: 'dom-snapshot' as const
+  }))
+}
+
+function sourceLinksFromDom(domSnapshot?: string | null): SourceLinkEvidence[] {
+  if (!domSnapshot || typeof domSnapshot !== 'string' || !domSnapshot.includes('<a')) return []
+  const links: SourceLinkEvidence[] = []
+  const anchorRegex = /<a\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>[\s\S]*?<\/a>/gi
+  let match
+  while ((match = anchorRegex.exec(domSnapshot)) !== null) {
+    const href = match[1]?.trim()
+    if (!href || href.startsWith('#') || /^javascript:/i.test(href)) continue
+    const html = match[0]
+    const text = extractSectionText(html)
+    if (!text) continue
+    links.push({
+      href,
+      text,
+      html,
+      evidence: 'dom-snapshot'
+    })
+  }
+  return links
+}
+
+function dedupeSourceImages(images: SourceImageEvidence[], pageUrl?: string): SourceImageEvidence[] {
+  const unique = new Map<string, SourceImageEvidence>()
+  for (const image of images) {
+    const key = normalizeImageUrl(image.src, pageUrl)
+    if (!unique.has(key)) {
+      unique.set(key, image)
+    }
+  }
+  return Array.from(unique.values())
+}
+
+function reconcileTeamGridMemberImagesFromSource(
+  components: DetectedComponent[],
+  sourceImages: SourceImageEvidence[],
+  pageUrl?: string
+): void {
+  if (sourceImages.length === 0) return
+
+  for (const component of components) {
+    if (component.type !== 'team-grid' || !isRecord(component.content)) continue
+
+    const content = component.content as Record<string, unknown>
+    const corrections: Array<{
+      memberName: string
+      collection: string
+      previous?: string
+      replacement: string
+      evidence: SourceImageEvidence['evidence']
+    }> = []
+
+    for (const { collection, members } of getTeamMemberCollections(content)) {
+      for (const member of members) {
+        if (!isRecord(member)) continue
+        const name = normalizeComparableText(member.name)
+        if (!name) continue
+
+        const matched = selectTeamImageCandidate(name, sourceImages)
+        if (!matched) continue
+
+        const replacement = normalizeToAbsolute(matched.src, pageUrl)
+        const existing = typeof member.photo === 'string' ? member.photo : undefined
+        if (existing && normalizeImageUrl(existing, pageUrl) === normalizeImageUrl(replacement, pageUrl)) continue
+
+        member.photo = replacement
+        if (!member.photoAlt && matched.alt) {
+          member.photoAlt = matched.alt
+        }
+        corrections.push({
+          memberName: typeof member.name === 'string' ? member.name : name,
+          collection,
+          previous: existing,
+          replacement,
+          evidence: matched.evidence
+        })
+      }
+    }
+
+    if (corrections.length > 0) {
+      component.metadata = {
+        ...(component.metadata || {}),
+        sourceEvidence: {
+          ...(component.metadata?.sourceEvidence || {}),
+          teamGridImageCorrections: corrections
+        }
+      }
+    }
+  }
+}
+
+function reconcileTeamGridMemberLinksFromSource(
+  components: DetectedComponent[],
+  sourceImages: SourceImageEvidence[],
+  sourceLinks: SourceLinkEvidence[],
+  pageUrl?: string
+): void {
+  if (sourceLinks.length === 0) return
+
+  for (const component of components) {
+    if (component.type !== 'team-grid' || !isRecord(component.content)) continue
+
+    const content = component.content as Record<string, unknown>
+    const corrections: Array<{
+      memberName: string
+      collection: string
+      previous?: string
+      replacement: string
+      evidence: SourceLinkEvidence['evidence']
+    }> = []
+
+    for (const { collection, members } of getTeamMemberCollections(content)) {
+      for (const member of members) {
+        if (!isRecord(member)) continue
+        const name = normalizeComparableText(member.name)
+        if (!name) continue
+
+        const matchedImage = selectTeamImageCandidate(name, sourceImages)
+        const matched = selectTeamLinkCandidate(name, sourceLinks, matchedImage)
+        if (!matched) continue
+
+        const replacement = normalizeToAbsolute(matched.href, pageUrl)
+        const existing = typeof member.profileUrl === 'string' ? member.profileUrl : undefined
+        if (existing && normalizeImageUrl(existing, pageUrl) === normalizeImageUrl(replacement, pageUrl)) continue
+
+        member.profileUrl = replacement
+        corrections.push({
+          memberName: typeof member.name === 'string' ? member.name : name,
+          collection,
+          previous: existing,
+          replacement,
+          evidence: matched.evidence
+        })
+      }
+    }
+
+    if (corrections.length > 0) {
+      component.metadata = {
+        ...(component.metadata || {}),
+        sourceEvidence: {
+          ...(component.metadata?.sourceEvidence || {}),
+          teamGridLinkCorrections: corrections
+        }
+      }
+    }
+  }
+}
+
+function getTeamMemberCollections(content: Record<string, unknown>): Array<{ collection: string; members: unknown[] }> {
+  return ['members', 'manualMembers']
+    .map(collection => ({ collection, members: Array.isArray(content[collection]) ? content[collection] as unknown[] : [] }))
+    .filter(entry => entry.members.length > 0)
+}
+
+function selectTeamImageCandidate(name: string, sourceImages: SourceImageEvidence[]): SourceImageEvidence | undefined {
+  const exact = sourceImages.filter(image => normalizeComparableText(image.alt) === name)
+  if (exact.length <= 1) return exact[0]
+
+  const withPath = exact.filter(image => image.pathId)
+  return withPath.length === 1 ? withPath[0] : undefined
+}
+
+function selectTeamLinkCandidate(
+  name: string,
+  sourceLinks: SourceLinkEvidence[],
+  matchedImage?: SourceImageEvidence
+): SourceLinkEvidence | undefined {
+  const textMatches = sourceLinks.filter(link => {
+    const text = normalizeComparableText(link.text)
+    return text === name || text.startsWith(`${name} `)
+  })
+  if (textMatches.length === 0) return undefined
+
+  if (matchedImage?.pathId) {
+    const adjacent = textMatches.filter(link => link.pathId && pathsAreRelated(link.pathId, matchedImage.pathId!))
+    if (adjacent.length === 1) return adjacent[0]
+  }
+
+  if (matchedImage) {
+    const imageUrl = normalizeImageUrl(matchedImage.src)
+    const imagePath = imagePathname(matchedImage.src)
+    const adjacent = textMatches.filter(link => {
+      const html = (link.html || '').toLowerCase().replace(/&amp;/g, '&')
+      return Boolean(html) && (html.includes(imageUrl) || Boolean(imagePath && html.includes(imagePath)))
+    })
+    if (adjacent.length === 1) return adjacent[0]
+  }
+
+  return textMatches.length === 1 ? textMatches[0] : undefined
+}
+
+function pathsAreRelated(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
+}
+
+function imagePathname(src: string): string {
+  try {
+    return new URL(src, 'https://example.invalid').pathname.toLowerCase()
+  } catch {
+    return ''
+  }
 }
 
 /**
@@ -597,7 +869,7 @@ export function enrichComponentImages(
   components: DetectedComponent[],
   options: ImageEnrichmentOptions = {}
 ): DetectedComponent[] {
-  const { domSnapshot, pageUrl } = options
+  const { domSnapshot, pageUrl, resourcesSummary } = options
 
   console.log('[ImageEnrichment] Called with:', {
     componentCount: components.length,
@@ -606,7 +878,12 @@ export function enrichComponentImages(
     pageUrl
   })
 
+  const resourceImages = sourceImagesFromResources(resourcesSummary)
+  const resourceLinks = sourceLinksFromResources(resourcesSummary)
+
   if (!domSnapshot) {
+    reconcileTeamGridMemberImagesFromSource(components, resourceImages, pageUrl)
+    reconcileTeamGridMemberLinksFromSource(components, resourceImages, resourceLinks, pageUrl)
     console.log('[ImageEnrichment] No DOM snapshot, skipping enrichment')
     return components
   }
@@ -618,6 +895,18 @@ export function enrichComponentImages(
     count: domImages.length,
     samples: domImages.slice(0, 5).map(img => img.src.substring(0, 60))
   })
+
+  const sourceImages = dedupeSourceImages([
+    ...sourceImagesFromDom(domImages),
+    ...resourceImages
+  ], pageUrl)
+  const sourceLinks = [
+    ...sourceLinksFromDom(domSnapshot),
+    ...resourceLinks
+  ]
+
+  reconcileTeamGridMemberImagesFromSource(components, sourceImages, pageUrl)
+  reconcileTeamGridMemberLinksFromSource(components, sourceImages, sourceLinks, pageUrl)
 
   if (domImages.length === 0) return components
 

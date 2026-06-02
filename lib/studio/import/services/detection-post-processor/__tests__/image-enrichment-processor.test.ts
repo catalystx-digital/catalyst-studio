@@ -659,4 +659,234 @@ describe('image enrichment processor', () => {
     ])
     expect(JSON.stringify(result[0].content)).not.toContain('hero_BYD')
   })
+
+  it('reconciles team-grid member photos from source resource image alt text without a DOM snapshot', () => {
+    const wrongBobUrl = 'https://assets-us-01.kc-usercontent.com/site/files/5a2e6f3e-cea9-46e5-a13f-2d048137c95a/Bob_mid.jpg?w=300&fm=webp'
+    const sourceBobUrl = 'https://assets-us-01.kc-usercontent.com/site/files/5a2e6e3f-cea9-46e5-a13f-2d048137c95a/Bob_mid.jpg?w=300&fm=webp'
+    const components: DetectedComponent[] = [
+      {
+        type: 'team-grid',
+        component: 'team-grid',
+        confidence: 0.9,
+        content: {
+          heading: 'Our team',
+          members: [
+            {
+              name: 'Bob Haring',
+              title: 'Chief Technology Officer',
+              photo: wrongBobUrl,
+              profileUrl: 'https://www.luminary.com/bridget',
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.luminary.com/about',
+      resourcesSummary: {
+        anchors: [
+          {
+            href: '/bob',
+            textPreview: 'Bob Haring',
+            pathId: 'main/team/a[4]',
+          },
+        ],
+        images: [
+          {
+            src: sourceBobUrl,
+            alt: 'Bob Haring',
+            pathId: 'main/team/a[4]/img',
+          },
+        ],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect((result[0].content as { members: Array<{ photo?: string; photoAlt?: string; profileUrl?: string }> }).members[0]).toMatchObject({
+      photo: sourceBobUrl,
+      photoAlt: 'Bob Haring',
+      profileUrl: 'https://www.luminary.com/bob',
+    })
+    expect(result[0].metadata?.sourceEvidence).toMatchObject({
+      teamGridImageCorrections: [
+        {
+          memberName: 'Bob Haring',
+          previous: wrongBobUrl,
+          replacement: sourceBobUrl,
+          evidence: 'resources-summary',
+        },
+      ],
+      teamGridLinkCorrections: [
+        {
+          memberName: 'Bob Haring',
+          previous: 'https://www.luminary.com/bridget',
+          replacement: 'https://www.luminary.com/bob',
+          evidence: 'resources-summary',
+        },
+      ],
+    })
+  })
+
+  it('does not replace team-grid member photos without an exact source alt/name match', () => {
+    const existingUrl = 'https://assets.example.com/team/bob.jpg'
+    const components: DetectedComponent[] = [
+      {
+        type: 'team-grid',
+        component: 'team-grid',
+        confidence: 0.9,
+        content: {
+          members: [
+            {
+              name: 'Bob Haring',
+              photo: existingUrl,
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.luminary.com/about',
+      resourcesSummary: {
+        anchors: [],
+        images: [
+          {
+            src: 'https://assets.example.com/team/alice.jpg',
+            alt: 'Alice Smith',
+            pathId: 'main/team/a[1]/img',
+          },
+        ],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect((result[0].content as { members: Array<{ photo?: string }> }).members[0].photo).toBe(existingUrl)
+    expect(result[0].metadata?.sourceEvidence).toBeUndefined()
+  })
+
+  it('reconciles Luminary-style team-grid photos and profile links from source DOM anchor markup', () => {
+    const wrongBobUrl = 'https://assets-us-01.kc-usercontent.com/site/files/5a2e6f3e-cea9-46e5-a13f-2d048137c95a/Bob_mid.jpg?w=300&fm=webp'
+    const sourceBobUrl = 'https://assets-us-01.kc-usercontent.com/site/files/5a2e6e3f-cea9-46e5-a13f-2d048137c95a/Bob_mid.jpg?w=300&fm=webp'
+    const components: DetectedComponent[] = [
+      {
+        type: 'team-grid',
+        component: 'team-grid',
+        confidence: 0.9,
+        content: {
+          members: [
+            {
+              name: 'Bob Haring',
+              photo: wrongBobUrl,
+              profileUrl: 'https://www.luminary.com/bridget',
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <main>
+        <section class="team-list">
+          <a class="team-member-item" href="/bob">
+            <img src="${sourceBobUrl.replace(/&/g, '&amp;')}" alt="Bob Haring" />
+            <span>Bob Haring</span>
+            <span>Chief Technology Officer</span>
+          </a>
+        </section>
+      </main>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.luminary.com/about',
+    })
+
+    expect((result[0].content as { members: Array<{ photo?: string; profileUrl?: string }> }).members[0]).toMatchObject({
+      photo: sourceBobUrl,
+      profileUrl: 'https://www.luminary.com/bob',
+    })
+  })
+
+  it('does not replace team-grid photos or links when source member name matches are ambiguous', () => {
+    const existingPhoto = 'https://assets.example.com/team/jordan-old.jpg'
+    const existingProfileUrl = 'https://www.example.com/jordan-old'
+    const components: DetectedComponent[] = [
+      {
+        type: 'team-grid',
+        component: 'team-grid',
+        confidence: 0.9,
+        content: {
+          members: [
+            {
+              name: 'Jordan Lee',
+              photo: existingPhoto,
+              profileUrl: existingProfileUrl,
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.example.com/team',
+      resourcesSummary: {
+        anchors: [
+          { href: '/team/jordan-a', textPreview: 'Jordan Lee', pathId: 'main/team/a[1]' },
+          { href: '/speakers/jordan', textPreview: 'Jordan Lee', pathId: 'main/speakers/a[4]' },
+        ],
+        images: [
+          { src: '/team/jordan-a.jpg', alt: 'Jordan Lee', pathId: 'main/team/a[1]/img' },
+          { src: '/speakers/jordan.jpg', alt: 'Jordan Lee', pathId: 'main/speakers/a[4]/img' },
+        ],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect((result[0].content as { members: Array<{ photo?: string; profileUrl?: string }> }).members[0]).toMatchObject({
+      photo: existingPhoto,
+      profileUrl: existingProfileUrl,
+    })
+    expect(result[0].metadata?.sourceEvidence).toBeUndefined()
+  })
+
+  it('reconciles team-grid manualMembers from source resources', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'team-grid',
+        component: 'team-grid',
+        confidence: 0.9,
+        content: {
+          manualMembers: [
+            {
+              name: 'Avery Stone',
+              photo: 'https://assets.example.com/team/wrong.jpg',
+              profileUrl: 'https://www.example.com/wrong',
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://www.example.com/team',
+      resourcesSummary: {
+        anchors: [{ href: '/team/avery-stone', textPreview: 'Avery Stone', pathId: 'main/team/a[2]' }],
+        images: [{ src: '/team/avery-stone.jpg', alt: 'Avery Stone', pathId: 'main/team/a[2]/img' }],
+        videos: [],
+        forms: [],
+        links: [],
+      },
+    })
+
+    expect((result[0].content as { manualMembers: Array<{ photo?: string; profileUrl?: string }> }).manualMembers[0]).toMatchObject({
+      photo: 'https://www.example.com/team/avery-stone.jpg',
+      profileUrl: 'https://www.example.com/team/avery-stone',
+    })
+  })
 })
