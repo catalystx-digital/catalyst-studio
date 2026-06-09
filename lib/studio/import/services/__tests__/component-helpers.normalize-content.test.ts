@@ -1132,14 +1132,14 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       type: 'hero-with-image',
       bounds: baseBounds,
       content: {
-        heading: 'We are Luminary',
+        heading: 'We are Example Agency',
         image: {
           src: {
-            mediaId: 'detected:luminary-hero',
+            mediaId: 'detected:example-agency-hero',
             mediaType: 'image',
-            url: 'https://example.com/luminary.jpg'
+            url: 'https://example.com/example-agency.jpg'
           },
-          alt: 'Luminary hero'
+          alt: 'Example Agency hero'
         },
         ctaButtons: [
           {
@@ -1152,10 +1152,10 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
             variant: 'primary'
           },
           {
-            label: 'Visit Luminary',
+            label: 'Visit Example Agency',
             href: {
               type: 'external',
-              url: 'https://www.luminary.com/'
+              url: 'https://agency.example.com/'
             },
             variant: 'secondary'
           }
@@ -1177,10 +1177,10 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         variant: 'primary'
       },
       {
-        label: 'Visit Luminary',
+        label: 'Visit Example Agency',
         href: {
           type: 'external',
-          url: 'https://www.luminary.com/'
+          url: 'https://agency.example.com/'
         },
         variant: 'secondary'
       }
@@ -1194,14 +1194,14 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       type: 'hero-with-image',
       bounds: baseBounds,
       content: {
-        heading: 'We are Luminary',
+        heading: 'We are Example Agency',
         image: {
           src: {
-            mediaId: 'detected:luminary-hero',
+            mediaId: 'detected:example-agency-hero',
             mediaType: 'image',
-            url: 'https://example.com/luminary.jpg'
+            url: 'https://example.com/example-agency.jpg'
           },
-          alt: 'Luminary hero'
+          alt: 'Example Agency hero'
         },
         ctaButtons: [
           {
@@ -1914,24 +1914,24 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
   it('normalizes nested sidemenu aliases inside two-column columns', () => {
     const detection: DetectionResult = {
-      id: 'two-column-rch-sidemenu',
+      id: 'two-column-example-health-sidemenu',
       type: 'two-column',
       bounds: baseBounds,
       content: {
         columnRatio: '25-75',
         leftColumn: [
           {
-            id: 'sidemenu-rch',
+            id: 'sidemenu-example-health',
             type: 'sidemenu',
             content: {
               heading: 'In this section',
               menuItems: [
                 {
-                  label: 'About the RCH',
+                  label: 'About the Example Health',
                   href: {
                     type: 'internal',
                     pageId: 'about',
-                    path: '/rch/about/'
+                    path: '/example-health/about/'
                   }
                 }
               ]
@@ -1946,17 +1946,17 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     const props = extractComponentProps(detection, createComponentType('two-column'))
 
     expect(props.content?.leftColumn?.[0]).toEqual({
-      id: 'sidemenu-rch',
+      id: 'sidemenu-example-health',
       type: 'sidemenu',
       content: {
         title: 'In this section',
         items: [
           {
-            label: 'About the RCH',
+            label: 'About the Example Health',
             href: {
               type: 'internal',
               pageId: 'about',
-              path: '/rch/about/'
+              path: '/example-health/about/'
             }
           }
         ]
@@ -2853,7 +2853,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         menuItems: [{ label: 'Home', href: '/' }],
         logo: {
           src: '/',
-          alt: 'Luminary'
+          alt: 'Example Agency'
         }
       },
       metadata: {}
@@ -2863,8 +2863,8 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
     expect(props.content?.logo).toEqual(
       expect.objectContaining({
-        text: 'Luminary',
-        alt: 'Luminary'
+        text: 'Example Agency',
+        alt: 'Example Agency'
       })
     )
     expect(props.content?.logo?.src).toBeUndefined()
@@ -2948,7 +2948,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
 
   it('wraps bare smart-link breadcrumb items into canonical link entries', () => {
     const detection: DetectionResult = {
-      id: 'rch-breadcrumbs-bare-link',
+      id: 'example-health-breadcrumbs-bare-link',
       type: 'breadcrumbs',
       bounds: baseBounds,
       content: {
@@ -2961,7 +2961,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         ],
         separator: '>',
         showHome: true,
-        homeLabel: 'RCH'
+        homeLabel: 'Example Health'
       },
       metadata: {}
     }
@@ -2971,7 +2971,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(props.content).toEqual({
       items: [
         {
-          label: 'RCH',
+          label: 'Example Health',
           href: {
             type: 'internal',
             pageId: 'home',
@@ -2981,7 +2981,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       ],
       separator: '>',
       showHome: true,
-      homeLabel: 'RCH'
+      homeLabel: 'Example Health'
     })
     expect(consumeNormalizationWarnings()).toHaveLength(0)
   })
@@ -2996,7 +2996,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
           {
             type: 'internal',
             pageId: 'about',
-            path: '/rch/about/'
+            path: '/example-health/about/'
           }
         ],
         separator: '>'
@@ -3011,7 +3011,7 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         href: {
           type: 'internal',
           pageId: 'about',
-          path: '/rch/about/'
+          path: '/example-health/about/'
         }
       }
     ])

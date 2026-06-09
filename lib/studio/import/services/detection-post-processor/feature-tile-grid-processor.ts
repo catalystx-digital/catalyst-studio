@@ -17,7 +17,7 @@ interface FeatureTile {
   }
 }
 
-const FEATURE_CONTEXT_PATTERN = /\b(?:rch-home-[\w-]+|rch-featured-[\w-]+|feature(?:d)?|tile|card|promo)\b/i
+const FEATURE_CONTEXT_PATTERN = /\b(?:home-[\w-]+|featured-[\w-]+|feature(?:d)?|tile|card|promo)\b/i
 const HEADING_PATTERN = /<h[2-4]\b[^>]*>([\s\S]*?)<\/h[2-4]>/i
 const HREF_PATTERN = /\bhref\s*=\s*(["'])(.*?)\1/i
 const IMG_PATTERN = /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/i

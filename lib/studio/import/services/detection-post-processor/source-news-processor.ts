@@ -17,12 +17,12 @@ interface SourceNewsCard {
   }
 }
 
-const RCH_NEWS_START_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])rch-news-carousel\1[^>]*>/i
-const RCH_NEWS_END_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])(?:rch-news-carousel-xs|fd-news-carousel)\1[^>]*>/i
-const NEWS_CONTAINER_PATTERN = /<div\b[^>]*(?:id|class)\s*=\s*(["'])[^"']*news-carousel[^"']*\1[^>]*>/gi
+const NEWS_CONTAINER_PATTERN = /<div\b[^>]*(?:id|class)\s*=\s*(["'])[^"']*(?:news|article|story)[^"']*(?:carousel|listing|list|feed|grid)[^"']*\1[^>]*>/gi
 const LINK_PATTERN = /<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi
 const IMG_PATTERN = /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi
 const ALT_PATTERN = /\balt\s*=\s*(["'])(.*?)\1/i
+const NEWS_HEADING_PATTERN = /\b(?:news|articles?|stories|insights|updates)\b/i
+const NEWS_LINK_PATH_PATTERN = /\/(?:news|articles?|stories|insights|updates|blog)\b/i
 
 function stripHtml(value: string): string {
   return value
@@ -57,15 +57,9 @@ function stableImageId(url: string): string {
 }
 
 function findNewsContainerHtml(html: string): string | undefined {
-  const rchStart = RCH_NEWS_START_PATTERN.exec(html)
-  if (rchStart) {
-    const afterStart = html.slice(rchStart.index + rchStart[0].length)
-    const end = RCH_NEWS_END_PATTERN.exec(afterStart)
-    return html.slice(rchStart.index, end ? rchStart.index + rchStart[0].length + end.index : Math.min(html.length, rchStart.index + 30000))
-  }
-
   const starts: number[] = []
   let match: RegExpExecArray | null
+  NEWS_CONTAINER_PATTERN.lastIndex = 0
   while ((match = NEWS_CONTAINER_PATTERN.exec(html)) !== null) {
     starts.push(match.index)
   }
@@ -76,7 +70,7 @@ function findNewsContainerHtml(html: string): string | undefined {
       end: starts[index + 1] ?? Math.min(html.length, start + 20000),
       html: html.slice(start, starts[index + 1] ?? Math.min(html.length, start + 20000)),
     }))
-    .filter(container => /RCH News/i.test(stripHtml(container.html)))
+    .filter(container => NEWS_HEADING_PATTERN.test(stripHtml(container.html)))
     .sort((a, b) => b.html.length - a.html.length)[0]?.html
 }
 
@@ -128,7 +122,7 @@ function extractSourceNewsCards(domSnapshot: string | null | undefined, pageUrl?
     if (!href || !normalized || seenTitles.has(normalized) || title === '‹' || title === '›') {
       continue
     }
-    if (!/blogs\.rch\.org\.au\/news\//i.test(href)) {
+    if (!NEWS_LINK_PATH_PATTERN.test(href)) {
       continue
     }
 
@@ -176,6 +170,15 @@ function componentHeading(component: DetectedComponent): string | undefined {
   return typeof content.heading === 'string' ? content.heading : undefined
 }
 
+function sourceHeading(containerHtml: string | undefined): string | undefined {
+  if (!containerHtml) return undefined
+  const match =
+    /<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/i.exec(containerHtml) ??
+    /<(?:span|div)\b[^>]*(?:class|id)\s*=\s*(["'])[^"']*news[^"']*\1[^>]*>([\s\S]*?)<\/(?:span|div)>/i.exec(containerHtml)
+  const heading = match ? stripHtml(match[2] ?? match[1]) : undefined
+  return heading && NEWS_HEADING_PATTERN.test(heading) ? heading : undefined
+}
+
 function sourceOverlap(component: DetectedComponent, sourceCards: SourceNewsCard[]): number {
   const titles = listingTitleSet(component)
   return sourceCards.filter(card => {
@@ -188,53 +191,61 @@ export function enrichSourceNewsListing(
   components: DetectedComponent[],
   options: { domSnapshot?: string | null; pageUrl?: string } = {}
 ): DetectedComponent[] {
+  const html = options.domSnapshot?.replace(/<!--[\s\S]*?-->/g, ' ') ?? ''
+  const containerHtml = findNewsContainerHtml(html)
   const sourceCards = extractSourceNewsCards(options.domSnapshot, options.pageUrl)
   if (sourceCards.length < 3) {
     return components
   }
 
-  const sourceHeadingPresent = /RCH News/i.test(options.domSnapshot ?? '') && !/Latest News/i.test(options.domSnapshot ?? '')
-  const sourceTitles = new Set(sourceCards.map(card => normalizeTitle(card.title)).filter((title): title is string => Boolean(title)))
-  const rchNewsIndex = components.findIndex(component => {
-    const heading = componentHeading(component)
-    return String(component.type) === 'card-grid' && normalizeTitle(heading) === 'rch news'
-  })
-  if (rchNewsIndex === -1) {
+  const headingFromSource = sourceHeading(containerHtml) ?? 'News'
+  const newsIndex = components
+    .map((component, index) => ({ component, index, overlap: sourceOverlap(component, sourceCards) }))
+    .filter(entry => String(entry.component.type) === 'card-grid')
+    .filter(entry => {
+      const heading = normalizeTitle(componentHeading(entry.component))
+      return entry.overlap >= 2 || Boolean(heading && NEWS_HEADING_PATTERN.test(heading))
+    })
+    .sort((a, b) => b.overlap - a.overlap)[0]?.index ?? -1
+
+  if (newsIndex === -1) {
     return components
   }
 
-  const rchNews = components[rchNewsIndex]
-  const overlap = sourceOverlap(rchNews, sourceCards)
+  const newsListing = components[newsIndex]
+  const overlap = sourceOverlap(newsListing, sourceCards)
   if (overlap < 2) {
     return components
   }
 
-  const nextRchNews: DetectedComponent = {
-    ...rchNews,
+  const nextNewsListing: DetectedComponent = {
+    ...newsListing,
     content: {
-      ...(rchNews.content && typeof rchNews.content === 'object' ? rchNews.content as Record<string, unknown> : {}),
-      heading: 'RCH News',
+      ...(newsListing.content && typeof newsListing.content === 'object' ? newsListing.content as Record<string, unknown> : {}),
+      heading: headingFromSource,
       cards: sourceCards,
     },
     metadata: {
-      ...(rchNews.metadata ?? {}),
+      ...(newsListing.metadata ?? {}),
       source: 'source-news-enrichment',
     },
   }
 
-  console.log('[SourceNewsProcessor] Enriched RCH News from source DOM:', {
+  console.log('[SourceNewsProcessor] Enriched news listing from source DOM:', {
     previousOverlap: overlap,
     sourceCardCount: sourceCards.length,
   })
 
+  const sourceHeadingPresent = Boolean(headingFromSource)
   const result: DetectedComponent[] = []
   for (let index = 0; index < components.length; index += 1) {
     const component = components[index]
-    const heading = normalizeTitle(componentHeading(component))
+    const heading = componentHeading(component)
+    const normalizedHeading = normalizeTitle(heading)
     const isUnsupportedLatestNews =
       sourceHeadingPresent &&
-      heading === 'latest news' &&
-      Math.abs(index - rchNewsIndex) <= 2 &&
+      normalizedHeading === 'latest news' &&
+      Math.abs(index - newsIndex) <= 2 &&
       sourceOverlap(component, sourceCards) >= 2
 
     if (isUnsupportedLatestNews) {
@@ -244,7 +255,7 @@ export function enrichSourceNewsListing(
       continue
     }
 
-    result.push(index === rchNewsIndex ? nextRchNews : component)
+    result.push(index === newsIndex ? nextNewsListing : component)
   }
 
   return result

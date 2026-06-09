@@ -17,7 +17,7 @@ describe('collapseDuplicateListingSurfaces', () => {
       component('card-grid', {
         cards: [
           { title: 'Nicotine use among teens', image: { src: { url: '/nicotine.jpg' } } },
-          { title: 'Introducing AI Ambient Scribes to the RCH!', image: { src: { url: '/ai.jpg' } } },
+          { title: 'Introducing AI Ambient Scribes to the Example Health!', image: { src: { url: '/ai.jpg' } } },
           { title: 'Do you have a clinic appointment?', image: { src: { url: '/clinic.jpg' } } },
           { title: 'Teen Health Info fact sheets now live', image: { src: { url: '/teen.jpg' } } },
         ],
@@ -26,7 +26,7 @@ describe('collapseDuplicateListingSurfaces', () => {
         cards: [
           { title: 'Appointment notifications now straight to your phone' },
           { title: 'Nicotine use among teens' },
-          { title: 'Introducing AI Ambient Scribes to the RCH!' },
+          { title: 'Introducing AI Ambient Scribes to the Example Health!' },
           { title: 'Do you have a clinic appointment?' },
           { title: 'Teen Health Info fact sheets now live' },
         ],
@@ -42,14 +42,14 @@ describe('collapseDuplicateListingSurfaces', () => {
   it('drops repeated news listing variants with overlapping item titles', () => {
     const components = [
       component('content-feed', {
-        heading: 'RCH News',
+        heading: 'Health News',
         pinned: [
           { title: 'Hope at last for butterfly children' },
           { title: 'A visit from the Duke and Duchess of Sussex' },
         ],
       }),
       component('card-grid', {
-        heading: 'RCH News',
+        heading: 'Health News',
         cards: [
           { title: 'Hope at last for butterfly children', image: { src: { url: '/hope.jpg' } } },
           { title: 'A visit from the Duke and Duchess of Sussex', image: { src: { url: '/duke.jpg' } } },
@@ -137,17 +137,17 @@ describe('collapseDuplicateListingSurfaces', () => {
     const components = [
       component('card-grid', {
         cards: [
-          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
-          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
-          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://news.example.org/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://news.example.org/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://news.example.org/news/tommy/' } },
         ],
       }),
       component('content-feed', {
         heading: 'Latest News',
         pinned: [
-          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
-          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
-          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://news.example.org/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://news.example.org/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://news.example.org/news/tommy/' } },
         ],
       }),
     ]
@@ -161,29 +161,29 @@ describe('collapseDuplicateListingSurfaces', () => {
         slides: [
           { heading: 'Appointment notifications now straight to your phone' },
           { heading: 'Nicotine use among teens' },
-          { heading: 'Introducing AI Ambient Scribes to the RCH!' },
+          { heading: 'Introducing AI Ambient Scribes to the Example Health!' },
           { heading: 'Do you have a clinic appointment?' },
           { heading: 'Teen Health Info fact sheets now live' },
-          { heading: 'My RCH Portal: Your record at your fingertips' },
+          { heading: 'My Health Portal: Your record at your fingertips' },
         ],
       }),
-      component('hero-with-image', { heading: 'Travel a long way to get to the RCH?' }),
+      component('hero-with-image', { heading: 'Travel a long way to get to the Example Health?' }),
       component('card-grid', {
         cards: [
           { title: 'Appointment notifications now straight to your phone' },
           { title: 'Teens and food' },
           { title: 'Nicotine use among teens' },
-          { title: 'Introducing AI Ambient Scribes to the RCH!' },
+          { title: 'Introducing AI Ambient Scribes to the Example Health!' },
           { title: 'Do you have a clinic appointment?' },
           { title: 'Teen Health Info fact sheets now live' },
         ],
       }),
       component('card-grid', {
         cards: [
-          { title: 'Your guide to the RCH' },
+          { title: 'Your guide to the Example Health' },
           { title: 'Kids Health Info' },
           { title: 'Clinical Practice Guidelines' },
-          { title: 'My RCH Portal' },
+          { title: 'My Health Portal' },
         ],
       }),
     ]
@@ -208,7 +208,7 @@ describe('collapseDuplicateListingSurfaces', () => {
             body: 'Flu copy',
           },
           {
-            heading: 'Introducing AI Ambient Scribes to the RCH!',
+            heading: 'Introducing AI Ambient Scribes to the Example Health!',
             body: 'AI copy',
           },
         ],
@@ -222,12 +222,12 @@ describe('collapseDuplicateListingSurfaces', () => {
         subheading: 'Flu copy',
       }),
       component('hero-banner', {
-        heading: 'Introducing AI Ambient Scribes to the RCH!',
+        heading: 'Introducing AI Ambient Scribes to the Example Health!',
         body: 'AI copy',
       }),
       component('card-grid', {
         cards: [
-          { title: 'Your guide to the RCH' },
+          { title: 'Your guide to the Example Health' },
           { title: 'Kids Health Info' },
         ],
       }),
@@ -305,23 +305,23 @@ describe('collapseDuplicateListingSurfaces', () => {
     const components = [
       component('hero-with-image', { heading: 'Appointment notifications now straight to your phone' }),
       component('hero-with-image', { heading: 'Nicotine use among teens' }),
-      component('hero-with-image', { heading: 'Introducing AI Ambient Scribes to the RCH!' }),
+      component('hero-with-image', { heading: 'Introducing AI Ambient Scribes to the Example Health!' }),
       component('card-grid', {
         cards: [
           { title: 'Appointment notifications now straight to your phone' },
           { title: 'Teens and food' },
           { title: 'Nicotine use among teens' },
-          { title: 'Introducing AI Ambient Scribes to the RCH!' },
+          { title: 'Introducing AI Ambient Scribes to the Example Health!' },
           { title: 'Do you have a clinic appointment?' },
           { title: 'Teen Health Info fact sheets now live' },
         ],
       }),
       component('card-grid', {
         cards: [
-          { title: 'Your guide to the RCH' },
+          { title: 'Your guide to the Example Health' },
           { title: 'Kids Health Info' },
           { title: 'Clinical Practice Guidelines' },
-          { title: 'My RCH Portal' },
+          { title: 'My Health Portal' },
         ],
       }),
     ]
@@ -334,46 +334,46 @@ describe('collapseDuplicateListingSurfaces', () => {
     ])
   })
 
-  it('collapses RCH home repeated news cluster while preserving unrelated sections', () => {
+  it('collapses Example Health home repeated news cluster while preserving unrelated sections', () => {
     const components = [
       component('hero-carousel', { slides: [{ heading: 'Hero' }] }),
       component('hero-with-image', { heading: 'Travel a long way', image: { src: { url: '/travel.jpg' } } }),
-      component('card-grid', { cards: [{ title: 'Your guide to the RCH' }, { title: 'Find a doctor' }] }),
+      component('card-grid', { cards: [{ title: 'Your guide to the Example Health' }, { title: 'Find a doctor' }] }),
       component('content-feed', {
-        heading: 'RCH News',
-        pinned: [{ title: 'Hope at last for butterfly children', href: { url: 'https://blogs.rch.org.au/news/hope/' } }],
+        heading: 'Health News',
+        pinned: [{ title: 'Hope at last for butterfly children', href: { url: 'https://news.example.org/news/hope/' } }],
       }),
       component('card-grid', {
         cards: [
-          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
-          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
-          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://news.example.org/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://news.example.org/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://news.example.org/news/tommy/' } },
         ],
       }),
       component('card-grid', {
-        heading: 'RCH News',
+        heading: 'Health News',
         cards: [
-          { title: 'Emma’s story', href: { url: 'https://blogs.rch.org.au/news/emma/' } },
-          { title: 'Chief of Medicine named as finalist for Human Rights Medal', href: { url: 'https://blogs.rch.org.au/news/chief/' } },
-          { title: 'Hazel’s story: little fighter from the farm', href: { url: 'https://blogs.rch.org.au/news/hazel/' } },
-          { title: 'Hope at last for butterfly children', href: { url: 'https://blogs.rch.org.au/news/hope/' } },
-          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
+          { title: 'Emma’s story', href: { url: 'https://news.example.org/news/emma/' } },
+          { title: 'Chief of Medicine named as finalist for Human Rights Medal', href: { url: 'https://news.example.org/news/chief/' } },
+          { title: 'Hazel’s story: little fighter from the farm', href: { url: 'https://news.example.org/news/hazel/' } },
+          { title: 'Hope at last for butterfly children', href: { url: 'https://news.example.org/news/hope/' } },
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://news.example.org/news/duke/' } },
         ],
       }),
       component('content-feed', {
         heading: 'Latest News',
         pinned: [
-          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://blogs.rch.org.au/news/duke/' } },
-          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://blogs.rch.org.au/news/nicotine/' } },
-          { title: 'Tommy the fearless farm boy', href: { url: 'https://blogs.rch.org.au/news/tommy/' } },
+          { title: 'A visit from the Duke and Duchess of Sussex', href: { url: 'https://news.example.org/news/duke/' } },
+          { title: 'Media release: Parents in the dark about teens’ nicotine use', href: { url: 'https://news.example.org/news/nicotine/' } },
+          { title: 'Tommy the fearless farm boy', href: { url: 'https://news.example.org/news/tommy/' } },
         ],
       }),
       component('content-feed', {
-        heading: "The Royal Children's Hospital",
+        heading: "Example Health",
         pinned: [
-          { title: 'Emma’s story', href: { url: 'https://blogs.rch.org.au/news/emma/' } },
-          { title: 'Chief of Medicine named as finalist for Human Rights Medal', href: { url: 'https://blogs.rch.org.au/news/chief/' } },
-          { title: 'Hazel’s story: little fighter from the farm', href: { url: 'https://blogs.rch.org.au/news/hazel/' } },
+          { title: 'Emma’s story', href: { url: 'https://news.example.org/news/emma/' } },
+          { title: 'Chief of Medicine named as finalist for Human Rights Medal', href: { url: 'https://news.example.org/news/chief/' } },
+          { title: 'Hazel’s story: little fighter from the farm', href: { url: 'https://news.example.org/news/hazel/' } },
         ],
       }),
       component('card-grid', { cards: [{ title: 'Donate' }, { title: 'Volunteer' }] }),
@@ -421,7 +421,7 @@ describe('collapseDuplicateListingSurfaces', () => {
             type: 'sidemenu',
             content: {
               props: {
-                items: [{ label: 'About the RCH', href: { path: '/rch/about/' } }],
+                items: [{ label: 'About the Example Health', href: { path: '/example-health/about/' } }],
               },
             },
           },
@@ -429,11 +429,11 @@ describe('collapseDuplicateListingSurfaces', () => {
         rightColumn: [
           {
             type: 'breadcrumbs',
-            content: { props: { items: [{ label: 'RCH', href: '/' }] } },
+            content: { props: { items: [{ label: 'Example Health', href: '/' }] } },
           },
           {
             type: 'html-block',
-            content: { props: { bodyHtml: "<h1>The Royal Children's Hospital</h1>" } },
+            content: { props: { bodyHtml: "<h1>Example Health</h1>" } },
           },
         ],
       }),

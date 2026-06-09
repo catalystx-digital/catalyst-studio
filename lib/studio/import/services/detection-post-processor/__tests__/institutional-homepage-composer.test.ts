@@ -117,18 +117,18 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     if (!navbar) throw new Error('Expected navbar fixture')
     navbar.content.logo = {
       src: {
-        mediaId: 'detected:luminary-logo-midnight',
+        mediaId: 'detected:example-agency-logo-midnight',
         mediaType: 'image',
-        url: '/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
-        alt: 'Luminary Logo',
+        url: '/_astro/example-agency-logo-midnight.CFVWaLaJ_19DKCs.svg',
+        alt: 'Example Agency Logo',
       },
-      alt: 'Luminary Logo',
+      alt: 'Example Agency Logo',
       href: '/',
-      originalUrl: '/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
+      originalUrl: '/_astro/example-agency-logo-midnight.CFVWaLaJ_19DKCs.svg',
     }
 
     const result = composeInstitutionalHomepageIfEligible(components, {
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
       pageMetadata: {
         title: 'Example Children Hospital',
         pageType: 'home',
@@ -141,12 +141,12 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     expect(result.applied).toBe(true)
     expect(result.components[0].content.logo).toMatchObject({
       src: {
-        mediaId: 'detected:luminary-logo-midnight',
+        mediaId: 'detected:example-agency-logo-midnight',
         mediaType: 'image',
-        url: 'https://www.luminary.com/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
-        alt: 'Luminary Logo',
+        url: 'https://agency.example.com/_astro/example-agency-logo-midnight.CFVWaLaJ_19DKCs.svg',
+        alt: 'Example Agency Logo',
       },
-      originalUrl: 'https://www.luminary.com/_astro/luminary-logo-midnight.CFVWaLaJ_19DKCs.svg',
+      originalUrl: 'https://agency.example.com/_astro/example-agency-logo-midnight.CFVWaLaJ_19DKCs.svg',
     })
   })
 
@@ -261,7 +261,7 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     const result = composeInstitutionalHomepageIfEligible(baseComponents(), {
       pageUrl: 'https://example.org/home/',
       pageMetadata: {
-        title: 'The Royal Children Hospital : The Royal Children Hospital',
+        title: 'Example Health : Example Health',
         pageType: 'home',
         description: 'Hospital care for patients.',
       },
@@ -269,7 +269,7 @@ describe('composeInstitutionalHomepageIfEligible', () => {
       presentationSkeleton: skeleton,
     })
 
-    expect(result.components[1].content.heading).toBe('The Royal Children Hospital')
+    expect(result.components[1].content.heading).toBe('Example Health')
   })
 
   it('skips non-home pages with explicit audit metadata', () => {
@@ -515,46 +515,46 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     expect((result.components[0].metadata as any).source).toBe('institutional-homepage-dom-nav')
   })
 
-  it('recovers an RCH-shaped header without choosing noisy side navigation', () => {
+  it('recovers an Example Health-shaped header without choosing noisy side navigation', () => {
     const components = baseComponents().filter(entry => entry.type !== ComponentType.NavBar)
     const result = composeInstitutionalHomepageIfEligible(components, {
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
       pageMetadata: {
-        title: "The Royal Children's Hospital : The Royal Children's Hospital",
+        title: "Example Health : Example Health",
         pageType: 'home',
         description: 'Hospital care for patients and families.',
       },
       domSnapshot: `
         <div class="container">
-          <div id="rch-header" class="row hidden-xs">
-            <div id="rch-brand">
-              <a href="/"><img class="rch-logo" src="/logo.png" alt="The Royal Children's Hospital Melbourne"></a>
+          <div id="site-header" class="row hidden-xs">
+            <div id="brand-header">
+              <a href="/"><img class="site-logo" src="/logo.png" alt="Example Health Melbourne"></a>
             </div>
-            <ul id="rch-mini-nav">
+            <ul id="mini-nav">
               <li><a href="/home/">Home</a></li>
-              <li><a href="/rch/about/">About</a></li>
-              <li><a href="http://blogs.rch.org.au/news/">News</a></li>
+              <li><a href="/example-health/about/">About</a></li>
+              <li><a href="https://news.example.org/news/">News</a></li>
               <li><a href="/careers/">Careers</a></li>
-              <li><a href="/rch/contact/">Contact</a></li>
-              <li><a href="https://www.rchfoundation.org.au/donation/rchdonation/" class="header-donate-btn">Donate</a></li>
+              <li><a href="/example-health/contact/">Contact</a></li>
+              <li><a href="https://foundation.example.org/donate/" class="header-donate-btn">Donate</a></li>
             </ul>
           </div>
           <div class="row" id="primary-nav">
             <ul class="nav nav-justified hidden-xs">
-              <li><a href="/rch/health-professionals/">Health Professionals</a></li>
-              <li><a href="/rch/patients-families/">Patients and Families</a></li>
-              <li><a href="/rch/departments/">Departments and Services</a></li>
+              <li><a href="/example-health/health-professionals/">Health Professionals</a></li>
+              <li><a href="/example-health/patients-families/">Patients and Families</a></li>
+              <li><a href="/example-health/departments/">Departments and Services</a></li>
               <li><a href="/research/">Research</a></li>
             </ul>
             <a href="/search/" class="navbar-search-button">Search</a>
-            <input name="adsearch_query" placeholder="Search the RCH website" />
+            <input name="adsearch_query" placeholder="Search the health website" />
           </div>
-          <div id="rch-secondary">
+          <div id="secondary-nav">
             <p class="nav-header">In this section</p>
-            <ul id="rch-sidenav" class="nav sm sm-vertical">
-              <li><a href="/rch/about/">About the RCH</a></li>
-              <li><a href="/rch/about-us/pubs/">Publications</a></li>
-              <li><a href="/rch/about-us/board/">RCH Board</a></li>
+            <ul id="section-sidenav" class="nav sm sm-vertical">
+              <li><a href="/example-health/about/">About the Example Health</a></li>
+              <li><a href="/example-health/about-us/pubs/">Publications</a></li>
+              <li><a href="/example-health/about-us/board/">Health Board</a></li>
               <li><a href="/strategic-plan/">Our Strategic Plan</a></li>
               <li><a href="/archives/">History</a></li>
               <li><a href="/alumni/">Alumni</a></li>
@@ -568,19 +568,19 @@ describe('composeInstitutionalHomepageIfEligible', () => {
 
     expect(result.applied).toBe(true)
     expect(result.components[0].content.menuItems).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Health Professionals', href: menuHref('/rch/health-professionals/') }),
-      expect.objectContaining({ label: 'Patients and Families', href: menuHref('/rch/patients-families/') }),
-      expect.objectContaining({ label: 'Departments and Services', href: menuHref('/rch/departments/') }),
+      expect.objectContaining({ label: 'Health Professionals', href: menuHref('/example-health/health-professionals/') }),
+      expect.objectContaining({ label: 'Patients and Families', href: menuHref('/example-health/patients-families/') }),
+      expect.objectContaining({ label: 'Departments and Services', href: menuHref('/example-health/departments/') }),
     ]))
     expect(result.components[0].content.menuItems).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'RCH Board' }),
+      expect.objectContaining({ label: 'Health Board' }),
       expect.objectContaining({ label: 'Our Strategic Plan' }),
     ]))
     expect(result.components[0].content.utilityNav).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Search the site' }),
     ]))
     expect(result.components[0].content.search).toEqual({ enabled: true, placeholder: 'Search' })
-    expect(result.components[1].content.heading).toBe("The Royal Children's Hospital")
+    expect(result.components[1].content.heading).toBe("Example Health")
   })
 
   it('uses sourced label attributes for icon-only DOM links but filters logo and controls', () => {
@@ -727,35 +727,35 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     })
 
     const result = composeInstitutionalHomepageIfEligible(components, {
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
       pageMetadata: {
-        title: "The Royal Children's Hospital",
+        title: "Example Health",
         pageType: 'home',
         description: 'Hospital care for patients and families.',
       },
       domSnapshot: `
         <div id="primary-nav" class="navbar">
-          <a href="/rch/health-professionals/">Health Professionals</a>
-          <a href="/rch/patients-families/">Patients and Families</a>
-          <a href="/rch/departments/">Departments and Services</a>
+          <a href="/example-health/health-professionals/">Health Professionals</a>
+          <a href="/example-health/patients-families/">Patients and Families</a>
+          <a href="/example-health/departments/">Departments and Services</a>
         </div>
-        <div class="row rch-featured-ani-sm-container">
-          <a href="/emerg_rch/status/" onclick="ga('rchTracker.send', 'event', 'InternetHomePage', 'click', 'Emergency status');" title="View the Emergency Department status page."></a>
+        <div class="row featured-ani-sm-container">
+          <a href="/emergency/status/" onclick="ga('siteTracker.send', 'event', 'InternetHomePage', 'click', 'Emergency status');" title="View the Emergency Department status page."></a>
           <h2>Emergency Department status</h2>
           <p>View the Emergency Department status page for a real time guide.</p>
         </div>
-        <div class="row rch-featured-ani-sm-container">
-          <a href="/teeninfo/" onclick="ga('rchTracker.send', 'event', 'InternetHomePage', 'click', 'Teen Health Info fact sheets');" title="Teen Health Info fact sheets"></a>
+        <div class="row featured-ani-sm-container">
+          <a href="/teeninfo/" onclick="ga('siteTracker.send', 'event', 'InternetHomePage', 'click', 'Teen Health Info fact sheets');" title="Teen Health Info fact sheets"></a>
           <h2>Teen Health Info fact sheets</h2>
           <p>Health topics in simple language for young people.</p>
         </div>
-        <div class="row rch-featured-ani-sm-container">
-          <a href="/telehealth/" onclick="ga('rchTracker.send', 'event', 'InternetHomePage', 'click', 'Telehealth appointments');" title="Telehealth appointments"></a>
+        <div class="row featured-ani-sm-container">
+          <a href="/telehealth/" onclick="ga('siteTracker.send', 'event', 'InternetHomePage', 'click', 'Telehealth appointments');" title="Telehealth appointments"></a>
           <h2>Telehealth appointments</h2>
-          <p>Access to RCH telehealth for patients and families.</p>
+          <p>Access to health telehealth for patients and families.</p>
         </div>
-        <div class="row rch-featured-ani-sm-container">
-          <a href="/translation-resources/" onclick="ga('rchTracker.send', 'event', 'InternetHomePage', 'click', 'Translation resources');" title="Translation resources"></a>
+        <div class="row featured-ani-sm-container">
+          <a href="/translation-resources/" onclick="ga('siteTracker.send', 'event', 'InternetHomePage', 'click', 'Translation resources');" title="Translation resources"></a>
           <h2>Translation resources</h2>
           <p>Explore translated resources in over 22 languages.</p>
         </div>
@@ -767,7 +767,7 @@ describe('composeInstitutionalHomepageIfEligible', () => {
     expect(result.applied).toBe(true)
     expect((result.components[2].metadata as any).source).toBe('institutional-homepage-dom-quick-links')
     expect(result.components[2].content.cards).toEqual([
-      expect.objectContaining({ title: 'Emergency Department status', href: menuHref('/emerg_rch/status/') }),
+      expect.objectContaining({ title: 'Emergency Department status', href: menuHref('/emergency/status/') }),
       expect.objectContaining({ title: 'Teen Health Info fact sheets', href: menuHref('/teeninfo/') }),
       expect.objectContaining({ title: 'Telehealth appointments', href: menuHref('/telehealth/') }),
       expect.objectContaining({ title: 'Translation resources', href: menuHref('/translation-resources/') }),

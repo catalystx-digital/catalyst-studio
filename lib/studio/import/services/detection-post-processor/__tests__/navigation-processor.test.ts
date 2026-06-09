@@ -13,7 +13,7 @@ function component(type: string, content: Record<string, unknown>): DetectedComp
 describe('collapseDuplicateGlobalNavigation', () => {
   it('keeps the richer adjacent global navbar and removes the overlapping duplicate', () => {
     const fullNavbar = component('navbar', {
-      logo: { alt: 'RCH logo' },
+      logo: { alt: 'Example Health logo' },
       search: { enabled: true },
       cta: { label: 'Donate' },
       menuItems: [
@@ -32,7 +32,7 @@ describe('collapseDuplicateGlobalNavigation', () => {
       ],
     })
     const duplicateNavbar = component('navbar', {
-      logo: { alt: "The Royal Children's Hospital Melbourne" },
+      logo: { alt: "Example Health Melbourne" },
       search: { enabled: true },
       cta: { label: 'Donate' },
       menuItems: [],

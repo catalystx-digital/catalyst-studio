@@ -133,7 +133,7 @@ export const CardGridDef = defineComponent({
     '  3. If the contract does not list a backgroundColor field, do not emit it; preserve the card title/image/link content instead.',
     '  4. Convert rgb(r,g,b) to hex format: rgb(162, 38, 11) → "#a2260b"',
     '  5. Common patterns: colored navigation tiles, feature cards with brand colors',
-    '  6. Example: { "title": "Your guide to the RCH", "href": { "type": "internal", "pageId": "info", "path": "/info/" } }',
+    '  6. Example: { "title": "Visitor guide", "href": { "type": "internal", "pageId": "info", "path": "/info/" } }',
   ],
 
   // Sample content for AI tools and testing

@@ -225,32 +225,32 @@ describe('collapseAdjacentHeroSlides', () => {
 
 describe('enrichHeroCarouselFromSource', () => {
   const sourceCarouselHtml = `
-    <div id="rch-featured-carousel" class="carousel slide hidden-xs">
+    <div id="featured-carousel" class="carousel slide hidden-xs">
       <div class="carousel-inner">
         <div class="item active" style="background-image:url('/hero_images/appointment.jpg')">
-          <div class="rch-ccaption">
+          <div class="example-health-ccaption">
             <h2>Appointment notifications now straight to your phone</h2>
             <p>Appointment copy. <a href="/appointments/">Click here to find out more.</a></p>
           </div>
         </div>
         <div class="item" style="background-image:url('/hero_images/food.jpg')">
-          <div class="rch-ccaption">
+          <div class="example-health-ccaption">
             <h2>Teens and food</h2>
             <p>Food copy. <a href="https://poll.example/food/">Click here to learn more.</a></p>
           </div>
         </div>
         <div class="item" style="background-image:url('/hero_images/travel.jpg')">
-          <div class="rch-ccaption">
-            <h2>Travel a long way to get to the RCH?</h2>
+          <div class="example-health-ccaption">
+            <h2>Travel a long way to get to the Example Health?</h2>
             <p>Travel copy. <a href="/telehealth/">Click here to find out more.</a></p>
           </div>
         </div>
       </div>
     </div>
-    <div id="rch-featured-carousel-xs" class="carousel slide visible-xs">
+    <div id="featured-carousel-xs" class="carousel slide visible-xs">
       <div class="carousel-inner">
         <div class="item"><h2>Appointment notifications now straight to your phone</h2></div>
-        <div class="item"><h2>Travel a long way to get to the RCH?</h2></div>
+        <div class="item"><h2>Travel a long way to get to the Example Health?</h2></div>
       </div>
     </div>
   `
@@ -267,13 +267,13 @@ describe('enrichHeroCarouselFromSource', () => {
           },
           {
             id: 'slide-2',
-            heading: 'Travel a long way to get to the RCH?',
+            heading: 'Travel a long way to get to the Example Health?',
             image: { src: { url: '/hero_images/travel.jpg' } },
           },
         ],
       }, 'hero'),
       component('hero-with-image', {
-        heading: 'Travel a long way to get to the RCH?',
+        heading: 'Travel a long way to get to the Example Health?',
         image: { src: { url: '/hero_images/travel.jpg' } },
       }, 'hero'),
       component('card-grid', { cards: [{ title: 'Quick link' }] }),
@@ -281,7 +281,7 @@ describe('enrichHeroCarouselFromSource', () => {
 
     const result = enrichHeroCarouselFromSource(components, {
       domSnapshot: sourceCarouselHtml,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result).toHaveLength(3)
@@ -289,13 +289,13 @@ describe('enrichHeroCarouselFromSource', () => {
     expect((result[1].content.slides as any[]).map(slide => slide.heading)).toEqual([
       'Appointment notifications now straight to your phone',
       'Teens and food',
-      'Travel a long way to get to the RCH?',
+      'Travel a long way to get to the Example Health?',
     ])
     expect((result[1].content.slides as any[])[1]).toMatchObject({
       body: 'Food copy.',
       image: {
         src: {
-          url: 'https://www.rch.org.au/hero_images/food.jpg',
+          url: 'https://health.example.org/hero_images/food.jpg',
           mediaType: 'image',
         },
       },
@@ -325,7 +325,7 @@ describe('enrichHeroCarouselFromSource', () => {
 
     expect(enrichHeroCarouselFromSource(components, {
       domSnapshot: sourceCarouselHtml,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })).toEqual(components)
   })
 
@@ -337,14 +337,14 @@ describe('enrichHeroCarouselFromSource', () => {
         image: { src: { url: '/hero_images/appointment.jpg' } },
       }, 'hero'),
       component('hero-with-image', {
-        heading: 'Travel a long way to get to the RCH?',
+        heading: 'Travel a long way to get to the Example Health?',
         image: { src: { url: '/hero_images/travel.jpg' } },
       }, 'hero'),
       component('card-grid', {
         cards: [
           { title: 'Appointment notifications now straight to your phone' },
           { title: 'Teens and food' },
-          { title: 'Travel a long way to get to the RCH?' },
+          { title: 'Travel a long way to get to the Example Health?' },
         ],
       }),
       component('card-grid', { cards: [{ title: 'Quick link' }] }),
@@ -352,7 +352,7 @@ describe('enrichHeroCarouselFromSource', () => {
 
     const result = enrichHeroCarouselFromSource(components, {
       domSnapshot: sourceCarouselHtml,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result).toHaveLength(3)
@@ -360,7 +360,7 @@ describe('enrichHeroCarouselFromSource', () => {
     expect((result[1].content.slides as any[]).map(slide => slide.heading)).toEqual([
       'Appointment notifications now straight to your phone',
       'Teens and food',
-      'Travel a long way to get to the RCH?',
+      'Travel a long way to get to the Example Health?',
     ])
     expect(result[2].type).toBe('card-grid')
     expect((result[2].content as any).cards).toEqual([{ title: 'Quick link' }])
@@ -368,7 +368,7 @@ describe('enrichHeroCarouselFromSource', () => {
 
   it('drops non-actionable source carousel links before persistence normalization', () => {
     const html = `
-      <div id="rch-featured-carousel" class="carousel slide hidden-xs">
+      <div id="featured-carousel" class="carousel slide hidden-xs">
         <div class="carousel-inner">
           <div class="item" style="background-image:url('/hero_images/one.jpg')">
             <h2>First source slide</h2>
@@ -388,7 +388,7 @@ describe('enrichHeroCarouselFromSource', () => {
           </div>
         </div>
       </div>
-      <div id="rch-featured-carousel-xs"></div>
+      <div id="featured-carousel-xs"></div>
     `
     const components = [
       component('navbar', {}, 'header'),
@@ -402,7 +402,7 @@ describe('enrichHeroCarouselFromSource', () => {
 
     const result = enrichHeroCarouselFromSource(components, {
       domSnapshot: html,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     const slides = result[1].content.slides as any[]
@@ -440,14 +440,14 @@ describe('enrichHeroCarouselFromSource', () => {
         image: { src: { url: '/hero_images/appointment.jpg' } },
       }, 'hero'),
       component('hero-with-image', {
-        heading: 'Travel a long way to get to the RCH?',
+        heading: 'Travel a long way to get to the Example Health?',
         image: { src: { url: '/hero_images/travel.jpg' } },
       }, 'hero'),
       component('card-grid', {
         cards: [
           { title: 'Appointment notifications now straight to your phone' },
           { title: 'Teens and food' },
-          { title: 'Travel a long way to get to the RCH?' },
+          { title: 'Travel a long way to get to the Example Health?' },
         ],
       }),
       component('card-grid', { cards: [{ title: 'Quick link' }] }),
@@ -455,14 +455,14 @@ describe('enrichHeroCarouselFromSource', () => {
         heading: 'Latest News',
         pinned: [
           { title: 'Teens and food' },
-          { title: 'Travel a long way to get to the RCH?' },
+          { title: 'Travel a long way to get to the Example Health?' },
         ],
       }),
     ]
 
     const result = enrichHeroCarouselFromSource(components, {
       domSnapshot: sourceCarouselHtml,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result.map(item => item.type)).toEqual([

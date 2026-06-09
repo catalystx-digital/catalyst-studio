@@ -283,11 +283,11 @@ describe('NavBar Component', () => {
         ...defaultProps.content,
         logo: {
           ...(defaultProps.content.logo ?? {}),
-          alt: 'Luminary Logo',
+          alt: 'Example Agency Logo',
           src: {
             mediaId: 'logo-media',
             mediaType: 'image' as const,
-            url: 'https://www.luminary.com/_astro/luminary-logo-midnight.svg',
+            url: 'https://agency.example.com/_astro/example-agency-logo-midnight.svg',
           },
         },
       },
@@ -295,9 +295,9 @@ describe('NavBar Component', () => {
 
     render(<NavBar {...mediaLogoProps} />);
 
-    const logoImage = screen.getAllByRole('img', { name: 'Luminary Logo' })[0];
+    const logoImage = screen.getAllByRole('img', { name: 'Example Agency Logo' })[0];
     expect(logoImage).toBeInTheDocument();
-    expect(logoImage).toHaveAttribute('src', 'https://www.luminary.com/_astro/luminary-logo-midnight.svg');
+    expect(logoImage).toHaveAttribute('src', 'https://agency.example.com/_astro/example-agency-logo-midnight.svg');
   });
 
   it('applies source-captured single-row navbar surface colors', () => {
@@ -307,11 +307,11 @@ describe('NavBar Component', () => {
         ...defaultProps.content,
         logo: {
           ...(defaultProps.content.logo ?? {}),
-          alt: 'Luminary Logo',
+          alt: 'Example Agency Logo',
           src: {
-            mediaId: 'detected:luminary-logo-midnight',
+            mediaId: 'detected:example-agency-logo-midnight',
             mediaType: 'image' as const,
-            url: 'https://www.luminary.com/_astro/luminary-logo-midnight.svg',
+            url: 'https://agency.example.com/_astro/example-agency-logo-midnight.svg',
           },
         },
         styles: {

@@ -73,22 +73,22 @@ describe('CMS media reference normalization', () => {
       src: {
         mediaId: 'detected:hero',
         mediaType: 'image',
-        url: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
-        originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+        url: 'https://health.example.org/uploadedImages/Main/hero.jpg',
+        originalUrl: 'https://health.example.org/uploadedImages/Main/hero.jpg',
       },
       alt: 'Hero',
       originalUrl: '/uploadedImages/Main/hero.jpg',
     }
 
     expect(normalizeCmsImage(image)).toEqual({
-      src: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      src: 'https://health.example.org/uploadedImages/Main/hero.jpg',
       alt: 'Hero',
       originalUrl: '/uploadedImages/Main/hero.jpg',
     })
     expect(normalizeImage(image)).toMatchObject({
-      src: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      src: 'https://health.example.org/uploadedImages/Main/hero.jpg',
       alt: 'Hero',
-      originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      originalUrl: 'https://health.example.org/uploadedImages/Main/hero.jpg',
     })
   })
 

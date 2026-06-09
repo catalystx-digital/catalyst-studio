@@ -26,11 +26,11 @@ describe('image enrichment processor', () => {
     const domSnapshot = `
       <section>
         <img src="https://www.facebook.com/tr?id=123" alt="">
-        <img src="https://www.rch.org.au/assets/RCH-Master-500-000.png" alt="RCH">
-        <img src="https://www.rch.org.au/assets/flags/vietnam.png" alt="Vietnamese">
-        <img src="/TemplateAssets/images/global/australian_aboriginal_flag.png" alt="Aboriginal Flag">
-        <img src="/TemplateAssets/images/global/rainbow_flag.png" alt="Rainbow Flag">
-        <img src="https://www.rch.org.au/assets/auslan-interpreter.svg" alt="Auslan">
+        <img src="https://health.example.org/TemplateAssets/images/global/site-logo.png" alt="Example Health">
+        <img src="https://health.example.org/assets/flags/vietnam.png" alt="Vietnamese">
+        <img src="/TemplateAssets/images/global/community_flag.png" alt="Community Flag">
+        <img src="/SiteAssets/images/global/inclusion_flag.png" alt="Inclusion Flag">
+        <img src="https://health.example.org/assets/auslan-interpreter.svg" alt="Auslan">
         <h2>Emergency Department</h2>
         <p>Emergency Department care</p>
         <img src="/uploaded/ed-waiting-room.jpg" alt="Emergency Department waiting room">
@@ -39,7 +39,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result[0].content).toMatchObject({
@@ -49,7 +49,7 @@ describe('image enrichment processor', () => {
             src: {
               mediaId: 'detected:ed-waiting-room',
               mediaType: 'image',
-              url: 'https://www.rch.org.au/uploaded/ed-waiting-room.jpg',
+              url: 'https://health.example.org/uploaded/ed-waiting-room.jpg',
             },
             alt: 'Emergency Department waiting room',
           },
@@ -57,10 +57,10 @@ describe('image enrichment processor', () => {
       ],
     })
     expect(JSON.stringify(result[0].content)).not.toContain('facebook.com/tr')
-    expect(JSON.stringify(result[0].content)).not.toContain('RCH-Master')
+    expect(JSON.stringify(result[0].content)).not.toContain('site-logo')
     expect(JSON.stringify(result[0].content)).not.toContain('flags/vietnam')
-    expect(JSON.stringify(result[0].content)).not.toContain('australian_aboriginal_flag')
-    expect(JSON.stringify(result[0].content)).not.toContain('rainbow_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('community_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('inclusion_flag')
     expect(JSON.stringify(result[0].content)).not.toContain('auslan-interpreter')
   })
 
@@ -83,7 +83,7 @@ describe('image enrichment processor', () => {
 
     enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(logSpy).not.toHaveBeenCalledWith(
@@ -117,7 +117,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result[0].content).toMatchObject({
@@ -125,7 +125,7 @@ describe('image enrichment processor', () => {
         {
           image: {
             src: {
-              url: 'https://www.rch.org.au/uploaded/red-flag-symptoms.jpg',
+              url: 'https://health.example.org/uploaded/red-flag-symptoms.jpg',
             },
           },
         },
@@ -143,39 +143,39 @@ describe('image enrichment processor', () => {
           heading: 'Quick Links',
           cards: [
             {
-              title: 'Aboriginal health',
+              title: 'Community health',
               description: 'Cultural support services',
               image: {
                 src: {
-                  mediaId: 'detected:australian_aboriginal_flag',
+                  mediaId: 'detected:community_flag',
                   mediaType: 'image',
-                  url: 'https://www.rch.org.au/TemplateAssets/images/global/australian_aboriginal_flag.png',
+                  url: 'https://health.example.org/TemplateAssets/images/global/community_flag.png',
                 },
-                alt: 'Aboriginal Flag',
+                alt: 'Community Flag',
               },
             },
             {
-              title: 'Rainbow support',
+              title: 'Inclusion support',
               description: 'Support services',
               image: {
                 src: {
-                  mediaId: 'detected:rainbow_flag',
+                  mediaId: 'detected:inclusion_flag',
                   mediaType: 'image',
-                  url: 'https://www.rch.org.au/TemplateAssets/images/global/rainbow_flag.png',
+                  url: 'https://health.example.org/SiteAssets/images/global/inclusion_flag.png',
                 },
-                alt: 'Rainbow Flag',
+                alt: 'Inclusion Flag',
               },
             },
             {
-              title: 'Torres Strait Islander health',
+              title: 'Regional community health',
               description: 'Cultural support services',
               image: {
                 src: {
-                  mediaId: 'detected:flag_of_the_torres_strait_islanders',
+                  mediaId: 'detected:regional_community_flag',
                   mediaType: 'image',
-                  url: 'https://www.rch.org.au/TemplateAssets/images/global/flag_of_the_torres_strait_islanders.png',
+                  url: 'https://health.example.org/SiteAssets/images/global/regional_community_flag.png',
                 },
-                alt: 'Torres Strait Islander Flag',
+                alt: 'Regional Community Flag',
               },
             },
           ],
@@ -185,15 +185,15 @@ describe('image enrichment processor', () => {
     const domSnapshot = `
       <section>
         <h2>Quick Links</h2>
-        <img src="/TemplateAssets/images/global/australian_aboriginal_flag.png" alt="Aboriginal Flag">
-        <img src="/TemplateAssets/images/global/rainbow_flag.png" alt="Rainbow Flag">
-        <img src="/TemplateAssets/images/global/flag_of_the_torres_strait_islanders.png" alt="Torres Strait Islander Flag">
+        <img src="/TemplateAssets/images/global/community_flag.png" alt="Community Flag">
+        <img src="/SiteAssets/images/global/inclusion_flag.png" alt="Inclusion Flag">
+        <img src="/SiteAssets/images/global/regional_community_flag.png" alt="Regional Community Flag">
       </section>
     `
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     const content = result[0].content as { cards: Array<{ image?: unknown }> }
@@ -204,8 +204,8 @@ describe('image enrichment processor', () => {
         heading: 'Quick Links',
       },
     })
-    expect(JSON.stringify(result[0].content)).not.toContain('australian_aboriginal_flag')
-    expect(JSON.stringify(result[0].content)).not.toContain('rainbow_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('community_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('inclusion_flag')
     expect(JSON.stringify(result[0].content)).not.toContain('torres_strait')
   })
 
@@ -218,14 +218,14 @@ describe('image enrichment processor', () => {
         content: {
           cards: [
             {
-              title: 'Aboriginal health',
+              title: 'Community health',
               image: {
                 src: {
-                  mediaId: 'detected:australian_aboriginal_flag',
+                  mediaId: 'detected:community_flag',
                   mediaType: 'image',
-                  url: 'https://www.rch.org.au/TemplateAssets/images/global/australian_aboriginal_flag.png',
+                  url: 'https://health.example.org/SiteAssets/images/global/community_flag.png',
                 },
-                alt: 'Aboriginal Flag',
+                alt: 'Community Flag',
               },
             },
           ],
@@ -234,23 +234,23 @@ describe('image enrichment processor', () => {
     ]
     const domSnapshot = `
       <section>
-        <img src="/TemplateAssets/images/global/australian_aboriginal_flag.png" alt="Aboriginal Flag">
+        <img src="/SiteAssets/images/global/community_flag.png" alt="Community Flag">
       </section>
     `
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result[0].content).toMatchObject({
       cards: [
         {
-          title: 'Aboriginal health',
+          title: 'Community health',
         },
       ],
     })
-    expect(JSON.stringify(result[0].content)).not.toContain('australian_aboriginal_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('community_flag')
     expect(result[0].metadata?.sourceEvidence).toMatchObject({
       nonContentCardImageRemoval: {
         reason: 'card-image-url-is-non-content',
@@ -279,7 +279,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(result[0].content).toMatchObject({
@@ -287,7 +287,7 @@ describe('image enrichment processor', () => {
         {
           image: {
             src: {
-              url: 'https://www.luminary.com/work/digital-strategy.jpg',
+              url: 'https://agency.example.com/work/digital-strategy.jpg',
             },
             alt: 'Digital strategy workshop',
           },
@@ -304,26 +304,26 @@ describe('image enrichment processor', () => {
         confidence: 0.9,
         content: {
           heading: 'Transform your digital experience',
-          subheading: 'Digital teams launch better products with Luminary',
-          primaryButton: { label: 'Contact us', href: { type: 'external', url: 'https://www.luminary.com/contact/' } },
+          subheading: 'Digital teams launch better products with Example Agency',
+          primaryButton: { label: 'Contact us', href: { type: 'external', url: 'https://agency.example.com/contact/' } },
         },
       },
     ]
     const domSnapshot = `
       <section>
         <h2>Transform your digital experience</h2>
-        <p>Digital teams launch better products with Luminary</p>
+        <p>Digital teams launch better products with Example Agency</p>
         <img src="/assets/digital-experience.jpg" alt="Digital product team">
       </section>
     `
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(result[0].content).toMatchObject({
-      backgroundImage: 'https://www.luminary.com/assets/digital-experience.jpg',
+      backgroundImage: 'https://agency.example.com/assets/digital-experience.jpg',
     })
     expect(JSON.stringify(result[0].content)).not.toContain('"image"')
     expect(JSON.stringify(result[0].content)).not.toContain('"images"')
@@ -420,7 +420,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(result[0].content).toMatchObject({
@@ -428,7 +428,7 @@ describe('image enrichment processor', () => {
         {
           image: {
             src: {
-              url: 'https://www.luminary.com/insights/composable-platforms.jpg',
+              url: 'https://agency.example.com/insights/composable-platforms.jpg',
             },
             alt: 'Composable platform diagram',
           },
@@ -458,7 +458,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(result[0].content).toMatchObject({
@@ -466,10 +466,10 @@ describe('image enrichment processor', () => {
         {
           id: 'acme',
           src: {
-            url: 'https://www.luminary.com/logos/acme.svg',
+            url: 'https://agency.example.com/logos/acme.svg',
           },
           alt: 'Acme',
-          originalUrl: 'https://www.luminary.com/logos/acme.svg',
+          originalUrl: 'https://agency.example.com/logos/acme.svg',
         },
       ],
     })
@@ -489,10 +489,10 @@ describe('image enrichment processor', () => {
               src: {
                 mediaId: 'detected:acme',
                 mediaType: 'image',
-                url: 'https://www.luminary.com/logos/acme.svg',
+                url: 'https://agency.example.com/logos/acme.svg',
               },
               alt: 'Acme',
-              originalUrl: 'https://www.luminary.com/logos/acme.svg',
+              originalUrl: 'https://agency.example.com/logos/acme.svg',
             },
           ],
         },
@@ -507,7 +507,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect((result[0].content as { logos: unknown[] }).logos).toHaveLength(1)
@@ -542,7 +542,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(result[0].content).toEqual({
@@ -554,7 +554,7 @@ describe('image enrichment processor', () => {
     })
   })
 
-  it('does not attach later author thumbnails to a text-only Luminary framework grid', () => {
+  it('does not attach later author thumbnails to a text-only Example Agency framework grid', () => {
     const components: DetectedComponent[] = [
       {
         type: 'card-grid',
@@ -569,7 +569,7 @@ describe('image enrichment processor', () => {
               description: 'Bring specialists together to build the experience.',
               image: {
                 src: {
-                  url: 'https://www.luminary.com/authors/Adam_thumb.jpg',
+                  url: 'https://agency.example.com/authors/Adam_thumb.jpg',
                   mediaType: 'image',
                 },
                 alt: 'Adam',
@@ -601,7 +601,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(JSON.stringify(result[0].content)).not.toContain('Adam_thumb')
@@ -698,14 +698,14 @@ describe('image enrichment processor', () => {
     expect((result[0].content as { cards: Array<{ image?: unknown }> }).cards[0].image).toBeDefined()
   })
 
-  it('corrects a Luminary CTA image when the existing image is from another source section', () => {
+  it('corrects a Example Agency CTA image when the existing image is from another source section', () => {
     const components: DetectedComponent[] = [
       {
         type: 'cta-banner',
         component: 'cta-banner',
         confidence: 0.9,
         content: {
-          heading: 'Luminary has earned B Corp Certification',
+          heading: 'Example Agency has earned B Corp Certification',
           subheading: 'We are proud to be part of a global community balancing purpose and profit.',
           backgroundImage: {
             url: 'https://assets.example.com/EBG%20Graphic.png',
@@ -722,7 +722,7 @@ describe('image enrichment processor', () => {
           <img src="https://assets.example.com/EBG%20Graphic.png" alt="Explore Build Grow" />
         </section>
         <section class="featured-cta-section">
-          <h2>Luminary has earned B Corp Certification</h2>
+          <h2>Example Agency has earned B Corp Certification</h2>
           <p>We are proud to be part of a global community balancing purpose and profit.</p>
           <img src="https://assets.example.com/B%20Corp%20Certified.png" alt="B Corp Certified" />
         </section>
@@ -731,7 +731,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(result[0].content).toMatchObject({
@@ -742,7 +742,7 @@ describe('image enrichment processor', () => {
     })
   })
 
-  it('reconciles Luminary award logos to the matched logo section and removes unrelated images', () => {
+  it('reconciles Example Agency award logos to the matched logo section and removes unrelated images', () => {
     const components: DetectedComponent[] = [
       {
         type: 'logo-cloud',
@@ -776,7 +776,7 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     const logos = (result[0].content as { logos: Array<{ alt: string }> }).logos
@@ -804,7 +804,7 @@ describe('image enrichment processor', () => {
               name: 'Bob Haring',
               title: 'Chief Technology Officer',
               photo: wrongBobUrl,
-              profileUrl: 'https://www.luminary.com/bridget',
+              profileUrl: 'https://agency.example.com/bridget',
             },
           ],
         },
@@ -812,7 +812,7 @@ describe('image enrichment processor', () => {
     ]
 
     const result = enrichComponentImages(components, {
-      pageUrl: 'https://www.luminary.com/about',
+      pageUrl: 'https://agency.example.com/about',
       resourcesSummary: {
         anchors: [
           {
@@ -837,7 +837,7 @@ describe('image enrichment processor', () => {
     expect((result[0].content as { members: Array<{ photo?: string; photoAlt?: string; profileUrl?: string }> }).members[0]).toMatchObject({
       photo: sourceBobUrl,
       photoAlt: 'Bob Haring',
-      profileUrl: 'https://www.luminary.com/bob',
+      profileUrl: 'https://agency.example.com/bob',
     })
     expect(result[0].metadata?.sourceEvidence).toMatchObject({
       teamGridImageCorrections: [
@@ -851,8 +851,8 @@ describe('image enrichment processor', () => {
       teamGridLinkCorrections: [
         {
           memberName: 'Bob Haring',
-          previous: 'https://www.luminary.com/bridget',
-          replacement: 'https://www.luminary.com/bob',
+          previous: 'https://agency.example.com/bridget',
+          replacement: 'https://agency.example.com/bob',
           evidence: 'resources-summary',
         },
       ],
@@ -860,15 +860,15 @@ describe('image enrichment processor', () => {
   })
 
   it('repairs model-truncated image URLs from exact source image prefixes', () => {
-    const truncatedUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Desig'
-    const sourceUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Design.jpg?h=474&fm=webp'
+    const truncatedUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Strateg'
+    const sourceUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Strategy.jpg?h=474&fm=webp'
     const components: DetectedComponent[] = [
       {
         type: 'hero-with-image',
         component: 'hero-with-image',
         confidence: 0.95,
         content: {
-          heading: 'A Guide to Digital Product Design',
+          heading: 'A Guide to Digital Product Strategy',
           image: {
             src: {
               mediaId: 'detected:guide',
@@ -882,13 +882,13 @@ describe('image enrichment processor', () => {
     ]
 
     const result = enrichComponentImages(components, {
-      pageUrl: 'https://www.luminary.com/a-guide-to-digital-product-design-lp',
+      pageUrl: 'https://agency.example.com/a-guide-to-digital-product-strategy-lp',
       resourcesSummary: {
         anchors: [],
         images: [
           {
             src: sourceUrl,
-            alt: 'A Guide to Digital Product Design',
+            alt: 'A Guide to Digital Product Strategy',
             pathId: 'main/hero/img',
           },
         ],
@@ -923,15 +923,15 @@ describe('image enrichment processor', () => {
   })
 
   it('uses story-header hero images as content evidence for truncated URL repair', () => {
-    const truncatedUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Desig'
-    const sourceUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Design.jpg?h=474&fm=webp'
+    const truncatedUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Strateg'
+    const sourceUrl = 'https://assets-us-01.kc-usercontent.com/site/files/A%20Guide%20to%20Digital%20Product%20Strategy.jpg?h=474&fm=webp'
     const components: DetectedComponent[] = [
       {
         type: 'hero-with-image',
         component: 'hero-with-image',
         confidence: 0.95,
         content: {
-          heading: 'A Guide to Digital Product Design',
+          heading: 'A Guide to Digital Product Strategy',
           image: {
             src: {
               mediaId: 'detected:guide',
@@ -948,14 +948,14 @@ describe('image enrichment processor', () => {
           <div class="image-wrapper">
             <img src="${sourceUrl.replace(/&/g, '&amp;')}" alt="men holding a phone displaying online store">
           </div>
-          <h1>A Guide to Digital Product Design</h1>
+          <h1>A Guide to Digital Product Strategy</h1>
         </section>
       </main>
     `
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/a-guide-to-digital-product-design-lp',
+      pageUrl: 'https://agency.example.com/a-guide-to-digital-product-strategy-lp',
     })
 
     expect(result[0].content).toMatchObject({
@@ -1165,7 +1165,7 @@ describe('image enrichment processor', () => {
     ]
 
     const result = enrichComponentImages(components, {
-      pageUrl: 'https://www.luminary.com/about',
+      pageUrl: 'https://agency.example.com/about',
       resourcesSummary: {
         anchors: [],
         images: [
@@ -1185,7 +1185,7 @@ describe('image enrichment processor', () => {
     expect(result[0].metadata?.sourceEvidence).toBeUndefined()
   })
 
-  it('reconciles Luminary-style team-grid photos and profile links from source DOM anchor markup', () => {
+  it('reconciles Example Agency-style team-grid photos and profile links from source DOM anchor markup', () => {
     const wrongBobUrl = 'https://assets-us-01.kc-usercontent.com/site/files/5a2e6f3e-cea9-46e5-a13f-2d048137c95a/Bob_mid.jpg?w=300&fm=webp'
     const sourceBobUrl = 'https://assets-us-01.kc-usercontent.com/site/files/5a2e6e3f-cea9-46e5-a13f-2d048137c95a/Bob_mid.jpg?w=300&fm=webp'
     const components: DetectedComponent[] = [
@@ -1198,7 +1198,7 @@ describe('image enrichment processor', () => {
             {
               name: 'Bob Haring',
               photo: wrongBobUrl,
-              profileUrl: 'https://www.luminary.com/bridget',
+              profileUrl: 'https://agency.example.com/bridget',
             },
           ],
         },
@@ -1218,12 +1218,12 @@ describe('image enrichment processor', () => {
 
     const result = enrichComponentImages(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/about',
+      pageUrl: 'https://agency.example.com/about',
     })
 
     expect((result[0].content as { members: Array<{ photo?: string; profileUrl?: string }> }).members[0]).toMatchObject({
       photo: sourceBobUrl,
-      profileUrl: 'https://www.luminary.com/bob',
+      profileUrl: 'https://agency.example.com/bob',
     })
   })
 

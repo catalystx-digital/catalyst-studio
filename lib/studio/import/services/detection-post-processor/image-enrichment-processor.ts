@@ -214,23 +214,22 @@ function isNonContentImage(src: string): boolean {
   if (lowerSrc.includes('favicon')) return true
   if (lowerSrc.includes('spinner') || lowerSrc.includes('loading')) return true
   if (pathname.includes('/flags/') || /^flag[-_.]/.test(filename)) return true
+  const isSiteAssetPath = pathname.includes('/siteassets/') || pathname.includes('/templateassets/')
   if (
-    pathname.includes('/templateassets/images/global/') &&
+    isSiteAssetPath &&
+    pathname.includes('/images/global/') &&
     (filename.includes('flag') || filename.includes('flags'))
   ) return true
   if (
-    (pathname.includes('/templateassets/') || pathname.includes('/icons/')) &&
+    (isSiteAssetPath || pathname.includes('/icons/')) &&
     (filename.includes('auslan') || filename.includes('interpreter'))
   ) return true
   if (/^(auslan|interpreter)[-_.].*\.svg$/i.test(filename)) return true
 
   // Site-wide brand assets should not be attached as content images.
   if (
-    filename.includes('rch-master') ||
-    (
-      pathname.includes('/templateassets/') &&
-      (filename.includes('logo') || filename.includes('brandmark'))
-    )
+    isSiteAssetPath &&
+    (filename.includes('logo') || filename.includes('brandmark'))
   ) return true
 
   // Social media share buttons

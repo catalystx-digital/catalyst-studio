@@ -388,7 +388,7 @@ function extractNavCandidateHtmls(domSnapshot: string): Array<{ source: string; 
     add('nav-list', ulMatch[0])
   }
 
-  for (const marker of ['rch-header', 'rch-brand', 'rch-mini-nav', 'primary-nav', 'main-nav', 'sidenav', 'side-nav', 'footer']) {
+  for (const marker of ['site-header', 'brand-header', 'mini-nav', 'primary-nav', 'main-nav', 'sidenav', 'side-nav', 'footer']) {
     const index = domSnapshot.toLowerCase().indexOf(marker.toLowerCase())
     if (index >= 0) {
       const elementHtml = extractElementContainingMarker(domSnapshot, marker)
@@ -437,7 +437,7 @@ function scoreDomNavCandidate(
   if (/\b(?:header|primary-nav|main-nav|mini-nav|brand)\b/i.test(source)) score += 4
   if (/\b(?:header|primary-nav|main-nav|mini-nav|navbar|nav-justified)\b/i.test(html)) score += 3
   if (/\b(?:side|sidenav|side-nav|secondary|breadcrumb|footer)\b/i.test(source)) score -= 5
-  if (/\b(?:breadcrumb|footer|rch-secondary|side-?nav|in this section)\b/i.test(html)) score -= 4
+  if (/\b(?:breadcrumb|footer|secondary-nav|side-?nav|in this section)\b/i.test(html)) score -= 4
   if (/\bsearch\b/i.test(html)) score += 1
 
   for (const item of anchors) {
@@ -864,7 +864,7 @@ function extractHomepageQuickLinkCardsFromBlocks(domSnapshot: string, pageUrl?: 
   let match: RegExpExecArray | null
   while ((match = blockPattern.exec(sourceDom)) !== null) {
     const block = extractElementFromStart(sourceDom, match.index)
-    if (!block || /\b(?:rch-header|primary-nav|mini-nav|navbar|footer|social-icons|nav-justified|carousel)\b/i.test(block)) {
+    if (!block || /\b(?:site-header|brand-header|primary-nav|mini-nav|navbar|footer|social-icons|nav-justified|carousel)\b/i.test(block)) {
       continue
     }
     if (!/\b(?:InternetHomePage|homepage|featured|quicklink|quick-link)\b/i.test(block)) continue
@@ -924,7 +924,7 @@ function extractElementFromStart(domSnapshot: string, tagStart: number): string 
 
 function isHomepageQuickLinkContext(context: string, attrs: string): boolean {
   const source = `${context} ${attrs}`
-  if (/\b(?:rch-header|primary-nav|mini-nav|navbar|footer|social-icons|nav-justified)\b/i.test(context)) {
+  if (/\b(?:site-header|brand-header|primary-nav|mini-nav|navbar|footer|social-icons|nav-justified)\b/i.test(context)) {
     return false
   }
   return (

@@ -25,7 +25,7 @@ export function looksLikeSectionSidemenu(menuItems: MenuItemLike[], pageUrl?: st
     return false
   }
 
-  // Check if hrefs all share a deep common prefix (e.g., /cah/, /rch/department/)
+  // Check if hrefs all share a deep common prefix (e.g., /about/, /departments/cardiology/)
   const hrefs = menuItems
     .map(item => normalizeString(item.href ?? item.url))
     .filter((href): href is string => Boolean(href))

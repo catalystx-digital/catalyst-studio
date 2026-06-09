@@ -60,7 +60,7 @@ describe('web-tools body fallback main extraction', () => {
   })
 
   it('preserves long media URLs in resource summaries and section attributes', async () => {
-    const longImageUrl = 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/a5dc2c3a-f059-44ed-b81a-6216def1c73a/A%20Guide%20to%20Digital%20Product%20Design.jpg?h=474&fm=webp'
+    const longImageUrl = 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/a5dc2c3a-f059-44ed-b81a-6216def1c73a/A%20Guide%20to%20Digital%20Product%20Strategy.jpg?h=474&fm=webp'
 
     global.fetch = jest.fn(async () => ({
       status: 200,
@@ -73,7 +73,7 @@ describe('web-tools body fallback main extraction', () => {
             <main>
               <section class="page-header">
                 <img src="${longImageUrl}" alt="Guide cover">
-                <h1>A Guide to Digital Product Design</h1>
+                <h1>A Guide to Digital Product Strategy</h1>
               </section>
             </main>
           </body>
@@ -91,7 +91,7 @@ describe('web-tools body fallback main extraction', () => {
     const serialized = JSON.stringify(mainSection.slice)
 
     expect(serialized).toContain(longImageUrl)
-    expect(serialized).toContain('A Guide to Digital Product Design')
+    expect(serialized).toContain('A Guide to Digital Product Strategy')
   })
 
   it('does not preserve long data image placeholders unbounded', async () => {
@@ -191,7 +191,7 @@ describe('web-tools body fallback main extraction', () => {
           </head>
           <body>
             <div class="desktop-header">
-              <a href="/" class="logo">Luminary</a>
+              <a href="/" class="logo">Example Agency</a>
               <div class="mega-menu main-navigation">
                 <button>Services</button>
                 <button>Work</button>

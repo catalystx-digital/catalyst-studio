@@ -80,9 +80,9 @@ describe('content feed importer mapping', () => {
 
     const resourcesSummary = {
       anchors: [
-        { href: 'https://blogs.rch.org.au/news/emmas-story/', textPreview: 'Emma story', pathId: 'n000001' },
-        { href: 'https://blogs.rch.org.au/news/chief-of-medicine/', textPreview: 'Chief of Medicine', pathId: 'n000002' },
-        { href: 'https://blogs.rch.org.au/news/hazel-update/', textPreview: 'Hazel update', pathId: 'n000003' }
+        { href: 'https://news.example.org/news/emmas-story/', textPreview: 'Emma story', pathId: 'n000001' },
+        { href: 'https://news.example.org/news/chief-of-medicine/', textPreview: 'Chief of Medicine', pathId: 'n000002' },
+        { href: 'https://news.example.org/news/hazel-update/', textPreview: 'Hazel update', pathId: 'n000003' }
       ],
       images: [],
       videos: [],
@@ -91,7 +91,7 @@ describe('content feed importer mapping', () => {
     }
 
     const result = adjustDetectedComponents(components, {
-      pageUrl: 'https://www.rch.org.au/',
+      pageUrl: 'https://health.example.org/',
       resourcesSummary
     })
 
@@ -122,16 +122,16 @@ describe('content feed importer mapping', () => {
         content: {
           heading: 'More news stories',
           cards: [
-            { id: 'n1', title: 'Story 1', href: 'https://blogs.rch.org.au/news/story-1/' },
-            { id: 'n2', title: 'Story 2', href: 'https://blogs.rch.org.au/news/story-2/' },
-            { id: 'n3', title: 'Story 3', href: 'https://blogs.rch.org.au/news/story-3/' }
+            { id: 'n1', title: 'Story 1', href: 'https://news.example.org/news/story-1/' },
+            { id: 'n2', title: 'Story 2', href: 'https://news.example.org/news/story-2/' },
+            { id: 'n3', title: 'Story 3', href: 'https://news.example.org/news/story-3/' }
           ]
         }
       } as DetectedComponent
     ]
 
     const result = adjustDetectedComponents(components, {
-      pageUrl: 'https://blogs.rch.org.au/news/emmas-story/',
+      pageUrl: 'https://news.example.org/news/emmas-story/',
       pageMetadata
     })
 

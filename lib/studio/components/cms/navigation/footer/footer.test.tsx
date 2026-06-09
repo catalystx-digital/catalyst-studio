@@ -144,9 +144,9 @@ describe('Footer Component', () => {
           ...defaultProps.content,
           backgroundColor: '#300a44',
           logo: {
-            alt: 'Luminary Digital',
+            alt: 'Example Agency Digital',
             src: {
-              url: 'https://example.com/luminary-logo-full-inline-white.svg',
+              url: 'https://example.com/example-agency-logo-full-inline-white.svg',
               mediaId: 'logo-media',
               mediaType: 'image',
             },
@@ -156,9 +156,9 @@ describe('Footer Component', () => {
     );
 
     expect(screen.getByRole('contentinfo')).toHaveStyle({ backgroundColor: '#300a44' });
-    expect(screen.getByRole('img', { name: 'Luminary Digital' })).toHaveAttribute(
+    expect(screen.getByRole('img', { name: 'Example Agency Digital' })).toHaveAttribute(
       'src',
-      'https://example.com/luminary-logo-full-inline-white.svg',
+      'https://example.com/example-agency-logo-full-inline-white.svg',
     );
   });
 

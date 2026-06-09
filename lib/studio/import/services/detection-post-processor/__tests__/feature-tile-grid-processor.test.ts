@@ -10,20 +10,20 @@ function component(type: string, content: Record<string, unknown>): DetectedComp
   }
 }
 
-const rchFeatureHtml = `
+const institutionalFeatureHtml = `
   <section>
     <div class="row">
-      <div class="col-sm-6 rch-home-emerg">
-        <a href="/emerg_rch/status/" title="View the Emergency Department status page.">
+      <div class="col-sm-6 example-health-home-emerg">
+        <a href="/emergency/status/" title="View the Emergency Department status page.">
           <div style="background-color:#ffffff;">
             <h2>Emergency Department status</h2>
             <div>View the <u>Emergency Department status</u> page for a real time guide to how busy we are.</div>
           </div>
         </a>
       </div>
-      <div class="col-sm-6 rch-home-history">
+      <div class="col-sm-6 example-health-home-history">
         <a href="/teeninfo/" title="Teen Health Info fact sheets">
-          <div style="background: #FFFFFF url('/TemplateAssets/images/home/poll.png') no-repeat;">
+          <div style="background: #FFFFFF url('/SiteAssets/images/home/poll.png') no-repeat;">
             <h2>Teen Health Info fact sheets</h2>
             <div><u>Health topics in simple language</u> for young people aged 12 to 25.</div>
           </div>
@@ -31,19 +31,19 @@ const rchFeatureHtml = `
       </div>
     </div>
     <div class="row">
-      <div class="col-sm-6 rch-home-emerg">
-        <a href="https://www.rch.org.au/translation-resources/" title="Translation resources">
+      <div class="col-sm-6 example-health-home-emerg">
+        <a href="https://health.example.org/translation-resources/" title="Translation resources">
           <div style="background-color:#ffffff;">
             <h2>Translation resources</h2>
             <div>Explore <u>translated resources</u> <br>in over 22 languages.</div>
           </div>
         </a>
       </div>
-      <div class="col-sm-6 rch-home-history">
+      <div class="col-sm-6 example-health-home-history">
         <a href="/telehealth/" title="Telehealth appointments">
-          <div style="background: #FFFFFF url('https://www.rch.org.au/TemplateAssets/images/home/telehealth-lg.png') no-repeat;">
+          <div style="background: #FFFFFF url('https://health.example.org/SiteAssets/images/home/telehealth-lg.png') no-repeat;">
             <h2>Telehealth appointments</h2>
-            <div><u>Access to RCH telehealth</u> for patients, families, interpreters and external callers.</div>
+            <div><u>Access to health telehealth</u> for patients, families, interpreters and external callers.</div>
           </div>
         </a>
       </div>
@@ -77,8 +77,8 @@ describe('promoteSourceFeatureTilesToCardGrid', () => {
     ]
 
     const result = promoteSourceFeatureTilesToCardGrid(components, {
-      domSnapshot: rchFeatureHtml,
-      pageUrl: 'https://www.rch.org.au/home/',
+      domSnapshot: institutionalFeatureHtml,
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result).toHaveLength(1)
@@ -86,27 +86,27 @@ describe('promoteSourceFeatureTilesToCardGrid', () => {
     expect((result[0].content as any).cards).toEqual([
       expect.objectContaining({
         title: 'Emergency Department status',
-        href: { url: 'https://www.rch.org.au/emerg_rch/status/' },
+        href: { url: 'https://health.example.org/emergency/status/' },
       }),
       expect.objectContaining({
         title: 'Teen Health Info fact sheets',
-        href: { url: 'https://www.rch.org.au/teeninfo/' },
+        href: { url: 'https://health.example.org/teeninfo/' },
         image: expect.objectContaining({
           src: expect.objectContaining({
-            url: 'https://www.rch.org.au/TemplateAssets/images/home/poll.png',
+            url: 'https://health.example.org/SiteAssets/images/home/poll.png',
           }),
         }),
       }),
       expect.objectContaining({
         title: 'Translation resources',
-        href: { url: 'https://www.rch.org.au/translation-resources/' },
+        href: { url: 'https://health.example.org/translation-resources/' },
       }),
       expect.objectContaining({
         title: 'Telehealth appointments',
-        href: { url: 'https://www.rch.org.au/telehealth/' },
+        href: { url: 'https://health.example.org/telehealth/' },
         image: expect.objectContaining({
           src: expect.objectContaining({
-            url: 'https://www.rch.org.au/TemplateAssets/images/home/telehealth-lg.png',
+            url: 'https://health.example.org/SiteAssets/images/home/telehealth-lg.png',
           }),
         }),
       }),
@@ -123,8 +123,8 @@ describe('promoteSourceFeatureTilesToCardGrid', () => {
 
     expect(
       promoteSourceFeatureTilesToCardGrid(components, {
-        domSnapshot: rchFeatureHtml,
-        pageUrl: 'https://www.rch.org.au/home/',
+        domSnapshot: institutionalFeatureHtml,
+        pageUrl: 'https://health.example.org/home/',
       })
     ).toEqual(components)
   })
@@ -137,7 +137,7 @@ describe('promoteSourceFeatureTilesToCardGrid', () => {
         <a href="/gamma/"><h2>Gamma service</h2><p>Third unrelated feature.</p></a>
       </section>
     `
-    const separatedSource = `${unrelatedCluster}<div>${'x'.repeat(3000)}</div>${rchFeatureHtml}`
+    const separatedSource = `${unrelatedCluster}<div>${'x'.repeat(3000)}</div>${institutionalFeatureHtml}`
     const components = [
       component('two-column', {
         leftColumn: [{ type: 'cta-simple', content: { heading: 'Emergency Department status' } }],
@@ -147,7 +147,7 @@ describe('promoteSourceFeatureTilesToCardGrid', () => {
 
     const result = promoteSourceFeatureTilesToCardGrid(components, {
       domSnapshot: separatedSource,
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
     })
 
     expect(result[0].type).toBe('card-grid')

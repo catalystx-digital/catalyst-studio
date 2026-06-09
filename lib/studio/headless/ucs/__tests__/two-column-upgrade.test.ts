@@ -28,7 +28,7 @@ describe('two-column canonical column normalization', () => {
             body: 'View the page for a real time guide to how busy we are.',
             primaryButton: {
               label: 'Emergency Department status',
-              href: { path: '/emerg_rch/status/', type: 'internal' }
+              href: { path: '/emergency/status/', type: 'internal' }
             }
           }
         }

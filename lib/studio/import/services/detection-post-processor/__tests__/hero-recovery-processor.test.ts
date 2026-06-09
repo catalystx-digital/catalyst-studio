@@ -31,7 +31,7 @@ describe('recoverMissingHomepageHero', () => {
     const domSnapshot = `
       <main>
         <aside class="newsletter-modal">
-          <h2>The Luminary newsletter</h2>
+          <h2>The Example Agency newsletter</h2>
           <p>Global modal markup can appear before the visible homepage hero.</p>
         </aside>
         <section class="homepage-hero bg-theme-gradient-2 diagonal">
@@ -44,7 +44,7 @@ describe('recoverMissingHomepageHero', () => {
           ${closingNestedMarkup}
           <div class="image-container">
             ${longResponsiveImageMarkup}
-            <img src="/hero.png?width=474&amp;format=webp" alt="Picture of luminary team members within sunrise graphic" />
+            <img src="/hero.png?width=474&amp;format=webp" alt="Picture of Example Agency team members within sunrise graphic" />
           </div>
         </section>
         <section><h2>Some of our latest projects</h2></section>
@@ -53,7 +53,7 @@ describe('recoverMissingHomepageHero', () => {
 
     recoverMissingHomepageHero(components, {
       domSnapshot,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(components.map(component => component.type)).toEqual([
@@ -66,11 +66,11 @@ describe('recoverMissingHomepageHero', () => {
       subheading: 'A full service digital agency creating bright digital experiences for your customers and your organisation.',
       layout: 'image-right',
       image: {
-        alt: 'Picture of luminary team members within sunrise graphic',
-        originalUrl: 'https://www.luminary.com/hero.png?width=474&format=webp',
+        alt: 'Picture of Example Agency team members within sunrise graphic',
+        originalUrl: 'https://agency.example.com/hero.png?width=474&format=webp',
         src: {
           mediaType: 'image',
-          url: 'https://www.luminary.com/hero.png?width=474&format=webp',
+          url: 'https://agency.example.com/hero.png?width=474&format=webp',
         },
       },
     })
@@ -87,13 +87,13 @@ describe('recoverMissingHomepageHero', () => {
 
   it('inserts the recovered hero through the full post-processor before main content', () => {
     const adjusted = adjustDetectedComponents([nav(), cardGrid()], {
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
       domSnapshot: `
         <main>
           <section class="homepage-hero">
             <h1>Brighter digital experiences</h1>
             <p>A full service digital agency creating bright digital experiences for your customers and your organisation.</p>
-            <img src="/hero.png" alt="Picture of luminary team members within sunrise graphic" />
+            <img src="/hero.png" alt="Picture of Example Agency team members within sunrise graphic" />
           </section>
           <section><h2>Some of our latest projects</h2></section>
         </main>

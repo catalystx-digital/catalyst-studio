@@ -238,8 +238,8 @@ describe('HeroCarousel component', () => {
                   src: {
                     mediaId: 'detected:hero',
                     mediaType: 'image',
-                    url: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
-                    originalUrl: 'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+                    url: 'https://health.example.org/uploadedImages/Main/hero.jpg',
+                    originalUrl: 'https://health.example.org/uploadedImages/Main/hero.jpg',
                   },
                   alt: 'Resolved hero',
                   originalUrl: '/uploadedImages/Main/hero.jpg',
@@ -254,7 +254,7 @@ describe('HeroCarousel component', () => {
 
     expect(screen.getByAltText('Resolved hero')).toHaveAttribute(
       'src',
-      'https://www.rch.org.au/uploadedImages/Main/hero.jpg',
+      'https://health.example.org/uploadedImages/Main/hero.jpg',
     );
   });
 });

@@ -253,8 +253,8 @@ function buildSourceCta(rawHref: unknown, pageUrl?: string): Record<string, unkn
 }
 
 const ITEM_START_PATTERN = /<div\b[^>]*\bclass\s*=\s*(["'])[^"']*\bitem\b[^"']*\1[^>]*>/gi
-const RCH_FEATURED_CAROUSEL_START_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])rch-featured-carousel\1[^>]*>/i
-const RCH_FEATURED_CAROUSEL_END_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])(?:rch-featured-carousel-xs|rch-quicklinks|rch-news-carousel|fd-news-carousel)\1[^>]*>/i
+const FEATURED_CAROUSEL_START_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])[^"']*\bfeatured-carousel\b[^"']*\1[^>]*>/i
+const NEXT_SECTION_PATTERN = /<div\b[^>]*\bid\s*=\s*(["'])[^"']*(?:carousel|quicklinks?|news|feature)[^"']*\1[^>]*>/i
 const GENERIC_CAROUSEL_PATTERN = /<div\b[^>]*(?:id|class)\s*=\s*(["'])[^"']*\bcarousel\b[^"']*\1[^>]*>/gi
 const HEADING_PATTERN = /<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/i
 const HREF_PATTERN = /\bhref\s*=\s*(["'])(.*?)\1/i
@@ -262,13 +262,13 @@ const IMG_PATTERN = /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/i
 const BACKGROUND_PATTERN = /background(?:-image)?\s*:[^;]*url\((['"]?)([^'")]+)\1\)/i
 
 function findSourceCarouselHtml(html: string): string | undefined {
-  const rchStart = RCH_FEATURED_CAROUSEL_START_PATTERN.exec(html)
-  if (rchStart) {
-    const afterStart = html.slice(rchStart.index + rchStart[0].length)
-    const end = RCH_FEATURED_CAROUSEL_END_PATTERN.exec(afterStart)
+  const featuredStart = FEATURED_CAROUSEL_START_PATTERN.exec(html)
+  if (featuredStart) {
+    const afterStart = html.slice(featuredStart.index + featuredStart[0].length)
+    const end = NEXT_SECTION_PATTERN.exec(afterStart)
     return html.slice(
-      rchStart.index,
-      end ? rchStart.index + rchStart[0].length + end.index : Math.min(html.length, rchStart.index + 30000)
+      featuredStart.index,
+      end ? featuredStart.index + featuredStart[0].length + end.index : Math.min(html.length, featuredStart.index + 30000)
     )
   }
 

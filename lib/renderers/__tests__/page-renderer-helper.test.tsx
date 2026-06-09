@@ -17,7 +17,7 @@ describe('PageRendererHelper', () => {
 
   it('classifies institutional pages before agency wording like our work', () => {
     const page: SnapshotPage = {
-      id: 'rch-home',
+      id: 'example-health-home',
       title: 'Hospital home',
       fullPath: '/',
       templateKey: 'marketing/home-default',
@@ -38,7 +38,7 @@ describe('PageRendererHelper', () => {
           metadata: {}
         }
       ],
-      metadata: { importSource: 'https://www.rch.org.au/home/' },
+      metadata: { importSource: 'https://health.example.org/home/' },
       sharedComponentIds: []
     };
 
@@ -336,7 +336,7 @@ describe('PageRendererHelper', () => {
         }
       ],
       metadata: {
-        importSource: 'https://www.rch.org.au/home/'
+        importSource: 'https://health.example.org/home/'
       },
       sharedComponentIds: []
     };
@@ -391,7 +391,7 @@ describe('PageRendererHelper', () => {
         }
       ],
       metadata: {
-        importSource: 'https://www.luminary.com/'
+        importSource: 'https://agency.example.com/'
       },
       sharedComponentIds: []
     };
@@ -428,7 +428,7 @@ describe('PageRendererHelper', () => {
         }
       ],
       metadata: {
-        importSource: 'https://www.luminary.com/'
+        importSource: 'https://agency.example.com/'
       },
       sharedComponentIds: []
     };

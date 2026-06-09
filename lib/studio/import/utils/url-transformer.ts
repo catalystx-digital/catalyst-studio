@@ -128,7 +128,7 @@ function isTrustedExtensionlessImageHost(url: string): boolean {
  *
  * @example
  * isLikelyImageUrl('https://example.com/images/photo.jpg') // true
- * isLikelyImageUrl('https://example.com/TemplateAssets/images/home/hero.png') // true
+ * isLikelyImageUrl('https://example.com/SiteAssets/images/home/hero.png') // true
  * isLikelyImageUrl('https://example.com/info/') // false - page URL
  * isLikelyImageUrl('https://example.com/kidsinfo/') // false - page URL
  */

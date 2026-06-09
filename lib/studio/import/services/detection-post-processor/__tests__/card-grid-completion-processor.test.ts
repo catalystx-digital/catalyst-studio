@@ -15,7 +15,7 @@ function cardGrid(cards: Array<Record<string, unknown>>): DetectedComponent {
   }
 }
 
-const luminaryProjectsDom = `
+const Example AgencyProjectsDom = `
   <main>
     <section class="columns-section cols-two">
       <div class="columns-header"><h2 class="title">Some of our latest projects</h2></div>
@@ -23,7 +23,7 @@ const luminaryProjectsDom = `
         <a href="/mcg-and-melbourne-cricket-club" class="hero-image-tile">
           <img src="https://assets.example.com/Home-Page-Tile.png?h=570&amp;fm=webp" alt="A dad and kid at MCG" />
           <h3 class="hero-image-tile-title">MCG and MCC</h3>
-          <p class="hero-image-tile-introduction">The Melbourne Cricket Club engaged Luminary to reimagine and redevelop its digital ecosystem.</p>
+          <p class="hero-image-tile-introduction">The Melbourne Cricket Club engaged Example Agency to reimagine and redevelop its digital ecosystem.</p>
         </a>
         <a href="/melbourne-airport-wayfinding-system" class="hero-image-tile">
           <img src="https://assets.example.com/hero_Wayfinding.png?h=570&amp;fm=webp" alt="Melbourne Airport Wayfinder" />
@@ -38,7 +38,7 @@ const luminaryProjectsDom = `
         <a href="/byd-discovery" class="hero-image-tile">
           <img src="https://assets.example.com/hero_BYD.png?h=570&amp;fm=webp" alt="BYD" />
           <h3 class="hero-image-tile-title">BYD</h3>
-          <p class="hero-image-tile-introduction">Electric vehicle manufacturer BYD engaged Luminary to provide it with a digital strategy.</p>
+          <p class="hero-image-tile-introduction">Electric vehicle manufacturer BYD engaged Example Agency to provide it with a digital strategy.</p>
         </a>
       </div>
     </section>
@@ -68,15 +68,15 @@ describe('completeCardGridsFromSource', () => {
     ]
 
     completeCardGridsFromSource(components, {
-      domSnapshot: luminaryProjectsDom,
-      pageUrl: 'https://www.luminary.com/',
+      domSnapshot: Example AgencyProjectsDom,
+      pageUrl: 'https://agency.example.com/',
     })
 
     const cards = components[0].content.cards as Array<Record<string, any>>
     expect(cards).toHaveLength(4)
     expect(cards[3]).toMatchObject({
       title: 'BYD',
-      description: 'Electric vehicle manufacturer BYD engaged Luminary to provide it with a digital strategy.',
+      description: 'Electric vehicle manufacturer BYD engaged Example Agency to provide it with a digital strategy.',
       href: {
         type: 'internal',
         pageId: 'byd-discovery',
@@ -112,8 +112,8 @@ describe('completeCardGridsFromSource', () => {
     ]
 
     completeCardGridsFromSource(components, {
-      domSnapshot: luminaryProjectsDom,
-      pageUrl: 'https://www.luminary.com/',
+      domSnapshot: Example AgencyProjectsDom,
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(components[0].content.cards).toHaveLength(1)
@@ -149,7 +149,7 @@ describe('completeCardGridsFromSource', () => {
           </section>
         </main>
       `,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(components[0].content.cards).toHaveLength(3)
@@ -165,8 +165,8 @@ describe('completeCardGridsFromSource', () => {
     ]
 
     completeCardGridsFromSource(components, {
-      domSnapshot: luminaryProjectsDom,
-      pageUrl: 'https://www.luminary.com/',
+      domSnapshot: Example AgencyProjectsDom,
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(components[0].content.cards).toHaveLength(3)
@@ -205,7 +205,7 @@ describe('completeCardGridsFromSource', () => {
           </section>
         </main>
       `,
-      pageUrl: 'https://www.luminary.com/',
+      pageUrl: 'https://agency.example.com/',
     })
 
     expect(components[0].content.cards).toHaveLength(3)
@@ -231,8 +231,8 @@ describe('completeCardGridsFromSource', () => {
         },
       ]),
     ], {
-      domSnapshot: luminaryProjectsDom,
-      pageUrl: 'https://www.luminary.com/',
+      domSnapshot: Example AgencyProjectsDom,
+      pageUrl: 'https://agency.example.com/',
     })
 
     const cards = adjusted[0].content.cards as Array<Record<string, any>>

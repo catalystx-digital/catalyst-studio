@@ -111,7 +111,7 @@ describe('resolvePageTemplate strict contract', () => {
       detectionParserInternals.resolvePageTemplate(
         { templateKey: 'marketing/home-default', confidence: 0.8 },
         summary,
-        'https://example.com/guides/luminary-resume'
+        'https://example.com/guides/Example Agency-resume'
       )
     ).toThrow('is not route-eligible')
   })
@@ -998,7 +998,7 @@ describe('parseComponentsArray strict contract', () => {
         ],
         patterns,
         0.25,
-        'https://www.luminary.com/'
+        'https://agency.example.com/'
       )
     ).toThrow('items.0.answer:too_small')
   })
@@ -1114,7 +1114,7 @@ describe('parseSectionDetectionResponse', () => {
       }),
       sectionKey: 'main:0-99',
       availableComponents: patterns,
-      url: 'https://www.luminary.com/',
+      url: 'https://agency.example.com/',
       confidenceThreshold: 0.25,
       isolateInvalidComponents: true
     })
@@ -1151,7 +1151,7 @@ describe('parseSectionDetectionResponse', () => {
       }),
       sectionKey: 'main:0-99',
       availableComponents: patterns,
-      url: 'https://www.luminary.com/',
+      url: 'https://agency.example.com/',
       confidenceThreshold: 0.25,
       isolateInvalidComponents: true
     })
@@ -1233,7 +1233,7 @@ describe('parseSectionDetectionResponse', () => {
       }),
       sectionKey: 'header',
       availableComponents: patterns,
-      url: 'https://www.luminary.com/acoustic',
+      url: 'https://agency.example.com/acoustic',
       confidenceThreshold: 0.25
     })
 
@@ -1272,7 +1272,7 @@ describe('parseSectionDetectionResponse', () => {
         }),
         sectionKey: 'header',
         availableComponents: patterns,
-        url: 'https://www.luminary.com/acoustic',
+        url: 'https://agency.example.com/acoustic',
         confidenceThreshold: 0.25
       })
     ).toThrow('menuItems.0:unrecognized_keys')

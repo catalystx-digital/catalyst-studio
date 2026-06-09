@@ -36,8 +36,8 @@ export const GOLDEN_SITES: GoldenSite[] = [
   // Healthcare/Institutional (3)
   // ============================================
   {
-    url: 'https://www.rch.org.au/',
-    name: "Royal Children's Hospital",
+    url: 'https://health.example.org/',
+    name: "Example Health",
     category: 'healthcare',
     expectedPatterns: {
       hasNavbar: true,

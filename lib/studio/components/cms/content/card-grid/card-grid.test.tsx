@@ -317,7 +317,7 @@ describe('CMSComponent: CardGrid', () => {
           cards: [
             {
               id: 'quick-link',
-              title: 'Your guide to the RCH',
+              title: 'Your guide to the Example Health',
               href: '/guide',
             },
           ],
@@ -328,7 +328,7 @@ describe('CMSComponent: CardGrid', () => {
 
     const card = container.querySelector('.cms-card-grid-card')!;
     expect(card).toHaveClass('bg-card/95', 'border-border/70', 'min-h-24', 'justify-between');
-    expect(screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about Your guide to the Example Health' }).closest('[class*="justify-start"]')).toBeInTheDocument();
   });
 
   it('renders headingless simple linked grids with a compact quick-link treatment', () => {
@@ -338,10 +338,10 @@ describe('CMSComponent: CardGrid', () => {
           cards: [
             {
               id: 'guide',
-              title: 'Your guide to the RCH',
+              title: 'Your guide to the Example Health',
               image: {
                 src: 'https://assets.example.com/guide-icon.png',
-                alt: 'Your guide to the RCH',
+                alt: 'Your guide to the Example Health',
               },
               href: '/info/',
             },
@@ -359,7 +359,7 @@ describe('CMSComponent: CardGrid', () => {
     const cards = container.querySelectorAll('.cms-card-grid-card');
     expect(cards[0]).toHaveClass('border-l-4', 'border-l-primary/70', 'min-h-24', 'sm:min-h-28');
     expect(cards[0].querySelector('img')).toHaveClass('h-full', 'w-full', 'object-contain');
-    const firstFooter = screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' }).closest('[class*="justify-start"]');
+    const firstFooter = screen.getByRole('link', { name: 'Learn more about Your guide to the Example Health' }).closest('[class*="justify-start"]');
     expect(firstFooter).toBeInTheDocument();
     expect(firstFooter).toHaveClass('px-4', 'pb-4', 'sm:px-5', 'sm:pb-5');
     expect(screen.getByRole('link', { name: 'Learn more about Kids Health Info' })).toHaveAttribute('href', '/kidsinfo/');
@@ -373,7 +373,7 @@ describe('CMSComponent: CardGrid', () => {
           cards: [
             {
               id: 'guide',
-              title: 'Your guide to the RCH',
+              title: 'Your guide to the Example Health',
               href: '/info/',
             },
             {
@@ -387,7 +387,7 @@ describe('CMSComponent: CardGrid', () => {
       />,
     );
 
-    const quickLinkCta = screen.getByRole('link', { name: 'Learn more about Your guide to the RCH' });
+    const quickLinkCta = screen.getByRole('link', { name: 'Learn more about Your guide to the Example Health' });
     expect(quickLinkCta).toHaveClass('text-card-foreground/85', 'hover:text-card-foreground');
 
     rerender(
@@ -914,7 +914,7 @@ describe('CMSComponent: CardGrid', () => {
     const { container, rerender } = render(
       <CardGrid
         content={{
-          heading: 'RCH News',
+          heading: 'Health News',
           cards: [
             {
               id: 'news-1',

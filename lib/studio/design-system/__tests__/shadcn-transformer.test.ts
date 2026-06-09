@@ -157,7 +157,7 @@ describe('toShadcnVariables - Brand + Semantic Base + Polish approach', () => {
           occurrences: 1016,
           cssProperties: ['background-color', 'color'],
           sampleSelectors: [
-            'html > body.rch-section > form#aspnetForm > div.container',
+            'html > body.site-section > form#aspnetForm > div.container',
           ],
         },
         {
@@ -166,8 +166,8 @@ describe('toShadcnVariables - Brand + Semantic Base + Polish approach', () => {
           occurrences: 2682,
           cssProperties: ['color', 'border-top-color', 'background-color'],
           sampleSelectors: [
-            'html > body.rch-section',
-            'html > body.rch-section > form#aspnetForm',
+            'html > body.site-section',
+            'html > body.site-section > form#aspnetForm',
           ],
         },
       ],
@@ -178,7 +178,7 @@ describe('toShadcnVariables - Brand + Semantic Base + Polish approach', () => {
           occurrences: 1016,
           cssProperties: ['background-color', 'color'],
           sampleSelectors: [
-            'html > body.rch-section > form#aspnetForm > div.container',
+            'html > body.site-section > form#aspnetForm > div.container',
           ],
         },
         {
@@ -187,8 +187,8 @@ describe('toShadcnVariables - Brand + Semantic Base + Polish approach', () => {
           occurrences: 2682,
           cssProperties: ['color', 'border-top-color', 'background-color'],
           sampleSelectors: [
-            'html > body.rch-section',
-            'html > body.rch-section > form#aspnetForm',
+            'html > body.site-section',
+            'html > body.site-section > form#aspnetForm',
           ],
         },
       ],

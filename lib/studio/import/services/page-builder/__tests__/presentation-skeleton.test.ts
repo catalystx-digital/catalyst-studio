@@ -143,9 +143,9 @@ describe('selectPresentationSkeleton', () => {
 
   it('counts hero-carousel as homepage hero evidence for institutional confidence', () => {
     const selection = selectPresentationSkeleton({
-      pageUrl: 'https://www.rch.org.au/home/',
+      pageUrl: 'https://health.example.org/home/',
       detection: detection({
-        pageMetadata: { pageType: 'home', title: 'The Royal Children Hospital' },
+        pageMetadata: { pageType: 'home', title: 'Example Health' },
         components: [
           {
             component: ComponentType.HeroCarousel,
