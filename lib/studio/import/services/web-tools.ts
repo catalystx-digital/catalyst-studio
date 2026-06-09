@@ -339,6 +339,12 @@ function traverseToNodes(
       'data-region',
       'data-element'
     ])
+    const urlAttrKeys = new Set<string>([
+      'href',
+      'src',
+      'srcset',
+      'action'
+    ])
     const filteredAttrs: Dict<string> = {}
     for (const [key, value] of Object.entries(attrs)) {
       const lower = key.toLowerCase()
@@ -349,7 +355,7 @@ function traverseToNodes(
         continue
       }
       if (typeof value === "string") {
-        filteredAttrs[key] = value.length > 160 ? value.slice(0, 160) : value
+        filteredAttrs[key] = serializeAttrValue(lower, value, urlAttrKeys)
       } else {
         filteredAttrs[key] = String(value)
       }
@@ -465,6 +471,46 @@ function traverseToNodes(
 
   walk(root, '')
   return nodes
+}
+
+function serializeAttrValue(lowerKey: string, value: string, urlAttrKeys: Set<string>): string {
+  if (!urlAttrKeys.has(lowerKey)) {
+    return value.length > 160 ? value.slice(0, 160) : value
+  }
+
+  if (lowerKey === 'srcset') {
+    return sanitizeResourceSrcset(value) ?? value.slice(0, 160)
+  }
+
+  if (value.trimStart().toLowerCase().startsWith('data:')) {
+    return value.slice(0, 160)
+  }
+
+  const maxUrlAttrLength = lowerKey === 'srcset' ? 2048 : 1024
+  return value.length > maxUrlAttrLength ? value.slice(0, maxUrlAttrLength) : value
+}
+
+function sanitizeResourceUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  if (value.trimStart().toLowerCase().startsWith('data:')) return undefined
+  return value.length > 1024 ? value.slice(0, 1024) : value
+}
+
+function sanitizeResourceSrcset(value: string | undefined): string | undefined {
+  if (!value) return undefined
+
+  const withoutDataEntries = value.replace(/\bdata:[^\s,]+,[^\s]+(?:\s+\d+(?:w|x))?/gi, '')
+  const entries = withoutDataEntries
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(entry => {
+      if (!entry || entry.toLowerCase().startsWith('data:')) return false
+      const candidateUrl = entry.split(/\s+/, 1)[0]
+      return Boolean(candidateUrl) && !/^\d+(?:w|x)$/i.test(candidateUrl)
+    })
+  if (entries.length === 0) return undefined
+  const srcset = entries.join(', ')
+  return srcset.length > 2048 ? srcset.slice(0, 2048) : srcset
 }
 
 function shouldSkipBodyFallbackMainNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
@@ -640,7 +686,11 @@ function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesS
     if (n.tag === 'a') {
       anchors.push({ href: a.href, textPreview: n.text, pathId: n.pathId })
     } else if (n.tag === 'img') {
-      images.push({ src: a.src, srcset: a.srcset, alt: a.alt, pathId: n.pathId })
+      const src = sanitizeResourceUrl(a.src)
+      const srcset = sanitizeResourceSrcset(a.srcset)
+      if (src || srcset || a.alt) {
+        images.push({ src, srcset, alt: a.alt, pathId: n.pathId })
+      }
     } else if (n.tag === 'video') {
       // video sources are separate nodes; we collect minimal data
       const poster = a.poster

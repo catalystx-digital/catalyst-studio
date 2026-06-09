@@ -28,6 +28,8 @@ describe('image enrichment processor', () => {
         <img src="https://www.facebook.com/tr?id=123" alt="">
         <img src="https://www.rch.org.au/assets/RCH-Master-500-000.png" alt="RCH">
         <img src="https://www.rch.org.au/assets/flags/vietnam.png" alt="Vietnamese">
+        <img src="/TemplateAssets/images/global/australian_aboriginal_flag.png" alt="Aboriginal Flag">
+        <img src="/TemplateAssets/images/global/rainbow_flag.png" alt="Rainbow Flag">
         <img src="https://www.rch.org.au/assets/auslan-interpreter.svg" alt="Auslan">
         <h2>Emergency Department</h2>
         <p>Emergency Department care</p>
@@ -57,6 +59,8 @@ describe('image enrichment processor', () => {
     expect(JSON.stringify(result[0].content)).not.toContain('facebook.com/tr')
     expect(JSON.stringify(result[0].content)).not.toContain('RCH-Master')
     expect(JSON.stringify(result[0].content)).not.toContain('flags/vietnam')
+    expect(JSON.stringify(result[0].content)).not.toContain('australian_aboriginal_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('rainbow_flag')
     expect(JSON.stringify(result[0].content)).not.toContain('auslan-interpreter')
   })
 
@@ -126,6 +130,131 @@ describe('image enrichment processor', () => {
           },
         },
       ],
+    })
+  })
+
+  it('removes model-emitted utility flag images from card-grid cards', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          heading: 'Quick Links',
+          cards: [
+            {
+              title: 'Aboriginal health',
+              description: 'Cultural support services',
+              image: {
+                src: {
+                  mediaId: 'detected:australian_aboriginal_flag',
+                  mediaType: 'image',
+                  url: 'https://www.rch.org.au/TemplateAssets/images/global/australian_aboriginal_flag.png',
+                },
+                alt: 'Aboriginal Flag',
+              },
+            },
+            {
+              title: 'Rainbow support',
+              description: 'Support services',
+              image: {
+                src: {
+                  mediaId: 'detected:rainbow_flag',
+                  mediaType: 'image',
+                  url: 'https://www.rch.org.au/TemplateAssets/images/global/rainbow_flag.png',
+                },
+                alt: 'Rainbow Flag',
+              },
+            },
+            {
+              title: 'Torres Strait Islander health',
+              description: 'Cultural support services',
+              image: {
+                src: {
+                  mediaId: 'detected:flag_of_the_torres_strait_islanders',
+                  mediaType: 'image',
+                  url: 'https://www.rch.org.au/TemplateAssets/images/global/flag_of_the_torres_strait_islanders.png',
+                },
+                alt: 'Torres Strait Islander Flag',
+              },
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Quick Links</h2>
+        <img src="/TemplateAssets/images/global/australian_aboriginal_flag.png" alt="Aboriginal Flag">
+        <img src="/TemplateAssets/images/global/rainbow_flag.png" alt="Rainbow Flag">
+        <img src="/TemplateAssets/images/global/flag_of_the_torres_strait_islanders.png" alt="Torres Strait Islander Flag">
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })
+
+    const content = result[0].content as { cards: Array<{ image?: unknown }> }
+    expect(content.cards.every(card => card.image === undefined)).toBe(true)
+    expect(result[0].metadata?.sourceEvidence).toMatchObject({
+      nonContentCardImageRemoval: {
+        reason: 'card-image-url-is-non-content',
+        heading: 'Quick Links',
+      },
+    })
+    expect(JSON.stringify(result[0].content)).not.toContain('australian_aboriginal_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('rainbow_flag')
+    expect(JSON.stringify(result[0].content)).not.toContain('torres_strait')
+  })
+
+  it('removes model-emitted utility flag images from headingless card-grid cards', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          cards: [
+            {
+              title: 'Aboriginal health',
+              image: {
+                src: {
+                  mediaId: 'detected:australian_aboriginal_flag',
+                  mediaType: 'image',
+                  url: 'https://www.rch.org.au/TemplateAssets/images/global/australian_aboriginal_flag.png',
+                },
+                alt: 'Aboriginal Flag',
+              },
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <img src="/TemplateAssets/images/global/australian_aboriginal_flag.png" alt="Aboriginal Flag">
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://www.rch.org.au/home/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      cards: [
+        {
+          title: 'Aboriginal health',
+        },
+      ],
+    })
+    expect(JSON.stringify(result[0].content)).not.toContain('australian_aboriginal_flag')
+    expect(result[0].metadata?.sourceEvidence).toMatchObject({
+      nonContentCardImageRemoval: {
+        reason: 'card-image-url-is-non-content',
+      },
     })
   })
 

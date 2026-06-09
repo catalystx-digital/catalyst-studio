@@ -59,6 +59,77 @@ describe('web-tools body fallback main extraction', () => {
     expect(serialized).not.toContain('Hidden mobile item')
   })
 
+  it('preserves long media URLs in resource summaries and section attributes', async () => {
+    const longImageUrl = 'https://assets-us-01.kc-usercontent.com:443/90e79cae-25c6-00b5-6f5b-27efe5c250ab/a5dc2c3a-f059-44ed-b81a-6216def1c73a/A%20Guide%20to%20Digital%20Product%20Design.jpg?h=474&fm=webp'
+
+    global.fetch = jest.fn(async () => ({
+      status: 200,
+      url: 'https://example.com/guide',
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: async () => `<!doctype html>
+        <html>
+          <head><title>Guide</title></head>
+          <body>
+            <main>
+              <section class="page-header">
+                <img src="${longImageUrl}" alt="Guide cover">
+                <h1>A Guide to Digital Product Design</h1>
+              </section>
+            </main>
+          </body>
+        </html>`
+    } as Response))
+
+    const tools = getWebFetchTools()
+    const outline = await tools.fetchOutline({ url: 'https://example.com/guide' })
+    const main = outline.sections?.find(section => section.key.startsWith('main:'))
+
+    expect(outline.resourcesSummary?.images[0]?.src).toBe(longImageUrl)
+    expect(main).toBeDefined()
+
+    const mainSection = await tools.getSection({ handle: outline.handle, key: main!.key })
+    const serialized = JSON.stringify(mainSection.slice)
+
+    expect(serialized).toContain(longImageUrl)
+    expect(serialized).toContain('A Guide to Digital Product Design')
+  })
+
+  it('does not preserve long data image placeholders unbounded', async () => {
+    const dataImage = `data:image/png;base64,${'a'.repeat(5000)}`
+    const realImage = '/assets/hero.jpg'
+
+    global.fetch = jest.fn(async () => ({
+      status: 200,
+      url: 'https://example.com/data-image',
+      headers: new Headers({ 'content-type': 'text/html' }),
+      text: async () => `<!doctype html>
+        <html>
+          <body>
+            <main>
+              <section>
+                <img src="${dataImage}" srcset="${dataImage} 1x, ${realImage} 2x" alt="Inline placeholder">
+                <h1>Inline placeholder page</h1>
+              </section>
+            </main>
+          </body>
+        </html>`
+    } as Response))
+
+    const tools = getWebFetchTools()
+    const outline = await tools.fetchOutline({ url: 'https://example.com/data-image' })
+    const main = outline.sections?.find(section => section.key.startsWith('main:'))
+
+    expect(JSON.stringify(outline.resourcesSummary)).not.toContain('data:image/png;base64')
+    expect(outline.resourcesSummary?.images[0]?.src).toBeUndefined()
+    expect(outline.resourcesSummary?.images[0]?.srcset).toBe(`${realImage} 2x`)
+
+    const mainSection = await tools.getSection({ handle: outline.handle, key: main!.key })
+    const serialized = JSON.stringify(mainSection.slice)
+
+    expect(serialized).toContain('data:image/png;base64')
+    expect(serialized).not.toContain('a'.repeat(1000))
+  })
+
   it('exposes header-like containers as header sections when no header element exists', async () => {
     global.fetch = jest.fn(async () => ({
       status: 200,

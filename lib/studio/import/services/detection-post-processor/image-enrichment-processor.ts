@@ -215,6 +215,10 @@ function isNonContentImage(src: string): boolean {
   if (lowerSrc.includes('spinner') || lowerSrc.includes('loading')) return true
   if (pathname.includes('/flags/') || /^flag[-_.]/.test(filename)) return true
   if (
+    pathname.includes('/templateassets/images/global/') &&
+    (filename.includes('flag') || filename.includes('flags'))
+  ) return true
+  if (
     (pathname.includes('/templateassets/') || pathname.includes('/icons/')) &&
     (filename.includes('auslan') || filename.includes('interpreter'))
   ) return true
@@ -1048,13 +1052,13 @@ export function enrichComponentImages(
   reconcileTeamGridMemberImagesFromSource(components, sourceImages, pageUrl)
   reconcileTeamGridMemberLinksFromSource(components, sourceImages, sourceLinks, pageUrl)
   reconcileTruncatedImageUrlsFromSource(components, sourceImages, pageUrl)
+  removeUnsupportedCardGridImages(components, domSnapshot)
 
   if (domImages.length === 0) return components
 
   reconcileLogoCloudsFromSourceSections(components, domSnapshot, pageUrl)
   reconcileLogoCloudsWithSourceSections(components, domImages, pageUrl)
   reconcileCtaImagesWithSourceSections(components, domSnapshot, domImages, pageUrl)
-  removeUnsupportedCardGridImages(components, domSnapshot)
 
   // Collect all already-captured image URLs across all components
   const capturedUrls = new Set<string>()
@@ -1066,7 +1070,9 @@ export function enrichComponentImages(
   // Find uncaptured images
   const uncapturedImages = domImages.filter(img => {
     const normalizedSrc = normalizeImageUrl(img.src, pageUrl)
-    return !capturedUrls.has(normalizedSrc) && !capturedUrls.has(img.src.toLowerCase().replace(/&amp;/g, '&'))
+    return !isNonContentImage(img.src) &&
+      !capturedUrls.has(normalizedSrc) &&
+      !capturedUrls.has(img.src.toLowerCase().replace(/&amp;/g, '&'))
   })
 
   console.log('[ImageEnrichment] Uncaptured images:', {
@@ -1326,7 +1332,36 @@ function removeUnsupportedCardGridImages(
     if (component.type !== 'card-grid' || !isRecord(component.content)) continue
 
     const content = component.content as Record<string, unknown>
-    if (typeof content.heading !== 'string' || !Array.isArray(content.cards)) continue
+    if (!Array.isArray(content.cards)) continue
+
+    const nonContentRemovals: Array<{ title: string, url: string }> = []
+    for (const card of content.cards) {
+      if (!isRecord(card) || !card.image) continue
+      const cardImageUrl = getImageUrl(card.image)
+      if (!cardImageUrl || !isNonContentImage(cardImageUrl)) continue
+
+      delete card.image
+      nonContentRemovals.push({
+        title: typeof card.title === 'string' ? card.title : '',
+        url: cardImageUrl
+      })
+    }
+
+    if (nonContentRemovals.length > 0) {
+      component.metadata = {
+        ...(component.metadata || {}),
+        sourceEvidence: {
+          ...(component.metadata?.sourceEvidence || {}),
+          nonContentCardImageRemoval: {
+            reason: 'card-image-url-is-non-content',
+            ...(typeof content.heading === 'string' ? { heading: content.heading } : {}),
+            removals: nonContentRemovals
+          }
+        }
+      }
+    }
+
+    if (typeof content.heading !== 'string') continue
 
     const heading = content.heading.toLowerCase()
     const matchedSection = sourceSections.find(section => section.text.toLowerCase().includes(heading))
