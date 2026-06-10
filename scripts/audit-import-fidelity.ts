@@ -68,6 +68,44 @@ function hasMeaningfulFooterContent(content: Record<string, unknown>): boolean {
   )
 }
 
+function hasRealMenuItem(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  const label = typeof (value.label ?? value.text ?? value.title) === 'string'
+    ? String(value.label ?? value.text ?? value.title).trim()
+    : ''
+  const href = isRecord(value.href)
+    ? value.href.path ?? value.href.url ?? value.href.href
+    : value.href ?? value.url ?? value.link ?? value.path
+  return label.length > 0 && typeof href === 'string' && href.trim().length > 0
+}
+
+function hasMeaningfulLogo(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  if (hasNonEmptyString(value.text) || hasNonEmptyString(value.alt) || hasNonEmptyString(value.src)) {
+    return true
+  }
+  return isRecord(value.src) && (
+    hasNonEmptyString(value.src.url) ||
+    hasNonEmptyString(value.src.src) ||
+    hasNonEmptyString(value.src.originalUrl)
+  )
+}
+
+function hasMeaningfulNavbarContent(content: Record<string, unknown>): boolean {
+  const menuItems = Array.isArray(content.menuItems) ? content.menuItems : []
+  const utilityNav = Array.isArray(content.utilityNav) ? content.utilityNav : []
+  const search = isRecord(content.search) ? content.search : undefined
+  const cta = isRecord(content.cta) ? content.cta : undefined
+
+  return (
+    menuItems.some(hasRealMenuItem) ||
+    utilityNav.some(hasRealMenuItem) ||
+    hasMeaningfulLogo(content.logo) ||
+    search?.enabled === true ||
+    Boolean(cta && hasNonEmptyString(cta.label) && hasRealMenuItem({ label: cta.label, href: cta.href }))
+  )
+}
+
 function extractSourceImages(html: string): string[] {
   const images = new Set<string>()
   const regex = /<img\s+[^>]*?src\s*=\s*["']([^"']+)["'][^>]*>/gi
@@ -136,12 +174,16 @@ function scanContent(value: unknown): {
 
     const record = entry as Record<string, unknown>
     const componentType = typeof record.type === 'string' ? record.type : undefined
+    if (componentType === 'navbar' && isRecord(record.content) && !hasMeaningfulNavbarContent(record.content)) {
+      emptyComponents.push([...trail, componentType].join('.'))
+    }
     if (componentType === 'footer' && isRecord(record.content) && !hasMeaningfulFooterContent(record.content)) {
       emptyComponents.push([...trail, componentType].join('.'))
     }
     if (
       componentType &&
-      !['navbar', 'breadcrumb', 'breadcrumbs'].includes(componentType) &&
+      componentType !== 'navbar' &&
+      !['breadcrumb', 'breadcrumbs'].includes(componentType) &&
       isRecord(record.content) &&
       Object.keys(record.content).length === 0
     ) {

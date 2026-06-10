@@ -10,9 +10,10 @@
 
 import { canonicalizeComponentType } from '../page-builder/component-helpers'
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
+import type { SmartLink } from '@/lib/studio/components/cms/_core/value-objects'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 import { SIDEMENU_LABEL_INDICATORS, type MenuItemLike } from './navigation-patterns'
-import { normalizeString, isPlainObject } from './utils'
+import { normalizeString, isPlainObject, normalizeHref } from './utils'
 import { executeMultiRowDetection } from './processing-engine'
 import { NavBarDef } from '@/lib/studio/components/cms/navigation/nav-bar/nav-bar.def'
 
@@ -159,6 +160,80 @@ function arrayLength(value: unknown): number {
   return Array.isArray(value) ? value.length : 0
 }
 
+function hasNonEmptyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function smartLinkFrom(value: unknown, pageUrl?: string): SmartLink | undefined {
+  const href = normalizeHref(value, pageUrl)
+  if (!href) return undefined
+  if (/^https?:\/\//i.test(href)) {
+    if (pageUrl) {
+      try {
+        const sourceUrl = new URL(pageUrl)
+        const targetUrl = new URL(href)
+        if (sourceUrl.origin === targetUrl.origin) {
+          return {
+            type: 'internal',
+            pageId: `imported:${targetUrl.pathname}`,
+            path: targetUrl.pathname || '/',
+          }
+        }
+      } catch {
+        // Fall through to external link handling.
+      }
+    }
+    return { type: 'external', url: href }
+  }
+  if (href.startsWith('mailto:')) return { type: 'email', href }
+  if (href.startsWith('tel:')) return { type: 'phone', href }
+  if (href.startsWith('#')) return { type: 'anchor', href }
+  return { type: 'internal', pageId: `imported:${href}`, path: href.startsWith('/') ? href : `/${href}` }
+}
+
+function hasRealMenuItem(value: unknown, pageUrl?: string): boolean {
+  if (!isPlainObject(value)) return false
+  const label = normalizeString(value.label ?? value.text ?? value.title)
+  return Boolean(label && smartLinkFrom(value.href ?? value.url ?? value.link ?? value.path, pageUrl))
+}
+
+function hasMeaningfulLogo(value: unknown): boolean {
+  if (!isPlainObject(value)) return false
+  return (
+    hasNonEmptyString(value.text) ||
+    hasNonEmptyString(value.alt) ||
+    hasNonEmptyString(value.src) ||
+    (isPlainObject(value.src) && (
+      hasNonEmptyString(value.src.url) ||
+      hasNonEmptyString(value.src.src) ||
+      hasNonEmptyString(value.src.originalUrl)
+    ))
+  )
+}
+
+export function hasMeaningfulNavbarContent(content: unknown, pageUrl?: string): boolean {
+  if (!isPlainObject(content)) return false
+  const menuItems = Array.isArray(content.menuItems) ? content.menuItems : []
+  const utilityNav = Array.isArray(content.utilityNav) ? content.utilityNav : []
+  const search = isPlainObject(content.search) ? content.search : undefined
+  const cta = isPlainObject(content.cta) ? content.cta : undefined
+
+  return (
+    menuItems.some(item => hasRealMenuItem(item, pageUrl)) ||
+    utilityNav.some(item => hasRealMenuItem(item, pageUrl)) ||
+    hasMeaningfulLogo(content.logo) ||
+    Boolean(search?.enabled === true) ||
+    Boolean(cta && normalizeString(cta.label) && smartLinkFrom(cta.href, pageUrl))
+  )
+}
+
+function hasMeaningfulNavbarLinks(content: unknown, pageUrl?: string): boolean {
+  if (!isPlainObject(content)) return false
+  const menuItems = Array.isArray(content.menuItems) ? content.menuItems : []
+  const utilityNav = Array.isArray(content.utilityNav) ? content.utilityNav : []
+  return menuItems.some(item => hasRealMenuItem(item, pageUrl)) || utilityNav.some(item => hasRealMenuItem(item, pageUrl))
+}
+
 function navbarScore(component: DetectedComponent): number {
   const content = isPlainObject(component.content) ? component.content as Record<string, unknown> : {}
   const menuItems = arrayLength(content.menuItems)
@@ -247,6 +322,329 @@ export function collapseDuplicateGlobalNavigation(components: DetectedComponent[
     }
 
     result.push(component)
+  }
+
+  return changed ? result : components
+}
+
+interface SourceNavItem {
+  label: string
+  href: SmartLink
+}
+
+interface NavCandidate {
+  source: string
+  html: string
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function extractNavCandidateHtmls(domSnapshot: string): NavCandidate[] {
+  const candidates: NavCandidate[] = []
+  const add = (source: string, html: string | undefined) => {
+    const trimmed = html?.trim()
+    if (!trimmed || trimmed.length < 50) return
+    if (candidates.some(candidate => candidate.html === trimmed)) return
+    candidates.push({ source, html: trimmed })
+  }
+
+  add('header-tag', /<header\b[\s\S]*?<\/header>/i.exec(domSnapshot)?.[0])
+
+  const navPattern = /<nav\b[\s\S]*?<\/nav>/gi
+  let navMatch: RegExpExecArray | null
+  while ((navMatch = navPattern.exec(domSnapshot)) !== null) {
+    add('nav-tag', navMatch[0])
+  }
+
+  const listPattern = /<ul\b[^>]*(?:id|class|role)\s*=\s*(["'])[^"']*(?:nav|menu|navigation)[^"']*\1[^>]*>[\s\S]*?<\/ul>/gi
+  let listMatch: RegExpExecArray | null
+  while ((listMatch = listPattern.exec(domSnapshot)) !== null) {
+    add('nav-list', listMatch[0])
+  }
+
+  return candidates
+}
+
+function anchorLabel(attrs: string, body: string): string | undefined {
+  const fromBody = normalizeString(stripHtml(body))
+  if (fromBody && fromBody.length <= 80) return fromBody
+
+  const attrLabel =
+    /\b(?:aria-label|title|data-link-text)\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2] ??
+    /\b(?:alt|aria-label|title)\s*=\s*(["'])(.*?)\1/i.exec(body)?.[2]
+  const label = normalizeString(attrLabel)
+  return label && label.length <= 80 ? label : undefined
+}
+
+function shouldSkipNavLabel(label: string): boolean {
+  return /^(skip|menu|close|search)$/i.test(label) || /\blogo\b/i.test(label)
+}
+
+function extractAnchorItems(html: string, pageUrl?: string, preferredOnly = false): SourceNavItem[] {
+  const items: SourceNavItem[] = []
+  const seen = new Set<string>()
+  const anchorPattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi
+  let match: RegExpExecArray | null
+
+  while ((match = anchorPattern.exec(html)) !== null) {
+    const attrs = match[1] ?? ''
+    const body = match[2] ?? ''
+    const classOrRole = `${attrs} ${body}`
+    const preferred = /\b(?:menu-title|nav-link|navigation-link|primary-nav|main-nav|navbar|global-nav|site-nav)\b/i.test(classOrRole)
+    if (preferredOnly && !preferred) continue
+
+    const label = anchorLabel(attrs, body)
+    const hrefRaw = /\bhref\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2]
+    const href = smartLinkFrom(hrefRaw, pageUrl)
+    if (!label || !href || shouldSkipNavLabel(label)) continue
+
+    const key = `${label.toLowerCase()}|${JSON.stringify(href)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push({ label, href })
+  }
+
+  return items
+}
+
+function isUtilityNavLabel(label: string): boolean {
+  return /\b(?:donate|contact|careers?|shop|about|news|login|portal|search|account|support)\b/i.test(label)
+}
+
+function scoreDomNavCandidate(source: string, html: string, anchors: SourceNavItem[]): number {
+  let score = Math.min(anchors.length, 10)
+  if (/\b(?:header|nav-tag|nav-list|primary-nav|main-nav|brand|navbar|navigation)\b/i.test(source)) score += 4
+  if (/\b(?:header|primary-nav|main-nav|navbar|navigation|site-nav|global-nav)\b/i.test(html)) score += 3
+  if (/\b(?:side|sidenav|side-nav|secondary|breadcrumb|footer)\b/i.test(source)) score -= 5
+  if (/\b(?:breadcrumb|footer|secondary-nav|side-?nav|in this section)\b/i.test(html)) score -= 4
+  if (/\bsearch\b/i.test(html)) score += 1
+  return score
+}
+
+function normalizeMediaUrl(value: unknown, pageUrl?: string): string | undefined {
+  const href = normalizeHref(value, pageUrl)
+  if (!href) return undefined
+  try {
+    return new URL(href, pageUrl || 'https://example.com').toString()
+  } catch {
+    return href
+  }
+}
+
+function slugFromUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    return url.pathname.split('/').filter(Boolean).pop() ?? 'nav-logo'
+  } catch {
+    return value.split('/').filter(Boolean).pop() ?? 'nav-logo'
+  }
+}
+
+function makeLogoFromImageAttrs(
+  imgAttrs: string,
+  linkAttrs: string,
+  pageUrl?: string,
+): Record<string, unknown> | undefined {
+  if (!imgAttrs) return undefined
+
+  const src = normalizeMediaUrl(/\bsrc\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2], pageUrl)
+  const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
+  const href = normalizeHref(/\bhref\s*=\s*(["'])(.*?)\1/i.exec(linkAttrs)?.[2], pageUrl)
+  const width = Number.parseInt(/\bwidth\s*=\s*(["']?)(\d+)\1/i.exec(imgAttrs)?.[2] ?? '', 10)
+  const height = Number.parseInt(/\bheight\s*=\s*(["']?)(\d+)\1/i.exec(imgAttrs)?.[2] ?? '', 10)
+
+  if (src) {
+    return {
+      ...(alt ? { alt } : {}),
+      ...(href ? { href } : {}),
+      ...(Number.isFinite(width) ? { width } : {}),
+      ...(Number.isFinite(height) ? { height } : {}),
+      src: {
+        mediaId: `detected:${slugFromUrl(src).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`,
+        mediaType: 'image',
+        url: src,
+      },
+      originalUrl: src,
+    }
+  }
+
+  return alt ? { text: alt, ...(href ? { href } : {}) } : undefined
+}
+
+function extractLogoFromNavHtml(html: string, pageUrl?: string): Record<string, unknown> | undefined {
+  const linkedImagePattern = /<a\b([^>]*)>([\s\S]*?<img\b([^>]*)>[\s\S]*?)<\/a>/gi
+  let linkedMatch: RegExpExecArray | null
+  while ((linkedMatch = linkedImagePattern.exec(html)) !== null) {
+    const linkAttrs = linkedMatch[1] ?? ''
+    const linkBody = linkedMatch[2] ?? ''
+    const imgAttrs = linkedMatch[3] ?? ''
+    const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
+    const linkBodyWithoutImages = linkBody.replace(/<img\b[^>]*>/gi, ' ')
+    const hasLinkLogoEvidence = /\b(?:logo|brand|lockup)\b/i.test(linkAttrs)
+    const hasLogoEvidence = Boolean(alt) || hasLinkLogoEvidence || /\b(?:logo|brand|lockup)\b/i.test(linkBodyWithoutImages)
+    if (!hasLogoEvidence) continue
+    const logo = makeLogoFromImageAttrs(imgAttrs, hasLinkLogoEvidence ? linkAttrs : '', pageUrl)
+    if (logo) return logo
+  }
+
+  const imagePattern = /<img\b([^>]*)>/gi
+  let imageMatch: RegExpExecArray | null
+  while ((imageMatch = imagePattern.exec(html)) !== null) {
+    const imgAttrs = imageMatch[1] ?? ''
+    const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
+    const attrsWithoutSrc = imgAttrs.replace(/\bsrc\s*=\s*(["']).*?\1/gi, ' ')
+    const hasLogoEvidence = Boolean(alt) || /\b(?:logo|brand|lockup)\b/i.test(attrsWithoutSrc)
+    if (!hasLogoEvidence) continue
+    const logo = makeLogoFromImageAttrs(imgAttrs, '', pageUrl)
+    if (logo) return logo
+  }
+
+  return undefined
+}
+
+function recoverNavbarFromDom(domSnapshot: string | null | undefined, pageUrl?: string): DetectedComponent | undefined {
+  if (!domSnapshot) return undefined
+
+  let best: { candidate: NavCandidate; anchors: SourceNavItem[]; score: number } | undefined
+  for (const candidate of extractNavCandidateHtmls(domSnapshot)) {
+    const preferred = extractAnchorItems(candidate.html, pageUrl, true)
+    const anchors = preferred.length >= 2 ? preferred : extractAnchorItems(candidate.html, pageUrl)
+    if (anchors.length < 2) continue
+
+    const score = scoreDomNavCandidate(candidate.source, candidate.html, anchors)
+    if (!best || score > best.score) {
+      best = { candidate, anchors, score }
+    }
+  }
+
+  if (!best || best.score < 8) return undefined
+
+  const utilityNav = best.anchors.filter(item => isUtilityNavLabel(item.label)).slice(0, 8)
+  const primary = best.anchors.filter(item => !isUtilityNavLabel(item.label)).slice(0, 8)
+  const menuItems = primary.length > 0 ? primary : best.anchors.slice(0, 8)
+  if (menuItems.length + utilityNav.length < 2) return undefined
+
+  const logo = extractLogoFromNavHtml(best.candidate.html, pageUrl) ?? extractLogoFromNavHtml(domSnapshot, pageUrl)
+  const search = /\bsearch\b/i.test(best.candidate.html)
+    ? { enabled: true, placeholder: 'Search' }
+    : undefined
+
+  return {
+    component: ComponentType.NavBar,
+    type: ComponentType.NavBar,
+    confidence: 0.75,
+    content: {
+      ...(logo ? { logo } : {}),
+      menuItems,
+      ...(utilityNav.length > 0 ? { utilityNav } : {}),
+      ...(search ? { search } : {}),
+      layout: utilityNav.length > 0 ? 'multi-row' : 'single-row',
+      sticky: false,
+      transparent: false,
+    },
+    metadata: {
+      region: 'header',
+      source: 'dom-navigation-recovery',
+    },
+  }
+}
+
+export function recoverOrRemoveEmptyGlobalNavigation(
+  components: DetectedComponent[],
+  options: { domSnapshot?: string | null; pageUrl?: string } = {},
+): DetectedComponent[] {
+  const result: DetectedComponent[] = []
+  let usedRecoveredNavbar = false
+  let sawGlobalNavbar = false
+  let changed = false
+
+  for (const component of components) {
+    if (!isGlobalNavbar(component)) {
+      result.push(component)
+      continue
+    }
+
+    sawGlobalNavbar = true
+
+    if (hasMeaningfulNavbarContent(component.content, options.pageUrl)) {
+      if (!hasMeaningfulNavbarLinks(component.content, options.pageUrl) && !usedRecoveredNavbar) {
+        const recovered = recoverNavbarFromDom(options.domSnapshot, options.pageUrl)
+        if (recovered && hasMeaningfulNavbarLinks(recovered.content, options.pageUrl)) {
+          result.push({
+            ...recovered,
+            metadata: {
+              ...(component.metadata ?? {}),
+              ...(recovered.metadata ?? {}),
+              recoveredFromIncompleteNavbar: true,
+            } as DetectedComponent['metadata'],
+          })
+          usedRecoveredNavbar = true
+          changed = true
+          console.log('[NavigationProcessor] Recovered linkless navbar from source DOM:', {
+            menuItemCount: Array.isArray(recovered.content?.menuItems) ? recovered.content.menuItems.length : 0,
+            utilityNavCount: Array.isArray(recovered.content?.utilityNav) ? recovered.content.utilityNav.length : 0,
+          })
+          continue
+        }
+      }
+      result.push(component)
+      continue
+    }
+
+    if (!usedRecoveredNavbar) {
+      const recovered = recoverNavbarFromDom(options.domSnapshot, options.pageUrl)
+      if (recovered) {
+        result.push({
+          ...recovered,
+          metadata: {
+            ...(component.metadata ?? {}),
+            ...(recovered.metadata ?? {}),
+            recoveredFromEmptyNavbar: true,
+          } as DetectedComponent['metadata'],
+        })
+        usedRecoveredNavbar = true
+        changed = true
+        console.log('[NavigationProcessor] Recovered empty navbar from source DOM:', {
+          menuItemCount: Array.isArray(recovered.content?.menuItems) ? recovered.content.menuItems.length : 0,
+          utilityNavCount: Array.isArray(recovered.content?.utilityNav) ? recovered.content.utilityNav.length : 0,
+        })
+        continue
+      }
+    }
+
+    changed = true
+    console.log('[NavigationProcessor] Dropped empty navbar artifact:', {
+      droppedComponentType: component.type,
+    })
+  }
+
+  if (!sawGlobalNavbar) {
+    const recovered = recoverNavbarFromDom(options.domSnapshot, options.pageUrl)
+    if (recovered) {
+      changed = true
+      result.unshift({
+        ...recovered,
+        metadata: {
+          ...(recovered.metadata ?? {}),
+          recoveredFromMissingNavbar: true,
+        } as DetectedComponent['metadata'],
+      })
+      console.log('[NavigationProcessor] Recovered missing navbar from source DOM:', {
+        menuItemCount: Array.isArray(recovered.content?.menuItems) ? recovered.content.menuItems.length : 0,
+        utilityNavCount: Array.isArray(recovered.content?.utilityNav) ? recovered.content.utilityNav.length : 0,
+      })
+    }
   }
 
   return changed ? result : components

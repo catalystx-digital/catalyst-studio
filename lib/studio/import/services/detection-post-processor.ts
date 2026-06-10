@@ -22,7 +22,7 @@ import { transformComponentUrls, extractOrigin } from '../utils/url-transformer'
 // Import from decomposed processor modules
 import { cloneComponent } from './detection-post-processor/utils'
 import { assignHeaderRegions, assignHeroRegions } from './detection-post-processor/region-processor'
-import { collapseDuplicateGlobalNavigation, normalizeMultiRowNavigation } from './detection-post-processor/navigation-processor'
+import { collapseDuplicateGlobalNavigation, normalizeMultiRowNavigation, recoverOrRemoveEmptyGlobalNavigation } from './detection-post-processor/navigation-processor'
 import { promoteHeroBackground } from './detection-post-processor/hero-processor'
 import { cleanupCtas } from './detection-post-processor/cta-processor'
 import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-merger'
@@ -95,6 +95,13 @@ export function adjustDetectedComponents(
   withTelemetry('navigationDeduplication', cloned, (c) => {
     const deduped = collapseDuplicateGlobalNavigation(c)
     c.splice(0, c.length, ...deduped)
+  })
+  withTelemetry('emptyNavigationRecovery', cloned, (c) => {
+    const recovered = recoverOrRemoveEmptyGlobalNavigation(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl,
+    })
+    c.splice(0, c.length, ...recovered)
   })
 
   // Region assignment

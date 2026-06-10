@@ -313,34 +313,34 @@ function normalizeComparableText(value: unknown): string {
 
 function sourceImagesFromResources(resourcesSummary?: ResourcesSummary): SourceImageEvidence[] {
   if (!resourcesSummary?.images?.length) return []
-  return resourcesSummary.images
-    .map(image => {
-      const src = (typeof image.src === 'string' ? image.src.trim() : '') || extractFirstSrcsetUrl(image.srcset)
-      if (!src || src.startsWith('data:') || isNonContentImage(src)) return null
-      return {
-        src,
-        alt: typeof image.alt === 'string' ? image.alt : undefined,
-        pathId: typeof image.pathId === 'string' ? image.pathId : undefined,
-        evidence: 'resources-summary' as const
-      }
+  const images: SourceImageEvidence[] = []
+  for (const image of resourcesSummary.images) {
+    const src = (typeof image.src === 'string' ? image.src.trim() : '') || extractFirstSrcsetUrl(image.srcset)
+    if (!src || src.startsWith('data:') || isNonContentImage(src)) continue
+    images.push({
+      src,
+      alt: typeof image.alt === 'string' ? image.alt : undefined,
+      pathId: typeof image.pathId === 'string' ? image.pathId : undefined,
+      evidence: 'resources-summary' as const
     })
-    .filter((image): image is SourceImageEvidence => Boolean(image))
+  }
+  return images
 }
 
 function sourceLinksFromResources(resourcesSummary?: ResourcesSummary): SourceLinkEvidence[] {
   if (!resourcesSummary?.anchors?.length) return []
-  return resourcesSummary.anchors
-    .map(anchor => {
-      const href = typeof anchor.href === 'string' ? anchor.href.trim() : ''
-      if (!href) return null
-      return {
-        href,
-        text: typeof anchor.textPreview === 'string' ? anchor.textPreview : undefined,
-        pathId: typeof anchor.pathId === 'string' ? anchor.pathId : undefined,
-        evidence: 'resources-summary' as const
-      }
+  const links: SourceLinkEvidence[] = []
+  for (const anchor of resourcesSummary.anchors) {
+    const href = typeof anchor.href === 'string' ? anchor.href.trim() : ''
+    if (!href) continue
+    links.push({
+      href,
+      text: typeof anchor.textPreview === 'string' ? anchor.textPreview : undefined,
+      pathId: typeof anchor.pathId === 'string' ? anchor.pathId : undefined,
+      evidence: 'resources-summary' as const
     })
-    .filter((link): link is SourceLinkEvidence => Boolean(link))
+  }
+  return links
 }
 
 function extractFirstSrcsetUrl(srcset: unknown): string {

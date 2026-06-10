@@ -122,6 +122,26 @@ describe('NavBar Component', () => {
     expect(navigations[0]).toHaveAttribute('aria-label', 'Primary navigation');
   });
 
+  it('does not render a blank navbar shell for empty imported content', () => {
+    const { container } = render(
+      <NavBar
+        {...defaultProps}
+        content={{
+          menuItems: [],
+          utilityNav: [],
+          styles: {
+            rootRow: {
+              backgroundColor: '#ffffff',
+            },
+          },
+        }}
+      />
+    );
+
+    expect(container.querySelector('.nav-bar-container')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Primary navigation' })).not.toBeInTheDocument();
+  });
+
   it('renders logo correctly', () => {
     render(<NavBar {...defaultProps} />);
     expect(screen.getAllByText('MyApp').length).toBeGreaterThan(0);
