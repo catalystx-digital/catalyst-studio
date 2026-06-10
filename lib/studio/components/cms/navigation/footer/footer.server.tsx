@@ -17,7 +17,26 @@ const COLUMN_GRID: Record<number, string> = {
 export function FooterServer({ content, className, style, theme, onInteraction }: FooterProps) {
   const columns = Array.isArray(content.columns) ? content.columns : [];
   const legalLinks = Array.isArray(content.legalLinks) ? content.legalLinks : [];
-  const currentYear = new Date().getFullYear();
+  const hasColumns = columns.some(column =>
+    Boolean(column.title?.trim()) || (Array.isArray(column.links) && column.links.length > 0)
+  );
+  const hasLegalLinks = legalLinks.length > 0;
+  const hasSocialLinks = Array.isArray(content.socialLinks) && content.socialLinks.length > 0;
+  const hasNewsletter = Boolean(content.newsletter);
+  const hasBranding = Boolean(content.logo || content.description?.trim());
+  const hasCopyright = Boolean(content.copyright?.trim());
+  const hasFooterContent =
+    hasBranding ||
+    hasColumns ||
+    hasSocialLinks ||
+    hasNewsletter ||
+    hasLegalLinks ||
+    hasCopyright;
+
+  if (!hasFooterContent) {
+    return null;
+  }
+
   const hasCustomBackground = typeof content.backgroundColor === 'string' && content.backgroundColor.trim().length > 0;
   const resolvedTheme = hasCustomBackground ? 'dark' : resolveTheme(theme);
   const footerStyle: React.CSSProperties = {
@@ -26,33 +45,31 @@ export function FooterServer({ content, className, style, theme, onInteraction }
     ...style,
   };
 
-  const hasInteractiveSection =
-    (Array.isArray(content.socialLinks) && content.socialLinks.length > 0) ||
-    Boolean(content.newsletter);
+  const hasInteractiveSection = hasSocialLinks || hasNewsletter;
 
   // Organization name for copyright and schema
-  const orgName = sanitizeText(
+  const rawOrgName =
     content.logoAlt ||
     content.siteName ||
     (typeof content.logo === 'object' && content.logo
       ? ((content.logo as Record<string, unknown>).text as string) ||
         ((content.logo as Record<string, unknown>).alt as string)
-      : undefined) ||
-    'Organization Name',
-  );
+      : undefined);
+  const orgName = rawOrgName ? sanitizeText(rawOrgName) : undefined;
+  const copyrightText = content.copyright?.trim() ? content.copyright : undefined;
 
   // Schema.org markup
   const socialUrls = Array.isArray(content.socialLinks)
     ? content.socialLinks.map(l => resolveLinkHref(l?.url)).filter(Boolean)
     : [];
-  const schema = {
+  const schema = orgName ? {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: orgName,
     url: '/',
     ...(typeof content.logo === 'string' ? { logo: content.logo } : {}),
     ...(socialUrls.length > 0 ? { sameAs: socialUrls } : {}),
-  };
+  } : null;
 
   const gridClass = COLUMN_GRID[columns.length] ?? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
 
@@ -62,11 +79,13 @@ export function FooterServer({ content, className, style, theme, onInteraction }
       style={footerStyle}
       role="contentinfo"
     >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-        suppressHydrationWarning
-      />
+      {schema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+          suppressHydrationWarning
+        />
+      )}
 
       <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
 
@@ -112,27 +131,31 @@ export function FooterServer({ content, className, style, theme, onInteraction }
           )}
 
           {/* Legal/copyright */}
-          <div className="border-t border-border/30 pt-6 mt-6">
-            <div className="flex flex-col items-center gap-4 text-center md:flex-row md:justify-between md:text-left">
-              <p className={cmsBody('sm', resolvedTheme, 'text-muted-foreground')}>
-                {content.copyright || `© ${currentYear} ${orgName}. All rights reserved.`}
-              </p>
+          {(copyrightText || legalLinks.length > 0) && (
+            <div className="border-t border-border/30 pt-6 mt-6">
+              <div className="flex flex-col items-center gap-4 text-center md:flex-row md:justify-between md:text-left">
+                {copyrightText && (
+                  <p className={cmsBody('sm', resolvedTheme, 'text-muted-foreground')}>
+                    {copyrightText}
+                  </p>
+                )}
 
-              {legalLinks.length > 0 && (
-                <nav aria-label="Legal links" className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                  {legalLinks.map((link, i) => (
-                    <FooterLink
-                      key={`legal-${i}`}
-                      href={link?.href}
-                      label={link?.label}
-                      theme={resolvedTheme}
-                      className="text-xs"
-                    />
-                  ))}
-                </nav>
-              )}
+                {legalLinks.length > 0 && (
+                  <nav aria-label="Legal links" className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                    {legalLinks.map((link, i) => (
+                      <FooterLink
+                        key={`legal-${i}`}
+                        href={link?.href}
+                        label={link?.label}
+                        theme={resolvedTheme}
+                        className="text-xs"
+                      />
+                    ))}
+                  </nav>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </footer>

@@ -71,12 +71,6 @@ const manifest: TemplateManifest = {
         description:
           'Primary navigation with branding and top-level links. Capture pre-header utility announcements (e.g., quick exit banners or hotline CTAs) using CTA/text components before the nav, use feature-list for icon-based quick links so the trading-hours strip → quick links → navbar order matches the live header. Search functionality is integrated into the navbar component via the search property.'
       },
-      {
-        region: 'footer',
-        allowedComponents: [ComponentType.Footer],
-        min: 1,
-        description: 'Footer with contact details, navigation, and compliance links.'
-      }
     ],
     optionalRegions: [
       {
@@ -90,6 +84,12 @@ const manifest: TemplateManifest = {
         allowedComponents: MAIN_REGION_COMPONENTS,
         description:
           'Primary marketing sections mixing feature highlights, pricing, social proof, and supporting content.'
+      },
+      {
+        region: 'footer',
+        allowedComponents: [ComponentType.Footer],
+        min: 0,
+        description: 'Footer with contact details, navigation, and compliance links when present in the source.'
       }
     ],
     propsMeta: {

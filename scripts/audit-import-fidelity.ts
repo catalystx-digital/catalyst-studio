@@ -46,6 +46,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function hasNonEmptyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function hasNonEmptyArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0
+}
+
+function hasMeaningfulFooterContent(content: Record<string, unknown>): boolean {
+  return (
+    hasNonEmptyString(content.logoAlt) ||
+    hasNonEmptyString(content.siteName) ||
+    hasNonEmptyString(content.description) ||
+    hasNonEmptyString(content.copyright) ||
+    isRecord(content.logo) ||
+    hasNonEmptyArray(content.columns) ||
+    hasNonEmptyArray(content.socialLinks) ||
+    hasNonEmptyArray(content.legalLinks) ||
+    isRecord(content.newsletter)
+  )
+}
+
 function extractSourceImages(html: string): string[] {
   const images = new Set<string>()
   const regex = /<img\s+[^>]*?src\s*=\s*["']([^"']+)["'][^>]*>/gi
@@ -114,9 +136,12 @@ function scanContent(value: unknown): {
 
     const record = entry as Record<string, unknown>
     const componentType = typeof record.type === 'string' ? record.type : undefined
+    if (componentType === 'footer' && isRecord(record.content) && !hasMeaningfulFooterContent(record.content)) {
+      emptyComponents.push([...trail, componentType].join('.'))
+    }
     if (
       componentType &&
-      !['navbar', 'footer', 'breadcrumb', 'breadcrumbs'].includes(componentType) &&
+      !['navbar', 'breadcrumb', 'breadcrumbs'].includes(componentType) &&
       isRecord(record.content) &&
       Object.keys(record.content).length === 0
     ) {

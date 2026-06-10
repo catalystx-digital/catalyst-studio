@@ -68,6 +68,63 @@ describe('Footer Component', () => {
     expect(screen.getByText('© 2024 Test Company')).toBeInTheDocument();
   });
 
+  it('does not render fabricated organization fallback text', () => {
+    render(
+      <Footer
+        {...defaultProps}
+        content={{
+          columns: [
+            {
+              title: 'Resources',
+              links: [{ label: 'Help', href: '/help' }],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(screen.queryByText(/Organization Name/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/All rights reserved/i)).not.toBeInTheDocument();
+  });
+
+  it('renders nothing when only empty arrays and styling are provided', () => {
+    const { container } = render(
+      <Footer
+        {...defaultProps}
+        content={{
+          columns: [],
+          socialLinks: [],
+          legalLinks: [],
+          backgroundColor: '#577581',
+        }}
+      />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
+  });
+
+  it('does not derive copyright from an imported site name when explicit copyright is absent', () => {
+    render(
+      <Footer
+        {...defaultProps}
+        content={{
+          siteName: 'Healthdirect',
+          columns: [
+            {
+              title: 'Support',
+              links: [{ label: 'Contact', href: '/contact' }],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(screen.queryByText(/Healthdirect\. All rights reserved/i)).not.toBeInTheDocument();
+  });
+
   it('renders legal links', () => {
     render(<Footer {...defaultProps} />);
 

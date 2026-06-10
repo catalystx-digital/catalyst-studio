@@ -34,7 +34,7 @@ import { recoverSourceNarrativeSections } from './detection-post-processor/sourc
 import { completeCardGridsFromSource } from './detection-post-processor/card-grid-completion-processor'
 import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
-import { collapseDuplicateListingSurfaces } from './detection-post-processor/structural-deduplication-processor'
+import { collapseDuplicateListingSurfaces, removeEmptyFooterArtifacts } from './detection-post-processor/structural-deduplication-processor'
 import { promoteSourceFeatureTilesToCardGrid } from './detection-post-processor/feature-tile-grid-processor'
 import { enrichSourceNewsListing } from './detection-post-processor/source-news-processor'
 import { composeInstitutionalHomepageIfEligible } from './detection-post-processor/institutional-homepage-composer'
@@ -188,6 +188,11 @@ export function adjustDetectedComponents(
   withTelemetry('structuralDeduplication', cloned, (c) => {
     const deduped = collapseDuplicateListingSurfaces(c)
     c.splice(0, c.length, ...deduped)
+  })
+
+  withTelemetry('emptyFooterCleanup', cloned, (c) => {
+    const cleaned = removeEmptyFooterArtifacts(c)
+    c.splice(0, c.length, ...cleaned)
   })
 
   withTelemetry('heroCarouselCollapseAfterDedupe', cloned, (c) => {

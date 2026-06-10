@@ -29,6 +29,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function hasNonEmptyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function hasNonEmptyArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0
+}
+
 function normalizeText(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined
@@ -472,6 +480,38 @@ function isNavigationOnlyLayoutArtifact(component: DetectedComponent): boolean {
   })
 
   return hasNavigationChild && children.every(childIsNavigationOnly)
+}
+
+function hasMeaningfulFooterContent(component: DetectedComponent): boolean {
+  if (String(component.type) !== 'footer' || !isRecord(component.content)) {
+    return true
+  }
+
+  const content = component.content
+  return (
+    hasNonEmptyString(content.logoAlt) ||
+    hasNonEmptyString(content.siteName) ||
+    hasNonEmptyString(content.description) ||
+    hasNonEmptyString(content.copyright) ||
+    isRecord(content.logo) ||
+    hasNonEmptyArray(content.columns) ||
+    hasNonEmptyArray(content.socialLinks) ||
+    hasNonEmptyArray(content.legalLinks) ||
+    isRecord(content.newsletter)
+  )
+}
+
+export function removeEmptyFooterArtifacts(components: DetectedComponent[]): DetectedComponent[] {
+  return components.filter(component => {
+    if (hasMeaningfulFooterContent(component)) {
+      return true
+    }
+
+    console.log('[StructuralDeduplication] Dropped empty footer artifact:', {
+      droppedComponentType: component.type,
+    })
+    return false
+  })
 }
 
 /**

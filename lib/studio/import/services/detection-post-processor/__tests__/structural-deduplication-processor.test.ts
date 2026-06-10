@@ -1,4 +1,4 @@
-import { collapseDuplicateListingSurfaces } from '../structural-deduplication-processor'
+import { collapseDuplicateListingSurfaces, removeEmptyFooterArtifacts } from '../structural-deduplication-processor'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 
 function component(type: string, content: Record<string, unknown>): DetectedComponent {
@@ -546,5 +546,40 @@ describe('collapseDuplicateListingSurfaces', () => {
     ]
 
     expect(collapseDuplicateListingSurfaces(components)).toEqual(components)
+  })
+})
+
+describe('removeEmptyFooterArtifacts', () => {
+  it('drops footers with only empty arrays and styling', () => {
+    const components = [
+      component('navbar', { menuItems: [{ label: 'Home' }] }),
+      component('footer', {
+        columns: [],
+        legalLinks: [],
+        socialLinks: [],
+        backgroundColor: '#577581',
+      }),
+    ]
+
+    expect(removeEmptyFooterArtifacts(components)).toEqual([components[0]])
+  })
+
+  it('keeps footers with meaningful imported content', () => {
+    const components = [
+      component('footer', {
+        columns: [
+          {
+            title: 'Support',
+            links: [{ label: 'Contact', href: '/contact' }],
+          },
+        ],
+        backgroundColor: '#577581',
+      }),
+      component('footer', {
+        copyright: '© 2026 Healthdirect',
+      }),
+    ]
+
+    expect(removeEmptyFooterArtifacts(components)).toEqual(components)
   })
 })
