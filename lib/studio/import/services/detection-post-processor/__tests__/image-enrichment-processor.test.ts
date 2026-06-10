@@ -133,6 +133,83 @@ describe('image enrichment processor', () => {
     })
   })
 
+  it('does not attach brand logo assets as card-grid content images', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          cards: [{ title: 'Advertising tools', description: 'Advertising tools for publishers' }],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Advertising tools</h2>
+        <p>Advertising tools for publishers</p>
+        <img src="/media/img/logos/product/brand-wordmark.svg" alt="Brand wordmark">
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://brand.example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      cards: [
+        {
+          title: 'Advertising tools',
+          description: 'Advertising tools for publishers',
+        },
+      ],
+    })
+    expect(JSON.stringify(result[0].content)).not.toContain('brand-wordmark')
+  })
+
+  it.each([
+    'logo-design-workshop.jpg',
+    'logo-design-workshop.webp',
+    'logo-history.png',
+  ])('keeps legitimate raster card image %s when the filename contains logo', (filename) => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          cards: [{ title: 'Logo design workshop', description: 'Hands-on brand design training' }],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Logo design workshop</h2>
+        <p>Hands-on brand design training</p>
+        <img src="/uploads/${filename}" alt="Workshop participants sketching logos">
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://brand.example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      cards: [
+        {
+          image: {
+            src: {
+              url: `https://brand.example.com/uploads/${filename}`,
+            },
+            alt: 'Workshop participants sketching logos',
+          },
+        },
+      ],
+    })
+  })
+
   it('removes model-emitted utility flag images from card-grid cards', () => {
     const components: DetectedComponent[] = [
       {
@@ -207,6 +284,64 @@ describe('image enrichment processor', () => {
     expect(JSON.stringify(result[0].content)).not.toContain('community_flag')
     expect(JSON.stringify(result[0].content)).not.toContain('inclusion_flag')
     expect(JSON.stringify(result[0].content)).not.toContain('torres_strait')
+  })
+
+  it('removes model-emitted brand logo images from card-grid cards', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          heading: 'Products',
+          cards: [
+            {
+              title: 'Advertising tools',
+              description: 'Advertising tools for publishers',
+              image: {
+                src: {
+                  mediaId: 'detected:brand-wordmark',
+                  mediaType: 'image',
+                  url: 'https://brand.example.com/media/img/logos/product/brand-wordmark.svg',
+                },
+                alt: 'Brand wordmark',
+              },
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Products</h2>
+        <article>
+          <h3>Advertising tools</h3>
+          <p>Advertising tools for publishers</p>
+          <img src="/media/img/logos/product/brand-wordmark.svg" alt="Brand wordmark">
+        </article>
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://brand.example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      cards: [
+        {
+          title: 'Advertising tools',
+          description: 'Advertising tools for publishers',
+        },
+      ],
+    })
+    expect(JSON.stringify(result[0].content)).not.toContain('brand-wordmark')
+    expect(result[0].metadata?.sourceEvidence).toMatchObject({
+      nonContentCardImageRemoval: {
+        reason: 'card-image-url-is-non-content',
+        heading: 'Products',
+      },
+    })
   })
 
   it('removes model-emitted utility flag images from headingless card-grid cards', () => {

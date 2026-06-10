@@ -239,6 +239,28 @@ function isNonContentImage(src: string): boolean {
   return false
 }
 
+function isLikelyBrandAssetImage(src: string): boolean {
+  const lowerSrc = src.toLowerCase()
+  const pathname = (() => {
+    try {
+      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
+    } catch {
+      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
+    }
+  })()
+  const filename = pathname.split('/').filter(Boolean).pop() || pathname
+  const pathSegments = pathname.split('/').filter(Boolean)
+  const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
+
+  return (
+    pathSegments.includes('logos') ||
+    pathSegments.includes('logo') ||
+    filename.includes('brandmark') ||
+    filename.includes('wordmark') ||
+    (filename.includes('logo') && extension === '.svg')
+  )
+}
+
 /**
  * Extracts text near an image tag for context matching
  */
@@ -945,6 +967,9 @@ function enrichCardCollection(
   if (!Array.isArray(value)) {
     return false
   }
+  if (isLikelyBrandAssetImage(image.src)) {
+    return false
+  }
 
   for (const item of value) {
     if (!isRecord(item) || hasImage(item)) {
@@ -1337,7 +1362,7 @@ function removeUnsupportedCardGridImages(
     for (const card of content.cards) {
       if (!isRecord(card) || !card.image) continue
       const cardImageUrl = getImageUrl(card.image)
-      if (!cardImageUrl || !isNonContentImage(cardImageUrl)) continue
+      if (!cardImageUrl || !(isNonContentImage(cardImageUrl) || isLikelyBrandAssetImage(cardImageUrl))) continue
 
       delete card.image
       nonContentRemovals.push({
