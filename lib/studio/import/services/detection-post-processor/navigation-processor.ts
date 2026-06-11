@@ -483,12 +483,13 @@ function makeLogoFromImageAttrs(
 }
 
 function extractLogoFromNavHtml(html: string, pageUrl?: string): Record<string, unknown> | undefined {
-  const linkedImagePattern = /<a\b([^>]*)>([\s\S]*?<img\b([^>]*)>[\s\S]*?)<\/a>/gi
+  const linkedImagePattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi
   let linkedMatch: RegExpExecArray | null
   while ((linkedMatch = linkedImagePattern.exec(html)) !== null) {
     const linkAttrs = linkedMatch[1] ?? ''
     const linkBody = linkedMatch[2] ?? ''
-    const imgAttrs = linkedMatch[3] ?? ''
+    const imgAttrs = /<img\b([^>]*)>/i.exec(linkBody)?.[1] ?? ''
+    if (!imgAttrs) continue
     const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
     const linkBodyWithoutImages = linkBody.replace(/<img\b[^>]*>/gi, ' ')
     const hasLinkLogoEvidence = /\b(?:logo|brand|lockup)\b/i.test(linkAttrs)

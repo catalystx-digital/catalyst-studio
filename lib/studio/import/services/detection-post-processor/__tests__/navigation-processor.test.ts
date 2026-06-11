@@ -269,4 +269,64 @@ describe('recoverOrRemoveEmptyGlobalNavigation', () => {
       ],
     })
   })
+
+  it('does not attach a previous unrelated anchor href to the recovered logo', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', { logo: { text: 'Example' }, menuItems: [] }),
+    ], {
+      domSnapshot: `
+        <a class="donate-link" href="https://foundation.example.org/donate">Donate</a>
+        <nav class="primary-nav">
+          <a class="navigation-logo-link" href="/"><img src="/brand-lockup.svg" alt="Example Brand"></a>
+          <a class="nav-link" href="/products/">Products</a>
+          <a class="nav-link" href="/about/">About</a>
+        </nav>
+      `,
+      pageUrl: 'https://example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      logo: {
+        alt: 'Example Brand',
+        href: '/',
+        src: { url: 'https://example.com/brand-lockup.svg' },
+      },
+      menuItems: [
+        { label: 'Products' },
+      ],
+      utilityNav: [
+        { label: 'About' },
+      ],
+    })
+  })
+
+  it('does not attach a previous unrelated anchor href when the logo is recovered from the full document', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', { menuItems: [] }),
+    ], {
+      domSnapshot: `
+        <a class="donate-link" href="https://foundation.example.org/donate">Donate</a>
+        <a class="navigation-logo-link" href="/"><img src="/brand-lockup.svg" alt="Example Brand"></a>
+        <nav class="primary-nav">
+          <a class="nav-link" href="/products/">Products</a>
+          <a class="nav-link" href="/about/">About</a>
+        </nav>
+      `,
+      pageUrl: 'https://example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      logo: {
+        alt: 'Example Brand',
+        href: '/',
+        src: { url: 'https://example.com/brand-lockup.svg' },
+      },
+      menuItems: [
+        { label: 'Products' },
+      ],
+      utilityNav: [
+        { label: 'About' },
+      ],
+    })
+  })
 })
