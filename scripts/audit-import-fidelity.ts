@@ -151,7 +151,13 @@ function deriveSourceUrl(params: { explicit: string | null; importUrl: string | 
   }
 }
 
-function scanContent(value: unknown): {
+function resolveSharedComponentId(record: Record<string, unknown>): string | undefined {
+  const props = isRecord(record.props) ? record.props : undefined
+  const sharedId = props?.sharedComponentId
+  return typeof sharedId === 'string' && sharedId.trim().length > 0 ? sharedId.trim() : undefined
+}
+
+function scanContent(value: unknown, sharedContentById: Map<string, unknown> = new Map()): {
   imageUrls: Array<{ path: string; url: string }>
   malformedMediaRefs: string[]
   suspiciousImages: Array<{ path: string; url: string; reason: string }>
@@ -174,18 +180,24 @@ function scanContent(value: unknown): {
 
     const record = entry as Record<string, unknown>
     const componentType = typeof record.type === 'string' ? record.type : undefined
-    if (componentType === 'navbar' && isRecord(record.content) && !hasMeaningfulNavbarContent(record.content)) {
+    const sharedContent = resolveSharedComponentId(record)
+      ? sharedContentById.get(resolveSharedComponentId(record)!)
+      : undefined
+    const effectiveContent = isRecord(sharedContent) ? sharedContent : record.content
+
+    if (componentType === 'navbar' && isRecord(effectiveContent) && !hasMeaningfulNavbarContent(effectiveContent)) {
       emptyComponents.push([...trail, componentType].join('.'))
     }
-    if (componentType === 'footer' && isRecord(record.content) && !hasMeaningfulFooterContent(record.content)) {
+    if (componentType === 'footer' && isRecord(effectiveContent) && !hasMeaningfulFooterContent(effectiveContent)) {
       emptyComponents.push([...trail, componentType].join('.'))
     }
     if (
       componentType &&
       componentType !== 'navbar' &&
+      componentType !== 'footer' &&
       !['breadcrumb', 'breadcrumbs'].includes(componentType) &&
-      isRecord(record.content) &&
-      Object.keys(record.content).length === 0
+      isRecord(effectiveContent) &&
+      Object.keys(effectiveContent).length === 0
     ) {
       emptyComponents.push([...trail, componentType].join('.'))
     }
@@ -195,6 +207,9 @@ function scanContent(value: unknown): {
     }
 
     for (const [key, child] of Object.entries(record)) {
+      if (key === 'metadata' || key === 'sourceEvidence') {
+        continue
+      }
       const childPath = [...trail, key]
       if (typeof child === 'string' && /(^https?:\/\/|^\/).+\.(png|jpe?g|webp|gif|svg|avif)([?#].*)?$/i.test(child)) {
         imageUrls.push({ path: childPath.join('.'), url: child })
@@ -247,6 +262,11 @@ async function main() {
     orderBy: { createdAt: 'desc' },
     select: { url: true },
   })
+  const sharedComponents = await prisma.websiteSharedComponent.findMany({
+    where: { websiteId: args.websiteId },
+    select: { id: true, content: true },
+  })
+  const sharedContentById = new Map(sharedComponents.map(component => [component.id, component.content]))
 
   const audits: PageAudit[] = []
   for (const page of pages) {
@@ -262,7 +282,7 @@ async function main() {
       importUrl: latestImportJob?.url ?? null,
       previewPath,
     })
-    const scan = scanContent(page.content)
+    const scan = scanContent(page.content, sharedContentById)
     audits.push({
       pageId: page.id,
       title: page.title,

@@ -197,14 +197,10 @@ export async function persistSharedComponentsAndUpdatePages({
     }
   }
 
-  const extractCanonicalProps = (comp: ComponentInstance): Record<string, unknown> => {
+  const extractCanonicalContent = (comp: ComponentInstance): Record<string, unknown> => {
+    const content = isPlainObject(comp?.content) ? comp.content as Record<string, unknown> : {}
     const props = (comp?.props && typeof comp.props === 'object') ? comp.props : {}
-    const out: Record<string, unknown> = { ...props }
-    delete out.bounds
-    delete out.confidence
-    delete out.metadata
-    delete out.type           // Type is infrastructure, not content
-    delete out.componentType  // Defensive - also strip componentType if present
+    const out: Record<string, unknown> = { ...content }
 
     const promoteJsonBucket = (val: unknown): Record<string, unknown> | null => {
       if (typeof val !== 'string') return null
@@ -218,17 +214,118 @@ export async function persistSharedComponentsAndUpdatePages({
       }
     }
 
-    for (const key of ['text', 'content']) {
-      const parsed = promoteJsonBucket(out[key])
-      if (parsed) {
-        for (const [k, v] of Object.entries(parsed)) {
-          if (out[k] === undefined) out[k] = v
+    if (Object.keys(out).length === 0) {
+      for (const key of ['text', 'content']) {
+        const parsed = promoteJsonBucket(props[key])
+        if (parsed) {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (out[k] === undefined) out[k] = v
+          }
+          break
         }
-        delete out[key]
       }
     }
 
+    const canonicalPropKeys = [
+      'region',
+      'placementBucket',
+      'semanticTokens',
+      'menuItemCount',
+      'linkCount',
+      'buttonCount',
+      'metadata'
+    ]
+
+    for (const key of canonicalPropKeys) {
+      if (out[key] === undefined && props[key] !== undefined) {
+        out[key] = props[key]
+      }
+    }
+
+    delete out.bounds
+    delete out.confidence
+    delete out.metadata
+    delete out.type           // Type is infrastructure, not content
+    delete out.componentType  // Defensive - also strip componentType if present
+
     return out
+  }
+
+  const hasNonEmptyString = (value: unknown): boolean =>
+    typeof value === 'string' && value.trim().length > 0
+
+  const hasNonEmptyArray = (value: unknown): boolean =>
+    Array.isArray(value) && value.length > 0
+
+  const hasMeaningfulLogo = (value: unknown): boolean => {
+    if (!isPlainObject(value)) return false
+    if (hasNonEmptyString(value.text) || hasNonEmptyString(value.alt) || hasNonEmptyString(value.src)) {
+      return true
+    }
+    return isPlainObject(value.src) && (
+      hasNonEmptyString(value.src.url) ||
+      hasNonEmptyString(value.src.src) ||
+      hasNonEmptyString(value.src.originalUrl)
+    )
+  }
+
+  const hasRealMenuItem = (value: unknown): boolean => {
+    if (!isPlainObject(value)) return false
+    const label = typeof (value.label ?? value.text ?? value.title) === 'string'
+      ? String(value.label ?? value.text ?? value.title).trim()
+      : ''
+    const href = isPlainObject(value.href)
+      ? value.href.path ?? value.href.url ?? value.href.href
+      : value.href ?? value.url ?? value.link ?? value.path
+    return label.length > 0 && typeof href === 'string' && href.trim().length > 0
+  }
+
+  const hasRenderableNavbarContent = (content: Record<string, unknown>): boolean => {
+    const menuItems = Array.isArray(content.menuItems) ? content.menuItems : []
+    const utilityNav = Array.isArray(content.utilityNav) ? content.utilityNav : []
+    return (
+      menuItems.some(hasRealMenuItem) ||
+      utilityNav.some(hasRealMenuItem) ||
+      hasMeaningfulLogo(content.logo)
+    )
+  }
+
+  const hasRenderableFooterContent = (content: Record<string, unknown>): boolean =>
+    hasNonEmptyString(content.logoAlt) ||
+    hasNonEmptyString(content.siteName) ||
+    hasNonEmptyString(content.description) ||
+    hasNonEmptyString(content.copyright) ||
+    isPlainObject(content.logo) ||
+    hasNonEmptyArray(content.columns) ||
+    hasNonEmptyArray(content.socialLinks) ||
+    hasNonEmptyArray(content.legalLinks) ||
+    isPlainObject(content.newsletter)
+
+  const isRenderableSharedCandidate = (candidate: SharedComponentCandidate): boolean => {
+    const rawType = (candidate.pattern?.type || candidate.category || '').toLowerCase()
+    if (!/(nav|navbar|menu|footer)/.test(rawType)) {
+      return true
+    }
+
+    const canonicalContent =
+      candidate.instances && candidate.instances[0] ? extractCanonicalContent(candidate.instances[0]) : {}
+
+    if (/(nav|navbar|menu)/.test(rawType)) {
+      return hasRenderableNavbarContent(canonicalContent)
+    }
+    if (/footer/.test(rawType)) {
+      return hasRenderableFooterContent(canonicalContent)
+    }
+    return true
+  }
+
+  const renderableCandidates = candidates.filter(isRenderableSharedCandidate)
+  if (renderableCandidates.length === 0) {
+    return {
+      sharedComponents: [],
+      updatedPages: pages,
+      refreshedComponentTypes: baseComponentTypes
+    }
   }
 
   const ensureGenericType = async (): Promise<{ id: string; type: string; category: string; isGlobal?: boolean }> => {
@@ -343,7 +440,7 @@ export async function persistSharedComponentsAndUpdatePages({
       genericType.id
 
     const canonicalContent =
-      cand.instances && cand.instances[0] ? extractCanonicalProps(cand.instances[0]) : {}
+      cand.instances && cand.instances[0] ? extractCanonicalContent(cand.instances[0]) : {}
     const configType = canonicalType?.type || cand.pattern?.type || cand.category || 'shared'
     const configPayload = {
       type: configType,
@@ -457,7 +554,7 @@ export async function persistSharedComponentsAndUpdatePages({
 
   // Process candidates in batches with retry logic
   const processedRecords = await processInBatches(
-    candidates,
+    renderableCandidates,
     CANDIDATE_BATCH_SIZE,
     processSingleCandidate,
     'shared component persistence'
