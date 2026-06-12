@@ -56,6 +56,31 @@ describe('section taxonomy', () => {
     expect(result.deniedTypes).not.toContain('content-feed')
   })
 
+  it('classifies article and video listings as editorial even with service wording elsewhere', () => {
+    const result = classifySectionIntent({
+      pageUrl: 'https://www.nngroup.com/',
+      content: {
+        heading: 'Recent Articles & Videos',
+        pinned: [
+          {
+            title: 'The Four Design Jobs AI Created',
+            excerpt: 'Practical UX guidance for service teams.',
+            href: { type: 'internal', path: '/articles/design-jobs-ai-created/' }
+          },
+          {
+            title: 'The 3 Sizes of UX Copy',
+            excerpt: 'A short UX video.',
+            href: { type: 'internal', path: '/videos/the-3-sizes-of-ux-copy/' }
+          }
+        ]
+      }
+    })
+
+    expect(result.intent).toBe('editorial_feed')
+    expect(result.allowedTypes).toContain('content-feed')
+    expect(result.deniedTypes).not.toContain('content-feed')
+  })
+
   it('does not classify latest project links as editorial feeds just because they say latest', () => {
     const result = classifySectionIntent({
       content: {
@@ -86,6 +111,23 @@ describe('section taxonomy', () => {
     expect(result.intent).toBe('service_grid')
     expect(result.allowedTypes).toEqual(expect.arrayContaining(['card-grid', 'feature-grid']))
     expect(result.allowedTypes).not.toContain('card-item')
+    expect(result.deniedTypes).toContain('content-feed')
+  })
+
+  it('keeps service-heading sections as service grids despite incidental article and video links', () => {
+    const result = classifySectionIntent({
+      content: {
+        heading: 'Our services',
+        cards: [
+          { title: 'Strategy', href: '/services/strategy' },
+          { title: 'Training video', href: '/videos/service-training/' },
+          { title: 'Implementation article', href: '/articles/implementation-guide/' }
+        ]
+      }
+    })
+
+    expect(result.intent).toBe('service_grid')
+    expect(result.allowedTypes).toEqual(expect.arrayContaining(['card-grid', 'feature-grid']))
     expect(result.deniedTypes).toContain('content-feed')
   })
 

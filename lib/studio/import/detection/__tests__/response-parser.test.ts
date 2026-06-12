@@ -829,6 +829,38 @@ describe('parseComponentsArray strict contract', () => {
     ).toThrow('conflicts with section taxonomy')
   })
 
+  it('accepts article and video listings mapped to content-feed despite service wording', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'content-feed',
+          confidence: 0.9,
+          content: {
+            heading: 'Recent Articles & Videos',
+            pinned: [
+              {
+                title: 'The Four Design Jobs AI Created',
+                excerpt: 'Practical UX guidance for service teams.',
+                href: { type: 'internal', pageId: 'design-jobs-ai-created', path: '/articles/design-jobs-ai-created/' }
+              },
+              {
+                title: 'The 3 Sizes of UX Copy',
+                excerpt: 'A short UX video.',
+                href: { type: 'internal', pageId: 'the-3-sizes-of-ux-copy', path: '/videos/the-3-sizes-of-ux-copy/' }
+              }
+            ]
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://www.nngroup.com/'
+    )
+
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0].type).toBe('content-feed')
+  })
+
   it('rejects component types missing from the catalog', () => {
     expect(() =>
       detectionParserInternals.parseComponentsArray(

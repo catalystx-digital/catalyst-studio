@@ -17,12 +17,12 @@ export interface SectionTaxonomyResult {
 
 const PROJECT_TERMS = /\b(projects?|latest work|our work|client work|case stud(?:y|ies)|portfolio|showcase)\b/i
 const SERVICE_TERMS = /\b(services?|solutions?|capabilities|offerings?|what we do)\b/i
-const EDITORIAL_TERMS = /\b(news|blog|blogs|articles?|posts?|press|insights?|stories|updates)\b/i
+const EDITORIAL_TERMS = /\b(news|blog|blogs|articles?|posts?|press|insights?|stories|updates|videos?|media)\b/i
 const HERO_TERMS = /\b(hero|headline|masthead)\b/i
 const NAV_TERMS = /\b(nav|navigation|menu|header)\b/i
 const FOOTER_TERMS = /\b(footer|legal|copyright)\b/i
 const DATE_PATTERN = /\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4})\b/i
-const EDITORIAL_PATH = /\/(?:news|blog|blogs|article|articles|post|posts|press|insights?)(?:\/|$)/i
+const EDITORIAL_PATH = /\/(?:news|blog|blogs|article|articles|post|posts|press|insights?|videos?|media)(?:\/|$)/i
 const PROJECT_PATH = /\/(?:projects?|work|our-work|portfolio|case-stud(?:y|ies)|clients?|showcase)(?:\/|$)/i
 const SERVICE_PATH = /\/(?:services?|solutions?|capabilities|offerings?)(?:\/|$)/i
 
@@ -84,10 +84,12 @@ export function classifySectionIntent(input: {
   const hasDates = DATE_PATTERN.test(combined)
   const hasEditorialText = EDITORIAL_TERMS.test(combined)
   const hasEditorialPath = EDITORIAL_PATH.test(combined)
+  const hasEditorialHeading = EDITORIAL_TERMS.test(headingText)
   const hasProjectText = PROJECT_TERMS.test(combined)
   const hasProjectPath = PROJECT_PATH.test(combined)
   const hasServiceText = SERVICE_TERMS.test(combined)
   const hasServicePath = SERVICE_PATH.test(combined)
+  const hasServiceHeading = SERVICE_TERMS.test(headingText)
 
   if (hasDates) addEvidence(evidence, 'date')
   if (hasEditorialText) addEvidence(evidence, 'editorial-text', headingText)
@@ -97,7 +99,7 @@ export function classifySectionIntent(input: {
   if (hasServiceText) addEvidence(evidence, 'service-text', headingText)
   if (hasServicePath) addEvidence(evidence, 'service-path')
 
-  if ((hasEditorialPath || hasEditorialText) && !hasProjectText && !hasServiceText) {
+  if ((hasEditorialPath || hasEditorialText) && !hasProjectText && !(hasServiceHeading && !hasEditorialHeading)) {
     return {
       intent: 'editorial_feed',
       evidence,

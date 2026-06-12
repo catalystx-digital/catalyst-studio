@@ -1908,6 +1908,98 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     )
   })
 
+  it('drops text-only logo-cloud brand labels without failing the component', () => {
+    const detection: DetectionResult = {
+      id: 'logo-cloud-text-only',
+      type: 'logo-cloud',
+      bounds: baseBounds,
+      content: {
+        caption: 'Leading Organizations Learn from NNGroup',
+        logos: [
+          { id: 'visa', alt: 'Visa' },
+          { id: 'pg', alt: 'P&G' },
+          {
+            id: 'amazon',
+            src: {
+              mediaId: 'detected:amazon-logo-home',
+              mediaType: 'image',
+              url: 'https://media.nngroup.com/static/img/logos/amazon-logo-home.svg'
+            },
+            alt: 'Amazon Logo'
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('logo-cloud'))
+
+    expect(props.content.logos).toEqual([
+      expect.objectContaining({
+        id: 'amazon',
+        alt: 'Amazon Logo',
+        src: expect.objectContaining({
+          mediaId: 'detected:amazon-logo-home',
+          mediaType: 'image',
+          url: 'https://media.nngroup.com/static/img/logos/amazon-logo-home.svg'
+        })
+      })
+    ])
+    expect(LogoStripDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.0',
+          issue: 'suspicious-value'
+        }),
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.1',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
+  it('keeps all-text-only logo-cloud entries empty and warning-backed for cleanup', () => {
+    const detection: DetectionResult = {
+      id: 'logo-cloud-all-text-only',
+      type: 'logo-cloud',
+      bounds: baseBounds,
+      content: {
+        caption: 'Trusted by leading organizations',
+        logos: [
+          { id: 'visa', alt: 'Visa' },
+          { id: 'pg', alt: 'P&G' }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('logo-cloud'))
+
+    expect(props.content).toEqual({
+      caption: 'Trusted by leading organizations',
+      logos: []
+    })
+    expect(LogoStripDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.0',
+          issue: 'suspicious-value'
+        }),
+        expect.objectContaining({
+          parentType: 'logo-cloud',
+          field: 'logos.1',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
   it('keeps the logo-cloud atlas sample schema-valid', () => {
     expect(LogoStripDef.schema.safeParse(logoCloudAtlasSpec.content).success).toBe(true)
   })
@@ -2842,6 +2934,100 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       })
     )
     expect(consumeNormalizationWarnings()).toHaveLength(0)
+  })
+
+  it('skips consent vendor navbar logo candidates and keeps the site logo', () => {
+    consumeNormalizationWarnings()
+    const detection: DetectionResult = {
+      id: 'navbar-logo-consent-vendor',
+      type: 'navbar',
+      bounds: baseBounds,
+      content: {
+        menuItems: [{ label: 'Home', href: '/' }],
+        logo: {
+          alt: 'Cookieyes logo',
+          text: 'CookieYes consent',
+          href: 'https://www.cookieyes.com/',
+          src: {
+            mediaId: 'detected:poweredbtcky-svg',
+            mediaType: 'image',
+            url: 'https://cdn-cookieyes.com/assets/images/poweredbtcky.svg'
+          }
+        },
+        logoImage: {
+          alt: 'Nielsen Norman Group',
+          src: {
+            mediaId: 'detected:site-logo-svg',
+            mediaType: 'image',
+            url: 'https://www.example.com/themes/logo.svg'
+          }
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('navbar'))
+
+    expect(props.content?.logo).toEqual(
+      expect.objectContaining({
+        alt: 'Nielsen Norman Group',
+        originalUrl: 'https://www.example.com/themes/logo.svg',
+        src: expect.objectContaining({
+          mediaId: 'detected:site-logo-svg',
+          mediaType: 'image',
+          url: 'https://www.example.com/themes/logo.svg'
+        })
+      })
+    )
+    expect(JSON.stringify(props.content?.logo)).not.toContain('Cookieyes')
+    expect(JSON.stringify(props.content?.logo)).not.toContain('CookieYes')
+    expect(JSON.stringify(props.content?.logo)).not.toContain('poweredbtcky')
+    expect(props.content?.logo?.href).toBeUndefined()
+    expect(props.content?.logo?.text).toBeUndefined()
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'navbar',
+          field: 'logo',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
+  })
+
+  it('drops consent vendor navbar logos instead of preserving them as base logos', () => {
+    consumeNormalizationWarnings()
+    const detection: DetectionResult = {
+      id: 'navbar-logo-only-consent-vendor',
+      type: 'navbar',
+      bounds: baseBounds,
+      content: {
+        menuItems: [{ label: 'Home', href: '/' }],
+        logo: {
+          alt: 'Cookieyes logo',
+          src: {
+            mediaId: 'detected:poweredbtcky-svg',
+            mediaType: 'image',
+            url: 'https://cdn-cookieyes.com/assets/images/poweredbtcky.svg'
+          }
+        }
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('navbar'))
+
+    expect(props.content?.menuItems).toEqual([{ label: 'Home', href: '/' }])
+    expect(props.content?.logo).toBeUndefined()
+    expect(consumeNormalizationWarnings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parentType: 'navbar',
+          field: 'logo',
+          issue: 'suspicious-value'
+        })
+      ])
+    )
   })
 
   it('converts malformed navbar logo image payloads with alt text into text logos', () => {

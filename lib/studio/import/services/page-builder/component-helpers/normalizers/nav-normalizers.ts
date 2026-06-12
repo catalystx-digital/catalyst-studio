@@ -206,6 +206,33 @@ function extractStructuredLogoImage(
   }
 }
 
+function collectLogoAssetText(value: unknown): string {
+  const parts: string[] = []
+  const visit = (candidate: unknown) => {
+    if (candidate == null) return
+    if (typeof candidate === 'string') {
+      parts.push(candidate)
+      return
+    }
+    if (Array.isArray(candidate)) {
+      candidate.forEach(visit)
+      return
+    }
+    if (!isRecord(candidate)) return
+    ;['alt', 'text', 'label', 'name', 'title', 'src', 'url', 'href', 'originalUrl', 'mediaId'].forEach(key => {
+      if (key in candidate) visit(candidate[key])
+    })
+  }
+  visit(value)
+  return parts.join(' ').toLowerCase()
+}
+
+function isConsentVendorLogoAsset(value: unknown): boolean {
+  const text = collectLogoAssetText(value)
+  if (!text) return false
+  return /\b(cookieyes|cookiebot|onetrust|trustarc|consent|privacy[-\s]?manager|powered\s*by\s*cky|poweredbtcky)\b/i.test(text)
+}
+
 function hasMenuItemSubstance(item: Record<string, any>): boolean {
   return Boolean(
     extractLinkUrl(item.href) ||
@@ -592,19 +619,64 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   if (isRecord(flattened.brand) && (flattened.brand as Record<string, unknown>).logo) {
     logoCandidates.push((flattened.brand as Record<string, unknown>).logo)
   }
+  delete normalized.logo
 
   let resolvedLogoImage: NormalizedImageValue | undefined
   let resolvedStructuredLogoImage: Record<string, any> | undefined
   let malformedLogoCandidate = false
+  let skippedConsentVendorLogoCandidate = false
+  let skippedBaseLogoCandidate = false
   for (let index = 0; index < logoCandidates.length; index += 1) {
     const candidate = logoCandidates[index]
+    if (isConsentVendorLogoAsset(candidate)) {
+      skippedConsentVendorLogoCandidate = true
+      if (index === 0 && candidate === baseLogo) {
+        skippedBaseLogoCandidate = true
+      }
+      warnings.push({
+        issue: 'suspicious-value',
+        message: 'Skipped navbar logo candidate because it appears to be a cookie or consent vendor asset.',
+        field: 'logo',
+        childType: 'navbar',
+        details: { index }
+      })
+      continue
+    }
     const structuredLogo = extractStructuredLogoImage(candidate, fallbackAlt)
     if (structuredLogo) {
+      if (isConsentVendorLogoAsset(structuredLogo)) {
+        skippedConsentVendorLogoCandidate = true
+        if (index === 0 && candidate === baseLogo) {
+          skippedBaseLogoCandidate = true
+        }
+        warnings.push({
+          issue: 'suspicious-value',
+          message: 'Skipped navbar logo candidate because it appears to be a cookie or consent vendor asset.',
+          field: 'logo',
+          childType: 'navbar',
+          details: { index }
+        })
+        continue
+      }
       resolvedStructuredLogoImage = structuredLogo
       break
     }
     const normalizedLogo = normalizeImage(candidate, fallbackAlt)
     if (normalizedLogo) {
+      if (isConsentVendorLogoAsset(normalizedLogo)) {
+        skippedConsentVendorLogoCandidate = true
+        if (index === 0 && candidate === baseLogo) {
+          skippedBaseLogoCandidate = true
+        }
+        warnings.push({
+          issue: 'suspicious-value',
+          message: 'Skipped navbar logo candidate because it appears to be a cookie or consent vendor asset.',
+          field: 'logo',
+          childType: 'navbar',
+          details: { index }
+        })
+        continue
+      }
       resolvedLogoImage = normalizedLogo
       break
     }
@@ -623,20 +695,24 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
   }
 
   const resolvedLogoObject = (() => {
+    const mergeBase = skippedBaseLogoCandidate ? {} : baseLogo
     if (resolvedStructuredLogoImage) {
       return {
-        ...baseLogo,
+        ...mergeBase,
         ...resolvedStructuredLogoImage
       }
     }
     if (resolvedLogoImage) {
       return {
-        ...baseLogo,
+        ...mergeBase,
         ...resolvedLogoImage
       }
     }
     if (malformedLogoCandidate) {
       return extractTextLogo(baseLogo, fallbackAlt, logoTextFallback, baseLogoHasDirectUrlCandidate)
+    }
+    if (skippedConsentVendorLogoCandidate) {
+      return undefined
     }
     if (Object.keys(baseLogo).length > 0) {
       return baseLogo
@@ -656,7 +732,7 @@ export const normalizeNavbarContent: ComponentContentNormalizer = (
       resolvedLogoObject.href = hrefCandidate
     }
     const textCandidate =
-      (typeof baseLogo.text === 'string' ? normalizeString(baseLogo.text) : undefined) ??
+      (!skippedBaseLogoCandidate && typeof baseLogo.text === 'string' ? normalizeString(baseLogo.text) : undefined) ??
       normalizeString(flattened.logoText) ??
       normalizeString(flattened.brand) ??
       normalizeString(flattened.title)

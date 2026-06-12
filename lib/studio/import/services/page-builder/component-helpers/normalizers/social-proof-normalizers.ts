@@ -69,11 +69,11 @@ function normalizeLogoCloudItem(
 
   if (!normalizedImage?.src && !normalizedImage?.originalUrl) {
     warnings.push({
-      issue: 'invalid-value',
-      message: `Dropped logo-cloud logo ${index} because it has no renderable image URL.`,
+      issue: 'suspicious-value',
+      message: `Dropped logo-cloud logo ${index} because it has no source-backed image URL.`,
       field: `logos.${index}`,
       childType: 'logo-cloud',
-      details: { index, mediaId: normalizedImage?.mediaId }
+      details: { index, alt: fallbackAlt }
     })
     return undefined
   }
@@ -95,7 +95,7 @@ function normalizeLogoCloudItem(
 
   return {
     id,
-    ...(normalizedImage.mediaId
+    ...(normalizedImage?.mediaId
       ? {
           src: {
             mediaId: normalizedImage.mediaId,
@@ -105,9 +105,9 @@ function normalizeLogoCloudItem(
           }
         }
       : {}),
-    ...(normalizedImage.alt ? { alt: normalizedImage.alt } : { alt: fallbackAlt }),
-    ...(normalizedImage.originalUrl ?? normalizedImage.src ? { originalUrl: normalizedImage.originalUrl ?? normalizedImage.src } : {}),
-    ...(normalizedImage.renditions ? { renditions: normalizedImage.renditions } : {}),
+    ...(normalizedImage?.alt ? { alt: normalizedImage.alt } : { alt: fallbackAlt }),
+    ...(normalizedImage?.originalUrl ?? normalizedImage?.src ? { originalUrl: normalizedImage.originalUrl ?? normalizedImage.src } : {}),
+    ...(normalizedImage?.renditions ? { renditions: normalizedImage.renditions } : {}),
     ...(href ? { href } : {}),
     ...(normalizeString(record.caption) ? { caption: normalizeString(record.caption) } : {})
   }
