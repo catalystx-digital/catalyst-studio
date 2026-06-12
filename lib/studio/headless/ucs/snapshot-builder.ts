@@ -839,13 +839,13 @@ function extractChildCandidates(source: unknown): Record<string, unknown>[] {
 }
 
 const NAV_ITEM_LABEL_KEYS = ['label', 'text', 'title', 'name'] as const
-const NAV_ITEM_HREF_KEYS = ['href', 'url', 'link', 'to'] as const
+const NAV_ITEM_HREF_KEYS = ['href', 'url', 'link', 'to', 'path'] as const
 const NAV_ITEM_EXTERNAL_KEYS = ['external', 'isExternal', 'newTab', 'openInNewTab'] as const
 const MAX_NAV_MENU_DEPTH = 4
 
 type NormalizedMenuItem = {
   label: string
-  href: string
+  href: Record<string, string>
   external?: boolean
   children?: NormalizedMenuItem[]
 }
@@ -917,11 +917,77 @@ function normalizeNavStyles(styles: unknown): Record<string, unknown> | undefine
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
+function canonicalNavHref(value: string): Record<string, string> | undefined {
+  const href = value.trim()
+  if (!href) {
+    return undefined
+  }
+
+  if (href.startsWith('mailto:')) {
+    return { type: 'email', href }
+  }
+  if (href.startsWith('tel:')) {
+    return { type: 'phone', href }
+  }
+  if (href.startsWith('#')) {
+    return { type: 'anchor', href }
+  }
+  if (/^[a-z][a-z\d+\-.]*:/i.test(href) || href.startsWith('//')) {
+    return { type: 'external', url: href }
+  }
+  return { type: 'internal', path: href.startsWith('/') ? href : `/${href}` }
+}
+
+function canonicalNavHrefFromValue(value: unknown): Record<string, string> | undefined {
+  if (typeof value === 'string') {
+    return canonicalNavHref(value)
+  }
+
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  if (value.type === 'internal' && typeof value.path === 'string') {
+    const path = value.path.trim()
+    return path ? { type: 'internal', path } : undefined
+  }
+  if (value.type === 'external' && typeof value.url === 'string') {
+    const url = value.url.trim()
+    return url ? { type: 'external', url } : undefined
+  }
+  if (
+    (value.type === 'email' || value.type === 'phone' || value.type === 'anchor') &&
+    typeof value.href === 'string'
+  ) {
+    const href = value.href.trim()
+    return href ? { type: String(value.type), href } : undefined
+  }
+
+  const nestedHref = extractStringFromCandidates(value, NAV_ITEM_HREF_KEYS)
+  return nestedHref ? canonicalNavHref(nestedHref) : undefined
+}
+
+function extractNavHrefFromCandidates(source: unknown): Record<string, string> | undefined {
+  const records = gatherCandidateRecords(source)
+  for (const record of records) {
+    for (const key of NAV_ITEM_HREF_KEYS) {
+      if (key in record) {
+        const href = canonicalNavHrefFromValue(record[key])
+        if (href) {
+          return href
+        }
+      }
+    }
+  }
+  return undefined
+}
+
 function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<string, unknown> {
   const source = isRecord(content) ? content : {}
   const container = isRecord(source.content) ? (source.content as Record<string, unknown>) : source
 
   const menuItems: NormalizedMenuItem[] = []
+  const utilityNav: NormalizedMenuItem[] = []
 
   const normalizeMenuItem = (
     item: unknown,
@@ -933,13 +999,13 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
     }
 
     const label = extractStringFromCandidates(item, NAV_ITEM_LABEL_KEYS)
-    const href = extractStringFromCandidates(item, NAV_ITEM_HREF_KEYS)
+    const href = extractNavHrefFromCandidates(item)
 
     if (!label || !href) {
       return undefined
     }
 
-    const identifier = `${label}::${href}`
+    const identifier = `${label}::${JSON.stringify(href)}`
     if (seen.has(identifier) && depth === 0) {
       return undefined
     }
@@ -976,7 +1042,7 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
   // when container === source (which happens when source.content is undefined)
   const globalSeen = new Set<string>()
 
-  const collectLinks = (value: unknown) => {
+  const collectLinks = (value: unknown, target: NormalizedMenuItem[] = menuItems) => {
     if (!Array.isArray(value)) {
       return
     }
@@ -984,11 +1050,13 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
     value.forEach(entry => {
       const normalized = normalizeMenuItem(entry, 0, globalSeen)
       if (normalized) {
-        menuItems.push(normalized)
+        target.push(normalized)
       }
     })
   }
 
+  collectLinks(container.utilityNav, utilityNav)
+  collectLinks(source.utilityNav, utilityNav)
   collectLinks(container.links)
   collectLinks(container.menuItems)
   collectLinks(source.links)
@@ -1005,8 +1073,34 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
       href: typeof container.logoHref === 'string' ? container.logoHref : typeof source.logoHref === 'string' ? source.logoHref : undefined
     }
   } else if (isRecord(logoValue)) {
+    const nestedSrc = isRecord(logoValue.src) ? cloneJson(logoValue.src) as Record<string, unknown> : undefined
+    if (nestedSrc) {
+      const rawUrl =
+        typeof nestedSrc.url === 'string'
+          ? nestedSrc.url
+          : typeof nestedSrc.src === 'string'
+            ? nestedSrc.src
+            : typeof nestedSrc.originalUrl === 'string'
+              ? nestedSrc.originalUrl
+              : undefined
+      const normalizedUrl = normalizeAssetUrl(rawUrl, assetOrigin)
+      if (normalizedUrl) {
+        if (typeof nestedSrc.url === 'string' || typeof nestedSrc.src !== 'string') {
+          nestedSrc.url = normalizedUrl
+        } else {
+          nestedSrc.src = normalizedUrl
+        }
+      }
+    }
+
+    const directSrc = typeof logoValue.src === 'string'
+      ? logoValue.src
+      : typeof logoValue.url === 'string'
+        ? logoValue.url
+        : undefined
     logo = {
-      src: typeof logoValue.src === 'string' ? logoValue.src : typeof logoValue.url === 'string' ? logoValue.url : undefined,
+      ...logoValue,
+      src: nestedSrc ?? directSrc,
       alt: typeof logoValue.alt === 'string'
         ? logoValue.alt
         : typeof container.logoAlt === 'string'
@@ -1040,6 +1134,15 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
     menuItems
   }
 
+  if (utilityNav.length > 0) {
+    normalized.utilityNav = utilityNav
+  }
+
+  const layout = container.layout ?? source.layout
+  if (layout === 'single-row' || layout === 'multi-row') {
+    normalized.layout = layout
+  }
+
   const styles = normalizeNavStyles(isRecord(container.styles)
     ? container.styles
     : isRecord(source.styles)
@@ -1050,9 +1153,11 @@ function normalizeNavBarContent(content: unknown, assetOrigin?: string): Record<
   }
 
   if (logo) {
-    const src = typeof logo.src === 'string' ? normalizeAssetUrl(logo.src, assetOrigin) ?? logo.src : undefined
-    if (src) {
-      logo.src = src
+    if (typeof logo.src === 'string') {
+      const src = normalizeAssetUrl(logo.src, assetOrigin) ?? logo.src
+      if (src) {
+        logo.src = src
+      }
     }
     normalized.logo = logo
   }

@@ -694,7 +694,25 @@ describe('enrichComponentFromShared', () => {
         name: 'Shared Navbar',
         componentType: ComponentType.NavBar,
         content: {
-          menuItems: [{ label: 'Insights', href: '/insights' }],
+          layout: 'multi-row',
+          utilityNav: [
+            { label: 'About', href: { type: 'internal', path: '/about/' } },
+            { label: 'Donate', href: 'https://example.com/donate' }
+          ],
+          menuItems: [
+            { label: 'Insights', href: '/insights' },
+            { label: 'Careers', href: { type: 'internal', path: '/careers/' } },
+            { label: 'External', href: 'https://example.com/news' }
+          ],
+          logo: {
+            alt: 'Example logo',
+            src: {
+              url: '/assets/logo.svg',
+              mediaId: 'logo-media',
+              mediaType: 'image'
+            },
+            originalUrl: '/assets/logo.svg'
+          },
           styles: {
             rootRow: {
               backgroundColor: '#ffffff',
@@ -721,9 +739,28 @@ describe('enrichComponentFromShared', () => {
         },
         config: {}
       }
-    ])
+    ], { assetOrigin: 'https://example.com' })
 
     expect(enriched.content).toMatchObject({
+      layout: 'multi-row',
+      logo: {
+        alt: 'Example logo',
+        src: {
+          url: 'https://example.com/assets/logo.svg',
+          mediaId: 'logo-media',
+          mediaType: 'image'
+        },
+        originalUrl: '/assets/logo.svg'
+      },
+      utilityNav: [
+        { label: 'About', href: { type: 'internal', path: '/about/' } },
+        { label: 'Donate', href: { type: 'external', url: 'https://example.com/donate' } }
+      ],
+      menuItems: [
+        { label: 'Insights', href: { type: 'internal', path: '/insights' } },
+        { label: 'Careers', href: { type: 'internal', path: '/careers/' } },
+        { label: 'External', href: { type: 'external', url: 'https://example.com/news' } }
+      ],
       styles: {
         rootRow: {
           backgroundColor: '#ffffff',

@@ -43,6 +43,36 @@ function isLinkValue(value: unknown): boolean {
   return ['internal', 'external', 'email', 'phone', 'anchor'].includes(value.type);
 }
 
+function canonicalLinkValue(value: unknown): MenuItem['href'] | undefined {
+  if (isLinkValue(value)) {
+    return value as MenuItem['href'];
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const href = value.trim();
+  if (!href) {
+    return undefined;
+  }
+
+  if (href.startsWith('mailto:')) {
+    return { type: 'email', href };
+  }
+  if (href.startsWith('tel:')) {
+    return { type: 'phone', href };
+  }
+  if (href.startsWith('#')) {
+    return { type: 'anchor', href };
+  }
+  if (/^[a-z][a-z\d+\-.]*:/i.test(href) || href.startsWith('//')) {
+    return { type: 'external', url: href };
+  }
+
+  return { type: 'internal', path: href.startsWith('/') ? href : `/${href}` };
+}
+
 function canonicalMenuItems(value: unknown): MenuItem[] {
   if (!Array.isArray(value)) {
     return [];
@@ -65,9 +95,11 @@ function canonicalMenuItems(value: unknown): MenuItem[] {
             }))
         : undefined;
 
+      const href = canonicalLinkValue(item.href ?? item.url ?? item.link ?? item.path);
+
       const next: MenuItem = {
         label: item.label,
-        ...(isLinkValue(item.href) ? { href: item.href } : {}),
+        ...(href ? { href } : {}),
         ...(typeof item.description === 'string' ? { description: item.description } : {}),
         ...(typeof item.icon === 'string' ? { icon: item.icon } : {}),
         ...(Array.isArray(item.children) ? { children: canonicalMenuItems(item.children) } : {}),

@@ -41,6 +41,7 @@ const baseProps = {
 };
 
 const link = (path: string) => ({ type: 'internal' as const, pageId: path.replace(/[^a-z0-9]+/gi, '-') || 'home', path });
+const pathLink = (path: string) => ({ type: 'internal' as const, path });
 
 describe('navigation adapters', () => {
   beforeEach(() => {
@@ -99,8 +100,8 @@ describe('navigation adapters', () => {
     expect(content).not.toHaveProperty('logo');
     expect(content.menuItems).toEqual([
       { label: 'Canonical', href: link('/canonical') },
-      { label: 'String href' },
-      { label: 'URL only' }
+      { label: 'String href', href: pathLink('/string-href') },
+      { label: 'URL only', href: pathLink('/url-only') }
     ]);
     expect(content.styles).toEqual({
       rootRow: {
@@ -162,13 +163,41 @@ describe('navigation adapters', () => {
             title: 'Canonical Column',
             links: [
               { label: 'Canonical Link', href: link('/canonical-link') },
-              { label: 'String Link' },
-              { label: 'URL Link' }
+              { label: 'String Link', href: pathLink('/string-link') },
+              { label: 'URL Link', href: pathLink('/url-link') }
             ]
           }
     ]);
     expect(content.socialLinks).toEqual([
       { platform: 'github', url: 'https://example.com/github', label: 'GitHub' }
+    ]);
+  });
+
+  it('canonicalizes imported string navbar hrefs before rendering', () => {
+    render(
+      <NavBarAdapter
+        {...baseProps}
+        type={ComponentType.NavBar}
+        content={{
+          menuItems: [
+            { label: 'Health Professionals', href: '/rch/health-professionals/' },
+            { label: 'News', href: 'http://blogs.rch.org.au/news/' },
+            { label: 'Donate', url: 'https://www.rchfoundation.org.au/donation/rchdonation/' },
+            { label: 'Contact email', href: 'mailto:info@example.com' },
+            { label: 'Anchor', href: '#main' }
+          ]
+        }}
+      />
+    );
+
+    const content = mockNavBar.mock.calls[0][0].content;
+
+    expect(content.menuItems).toEqual([
+      { label: 'Health Professionals', href: pathLink('/rch/health-professionals/') },
+      { label: 'News', href: { type: 'external', url: 'http://blogs.rch.org.au/news/' } },
+      { label: 'Donate', href: { type: 'external', url: 'https://www.rchfoundation.org.au/donation/rchdonation/' } },
+      { label: 'Contact email', href: { type: 'email', href: 'mailto:info@example.com' } },
+      { label: 'Anchor', href: { type: 'anchor', href: '#main' } }
     ]);
   });
 
