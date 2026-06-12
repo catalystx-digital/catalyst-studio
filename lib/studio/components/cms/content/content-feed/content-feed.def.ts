@@ -20,6 +20,7 @@ const ContentItemSchema = z.object({
   href: SmartLinkSchema.optional().describe('Link to full content (internal page or external URL)'),
   image: ImageSchema.optional().describe('Optional thumbnail image'),
   category: z.string().optional().describe('Content category'),
+  metadata: z.record(z.unknown()).optional().describe('Additional item metadata such as author details'),
 }).strict()
 
 /**

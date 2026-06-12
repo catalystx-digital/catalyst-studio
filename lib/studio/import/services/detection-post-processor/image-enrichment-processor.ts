@@ -21,6 +21,8 @@ import type { ResourcesSummary } from '../web-tools'
 interface ExtractedImage {
   src: string
   alt?: string
+  /** Text from the smallest useful image wrapper, used for card-level matching. */
+  localText?: string
   /** Text context near the image (for matching to components) */
   nearbyText?: string
   /** Nearest source section around the image, used to prevent cross-section matches. */
@@ -86,11 +88,13 @@ function extractImagesFromDom(html: string): ExtractedImage[] {
     if (sectionKind === 'navigation') continue
 
     const tagIndex = match.index
+    const localText = extractLocalImageText(html, tagIndex, fullTag)
     const nearbyText = extractSectionText(sectionHtml) || extractNearbyText(html, tagIndex)
 
     images.push({
       src,
       alt,
+      localText,
       nearbyText,
       sectionHtml,
       sectionText: nearbyText,
@@ -99,6 +103,12 @@ function extractImagesFromDom(html: string): ExtractedImage[] {
   }
 
   return images
+}
+
+function extractLocalImageText(html: string, tagIndex: number, fullTag: string): string {
+  const wrapperHtml = extractNearestOpenElement(html, tagIndex, ['a', 'figure', 'picture', 'article', 'li', 'div'])
+  const text = extractSectionText(wrapperHtml || fullTag)
+  return text || extractSectionText(fullTag)
 }
 
 function extractNearestSectionHtml(html: string, tagIndex: number): string {
@@ -838,11 +848,11 @@ function enrichComponentWithImage(
   }
 
   if (component.type === 'card-grid') {
-    return enrichCardCollection(content.cards, image, imageData)
+    return enrichCardCollection(content.cards, image, imageData, { requireLocalMatch: true })
   }
 
   if (component.type === 'content-feed') {
-    return enrichCardCollection(content.pinned, image, imageData)
+    return enrichCardCollection(content.pinned, image, imageData, { requireLocalMatch: false })
   }
 
   if (component.type === 'cta-banner') {
@@ -962,7 +972,8 @@ function hasImage(record: Record<string, unknown>): boolean {
 function enrichCardCollection(
   value: unknown,
   image: ExtractedImage,
-  imageData: Record<string, unknown>
+  imageData: Record<string, unknown>,
+  options: { requireLocalMatch: boolean }
 ): boolean {
   if (!Array.isArray(value)) {
     return false
@@ -976,10 +987,27 @@ function enrichCardCollection(
       continue
     }
     const itemText = getItemText(item)
-    if (image.nearbyText && itemText && imageMatchesItem(image.nearbyText, itemText)) {
+    const matches = options.requireLocalMatch
+      ? imageMatchesCardItem(image, itemText)
+      : Boolean(image.nearbyText && itemText && imageMatchesItem(image.nearbyText, itemText))
+    if (matches) {
       item.image = imageData
       return true
     }
+  }
+
+  return false
+}
+
+function imageMatchesCardItem(image: ExtractedImage, itemText: string): boolean {
+  if (!itemText) return false
+
+  const localText = [image.alt, image.localText]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+
+  if (localText && imageMatchesItem(localText, itemText)) {
+    return true
   }
 
   return false

@@ -561,6 +561,46 @@ describe('parseComponentsArray strict contract', () => {
     }))
   })
 
+  it('normalizes direct content-feed pinned author objects into metadata before strict validation', () => {
+    const parsed = detectionParserInternals.parseComponentsArray(
+      [
+        {
+          component: 'content-feed',
+          confidence: 0.95,
+          content: {
+            heading: 'Latest articles',
+            pinned: [
+              {
+                title: 'Mozilla sets up UK data firm',
+                excerpt: 'Mozilla sets up UK data firm',
+                href: {
+                  type: 'external',
+                  url: 'https://www.themorningintelligence.uk/mozilla-sets-up-uk-data-firm/'
+                },
+                category: 'News',
+                author: {
+                  name: 'The Morning Intelligence'
+                }
+              }
+            ]
+          }
+        }
+      ],
+      patterns,
+      0.25,
+      'https://example.com/news'
+    )
+
+    expect((parsed[0].content.pinned as any[])[0]).toEqual(expect.objectContaining({
+      title: 'Mozilla sets up UK data firm',
+      category: 'News',
+      metadata: expect.objectContaining({
+        author: 'The Morning Intelligence'
+      })
+    }))
+    expect((parsed[0].content.pinned as any[])[0]).not.toHaveProperty('author')
+  })
+
   it('rejects legacy nested card-grid card fields', () => {
     expect(() =>
       detectionParserInternals.parseComponentsArray(

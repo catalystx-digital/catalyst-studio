@@ -168,6 +168,91 @@ describe('image enrichment processor', () => {
     expect(JSON.stringify(result[0].content)).not.toContain('brand-wordmark')
   })
 
+  it('does not attach a broad-section generic image to an unrelated card item', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          cards: [
+            { title: 'Thunderbird', description: 'Go chaos-free with one app for all your emails.' },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Products</h2>
+        <article>
+          <h3>Thunderbird</h3>
+          <p>Go chaos-free with one app for all your emails.</p>
+        </article>
+        <article>
+          <img src="/media/cms/images/image3.png" alt="Octonous brand graphic">
+          <h3>Octonous</h3>
+          <p>Developer tooling for AI teams.</p>
+        </article>
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://example.com/',
+    })
+
+    expect(JSON.stringify(result[0].content)).not.toContain('image3.png')
+    expect(result[0].content).toMatchObject({
+      cards: [
+        {
+          title: 'Thunderbird',
+          description: 'Go chaos-free with one app for all your emails.',
+        },
+      ],
+    })
+  })
+
+  it('matches card-grid images using article-local heading text when alt text is empty', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          cards: [
+            { title: 'Emergency care', description: 'Fast care for urgent symptoms' },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <article>
+          <img src="/media/emergency-care.jpg" alt="">
+          <h3>Emergency care</h3>
+          <p>Fast care for urgent symptoms</p>
+        </article>
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://health.example.org/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      cards: [
+        {
+          image: {
+            src: {
+              url: 'https://health.example.org/media/emergency-care.jpg',
+            },
+          },
+        },
+      ],
+    })
+  })
+
   it.each([
     'logo-design-workshop.jpg',
     'logo-design-workshop.webp',

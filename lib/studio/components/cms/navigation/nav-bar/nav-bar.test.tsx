@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import NavBar from './index';
 import { usePathname } from 'next/navigation';
@@ -279,6 +279,7 @@ describe('NavBar Component', () => {
     const logoImage = screen.getAllByRole('img', { name: 'Telecommunication Industry Ombudsman' })[0];
     expect(logoImage).toBeInTheDocument();
     expect(logoImage).toHaveAttribute('src', 'https://cdn.example.com/assets/logo.svg');
+    expect(logoImage).toHaveStyle({ width: '150px', height: '40px' });
 
     const logoLink = logoImage.closest('a');
     expect(logoLink).toHaveAttribute('href', '/');
@@ -318,6 +319,40 @@ describe('NavBar Component', () => {
     const logoImage = screen.getAllByRole('img', { name: 'Example Agency Logo' })[0];
     expect(logoImage).toBeInTheDocument();
     expect(logoImage).toHaveAttribute('src', 'https://agency.example.com/_astro/example-agency-logo-midnight.svg');
+  });
+
+  it('inverts likely dark logo assets on dark navbar surfaces', async () => {
+    const mediaLogoProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        logo: {
+          ...(defaultProps.content.logo ?? {}),
+          alt: 'Example Agency Logo',
+          src: {
+            mediaId: 'logo-media',
+            mediaType: 'image' as const,
+            url: 'https://agency.example.com/assets/lockup-black.svg',
+          },
+          originalUrl: '/assets/lockup-black.svg',
+          width: 120,
+          height: 32,
+        },
+        styles: {
+          rootRow: {
+            backgroundColor: '#050505',
+            textColor: '#ffffff',
+          },
+        },
+      },
+    };
+
+    render(<NavBar {...mediaLogoProps} />);
+
+    const logoImage = screen.getAllByRole('img', { name: 'Example Agency Logo' })[0];
+    await waitFor(() => {
+      expect(logoImage).toHaveStyle({ filter: 'invert(1) brightness(1.1)' });
+    });
   });
 
   it('applies source-captured single-row navbar surface colors', () => {

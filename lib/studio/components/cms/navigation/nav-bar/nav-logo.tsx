@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { validateImageUrl } from '../../_utils/url-validation';
@@ -14,6 +14,22 @@ interface NavLogoProps {
 }
 
 const isRemoteAsset = (src: string) => /^(https?:|data:|blob:)/i.test(src);
+
+const isLikelyDarkLogoAsset = (logo: { src?: string; originalUrl?: unknown }) => {
+  const haystack = [
+    typeof logo.src === 'string' ? logo.src : '',
+    typeof logo.originalUrl === 'string' ? logo.originalUrl : '',
+  ].join(' ').toLowerCase();
+  return /(?:^|[/?_.-])(?:black|dark|midnight|ink)(?:[/?_.-]|$)/.test(haystack);
+};
+
+const isDarkRgb = (value: string) => {
+  const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (!match) return false;
+  const [, r, g, b] = match.map(Number);
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance < 0.35;
+};
 
 const normalizeStaticSrc = (src: string) => {
   if (!src) return '';
@@ -31,6 +47,8 @@ const resolveLogoHref = (href: LogoConfig['href']) => {
 };
 
 export function NavLogo({ logo, onInteraction }: NavLogoProps) {
+  const logoImageRef = useRef<HTMLImageElement | null>(null);
+  const [invertDarkLogo, setInvertDarkLogo] = useState(false);
   const normalizedLogo = useMemo(() => {
     if (!logo) return null;
 
@@ -87,10 +105,8 @@ export function NavLogo({ logo, onInteraction }: NavLogoProps) {
     };
   }, [logo]);
 
-  if (!normalizedLogo) return null;
-
-  const label = (normalizedLogo.alt || normalizedLogo.text || 'Logo').trim();
-  const logoSrc = normalizedLogo.src ?? '';
+  const label = (normalizedLogo?.alt || normalizedLogo?.text || 'Logo').trim();
+  const logoSrc = normalizedLogo?.src ?? '';
   const hasImage = logoSrc.length > 0;
   const isRemote = hasImage ? isRemoteAsset(logoSrc) : false;
   const resolvedSrc = hasImage
@@ -98,22 +114,49 @@ export function NavLogo({ logo, onInteraction }: NavLogoProps) {
       ? logoSrc
       : normalizeStaticSrc(logoSrc)
     : '';
+  const shouldMeasureContrast = hasImage && isLikelyDarkLogoAsset({
+    src: resolvedSrc,
+    originalUrl: normalizedLogo?.originalUrl,
+  });
+
+  useEffect(() => {
+    if (!shouldMeasureContrast) {
+      setInvertDarkLogo(false);
+      return;
+    }
+
+    const image = logoImageRef.current;
+    const surface = image?.closest('nav, header, [data-component-type="navbar"]');
+    const backgroundColor = surface ? getComputedStyle(surface).backgroundColor : '';
+    setInvertDarkLogo(isDarkRgb(backgroundColor));
+  }, [shouldMeasureContrast, resolvedSrc]);
+
+  if (!normalizedLogo) return null;
 
   let media: React.ReactNode = null;
 
   if (hasImage && resolvedSrc) {
     const width = normalizedLogo.width || 150;
     const height = normalizedLogo.height || 40;
+    const logoStyle: React.CSSProperties = {
+      width,
+      height,
+      maxWidth: 'min(12rem, 40vw)',
+      objectFit: 'contain',
+      ...(invertDarkLogo ? { filter: 'invert(1) brightness(1.1)' } : {}),
+    };
     if (isRemote) {
       media = (
         <img
+          ref={logoImageRef}
           src={resolvedSrc}
           srcSet={normalizedLogo.srcSet}
           sizes={normalizedLogo.sizes}
           alt={label}
           width={width}
           height={height}
-          className="h-auto w-auto max-h-12 object-contain"
+          className="block shrink-0"
+          style={logoStyle}
           loading="eager"
           data-original-url={normalizedLogo.originalUrl}
         />
@@ -121,6 +164,7 @@ export function NavLogo({ logo, onInteraction }: NavLogoProps) {
     } else {
       media = (
         <Image
+          ref={logoImageRef}
           src={resolvedSrc}
           alt={label}
           width={width}

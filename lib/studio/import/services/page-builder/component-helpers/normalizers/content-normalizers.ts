@@ -860,6 +860,7 @@ const CONTENT_FEED_ENTRY_ALIAS_FIELDS = new Set([
   'categories',
   'tag',
   'tags',
+  'author',
   'metadata'
 ])
 const STATIC_PROJECT_FEED_HEADING_PATTERN = /\b(projects?|latest work|client work|case stud(?:y|ies)|portfolio)\b/i
@@ -979,6 +980,15 @@ export const normalizeContentFeedContent: ComponentContentNormalizer = (
       normalizeString(record.publishedAt) ??
       normalizeString(record.metadata?.publishDate) ??
       normalizeString(record.metadata?.date)
+    const author =
+      normalizeString(record.author) ??
+      normalizeString(record.author?.name) ??
+      normalizeString(record.metadata?.author) ??
+      normalizeString(record.metadata?.author?.name)
+    const metadata = {
+      ...(isRecord(record.metadata) ? record.metadata : {}),
+      ...(author ? { author } : {})
+    }
 
     const pinnedItem: Record<string, any> = {
       title,
@@ -986,7 +996,8 @@ export const normalizeContentFeedContent: ComponentContentNormalizer = (
       ...(href ? { href } : {}),
       ...(image ? { image } : {}),
       ...(date ? { date } : {}),
-      ...(category ? { category } : {})
+      ...(category ? { category } : {}),
+      ...(Object.keys(metadata).length > 0 ? { metadata } : {})
     }
     pinned.push(pinnedItem)
   })
