@@ -150,7 +150,7 @@ interface TokenUsage {
 
 export interface DetectionFailureDebug {
   model?: string
-  stage: 'llm_call' | 'budget' | 'parsing' | 'validation' | 'output_limit'
+  stage: 'fetch' | 'llm_call' | 'budget' | 'parsing' | 'validation' | 'output_limit'
   rawResponse?: string
   rawResponseLength?: number
   finishReason?: string
@@ -2208,6 +2208,19 @@ export class DetectionService {
         )
         if (preFlightFetch.handle) {
           handlesUsed.add(preFlightFetch.handle)
+        }
+
+        if (preFlightFetch.error) {
+          throw new DetectionFailureError(
+            `Source fetch failed for ${url}: ${preFlightFetch.message || 'fetch outline unavailable'}`,
+            {
+              model: 'preflight',
+              stage: 'fetch',
+              validationPath: 'source.fetchOutline',
+              requestCount: 0,
+              toolCallCount: 0
+            }
+          )
         }
 
         if (preFlightFetch.redirectInfo && preFlightFetch.redirectInfo.isExternal) {

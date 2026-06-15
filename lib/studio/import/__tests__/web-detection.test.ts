@@ -975,6 +975,27 @@ describe('DetectionService (web-based)', () => {
       expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled()
     })
 
+    it('classifies retriable fetch outline failures before section validation', async () => {
+      mockWebTools.fetchOutline.mockResolvedValue({
+        handle: '',
+        error: true,
+        code: 0,
+        message: 'browser context closed',
+        retriable: true,
+        sections: []
+      })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toMatchObject({
+        message: expect.stringContaining('Source fetch failed'),
+        debug: expect.objectContaining({
+          stage: 'fetch',
+          validationPath: 'source.fetchOutline'
+        })
+      })
+
+      expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled()
+    })
+
     it('adds video-embed when section evidence contains an embedded video', async () => {
       mockWebTools.getSection.mockResolvedValue({
         handle: 'handle-1',
