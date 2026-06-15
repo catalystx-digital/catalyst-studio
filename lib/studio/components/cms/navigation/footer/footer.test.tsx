@@ -217,6 +217,11 @@ describe('Footer Component', () => {
       'src',
       'https://example.com/example-agency-logo-full-inline-white.svg',
     );
+    expect(screen.getByRole('img', { name: 'Example Agency Digital' })).toHaveClass(
+      'self-center',
+      'md:self-start',
+      'object-contain',
+    );
   });
 
   it('does not duplicate social links already present in footer columns', () => {
