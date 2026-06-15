@@ -96,6 +96,47 @@ describe('article-detail-consolidation-processor', () => {
     expect(result[0].metadata?.region).toBe('hero')
   })
 
+  it('merges split blog post fragments into one canonical article body', () => {
+    const result = consolidateArticleDetailFragments([
+      component(ComponentType.ArticleHeader, { title: 'Long Article' }, 'header'),
+      component(ComponentType.BlogPost, {
+        title: 'Long Article',
+        author: { name: 'A. Writer' },
+        bodyHtml: '<p>Part one of the article body.</p>'
+      }),
+      component(ComponentType.BlogPost, {
+        title: 'Long Article',
+        bodyHtml: '<p>Part two of the article body.</p>'
+      }),
+      component(ComponentType.RelatedPosts, { title: 'Related', posts: [{ title: 'Another article' }] })
+    ], {
+      pageUrl: 'https://example.com/articles/long-article/'
+    })
+
+    expect(result.map(entry => entry.type)).toEqual([
+      ComponentType.ArticleHeader,
+      ComponentType.BlogPost,
+      ComponentType.RelatedPosts
+    ])
+    expect(result[1]).toMatchObject({
+      location: 'main',
+      metadata: {
+        region: 'main',
+        sourceEvidence: {
+          articleDetailBlogPostMerge: {
+            mergedCount: 2,
+            route: 'https://example.com/articles/long-article/'
+          }
+        }
+      },
+      content: {
+        title: 'Long Article',
+        author: { name: 'A. Writer' },
+        bodyHtml: '<p>Part one of the article body.</p><p>Part two of the article body.</p>'
+      }
+    })
+  })
+
   it('keeps strict validation available when article evidence is insufficient', () => {
     const result = consolidateArticleDetailFragments([
       component(ComponentType.ArticleHeader, { title: 'Thin article' }, 'header'),

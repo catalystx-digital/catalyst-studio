@@ -175,6 +175,60 @@ function buildBlogPost(
   }
 }
 
+function mergeBlogPostContent(primary: DetectedComponent, rest: DetectedComponent[], options: ArticleDetailConsolidationOptions): DetectedComponent {
+  const mergedBodyHtml = [primary, ...rest]
+    .map(component => normalizeText(component.content?.bodyHtml))
+    .filter((bodyHtml): bodyHtml is string => Boolean(bodyHtml))
+    .join('')
+
+  const content = {
+    ...primary.content,
+    bodyHtml: mergedBodyHtml || primary.content?.bodyHtml
+  }
+
+  return {
+    ...primary,
+    location: 'main',
+    metadata: {
+      ...primary.metadata,
+      region: 'main',
+      sourceEvidence: {
+        ...(primary.metadata?.sourceEvidence ?? {}),
+        articleDetailBlogPostMerge: {
+          mergedCount: rest.length + 1,
+          route: options.pageUrl
+        }
+      }
+    },
+    content
+  }
+}
+
+function consolidateExistingBlogPosts(
+  components: DetectedComponent[],
+  options: ArticleDetailConsolidationOptions
+): DetectedComponent[] {
+  const blogPosts = components.filter(component => component.type === ComponentType.BlogPost)
+  if (blogPosts.length <= 1) {
+    return components
+  }
+
+  const [primary, ...rest] = blogPosts
+  const merged = mergeBlogPostContent(primary, rest, options)
+  let inserted = false
+  const blogPostSet = new Set(blogPosts)
+  return components.flatMap(component => {
+    if (!blogPostSet.has(component)) {
+      return [component]
+    }
+    if (inserted) {
+      return []
+    }
+    inserted = true
+    return [merged]
+  })
+}
+
 export function consolidateArticleDetailFragments(
   components: DetectedComponent[],
   options: ArticleDetailConsolidationOptions = {}
@@ -209,7 +263,7 @@ export function consolidateArticleDetailFragments(
   })
 
   if (regionAligned.some(component => component.type === ComponentType.BlogPost)) {
-    return regionAligned
+    return consolidateExistingBlogPosts(regionAligned, options)
   }
 
   const fragments = regionAligned.filter(isArticleBodyFragment)
