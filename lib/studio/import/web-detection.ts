@@ -326,6 +326,14 @@ function isDedicatedEditorialListingUrl(url: string): boolean {
   }
 }
 
+function isEditorialIndexPath(path: string): boolean {
+  return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\/?$/i.test(path)
+}
+
+function isEditorialDetailPath(path: string): boolean {
+  return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\/.+/i.test(path)
+}
+
 function addTokenUsage(target: TokenUsage, source: TokenUsage | undefined): void {
   if (!source) return
   target.total_tokens = (target.total_tokens ?? 0) + (source.total_tokens ?? 0)
@@ -620,11 +628,14 @@ export class DetectionService {
           for (const token of tokens) {
             if (token.length >= 3 && haystack.includes(token)) score += 2
           }
-          if (path.includes('/blog/') && template.templateKey.includes('post')) {
+          const templateKey = template.templateKey.toLowerCase()
+          const templateCategory = String(template.category ?? '').toLowerCase()
+          const isEditorialTemplate = templateCategory === 'blog' || /\b(?:blog|article|post|news)\b/i.test(haystack)
+          if (isEditorialDetailPath(path) && isEditorialTemplate && /\b(?:post|article|detail)\b/i.test(templateKey)) {
             score += 4
             routeScore += 4
           }
-          if (/\/(?:blog|news|insights?|articles?)\/?$/.test(path) && template.templateKey.includes('index')) {
+          if (isEditorialIndexPath(path) && isEditorialTemplate && /\b(?:index|list|listing|archive)\b/i.test(templateKey)) {
             score += 4
             routeScore += 4
           }

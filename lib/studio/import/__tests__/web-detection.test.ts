@@ -1032,6 +1032,18 @@ describe('DetectionService (web-based)', () => {
       expect(result.pageTemplate.templateKey).toBe('blog/post-standard')
     })
 
+    it('selects the blog post template for article detail routes without explicit route hints', async () => {
+      const result = await service.detectComponentsFromUrl('https://example.com/articles/how-to-scale')
+
+      expect(result.pageTemplate.templateKey).toBe('blog/post-standard')
+    })
+
+    it('selects the blog index template for article index routes without explicit route hints', async () => {
+      const result = await service.detectComponentsFromUrl('https://example.com/articles')
+
+      expect(result.pageTemplate.templateKey).toBe('blog/index-standard')
+    })
+
     it('does not select a home-eligible template for non-home landing pages', async () => {
       const result = await service.detectComponentsFromUrl('https://example.com/a-guide-to-digital-product-design-lp')
 
