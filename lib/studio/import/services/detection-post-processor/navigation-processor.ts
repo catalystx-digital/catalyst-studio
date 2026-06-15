@@ -387,8 +387,38 @@ function anchorLabel(attrs: string, body: string): string | undefined {
   return label && label.length <= 80 ? label : undefined
 }
 
+function cleanLogoLabel(value: string | undefined): string | undefined {
+  const label = normalizeString(value)
+  if (!label) return undefined
+  return label
+    .replace(/\s*[-|:]\s*(?:home|homepage)\s*$/i, '')
+    .replace(/\s+logo\s*$/i, '')
+    .trim() || undefined
+}
+
+function isConsentVendorMarkup(value: string): boolean {
+  return /\b(cookieyes|cookiebot|onetrust|trustarc|consent|privacy[-\s]?manager|powered\s*by\s*cky|poweredbtcky|cky-)\b/i.test(value)
+}
+
+function hasAnchorLogoEvidence(attrs: string): boolean {
+  const evidenceAttrs = [
+    /\bclass\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2],
+    /\bid\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2],
+    /\brole\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2],
+    ...Array.from(attrs.matchAll(/\bdata-[\w-]+\s*=\s*(["'])(.*?)\1/gi)).map(match => match[2]),
+  ].filter((value): value is string => Boolean(value))
+
+  return evidenceAttrs.some(value => /\b(?:logo|brand|lockup|wordmark)\b/i.test(value))
+}
+
 function shouldSkipNavLabel(label: string): boolean {
   return /^(skip|menu|close|search)$/i.test(label) || /\blogo\b/i.test(label)
+}
+
+function isLogoAnchor(attrs: string, body: string): boolean {
+  const combined = `${attrs} ${body}`
+  if (isConsentVendorMarkup(combined)) return true
+  return hasAnchorLogoEvidence(attrs)
 }
 
 function extractAnchorItems(html: string, pageUrl?: string, preferredOnly = false): SourceNavItem[] {
@@ -400,6 +430,7 @@ function extractAnchorItems(html: string, pageUrl?: string, preferredOnly = fals
   while ((match = anchorPattern.exec(html)) !== null) {
     const attrs = match[1] ?? ''
     const body = match[2] ?? ''
+    if (isLogoAnchor(attrs, body)) continue
     const classOrRole = `${attrs} ${body}`
     const preferred = /\b(?:menu-title|nav-link|navigation-link|primary-nav|main-nav|navbar|global-nav|site-nav)\b/i.test(classOrRole)
     if (preferredOnly && !preferred) continue
@@ -488,21 +519,33 @@ function extractLogoFromNavHtml(html: string, pageUrl?: string): Record<string, 
   while ((linkedMatch = linkedImagePattern.exec(html)) !== null) {
     const linkAttrs = linkedMatch[1] ?? ''
     const linkBody = linkedMatch[2] ?? ''
+    if (isConsentVendorMarkup(`${linkAttrs} ${linkBody}`)) continue
     const imgAttrs = /<img\b([^>]*)>/i.exec(linkBody)?.[1] ?? ''
-    if (!imgAttrs) continue
-    const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
-    const linkBodyWithoutImages = linkBody.replace(/<img\b[^>]*>/gi, ' ')
-    const hasLinkLogoEvidence = /\b(?:logo|brand|lockup)\b/i.test(linkAttrs)
-    const hasLogoEvidence = Boolean(alt) || hasLinkLogoEvidence || /\b(?:logo|brand|lockup)\b/i.test(linkBodyWithoutImages)
-    if (!hasLogoEvidence) continue
-    const logo = makeLogoFromImageAttrs(imgAttrs, hasLinkLogoEvidence ? linkAttrs : '', pageUrl)
-    if (logo) return logo
+    const hasLinkLogoEvidence = hasAnchorLogoEvidence(linkAttrs)
+    if (imgAttrs) {
+      const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
+      const linkBodyWithoutImages = linkBody.replace(/<img\b[^>]*>/gi, ' ')
+      const hasLogoEvidence = Boolean(alt) || hasLinkLogoEvidence || /\b(?:logo|brand|lockup)\b/i.test(linkBodyWithoutImages)
+      if (!hasLogoEvidence) continue
+      const logo = makeLogoFromImageAttrs(imgAttrs, hasLinkLogoEvidence ? linkAttrs : '', pageUrl)
+      if (logo) return logo
+      continue
+    }
+
+    if (!hasLinkLogoEvidence) continue
+    const label =
+      cleanLogoLabel(/\b(?:aria-label|title)\s*=\s*(["'])(.*?)\1/i.exec(linkAttrs)?.[2]) ??
+      cleanLogoLabel(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(linkBody)?.[1]) ??
+      cleanLogoLabel(stripHtml(linkBody))
+    const href = normalizeHref(/\bhref\s*=\s*(["'])(.*?)\1/i.exec(linkAttrs)?.[2], pageUrl)
+    if (label) return { text: label, alt: label, ...(href ? { href } : {}) }
   }
 
   const imagePattern = /<img\b([^>]*)>/gi
   let imageMatch: RegExpExecArray | null
   while ((imageMatch = imagePattern.exec(html)) !== null) {
     const imgAttrs = imageMatch[1] ?? ''
+    if (isConsentVendorMarkup(imgAttrs)) continue
     const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
     const attrsWithoutSrc = imgAttrs.replace(/\bsrc\s*=\s*(["']).*?\1/gi, ' ')
     const hasLogoEvidence = Boolean(alt) || /\b(?:logo|brand|lockup)\b/i.test(attrsWithoutSrc)

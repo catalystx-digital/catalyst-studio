@@ -501,18 +501,44 @@ function hasMeaningfulFooterContent(component: DetectedComponent): boolean {
   )
 }
 
-export function removeEmptyFooterArtifacts(components: DetectedComponent[]): DetectedComponent[] {
+function hasImageBackedLogo(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  const src = value.src
+  return (
+    hasNonEmptyString(value.originalUrl) ||
+    hasNonEmptyString(value.url) ||
+    hasNonEmptyString(value.src) ||
+    (isRecord(src) && (
+      hasNonEmptyString(src.url) ||
+      hasNonEmptyString(src.src) ||
+      hasNonEmptyString(src.originalUrl)
+    ))
+  )
+}
+
+function hasMeaningfulLogoCloudContent(component: DetectedComponent): boolean {
+  if (String(component.type) !== 'logo-cloud' || !isRecord(component.content)) {
+    return true
+  }
+
+  const logos = Array.isArray(component.content.logos) ? component.content.logos : []
+  return logos.filter(hasImageBackedLogo).length >= 2
+}
+
+export function removeEmptyVisualArtifacts(components: DetectedComponent[]): DetectedComponent[] {
   return components.filter(component => {
-    if (hasMeaningfulFooterContent(component)) {
+    if (hasMeaningfulFooterContent(component) && hasMeaningfulLogoCloudContent(component)) {
       return true
     }
 
-    console.log('[StructuralDeduplication] Dropped empty footer artifact:', {
+    console.log('[StructuralDeduplication] Dropped empty visual artifact:', {
       droppedComponentType: component.type,
     })
     return false
   })
 }
+
+export const removeEmptyFooterArtifacts = removeEmptyVisualArtifacts
 
 /**
  * Removes repeated listing surfaces produced by section-level extraction when

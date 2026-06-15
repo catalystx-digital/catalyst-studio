@@ -1,4 +1,4 @@
-import { collapseDuplicateListingSurfaces, removeEmptyFooterArtifacts } from '../structural-deduplication-processor'
+import { collapseDuplicateListingSurfaces, removeEmptyFooterArtifacts, removeEmptyVisualArtifacts } from '../structural-deduplication-processor'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 
 function component(type: string, content: Record<string, unknown>): DetectedComponent {
@@ -581,5 +581,50 @@ describe('removeEmptyFooterArtifacts', () => {
     ]
 
     expect(removeEmptyFooterArtifacts(components)).toEqual(components)
+  })
+})
+
+describe('removeEmptyVisualArtifacts', () => {
+  it('drops logo-cloud artifacts with fewer than two image-backed logos', () => {
+    const components = [
+      component('logo-cloud', {
+        caption: 'Trusted by teams',
+        logos: [
+          {
+            id: 'amazon',
+            alt: 'Amazon',
+            src: { url: 'https://media.example.com/logos/amazon.svg', mediaType: 'image' },
+          },
+        ],
+      }),
+      component('card-grid', {
+        heading: 'Why choose us',
+        cards: [{ title: 'Evidence over opinions' }],
+      }),
+    ]
+
+    expect(removeEmptyVisualArtifacts(components)).toEqual([components[1]])
+  })
+
+  it('keeps logo-cloud sections with at least two image-backed logos', () => {
+    const components = [
+      component('logo-cloud', {
+        caption: 'Trusted by teams',
+        logos: [
+          {
+            id: 'amazon',
+            alt: 'Amazon',
+            src: { url: 'https://media.example.com/logos/amazon.svg', mediaType: 'image' },
+          },
+          {
+            id: 'visa',
+            alt: 'Visa',
+            originalUrl: 'https://media.example.com/logos/visa.svg',
+          },
+        ],
+      }),
+    ]
+
+    expect(removeEmptyVisualArtifacts(components)).toEqual(components)
   })
 })

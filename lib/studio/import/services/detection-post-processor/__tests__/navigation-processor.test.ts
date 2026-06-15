@@ -245,6 +245,100 @@ describe('recoverOrRemoveEmptyGlobalNavigation', () => {
     })
   })
 
+  it('recovers inline SVG brand anchors as text logos and excludes them from menu items', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', { menuItems: [] }),
+    ], {
+      domSnapshot: `
+        <a class="donate-link" href="https://foundation.example.org/donate">Donate</a>
+        <header>
+          <a href="/" class="rebrand-logo" aria-label="Nielsen Norman Group - Home">
+            <svg><title>Nielsen Norman Group</title><use href="#rebrand-25-logo-black"></use></svg>
+            <svg><title>Nielsen Norman Group</title><use href="#rebrand-25-logo-compact"></use></svg>
+          </a>
+          <nav class="primary-navigation">
+            <a class="nav-link" href="/courses/">All Live Online Courses</a>
+            <a class="nav-link" href="/articles/">Articles & Videos</a>
+          </nav>
+        </header>
+      `,
+      pageUrl: 'https://www.nngroup.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      logo: {
+        text: 'Nielsen Norman Group',
+        alt: 'Nielsen Norman Group',
+        href: '/',
+      },
+      menuItems: [
+        { label: 'All Live Online Courses' },
+        { label: 'Articles & Videos' },
+      ],
+    })
+    expect(JSON.stringify(result[0].content)).not.toContain('Nielsen Norman Group Nielsen Norman Group')
+    expect(JSON.stringify(result[0].content)).not.toContain('foundation.example.org')
+  })
+
+  it('ignores consent vendor anchors when recovering navigation logos and links', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', { menuItems: [] }),
+    ], {
+      domSnapshot: `
+        <header>
+          <a href="https://www.cookieyes.com/" class="cky-powered-by">
+            Powered by <img alt="Cookieyes logo" src="https://cdn-cookieyes.com/assets/images/poweredbtcky.svg">
+          </a>
+          <a href="/" class="brand-logo" aria-label="Example Brand - Home">
+            <svg><title>Example Brand</title><use href="#brand"></use></svg>
+          </a>
+          <nav class="primary-navigation">
+            <a class="nav-link" href="/products/">Products</a>
+            <a class="nav-link" href="/support/">Support</a>
+          </nav>
+        </header>
+      `,
+      pageUrl: 'https://example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      logo: {
+        text: 'Example Brand',
+        alt: 'Example Brand',
+        href: '/',
+      },
+      menuItems: [
+        { label: 'Products' },
+      ],
+      utilityNav: [
+        { label: 'Support' },
+      ],
+    })
+    expect(JSON.stringify(result[0].content)).not.toMatch(/cookieyes|poweredbtcky|cky-powered-by/i)
+  })
+
+  it('does not treat brand-related hrefs as logo evidence', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', { menuItems: [] }),
+    ], {
+      domSnapshot: `
+        <nav class="primary-navigation">
+          <a class="nav-link" href="/brand-strategy/">Brand Strategy</a>
+          <a class="nav-link" href="/products/">Products</a>
+        </nav>
+      `,
+      pageUrl: 'https://example.com/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      menuItems: [
+        { label: 'Brand Strategy', href: { type: 'internal', path: '/brand-strategy/' } },
+        { label: 'Products', href: { type: 'internal', path: '/products/' } },
+      ],
+    })
+    expect((result[0].content as Record<string, unknown>).logo).toBeUndefined()
+  })
+
   it('keeps a real Home link when recovering source navigation', () => {
     const result = recoverOrRemoveEmptyGlobalNavigation([
       component('navbar', { menuItems: [] }),

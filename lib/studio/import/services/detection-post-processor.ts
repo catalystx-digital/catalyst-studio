@@ -34,7 +34,7 @@ import { recoverSourceNarrativeSections } from './detection-post-processor/sourc
 import { completeCardGridsFromSource } from './detection-post-processor/card-grid-completion-processor'
 import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
-import { collapseDuplicateListingSurfaces, removeEmptyFooterArtifacts } from './detection-post-processor/structural-deduplication-processor'
+import { collapseDuplicateListingSurfaces, removeEmptyVisualArtifacts } from './detection-post-processor/structural-deduplication-processor'
 import { promoteSourceFeatureTilesToCardGrid } from './detection-post-processor/feature-tile-grid-processor'
 import { enrichSourceNewsListing } from './detection-post-processor/source-news-processor'
 import { composeInstitutionalHomepageIfEligible } from './detection-post-processor/institutional-homepage-composer'
@@ -197,8 +197,8 @@ export function adjustDetectedComponents(
     c.splice(0, c.length, ...deduped)
   })
 
-  withTelemetry('emptyFooterCleanup', cloned, (c) => {
-    const cleaned = removeEmptyFooterArtifacts(c)
+  withTelemetry('emptyVisualArtifactCleanup', cloned, (c) => {
+    const cleaned = removeEmptyVisualArtifacts(c)
     c.splice(0, c.length, ...cleaned)
   })
 
