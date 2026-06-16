@@ -171,7 +171,11 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
 
     const structures = await prisma.websiteStructure.findMany({
       where: { websiteId },
-      orderBy: [{ parentId: 'asc' }, { position: 'asc' }],
+      orderBy: [
+        { pathDepth: 'asc' },
+        { position: 'asc' },
+        { createdAt: 'asc' },
+      ],
     })
 
     // Map structures to pages. WebsiteStructure.fullPath is the preview route
@@ -179,7 +183,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
     const structureMap = new Map(structures.map((s) => [s.websitePageId, s]))
 
     const pagesForPreview = tokenAccess
-      ? pages.filter((page) => normalizePreviewPath(structureMap.get(page.id)?.fullPath) === previewPath)
+      ? selectPagesForSignedPreviewPath({ pages, structures, structureMap, previewPath })
       : pages
 
     if (tokenAccess && pagesForPreview.length === 0) {
@@ -284,4 +288,63 @@ export async function GET(request: NextRequest): Promise<NextResponse<PreviewDat
       Boolean(previewToken)
     )
   }
+}
+
+function selectPagesForSignedPreviewPath<TPage extends { id: string }>({
+  pages,
+  structures,
+  structureMap,
+  previewPath,
+}: {
+  pages: TPage[]
+  structures: Array<{
+    websitePageId: string | null
+    fullPath: string
+    pathDepth?: number | null
+    position?: number | null
+    createdAt?: Date | string | null
+  }>
+  structureMap: Map<string | null, { fullPath: string }>
+  previewPath: string
+}): TPage[] {
+  const exact = pages.filter((page) => normalizePreviewPath(structureMap.get(page.id)?.fullPath) === previewPath)
+  if (exact.length > 0 || previewPath !== '/') {
+    return exact
+  }
+
+  const pageById = new Map(pages.map((page) => [page.id, page]))
+  const firstRenderableStructure = structures
+    .filter((structure) => Boolean(structure.websitePageId && pageById.has(structure.websitePageId)))
+    .sort(comparePreviewFallbackStructures)[0]
+  const firstRenderablePage = firstRenderableStructure?.websitePageId
+    ? pageById.get(firstRenderableStructure.websitePageId)
+    : undefined
+
+  return firstRenderablePage ? [firstRenderablePage] : []
+}
+
+function comparePreviewFallbackStructures(
+  a: { pathDepth?: number | null; position?: number | null; createdAt?: Date | string | null },
+  b: { pathDepth?: number | null; position?: number | null; createdAt?: Date | string | null },
+): number {
+  const depthDelta = normalizeSortableNumber(a.pathDepth) - normalizeSortableNumber(b.pathDepth)
+  if (depthDelta !== 0) return depthDelta
+
+  const positionDelta = normalizeSortableNumber(a.position) - normalizeSortableNumber(b.position)
+  if (positionDelta !== 0) return positionDelta
+
+  return normalizeSortableDate(a.createdAt) - normalizeSortableDate(b.createdAt)
+}
+
+function normalizeSortableNumber(value: number | null | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER
+}
+
+function normalizeSortableDate(value: Date | string | null | undefined): number {
+  if (value instanceof Date) return value.getTime()
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER
+  }
+  return Number.MAX_SAFE_INTEGER
 }

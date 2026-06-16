@@ -62,8 +62,15 @@ export interface ParserRepairNote {
   index: number
   component: string
   type: string
-  action: 'drop_duplicate_empty_card_grid'
+  action: 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero'
   reason: string
+}
+
+export interface ImportDetectionDiagnostic {
+  code: string
+  severity: 'info' | 'warning' | 'error'
+  message: string
+  context?: Record<string, unknown>
 }
 
 export interface DetectedPageTemplate {
@@ -131,6 +138,8 @@ export interface ImportDetectionResult {
     stage: 'detection'
     message: string
   }
+  /** Non-fatal import quality diagnostics backed by source evidence */
+  diagnostics?: ImportDetectionDiagnostic[]
 }
 
 export interface ImportDetectionTimingBreakdown {

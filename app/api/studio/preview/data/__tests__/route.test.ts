@@ -433,6 +433,98 @@ describe('preview data GET diagnostics', () => {
     expect(slugResponse.status).toBe(404)
   })
 
+  it('returns the first renderable page for a signed root QA preview when root has no page', async () => {
+    ;(authorizePreviewRead as jest.Mock).mockResolvedValue({ mode: 'qa-token' })
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-en-us',
+        title: 'Mozilla',
+        content: { components: [] },
+        templateKey: 'marketing/home-default',
+        templateProps: {},
+        metadata: {},
+      },
+    ])
+    mockPrisma.websiteStructure.findMany.mockResolvedValue([
+      {
+        id: 'structure-en-us',
+        parentId: null,
+        websitePageId: 'page-en-us',
+        slug: 'en-us',
+        fullPath: '/en-us',
+        position: 0,
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&path=/&previewToken=token-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(body.data.pages).toEqual([
+      expect.objectContaining({
+        id: 'page-en-us',
+        title: 'Mozilla',
+        fullPath: '/en-us',
+      }),
+    ])
+  })
+
+  it('uses preview route fallback ordering for signed root QA preview data', async () => {
+    ;(authorizePreviewRead as jest.Mock).mockResolvedValue({ mode: 'qa-token' })
+    mockPrisma.websitePage.findMany.mockResolvedValue([
+      {
+        id: 'page-deep',
+        title: 'Deep Page',
+        content: { components: [] },
+        templateKey: 'marketing/home-default',
+        templateProps: {},
+        metadata: {},
+      },
+      {
+        id: 'page-shallow',
+        title: 'Shallow Page',
+        content: { components: [] },
+        templateKey: 'marketing/home-default',
+        templateProps: {},
+        metadata: {},
+      },
+    ])
+    mockPrisma.websiteStructure.findMany.mockResolvedValue([
+      {
+        id: 'structure-deep',
+        parentId: 'parent-1',
+        websitePageId: 'page-deep',
+        slug: 'deep',
+        fullPath: '/about/deep',
+        pathDepth: 2,
+        position: 0,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      {
+        id: 'structure-shallow',
+        parentId: null,
+        websitePageId: 'page-shallow',
+        slug: 'shallow',
+        fullPath: '/shallow',
+        pathDepth: 1,
+        position: 10,
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+      },
+    ])
+
+    const response = await GET(new NextRequest('http://localhost/api/studio/preview/data?websiteId=website-1&path=/&previewToken=token-1'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.pages).toEqual([
+      expect.objectContaining({
+        id: 'page-shallow',
+        fullPath: '/shallow',
+      }),
+    ])
+  })
+
   it('returns 422 diagnostics for invalid design system tokens', async () => {
     mockReadNullableShadcnDesignSystemTokens.mockImplementation(() => {
       throw new mockDesignSystemReaderError(

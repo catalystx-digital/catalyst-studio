@@ -14,6 +14,7 @@ import { TwoColumnDef } from '@/lib/studio/components/cms/content/two-column/two
 import { CTABannerDef } from '@/lib/studio/components/cms/cta/cta-banner/cta-banner.def'
 import { CTASimpleDef } from '@/lib/studio/components/cms/cta/cta-simple/cta-simple.def'
 import { StatisticsDef } from '@/lib/studio/components/cms/data/statistics/statistics.def'
+import { FeatureGridDef } from '@/lib/studio/components/cms/features/feature-grid/feature-grid.def'
 import { TeamGridDef } from '@/lib/studio/components/cms/about/team-grid/team-grid.def'
 import { QuoteBlockDef } from '@/lib/studio/components/cms/content/quote-block/quote-block.def'
 import { HeroBannerDef } from '@/lib/studio/components/cms/heroes/hero-banner/hero-banner.def'
@@ -360,6 +361,45 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         })
       ])
     )
+  })
+
+  it('normalizes feature-grid one-column model artifacts to the supported grid minimum', () => {
+    const detection: DetectionResult = {
+      type: 'feature-grid',
+      confidence: 0.9,
+      bounds: baseBounds,
+      content: {
+        features: [
+          {
+            type: 'feature-item',
+            title: "Don't code?",
+            description: 'Set up billing from the dashboard.',
+            link: {
+              text: 'Explore no-code',
+              href: {
+                type: 'external',
+                url: 'https://docs.example.com/no-code'
+              }
+            }
+          }
+        ],
+        columns: 1
+      }
+    }
+
+    const props = extractComponentPayload(detection, createComponentType('feature-grid'))
+
+    expect(props.content).toMatchObject({
+      columns: 2,
+      features: [
+        expect.objectContaining({
+          type: 'feature-item',
+          title: "Don't code?",
+          description: 'Set up billing from the dashboard.'
+        })
+      ]
+    })
+    expect(FeatureGridDef.schema.safeParse(props.content).success).toBe(true)
   })
 
   it('classifies fatal and nonfatal normalization issues', () => {

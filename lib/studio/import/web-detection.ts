@@ -386,6 +386,43 @@ function buildTimingBreakdown(records: DetectionPhaseRecord[], totalDurationMs: 
   }
 }
 
+function buildFooterQualityDiagnostics(
+  components: DetectedComponent[],
+  preFlightFetch: { sections?: Array<{ key: string }>; resourcesSummary?: { anchors?: Array<{ href?: string; textPreview?: string }> } }
+): ImportDetectionResult['diagnostics'] {
+  if (components.some(component => component.type === 'footer')) {
+    return undefined
+  }
+
+  const evidence: string[] = []
+  if (preFlightFetch.sections?.some(section => /\bfooter\b/i.test(section.key))) {
+    evidence.push('outline-section:footer')
+  }
+
+  const footerAnchors = (preFlightFetch.resourcesSummary?.anchors ?? [])
+    .filter(anchor => {
+      const text = `${anchor.textPreview ?? ''} ${anchor.href ?? ''}`
+      return /\b(footer|copyright|privacy|terms|legal|accessibility|instagram|facebook|linkedin|youtube|twitter|x\.com)\b/i.test(text)
+    })
+    .slice(0, 5)
+    .map(anchor => `${anchor.textPreview ?? anchor.href ?? 'anchor'}`.slice(0, 80))
+
+  if (footerAnchors.length >= 2) {
+    evidence.push(...footerAnchors.map(anchor => `anchor:${anchor}`))
+  }
+
+  if (evidence.length === 0) {
+    return undefined
+  }
+
+  return [{
+    code: 'SOURCE_FOOTER_NOT_IMPORTED',
+    severity: 'warning',
+    message: 'Source footer evidence was detected, but no footer component was imported.',
+    context: { evidence }
+  }]
+}
+
 function checkpointArtifactKey(prefix: string, url: string): string {
   return `${prefix}-${Buffer.from(url).toString('base64url').slice(0, 80)}`
 }
@@ -2199,6 +2236,7 @@ export class DetectionService {
     const reasoningTokens = usageTotals.reasoning_tokens || 0
     const tokenUsage = usageTotals.total_tokens || 0
     const cost = usageTotals.total_cost || (await calculateCost(displayModel, promptTokens, completionTokens, reasoningTokens))
+    const diagnostics = buildFooterQualityDiagnostics(components, preFlightFetch)
     const detectionResult: ImportDetectionResult = {
       components: includeContent
         ? components
@@ -2217,7 +2255,8 @@ export class DetectionService {
       outlineSections: preFlightFetch.sections,
       timingBreakdown: buildTimingBreakdown(telemetry.getPhaseRecords(), Date.now() - startTime),
       sourceHttpStatus: preFlightFetch.status,
-      sourceFinalUrl: preFlightFetch.finalUrl
+      sourceFinalUrl: preFlightFetch.finalUrl,
+      ...(diagnostics?.length ? { diagnostics } : {})
     }
 
     if (checkpointSession && checkpointService) {

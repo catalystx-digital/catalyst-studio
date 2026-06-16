@@ -1158,12 +1158,141 @@ describe('parseSectionDetectionResponse', () => {
 
     expect(parsed.components).toHaveLength(1)
     expect(parsed.components[0].type).toBe('text-block')
-    expect(parsed.invalidComponents).toEqual([
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.parserRepairs).toEqual([
       expect.objectContaining({
         index: 1,
         component: 'logo-cloud',
         type: 'logo-cloud',
-        reason: expect.stringContaining('content is invalid')
+        action: 'drop_empty_logo_cloud'
+      })
+    ])
+  })
+
+  it('normalizes source-backed logo-cloud aliases before schema validation', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'logo-cloud',
+            confidence: 0.9,
+            content: {
+              clients: [
+                {
+                  name: 'Acme',
+                  logo: {
+                    mediaId: 'detected:acme',
+                    mediaType: 'image',
+                    url: 'https://cdn.example.com/acme.svg',
+                    alt: 'Acme logo'
+                  },
+                  link: 'https://acme.example'
+                }
+              ],
+              logoSize: 'large'
+            }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.components).toHaveLength(1)
+    expect(parsed.components[0].content).toEqual({
+      logos: [
+        expect.objectContaining({
+          id: 'acme',
+          src: expect.objectContaining({
+            mediaId: 'detected:acme',
+            mediaType: 'image',
+            url: 'https://cdn.example.com/acme.svg'
+          }),
+          alt: 'Acme logo',
+          originalUrl: 'https://cdn.example.com/acme.svg',
+          href: { type: 'external', url: 'https://acme.example' }
+        })
+      ],
+      size: 'large'
+    })
+  })
+
+  it('drops all-invalid optional logo-cloud sections after normalization', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'logo-cloud',
+            confidence: 0.9,
+            content: {
+              brands: [
+                { name: 'Text only brand' },
+                'Bare text brand'
+              ]
+            }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components).toEqual([])
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.parserRepairs).toEqual([
+      expect.objectContaining({
+        component: 'logo-cloud',
+        type: 'logo-cloud',
+        action: 'drop_empty_logo_cloud'
+      })
+    ])
+  })
+
+  it('drops image-only hero-with-image sections instead of inventing a heading', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'hero-with-image',
+            confidence: 0.9,
+            content: {
+              heading: '',
+              image: {
+                src: {
+                  mediaId: 'detected:hero-image-1',
+                  mediaType: 'image',
+                  url: 'https://example.com/hero.jpg'
+                },
+                alt: 'People attending an event'
+              }
+            }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components).toEqual([])
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.parserRepairs).toEqual([
+      expect.objectContaining({
+        component: 'hero-with-image',
+        type: 'hero-with-image',
+        action: 'drop_image_only_hero'
       })
     ])
   })

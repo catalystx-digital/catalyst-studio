@@ -942,6 +942,45 @@ describe('DetectionService (web-based)', () => {
       )
     })
 
+    it('adds a footer quality diagnostic when source footer evidence is not imported', async () => {
+      mockWebTools.fetchOutline.mockResolvedValue({
+        ...mockOutline,
+        resourcesSummary: {
+          ...mockOutline.resourcesSummary,
+          anchors: [
+            { href: '/privacy', textPreview: 'Privacy', pathId: 'a1' },
+            { href: '/terms', textPreview: 'Terms', pathId: 'a2' },
+            { href: '/accessibility', textPreview: 'Accessibility', pathId: 'a3' }
+          ]
+        }
+      })
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              sectionKey: 'main:0-99',
+              components: [
+                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
+              ]
+            })
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { total_tokens: 1000 }
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components.map(component => component.type)).toEqual(['navbar'])
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'SOURCE_FOOTER_NOT_IMPORTED',
+          severity: 'warning',
+          message: expect.stringContaining('Source footer evidence was detected')
+        })
+      ])
+    })
+
     it('fails required nonempty sections when all repaired components are invalid', async () => {
       mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
         choices: [{

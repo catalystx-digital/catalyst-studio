@@ -56,6 +56,23 @@ describe('section taxonomy', () => {
     expect(result.deniedTypes).not.toContain('content-feed')
   })
 
+  it('keeps story routes editorial when item text also mentions projects', () => {
+    const result = classifySectionIntent({
+      pageUrl: 'https://example.com/stories/',
+      content: {
+        heading: 'Stories',
+        pinned: [
+          { title: 'Public art project', href: '/stories/public-art-project/' },
+          { title: 'Community showcase', href: '/stories/community-showcase/' }
+        ]
+      }
+    })
+
+    expect(result.intent).toBe('editorial_feed')
+    expect(result.allowedTypes).toContain('content-feed')
+    expect(result.deniedTypes).not.toContain('content-feed')
+  })
+
   it('classifies article and video listings as editorial even with service wording elsewhere', () => {
     const result = classifySectionIntent({
       pageUrl: 'https://www.nngroup.com/',

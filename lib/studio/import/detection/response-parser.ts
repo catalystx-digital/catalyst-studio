@@ -308,6 +308,26 @@ function parseComponentsArrayDetailed(
           parserRepairs.push(duplicateEmptyCardGridRepair)
           continue
         }
+        const emptyLogoCloudRepair = getEmptyLogoCloudRepair({
+          index,
+          componentName,
+          canonicalType: pattern.type
+        })
+        if (emptyLogoCloudRepair) {
+          parserRepairs.push(emptyLogoCloudRepair)
+          continue
+        }
+        const imageOnlyHeroRepair = getImageOnlyHeroRepair({
+          index,
+          componentName,
+          canonicalType: pattern.type,
+          content,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+        if (imageOnlyHeroRepair) {
+          parserRepairs.push(imageOnlyHeroRepair)
+          continue
+        }
         invalidComponents.push({
           index,
           component: componentName,
@@ -317,6 +337,17 @@ function parseComponentsArrayDetailed(
         continue
       }
       throw error
+    }
+
+    if (options.isolateInvalidContent && isEmptyLogoCloud(pattern.type, validatedContent)) {
+      parserRepairs.push({
+        index,
+        component: componentName,
+        type: pattern.type,
+        action: 'drop_empty_logo_cloud',
+        reason: 'Dropped logo-cloud because no source-backed logo images remained after normalization.'
+      })
+      continue
     }
 
     validComponents.push({
@@ -333,6 +364,32 @@ function parseComponentsArrayDetailed(
     })
   }
   return { components: validComponents, invalidComponents, parserRepairs }
+}
+
+function isEmptyLogoCloud(canonicalType: string, content: Record<string, unknown>): boolean {
+  return canonicalType === 'logo-cloud' && Array.isArray(content.logos) && content.logos.length === 0
+}
+
+function getEmptyLogoCloudRepair({
+  index,
+  componentName,
+  canonicalType,
+}: {
+  index: number
+  componentName: string
+  canonicalType: string
+}): ParserRepairNote | null {
+  if (canonicalType !== 'logo-cloud') {
+    return null
+  }
+
+  return {
+    index,
+    component: componentName,
+    type: canonicalType,
+    action: 'drop_empty_logo_cloud',
+    reason: 'Dropped logo-cloud because no source-backed logo images remained after normalization.'
+  }
 }
 
 function getDuplicateEmptyCardGridRepair({
@@ -375,6 +432,38 @@ function getDuplicateEmptyCardGridRepair({
   }
 }
 
+function getImageOnlyHeroRepair({
+  index,
+  componentName,
+  canonicalType,
+  content,
+  reason
+}: {
+  index: number
+  componentName: string
+  canonicalType: string
+  content: Record<string, unknown>
+  reason: string
+}): ParserRepairNote | null {
+  if (canonicalType !== 'hero-with-image' || !/heading:missing-required-field/.test(reason)) {
+    return null
+  }
+
+  const heading = typeof content.heading === 'string' ? content.heading.trim() : ''
+  const hasImageEvidence = Boolean(content.image || content.backgroundImage || content.media || content.src)
+  if (heading.length > 0 || !hasImageEvidence) {
+    return null
+  }
+
+  return {
+    index,
+    component: componentName,
+    type: canonicalType,
+    action: 'drop_image_only_hero',
+    reason: 'Dropped hero-with-image because the source-backed image had no source-backed heading and the importer must not invent one.'
+  }
+}
+
 function extractComparableHeading(content: Record<string, unknown>): string {
   const value = typeof content.heading === 'string'
     ? content.heading
@@ -403,7 +492,12 @@ function validateDetectedComponentContent({
     parentCanonicalType: canonicalType,
     pageUrl
   })
-  const fatalWarnings = warnings.filter(isFatalNormalizationWarning)
+  const fatalWarnings = warnings.filter(warning => {
+    if (canonicalType === 'logo-cloud' && isDroppedLogoCloudItemWarning(warning)) {
+      return false
+    }
+    return isFatalNormalizationWarning(warning)
+  })
   if (fatalWarnings.length > 0) {
     const rendered = fatalWarnings.slice(0, 5).map(warning => {
       const field = warning.field ?? warning.childType ?? 'unknown'
@@ -443,6 +537,19 @@ function validateDetectedComponentContent({
   }
 
   return validation?.success ? validation.data : normalizedContent
+}
+
+function isDroppedLogoCloudItemWarning(warning: { field?: string; issue: string; childType?: string }): boolean {
+  if (warning.childType !== 'logo-cloud' || !warning.field || !/^logos\.\d+(?:\.|$)/.test(warning.field)) {
+    return false
+  }
+
+  return (
+    warning.issue === 'invalid-subcomponent' ||
+    warning.issue === 'media-src-missing' ||
+    warning.issue === 'missing-required-field' ||
+    warning.issue === 'invalid-value'
+  )
 }
 
 function inferLocationFromType(type: string): DetectedComponent['location'] {

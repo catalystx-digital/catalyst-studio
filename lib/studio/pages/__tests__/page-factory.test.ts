@@ -147,7 +147,7 @@ describe('getPageCatalogSummary', () => {
     pageTemplateFactory.unregisterTemplate(customKey)
   })
 
-  it('includes contact components in marketing home main region', async () => {
+  it('includes importable marketing components in marketing home main region', async () => {
     const summary = await getPageCatalogSummary(true)
     const template = summary.templates.find(template => template.templateKey === 'marketing/home-default')
     expect(template).toBeDefined()
@@ -159,10 +159,11 @@ describe('getPageCatalogSummary', () => {
         ComponentType.ContactForm,
         ComponentType.SimpleForm,
         ComponentType.ContactInfo,
-        ComponentType.LocationMap
+        ComponentType.LocationMap,
+        ComponentType.Statistics,
+        ComponentType.Accordion
       ])
     )
   })
 
 })
-

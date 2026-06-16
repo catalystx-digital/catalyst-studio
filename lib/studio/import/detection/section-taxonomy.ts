@@ -99,7 +99,8 @@ export function classifySectionIntent(input: {
   if (hasServiceText) addEvidence(evidence, 'service-text', headingText)
   if (hasServicePath) addEvidence(evidence, 'service-path')
 
-  if ((hasEditorialPath || hasEditorialText) && !hasProjectText && !(hasServiceHeading && !hasEditorialHeading)) {
+  const strongEditorialSignal = hasEditorialPath || hasEditorialHeading || hasDates
+  if ((strongEditorialSignal || (hasEditorialText && !hasProjectText)) && !(hasServiceHeading && !hasEditorialHeading)) {
     return {
       intent: 'editorial_feed',
       evidence,
