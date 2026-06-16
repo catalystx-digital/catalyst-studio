@@ -2,7 +2,12 @@ import type { NextConfig } from "next";
 import { createRequire } from "module";
 import path from "path";
 
+const buildWorkerCount = Number.parseInt(process.env.STUDIO_NEXT_BUILD_WORKERS ?? "1", 10);
+
 const nextConfig: NextConfig = {
+  experimental: {
+    cpus: Number.isFinite(buildWorkerCount) && buildWorkerCount > 0 ? buildWorkerCount : 1,
+  },
   // Externalize Prisma packages so they're not bundled into workflow steps.
   // The workflow SDK reads this to avoid bundling these packages into step code.
   serverExternalPackages: [

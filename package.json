@@ -13,7 +13,7 @@
     "dev:workflow": "npm run build:components && next dev",
     "dev:preview": "npm run dev",
     "dev:4000": "cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=4000 npm run build:components && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true PORT=4000 next dev -p 4000",
-    "build": "npm run build:components && next build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 STUDIO_NEXT_BUILD_WORKERS=1 npm run build:components && cross-env NODE_OPTIONS=--max-old-space-size=8192 STUDIO_NEXT_BUILD_WORKERS=1 next build",
     "build:no-workflow": "cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true tsx scripts/disable-workflow-routes.ts && cross-env STUDIO_DISABLE_WORKFLOW_PLUGIN=true npm run build",
     "build:sandbox-tarball": "tsx scripts/build-sandbox-tarball.ts",
     "start": "next start",
