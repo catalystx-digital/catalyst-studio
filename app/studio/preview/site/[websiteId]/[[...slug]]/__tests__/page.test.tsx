@@ -65,6 +65,8 @@ describe('StudioLocalPreviewPage', () => {
       websiteId: 'site-1',
       slug: ['about'],
       designConcept: 'concept-1',
+      previewToken: undefined,
+      previewRouteBase: '/studio/preview/site/site-1',
     })
     expect(renderToStaticMarkup(element as React.ReactElement)).toContain('preview')
   })
@@ -79,6 +81,13 @@ describe('StudioLocalPreviewPage', () => {
     expect(mockAssertStudioWebsiteAccess).toHaveBeenCalledWith(undefined, 'site-1', {
       previewToken: 'token-1',
       path: '/',
+    })
+    expect(mockRenderLocalWebsitePreview).toHaveBeenCalledWith({
+      websiteId: 'site-1',
+      slug: undefined,
+      designConcept: undefined,
+      previewToken: 'token-1',
+      previewRouteBase: '/studio/preview/site/site-1',
     })
   })
 })

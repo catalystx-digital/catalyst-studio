@@ -26,11 +26,65 @@ import type {
 } from '@/lib/studio/headless/site-snapshot/types'
 import { resolveSharedComponentReference } from '@/lib/studio/types/site-builder/component-instance'
 import { isAssetLikeRequest } from '@/lib/utils/request-helpers'
+import { createQaPreviewToken, verifyQaPreviewToken } from '@/lib/studio/preview/qa-preview-token'
 
 interface RenderLocalPreviewOptions {
   websiteId: string
   slug?: string[]
   designConcept?: string
+  previewToken?: string
+  previewRouteBase?: string
+}
+
+function encodePreviewPath(path: string): string {
+  const segments = path.split('/').filter(Boolean)
+  return segments.length > 0
+    ? `/${segments.map(segment => encodeURIComponent(segment)).join('/')}`
+    : ''
+}
+
+function buildPreviewRedirectUrl(
+  websiteId: string,
+  path: string,
+  options: { previewRouteBase: string; designConcept?: string; previewToken?: string; sourcePath?: string },
+): string {
+  const params = new URLSearchParams()
+  if (options.designConcept?.trim()) {
+    params.set('designConcept', options.designConcept.trim())
+  }
+  if (options.previewToken?.trim()) {
+    const payload = verifyQaPreviewToken(options.previewToken.trim(), {
+      websiteId,
+      path: options.sourcePath ?? '/',
+    })
+    params.set('previewToken', createQaPreviewToken({
+      websiteId,
+      path,
+      expiresAt: payload.expiresAt,
+    }))
+  }
+  const query = params.toString()
+  const previewPath = encodePreviewPath(path)
+  const target = `${options.previewRouteBase.replace(/\/+$/, '')}${previewPath}`
+  return query ? `${target}?${query}` : target
+}
+
+async function findFirstRenderablePreviewPath(websiteId: string): Promise<string | null> {
+  const firstPage = await prisma.websiteStructure.findFirst({
+    where: {
+      websiteId,
+      websitePageId: { not: null },
+      fullPath: { not: '/' },
+    },
+    orderBy: [
+      { pathDepth: 'asc' },
+      { position: 'asc' },
+      { createdAt: 'asc' },
+    ],
+    select: { fullPath: true },
+  })
+
+  return firstPage?.fullPath ?? null
 }
 
 function clone<T>(value: T): T {
@@ -264,7 +318,7 @@ async function resolveDesignSystemCss(websiteId: string, designConcept?: string)
     : null
 }
 
-export async function renderLocalWebsitePreview({ websiteId, slug, designConcept }: RenderLocalPreviewOptions) {
+export async function renderLocalWebsitePreview({ websiteId, slug, designConcept, previewToken, previewRouteBase }: RenderLocalPreviewOptions) {
   const slugSegments = toSlugSegments(slug)
   const requestPath = slugSegments.length > 0 ? `/${slugSegments.join('/')}` : '/'
   const startTime = Date.now()
@@ -296,6 +350,16 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
     }
 
     if (resolved.data === null) {
+      if (requestPath === '/' && previewRouteBase) {
+        const firstPath = await findFirstRenderablePreviewPath(websiteId)
+        if (firstPath) {
+          console.info('[LocalPreview] Redirecting missing root preview to first renderable page', {
+            websiteId,
+            to: firstPath,
+          })
+          redirect(buildPreviewRedirectUrl(websiteId, firstPath, { previewRouteBase, designConcept, previewToken, sourcePath: requestPath }))
+        }
+      }
       console.info('[LocalPreview] No page found for path', { path: requestPath, websiteId })
       return notFound()
     }
@@ -303,6 +367,16 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
     const { siteStructure, contentItem } = resolved.data
     if (!contentItem) {
       if (!siteStructure?.websitePageId) {
+        if (requestPath === '/' && previewRouteBase) {
+          const firstPath = await findFirstRenderablePreviewPath(websiteId)
+          if (firstPath) {
+            console.info('[LocalPreview] Redirecting folder root preview to first renderable page', {
+              websiteId,
+              to: firstPath,
+            })
+            redirect(buildPreviewRedirectUrl(websiteId, firstPath, { previewRouteBase, designConcept, previewToken, sourcePath: requestPath }))
+          }
+        }
         console.info('[LocalPreview] No page found for path', { path: requestPath, websiteId })
         return notFound()
       }

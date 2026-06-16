@@ -44,5 +44,7 @@ export default async function StudioLocalPreviewPage(props: PageProps) {
     websiteId: params.websiteId,
     slug: params.slug,
     designConcept: searchParams?.designConcept,
+    previewToken: searchParams?.previewToken,
+    previewRouteBase: `/studio/preview/site/${encodeURIComponent(params.websiteId)}`,
   })
 }

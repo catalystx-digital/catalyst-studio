@@ -12,6 +12,9 @@ const mockResolveUrl = jest.fn()
 const mockPageRendererHelper = jest.fn(() => <section data-testid="page-renderer">Rendered page</section>)
 const mockFindDesignConcept = jest.fn()
 const mockFindDesignSystem = jest.fn()
+const mockFindWebsiteStructure = jest.fn()
+const mockCreateQaPreviewToken = jest.fn(() => 'target-preview-token')
+const mockVerifyQaPreviewToken = jest.fn(() => ({ expiresAt: 1234567890000 }))
 const mockGenerateStrictDesignSystemCss = jest.fn(() => ':root { --color: red; }')
 const mockLoadSharedComponentsById = jest.fn()
 const mockEnrichComponentFromShared = jest.fn((component: unknown) => component)
@@ -45,6 +48,9 @@ jest.mock('@/lib/prisma', () => ({
     websiteDesignSystem: {
       findFirst: (...args: unknown[]) => mockFindDesignSystem(...args),
     },
+    websiteStructure: {
+      findFirst: (...args: unknown[]) => mockFindWebsiteStructure(...args),
+    },
   },
 }))
 
@@ -72,6 +78,12 @@ jest.mock('@/lib/studio/headless/ucs/snapshot-builder', () => ({
   __esModule: true,
   enrichComponentFromShared: (...args: unknown[]) => mockEnrichComponentFromShared(...args),
   extractSiteOriginFromMetadata: (...args: unknown[]) => mockExtractSiteOriginFromMetadata(...args),
+}))
+
+jest.mock('@/lib/studio/preview/qa-preview-token', () => ({
+  __esModule: true,
+  createQaPreviewToken: (...args: unknown[]) => mockCreateQaPreviewToken(...args),
+  verifyQaPreviewToken: (...args: unknown[]) => mockVerifyQaPreviewToken(...args),
 }))
 
 function resolvedPage(overrides: Record<string, unknown> = {}) {
@@ -116,6 +128,9 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     jest.spyOn(console, 'debug').mockImplementation(() => undefined)
     mockFindDesignConcept.mockResolvedValue(null)
     mockFindDesignSystem.mockResolvedValue(null)
+    mockFindWebsiteStructure.mockResolvedValue(null)
+    mockCreateQaPreviewToken.mockReturnValue('target-preview-token')
+    mockVerifyQaPreviewToken.mockReturnValue({ expiresAt: 1234567890000 })
     mockGenerateStrictDesignSystemCss.mockReturnValue(':root { --color: red; }')
     mockLoadSharedComponentsById.mockResolvedValue([])
   })
@@ -155,6 +170,95 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
       slug: ['missing'],
     })).rejects.toThrow('NEXT_NOT_FOUND')
     expect(mockNotFound).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not redirect a missing root unless a preview route base is provided', async () => {
+    mockResolveUrl.mockResolvedValue({ success: true, data: null })
+    mockFindWebsiteStructure.mockResolvedValue({ fullPath: '/about/news' })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+
+    await expect(renderLocalWebsitePreview({
+      websiteId: 'website-1',
+    })).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(mockFindWebsiteStructure).not.toHaveBeenCalled()
+    expect(mockNotFound).toHaveBeenCalledTimes(1)
+  })
+
+  it('redirects missing root preview to the first renderable page', async () => {
+    mockResolveUrl.mockResolvedValue({ success: true, data: null })
+    mockFindWebsiteStructure.mockResolvedValue({ fullPath: '/about/news' })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+
+    await expect(renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      designConcept: 'design-concept-1',
+      previewToken: 'preview-token-1',
+      previewRouteBase: '/studio/preview/site/website-1',
+    })).rejects.toThrow('NEXT_REDIRECT:/studio/preview/site/website-1/about/news?designConcept=design-concept-1&previewToken=target-preview-token')
+
+    expect(mockFindWebsiteStructure).toHaveBeenCalledWith({
+      where: {
+        websiteId: 'website-1',
+        websitePageId: { not: null },
+        fullPath: { not: '/' },
+      },
+      orderBy: [
+        { pathDepth: 'asc' },
+        { position: 'asc' },
+        { createdAt: 'asc' },
+      ],
+      select: { fullPath: true },
+    })
+    expect(mockCreateQaPreviewToken).toHaveBeenCalledWith({
+      websiteId: 'website-1',
+      path: '/about/news',
+      expiresAt: 1234567890000,
+    })
+    expect(mockVerifyQaPreviewToken).toHaveBeenCalledWith('preview-token-1', {
+      websiteId: 'website-1',
+      path: '/',
+    })
+    expect(mockNotFound).not.toHaveBeenCalled()
+  })
+
+  it('redirects folder root preview to the first renderable page', async () => {
+    mockResolveUrl.mockResolvedValue({
+      success: true,
+      data: resolvedPage({
+        siteStructure: {
+          id: 'folder-root',
+          parentId: null,
+          slug: '',
+          fullPath: '/',
+          position: 0,
+          websitePageId: null,
+        },
+        contentItem: null,
+      }),
+    })
+    mockFindWebsiteStructure.mockResolvedValue({ fullPath: '/about/news' })
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+
+    await expect(renderLocalWebsitePreview({
+      websiteId: 'website-1',
+      designConcept: 'design-concept-1',
+      previewToken: 'preview-token-1',
+      previewRouteBase: '/studio/preview/site/website-1',
+    })).rejects.toThrow('NEXT_REDIRECT:/studio/preview/site/website-1/about/news?designConcept=design-concept-1&previewToken=target-preview-token')
+    expect(mockCreateQaPreviewToken).toHaveBeenCalledWith({
+      websiteId: 'website-1',
+      path: '/about/news',
+      expiresAt: 1234567890000,
+    })
+    expect(mockVerifyQaPreviewToken).toHaveBeenCalledWith('preview-token-1', {
+      websiteId: 'website-1',
+      path: '/',
+    })
+    expect(mockNotFound).not.toHaveBeenCalled()
   })
 
   it('throws a malformed invariant when success true omits data', async () => {
