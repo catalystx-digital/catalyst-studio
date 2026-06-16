@@ -550,6 +550,7 @@ export class ImportResultHandler {
           pageUrl,
           resourcesSummary: detection.resourcesSummary,
           pageMetadata: detection.pageMetadata,
+          pageTemplate: detection.pageTemplate,
           designProfile: importDesignProfile,
           presentationSkeleton,
         });

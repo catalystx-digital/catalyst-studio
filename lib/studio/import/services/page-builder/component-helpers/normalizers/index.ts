@@ -58,6 +58,7 @@ export {
 
 // Blog normalizers
 export {
+  normalizeBlogListContent,
   normalizeBlogPostContent,
   normalizeArticleHeaderContent
 } from './blog-normalizers'
@@ -92,7 +93,7 @@ import { normalizeHeroSimpleContent, normalizeHeroBannerContent, normalizeHeroWi
 import { normalizeNavbarContent, normalizeFooterContent, normalizeBreadcrumbsContent } from './nav-normalizers'
 import { normalizeTimelineContent, normalizeTextBlockContent, normalizeHtmlBlockContent, normalizeQuoteBlockContent, normalizeSidemenuContent, normalizeSidebarNavContent, normalizeContentFeedContent, normalizeTwoColumnContent } from './content-normalizers'
 import { normalizeCtaWithFormContent, normalizeCtaSimpleContent, normalizeCtaBannerContent } from './cta-normalizers'
-import { normalizeBlogPostContent, normalizeArticleHeaderContent } from './blog-normalizers'
+import { normalizeBlogListContent, normalizeBlogPostContent, normalizeArticleHeaderContent } from './blog-normalizers'
 import { normalizeTeamGridContent } from './about-normalizers'
 import { normalizeImageGalleryContent, normalizeVideoEmbedContent } from './media-normalizers'
 import { normalizeStatisticsContent } from './data-normalizers'
@@ -120,6 +121,7 @@ export const COMPONENT_CONTENT_NORMALIZERS: Record<string, ComponentContentNorma
   'sidebar-nav': normalizeSidebarNavContent,
   statistics: normalizeStatisticsContent,
   'content-feed': normalizeContentFeedContent,
+  'blog-list': normalizeBlogListContent,
   'blog-post': normalizeBlogPostContent,
   'article-header': normalizeArticleHeaderContent,
   'team-grid': normalizeTeamGridContent,

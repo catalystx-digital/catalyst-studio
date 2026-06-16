@@ -53,6 +53,19 @@ const mockComponents: ComponentPattern[] = [
     }
   },
   {
+    type: 'blog-list',
+    category: 'blog',
+    keywords: ['blog', 'news', 'articles'],
+    patterns: ['blog', 'news', 'article'],
+    confidence: 0.86,
+    metadata: {
+      category: 'blog',
+      properties: ['posts', 'title'],
+      description: 'Blog listing',
+      keywords: ['blog', 'news']
+    }
+  },
+  {
     type: 'video-embed',
     category: 'content',
     keywords: ['video', 'youtube', 'embed'],
@@ -317,6 +330,27 @@ const mockWebResponse = JSON.stringify({
     { component: 'card-grid', confidence: 0.85, content: { cards: [{ type: 'card-item', title: 'Feature 1', description: 'Feature description' }] } }
   ],
   pageMetadata: { title: 'Example' }
+})
+
+const mockBlogIndexResponse = JSON.stringify({
+  sectionKey: 'main:0-99',
+  components: [
+    { component: 'navbar', confidence: 0.95, content: { menuItems: [{ label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } }] } },
+    {
+      component: 'blog-list',
+      confidence: 0.9,
+      content: {
+        title: 'News',
+        posts: [
+          {
+            title: 'News item',
+            excerpt: 'Short update'
+          }
+        ]
+      }
+    }
+  ],
+  pageMetadata: { title: 'News' }
 })
 
 describe('DetectionService (web-based)', () => {
@@ -1063,6 +1097,32 @@ describe('DetectionService (web-based)', () => {
       const result = await service.detectComponentsFromUrl('https://example.com/articles')
 
       expect(result.pageTemplate.templateKey).toBe('blog/index-standard')
+    })
+
+    it('selects the blog index template for paginated editorial listing routes', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: mockBlogIndexResponse } }],
+        usage: { total_tokens: 1000 }
+      })
+      const result = await service.detectComponentsFromUrl('https://example.com/news/page/3')
+
+      expect(result.pageTemplate.templateKey).toBe('blog/index-standard')
+    })
+
+    it('selects the blog index template for paginated article archive routes', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: mockBlogIndexResponse } }],
+        usage: { total_tokens: 1000 }
+      })
+      const result = await service.detectComponentsFromUrl('https://example.com/articles/page/2/')
+
+      expect(result.pageTemplate.templateKey).toBe('blog/index-standard')
+    })
+
+    it('keeps article slug routes on the blog post template', async () => {
+      const result = await service.detectComponentsFromUrl('https://example.com/news/some-slug')
+
+      expect(result.pageTemplate.templateKey).toBe('blog/post-standard')
     })
 
     it('does not select a home-eligible template for non-home landing pages', async () => {

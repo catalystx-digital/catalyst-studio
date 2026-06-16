@@ -5,6 +5,7 @@ import {
   isFatalNormalizationIssue
 } from '../page-builder/normalization-telemetry'
 import { normalizeImage, SUBCOMPONENT_NORMALIZERS } from '../page-builder/subcomponent-normalizers'
+import { BlogListDef } from '@/lib/studio/components/cms/blog/blog-list/blog-list.def'
 import { ContentFeedDef } from '@/lib/studio/components/cms/content/content-feed/content-feed.def'
 import { HtmlBlockDef } from '@/lib/studio/components/cms/content/html-block/html-block.def'
 import { TextBlockDef } from '@/lib/studio/components/cms/content/text-block/text-block.def'
@@ -1594,6 +1595,50 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
       ])
     )
     expect(ContentFeedDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
+  it('removes null optional images from blog-list posts without dropping the post', () => {
+    const detection: DetectionResult = {
+      id: 'blog-list-null-image',
+      type: 'blog-list',
+      bounds: baseBounds,
+      content: {
+        posts: [
+          {
+            title: 'Hospital update published',
+            excerpt: 'A short update from the team.',
+            image: null,
+            author: null
+          }
+        ],
+        manualPosts: [
+          {
+            title: 'Pinned update',
+            image: null
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('blog-list'))
+    const warnings = consumeNormalizationWarnings()
+
+    expect(props.content).toEqual({
+      posts: [
+        {
+          title: 'Hospital update published',
+          excerpt: 'A short update from the team.'
+        }
+      ],
+      manualPosts: [
+        {
+          title: 'Pinned update'
+        }
+      ]
+    })
+    expect(warnings).toEqual([])
+    expect(BlogListDef.schema.safeParse(props.content).success).toBe(true)
   })
 
   it('drops content-feed pinned entries without titles and images without renderable URLs', () => {

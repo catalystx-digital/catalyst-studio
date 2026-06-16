@@ -13,7 +13,7 @@
  * @module detection-post-processor
  */
 
-import type { DetectedComponent, PageMetadata } from '@/lib/studio/import/detection/types'
+import type { DetectedComponent, DetectedPageTemplate, PageMetadata } from '@/lib/studio/import/detection/types'
 import type { ResourcesSummary } from './web-tools'
 import type { ImportDesignProfile, PresentationSkeletonSelection } from '../types/design-profile.types'
 import { UrlTransformConfig } from '../config/import-config'
@@ -32,6 +32,7 @@ import { enrichHeroContent } from './detection-post-processor/hero-content-enric
 import { recoverMissingHomepageHero } from './detection-post-processor/hero-recovery-processor'
 import { recoverSourceNarrativeSections } from './detection-post-processor/source-narrative-recovery-processor'
 import { consolidateArticleDetailFragments } from './detection-post-processor/article-detail-consolidation-processor'
+import { consolidateBlogIndexListings } from './detection-post-processor/blog-index-consolidation-processor'
 import { completeCardGridsFromSource } from './detection-post-processor/card-grid-completion-processor'
 import { collapseAdjacentHeroSlides, enrichHeroCarouselFromSource } from './detection-post-processor/hero-carousel-processor'
 import { unwrapJsonContent } from './detection-post-processor/json-unwrap-processor'
@@ -51,6 +52,7 @@ interface PostProcessorOptions {
   pageUrl?: string
   resourcesSummary?: ResourcesSummary
   pageMetadata?: PageMetadata
+  pageTemplate?: DetectedPageTemplate
   designProfile?: ImportDesignProfile | null
   presentationSkeleton?: PresentationSkeletonSelection | null
 }
@@ -147,6 +149,14 @@ export function adjustDetectedComponents(
     const consolidated = consolidateArticleDetailFragments(c, {
       pageUrl: options.pageUrl,
       pageMetadata: options.pageMetadata
+    })
+    c.splice(0, c.length, ...consolidated)
+  })
+
+  withTelemetry('blogIndexConsolidation', cloned, (c) => {
+    const consolidated = consolidateBlogIndexListings(c, {
+      pageUrl: options.pageUrl,
+      pageTemplate: options.pageTemplate
     })
     c.splice(0, c.length, ...consolidated)
   })

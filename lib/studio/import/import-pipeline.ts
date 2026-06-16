@@ -194,7 +194,8 @@ export class ImportPipeline {
           components: adjustDetectedComponents(result.components, {
             pageUrl: result.pageUrl,
             resourcesSummary: result.resourcesSummary,
-            pageMetadata: result.pageMetadata
+            pageMetadata: result.pageMetadata,
+            pageTemplate: result.pageTemplate
           })
         }
       })

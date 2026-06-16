@@ -33,4 +33,18 @@ describe('buildDetectionSectionPlan', () => {
 
     expect(tasks[1].candidateTypes).toContain('content-feed')
   })
+
+  it('uses blog-list instead of generic listing components on editorial archive pages', () => {
+    const tasks = buildDetectionSectionPlan({
+      pageUrl: 'https://example.com/news/page/3',
+      sections: [
+        { key: 'main:0-999', approxBytes: 900, hash: 'a', nodeCount: 20 },
+        { key: 'main:1000-1999', approxBytes: 900, hash: 'b', nodeCount: 20 }
+      ]
+    })
+
+    expect(tasks[1].candidateTypes).toContain('blog-list')
+    expect(tasks[1].candidateTypes).not.toContain('content-feed')
+    expect(tasks[1].candidateTypes).not.toContain('card-grid')
+  })
 })

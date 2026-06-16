@@ -42,6 +42,15 @@ const ROUTE_EXTRA_TYPES: Array<{ pattern: RegExp; types: string[] }> = [
   { pattern: /\/(?:news|blog|blogs|article|articles|post|posts|press|insights?)(?:\/|$)/i, types: ['content-feed', 'blog-list', 'blog-post', 'article-header'] }
 ]
 
+function isDedicatedEditorialListingUrl(pageUrl: string): boolean {
+  try {
+    const path = new URL(pageUrl).pathname
+    return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/page\/\d+)?\/?$/i.test(path)
+  } catch {
+    return false
+  }
+}
+
 function roleForSection(sectionKey: string, index: number): DetectionSectionRole {
   const key = sectionKey.toLowerCase()
   if (key.includes('header')) return 'header'
@@ -51,6 +60,7 @@ function roleForSection(sectionKey: string, index: number): DetectionSectionRole
 
 function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[] {
   const routeIntent = classifyRouteIntent(pageUrl)
+  const dedicatedEditorialListing = isDedicatedEditorialListingUrl(pageUrl)
   const candidates = new Set<string>(
     role === 'header'
       ? HEADER_TYPES
@@ -67,6 +77,10 @@ function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[
     if (hint.pattern.test(pageUrl)) {
       hint.types.forEach(type => candidates.add(type))
     }
+  }
+  if (dedicatedEditorialListing && candidates.has('blog-list')) {
+    candidates.delete('content-feed')
+    candidates.delete('card-grid')
   }
   return filterPageContentCandidateTypes(candidates)
 }

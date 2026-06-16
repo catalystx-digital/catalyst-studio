@@ -1,7 +1,7 @@
 /**
  * Blog Component Normalizers
  *
- * Normalizers for blog-post and article-header components.
+ * Normalizers for blog-list, blog-post, and article-header components.
  * Extracted from component-helpers.ts for modularity.
  *
  * @module blog-normalizers
@@ -14,6 +14,51 @@ import {
   type LocalNormalizationWarning,
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
+
+/**
+ * Normalizes blog-list component content.
+ * Handles optional post images without synthesizing placeholders.
+ */
+export const normalizeBlogListContent: ComponentContentNormalizer = (
+  content: Record<string, any>,
+  options: { parentCanonicalType: string; pageUrl?: string }
+) => {
+  const flattened = expandSourceRecord(content, {
+    canonicalType: 'blog-list',
+    parentCanonicalType: options.parentCanonicalType,
+    field: 'content',
+    index: 0,
+    pageUrl: options.pageUrl
+  })
+
+  const normalizePosts = (value: unknown): unknown => {
+    if (!Array.isArray(value)) {
+      return value
+    }
+    return value.map(item => {
+      if (!isRecord(item) || (item.image !== null && item.author !== null)) {
+        return item
+      }
+      const { image: _image, author: _author, ...rest } = item
+      if (item.image !== null) {
+        rest.image = item.image
+      }
+      if (item.author !== null) {
+        rest.author = item.author
+      }
+      return rest
+    })
+  }
+
+  return {
+    content: {
+      ...flattened,
+      ...(Object.prototype.hasOwnProperty.call(flattened, 'posts') ? { posts: normalizePosts(flattened.posts) } : {}),
+      ...(Object.prototype.hasOwnProperty.call(flattened, 'manualPosts') ? { manualPosts: normalizePosts(flattened.manualPosts) } : {})
+    },
+    warnings: []
+  }
+}
 
 /**
  * Normalizes blog-post component content.

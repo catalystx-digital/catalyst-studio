@@ -47,6 +47,7 @@ const summary: PageCatalogSummary = {
 const patterns: ComponentPattern[] = [
   { type: 'navbar', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'blog-post', category: 'blog', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'blog-list', category: 'blog', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'text-block', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'cta-banner', category: 'cta', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'cta-simple', category: 'cta', confidence: 0.9, keywords: [], patterns: [] },
@@ -1163,6 +1164,83 @@ describe('parseSectionDetectionResponse', () => {
         component: 'logo-cloud',
         type: 'logo-cloud',
         reason: expect.stringContaining('content is invalid')
+      })
+    ])
+  })
+
+  it('removes null optional images from blog list items before schema validation', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'blog-list',
+            confidence: 0.9,
+            content: {
+              posts: [
+                {
+                  title: 'One article',
+                  excerpt: 'Article summary',
+                  image: null
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/news/page/2',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.components).toHaveLength(1)
+    expect(parsed.components[0].content).toEqual({
+      posts: [
+        {
+          title: 'One article',
+          excerpt: 'Article summary'
+        }
+      ]
+    })
+  })
+
+  it('keeps malformed non-null blog list images invalid during isolation', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [
+          {
+            component: 'blog-list',
+            confidence: 0.9,
+            content: {
+              posts: [
+                {
+                  title: 'One article',
+                  excerpt: 'Article summary',
+                  image: { url: 'https://example.com/image.jpg' }
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/news/page/2',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components).toHaveLength(0)
+    expect(parsed.invalidComponents).toEqual([
+      expect.objectContaining({
+        index: 0,
+        component: 'blog-list',
+        type: 'blog-list',
+        reason: expect.stringContaining('posts.0.image')
       })
     ])
   })

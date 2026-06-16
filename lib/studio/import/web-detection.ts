@@ -320,18 +320,18 @@ function checkpointArtifactKey(prefix: string, url: string): string {
 function isDedicatedEditorialListingUrl(url: string): boolean {
   try {
     const path = new URL(url).pathname
-    return /\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/|$)/i.test(path)
+    return isEditorialIndexPath(path)
   } catch {
     return false
   }
 }
 
 function isEditorialIndexPath(path: string): boolean {
-  return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\/?$/i.test(path)
+  return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/page\/\d+)?\/?$/i.test(path)
 }
 
 function isEditorialDetailPath(path: string): boolean {
-  return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\/.+/i.test(path)
+  return /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\/.+/i.test(path) && !isEditorialIndexPath(path)
 }
 
 function addTokenUsage(target: TokenUsage, source: TokenUsage | undefined): void {
@@ -924,12 +924,14 @@ export class DetectionService {
               'Never emit generic wrappers such as section, container, wrapper, block, group, layout, or raw DOM/tag names.',
               'Do not invent copy, URLs, images, dates, categories, or placeholder content.',
               'If this section contains project/case-study/client-work/latest-project tiles, use card-grid, not content-feed.',
-              'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings; never use card-grid for those editorial feeds.',
               'One carousel, slider, tab panel, or responsive listing surface must become one component with nested items; never emit one top-level component per slide/card variant.',
               'Hidden or inactive slides/items marked by aria-hidden, hidden, data-active/current/index, carousel/slider classes, or responsive duplicate wrappers must not become separate top-level components.',
               'When desktop/mobile/list variants contain the same item titles or links, represent the source surface once using the richest visible variant.',
               'Every image.src MediaReference object must include mediaId, mediaType: "image", and url.',
               'card-grid.cards[] links must use href, never link or url.',
+              isDedicatedEditorialListingUrl(url)
+                ? 'This URL is a dedicated editorial listing/archive page. Use blog-list for article/news teaser lists; content-feed and card-grid must not represent the primary article list.'
+                : 'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings; never use card-grid for those editorial feeds.',
               'When nodes include bgColor evidence for a visible component surface, preserve that source CSS color in the component style fields supported by its schema; do not infer colors from brand palette.',
               'If no registered component can truthfully represent the section, return components: [].'
             ].join('\n\n')
@@ -1469,6 +1471,10 @@ export class DetectionService {
             taxonomy.allowedTypes.forEach(type => candidateTypes.add(type))
             taxonomy.deniedTypes.forEach(type => candidateTypes.delete(type))
             expandCandidatesFromSectionEvidence(candidateTypes, section.packets)
+            if (dedicatedEditorialListing && candidateTypes.has('blog-list')) {
+              candidateTypes.delete('content-feed')
+              candidateTypes.delete('card-grid')
+            }
             if (taxonomy.intent === 'editorial_feed' && candidateTypes.has('content-feed')) {
               candidateTypes.delete('card-grid')
             }
@@ -1535,7 +1541,9 @@ export class DetectionService {
                 'evidenceRefs must reference provided source packet ids or pathId values.',
                 'For visible static lists of non-editorial links, resources, services, or feature cards, prefer card-grid.',
                 'Use accordion only for real collapsible FAQ/Q&A/details content with non-empty answer/body text for each item; never use accordion for ordinary navigation or "In this section" link lists.',
-                'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings, including latest-news modules on a home page.',
+                dedicatedEditorialListing
+                  ? 'This URL is a dedicated editorial listing/archive page. Use blog-list for article/news teaser lists; content-feed and card-grid must not represent the primary article list.'
+                  : 'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings, including latest-news modules on a home page.',
                 'If a non-required section has no importable component, return plannedComponents: [] and emptyReason: duplicate, decorative, unsupported, or no_visible_content.',
                 'Do not invent sections, components, or evidence references.'
               ].join('\n')
