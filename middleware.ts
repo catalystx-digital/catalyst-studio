@@ -9,6 +9,8 @@ import {
 const STATIC_BYPASS_PATTERNS = [
   /^\/_next\//,
   /^\/favicons?\//,
+  /^\/favicon(?:-\d+x\d+)?\.(?:ico|png|svg)$/,
+  /^\/apple-touch-icon\.png$/,
   /^\/robots\.txt$/,
   /^\/site\.webmanifest$/,
   /^\/static\//,
