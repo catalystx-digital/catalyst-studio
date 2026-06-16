@@ -8,6 +8,7 @@ import { getHeroComponentTypes } from '@/lib/studio/components/cms/_core/definit
 const HERO_COMPONENTS: ComponentType[] = Array.from(getHeroComponentTypes()) as ComponentType[]
 
 const MAIN_REGION_COMPONENTS: ComponentType[] = [
+  ComponentType.AboutSection,
   ComponentType.FeatureGrid,
   ComponentType.FeatureList,
   ComponentType.FeatureShowcase,

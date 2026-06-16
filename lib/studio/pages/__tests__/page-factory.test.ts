@@ -161,7 +161,8 @@ describe('getPageCatalogSummary', () => {
         ComponentType.ContactInfo,
         ComponentType.LocationMap,
         ComponentType.Statistics,
-        ComponentType.Accordion
+        ComponentType.Accordion,
+        ComponentType.AboutSection
       ])
     )
   })

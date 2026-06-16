@@ -1,5 +1,6 @@
 import { enrichComponentImages } from '../image-enrichment-processor'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
+import { normalizeComponentContent } from '@/lib/studio/import/services/page-builder/component-helpers'
 
 describe('image enrichment processor', () => {
   let logSpy: jest.SpyInstance
@@ -712,6 +713,100 @@ describe('image enrichment processor', () => {
 
     expect(result[0].content).toMatchObject({
       backgroundImage: 'https://www.example.com/appointments/team.jpg',
+    })
+  })
+
+  it('adds matched two-column text images as schema-valid image-gallery children', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'two-column',
+        component: 'two-column',
+        confidence: 0.9,
+        content: {
+          leftColumn: [
+            {
+              type: 'text-block',
+              content: {
+                heading: 'Current exhibitions',
+                body: 'Explore new exhibitions and installations.',
+              },
+            },
+          ],
+          rightColumn: [
+            {
+              type: 'text-block',
+              content: {
+                heading: 'Plan your visit',
+                body: 'Tickets and visitor information.',
+              },
+            },
+          ],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Current exhibitions</h2>
+        <p>Explore new exhibitions and installations.</p>
+        <img src="/media/exhibitions/gallery.jpg" alt="Installation view">
+      </section>
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://museum.example.com/',
+    })
+
+    const content = result[0].content as {
+      leftColumn: Array<{ type: string; content?: Record<string, unknown> }>
+    }
+    expect(content.leftColumn).toHaveLength(2)
+    expect(content.leftColumn[0]).toEqual(expect.objectContaining({
+      type: 'text-block',
+      content: expect.not.objectContaining({ image: expect.anything() }),
+    }))
+    expect(content.leftColumn[1]).toMatchObject({
+      type: 'image-gallery',
+      content: {
+        images: [
+          {
+            src: {
+              url: 'https://museum.example.com/media/exhibitions/gallery.jpg',
+            },
+            alt: 'Installation view',
+          },
+        ],
+      },
+    })
+
+    const normalized = normalizeComponentContent(result[0].content as Record<string, unknown>, {
+      parentCanonicalType: 'two-column',
+      pageUrl: 'https://museum.example.com/',
+    })
+    expect(normalized.warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          issue: 'unknown-field',
+          field: 'image',
+        }),
+      ])
+    )
+    expect(normalized.content).toMatchObject({
+      leftColumn: [
+        { type: 'text-block' },
+        {
+          type: 'image-gallery',
+          content: {
+            images: [
+              {
+                src: {
+                  url: 'https://museum.example.com/media/exhibitions/gallery.jpg',
+                },
+              },
+            ],
+          },
+        },
+      ],
     })
   })
 

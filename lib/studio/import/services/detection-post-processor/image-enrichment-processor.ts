@@ -880,39 +880,57 @@ function enrichComponentWithImage(
     return true
   }
 
-  // For two-column components, try to add to the matching child component.
+  // For two-column components, attach matched images only through schema-valid
+  // child components. Text/html children do not own an image field.
   if (component.type === 'two-column') {
     const leftColumn = content.leftColumn as Array<Record<string, unknown>> | undefined
     const rightColumn = content.rightColumn as Array<Record<string, unknown>> | undefined
 
-    const columns = [...(leftColumn || []), ...(rightColumn || [])]
+    const columns = [
+      ...(leftColumn ? [{ items: leftColumn, name: 'leftColumn' }] : []),
+      ...(rightColumn ? [{ items: rightColumn, name: 'rightColumn' }] : [])
+    ]
 
     // Find matching column item by text
-    for (const item of columns) {
-      const itemText = getItemText(item)
+    for (const column of columns) {
+      for (let index = 0; index < column.items.length; index += 1) {
+        const item = column.items[index]
+        const itemText = getItemText(item)
 
-      // Debug: Log matching attempts for ED-wait image
-      if (image.src.includes('ED-wait')) {
-        console.log('[ImageEnrichment] Trying to match ED-wait image:', {
-          itemHeading: item.heading,
-          itemText: itemText.substring(0, 100),
-          nearbyText: image.nearbyText?.substring(0, 100),
-          matches: image.nearbyText && itemText ? imageMatchesItem(image.nearbyText, itemText) : false
-        })
-      }
-
-      if (image.nearbyText && itemText && imageMatchesItem(image.nearbyText, itemText)) {
-        if (!hasImage(item)) {
-          if (isRecord(item.content)) {
-            ;(item.content as Record<string, unknown>).image = imageData
-          } else {
-            item.image = imageData
-          }
-          console.log('[ImageEnrichment] Added image to two-column item:', {
-            heading: item.heading,
-            imageUrl: absoluteSrc.substring(0, 60)
+        // Debug: Log matching attempts for ED-wait image
+        if (image.src.includes('ED-wait')) {
+          console.log('[ImageEnrichment] Trying to match ED-wait image:', {
+            itemHeading: item.heading,
+            itemText: itemText.substring(0, 100),
+            nearbyText: image.nearbyText?.substring(0, 100),
+            matches: image.nearbyText && itemText ? imageMatchesItem(image.nearbyText, itemText) : false
           })
-          return true
+        }
+
+        if (image.nearbyText && itemText && imageMatchesItem(image.nearbyText, itemText)) {
+          if (!hasImage(item)) {
+            if (addImageToSupportedTwoColumnChild(item, imageData)) {
+              console.log('[ImageEnrichment] Added image to two-column item:', {
+                heading: item.heading,
+                imageUrl: absoluteSrc.substring(0, 60)
+              })
+              return true
+            }
+
+            column.items.splice(index + 1, 0, {
+              id: stableImageId(absoluteSrc),
+              type: 'image-gallery',
+              content: {
+                images: [imageData]
+              }
+            })
+            console.log('[ImageEnrichment] Added image gallery to two-column column:', {
+              column: column.name,
+              afterIndex: index,
+              imageUrl: absoluteSrc.substring(0, 60)
+            })
+            return true
+          }
         }
       }
     }
@@ -967,6 +985,25 @@ function hasImage(record: Record<string, unknown>): boolean {
     return Boolean(content.image || content.imageUrl)
   }
   return false
+}
+
+function addImageToSupportedTwoColumnChild(
+  item: Record<string, unknown>,
+  imageData: Record<string, unknown>
+): boolean {
+  const type = typeof item.type === 'string'
+    ? item.type
+    : typeof item.component === 'string'
+      ? item.component
+      : undefined
+  if (type !== 'image-gallery') {
+    return false
+  }
+
+  const target = isRecord(item.content) ? item.content as Record<string, unknown> : item
+  const images = Array.isArray(target.images) ? target.images as unknown[] : []
+  target.images = [...images, imageData]
+  return true
 }
 
 function enrichCardCollection(
