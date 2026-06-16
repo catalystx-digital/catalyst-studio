@@ -2,10 +2,33 @@ import { CMSComponentProps } from '../../_core/types';
 import { RichText } from '../../_core/rich-text';
 import { type TeamMember } from '@/lib/studio/components/cms/_core/value-objects';
 
+type TeamMemberPhoto =
+  | string
+  | {
+      src?: string | {
+        src?: string;
+        url?: string;
+        mediaId?: string;
+        mediaType?: 'image' | 'video' | 'file';
+        originalUrl?: string;
+        renditions?: unknown[];
+      };
+      url?: string;
+      alt?: string;
+      originalUrl?: string;
+      mediaId?: string;
+      mediaType?: 'image' | 'video' | 'file';
+      renditions?: Array<{
+        src?: string;
+        width?: number | null;
+        height?: number | null;
+      }>;
+    };
+
 // Using TeamMember from value-objects registry
-export type TeamMemberData = TeamMember & {
+export type TeamMemberData = Omit<TeamMember, 'photo'> & {
   // Extensions specific to team-grid
-  photo: string; // Required in grid context
+  photo?: TeamMemberPhoto;
   bio?: RichText;
   facebook?: string;
   instagram?: string;

@@ -290,6 +290,60 @@ describe('TeamGrid', () => {
     expect(screen.getByText('FP')).toBeInTheDocument();
   });
 
+  it('renders imported media reference photos', () => {
+    const props: TeamGridProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        members: [
+          {
+            id: 'member-media',
+            name: 'Media Person',
+            title: 'Designer',
+            photo: {
+              url: 'https://cdn.example.com/team/media-person.jpg',
+              mediaId: 'member-photo',
+              mediaType: 'image',
+            },
+            photoAlt: 'Media Person portrait',
+          } as any,
+        ],
+      },
+    };
+
+    render(<TeamGrid {...props} />);
+
+    expect(screen.getByAltText('Media Person portrait')).toHaveAttribute(
+      'src',
+      'https://cdn.example.com/team/media-person.jpg',
+    );
+  });
+
+  it('falls back to avatar initials when an imported photo object has no usable URL', () => {
+    const props: TeamGridProps = {
+      ...defaultProps,
+      content: {
+        ...defaultProps.content,
+        members: [
+          {
+            id: 'member-invalid-media',
+            name: 'Invalid Media',
+            title: 'Designer',
+            photo: {
+              mediaId: 'missing-url',
+              mediaType: 'image',
+            },
+          },
+        ],
+      },
+    };
+
+    render(<TeamGrid {...props} />);
+
+    expect(screen.getByText('IM')).toBeInTheDocument();
+    expect(screen.queryByAltText('Invalid Media')).not.toBeInTheDocument();
+  });
+
   it('accepts AI metadata without errors', () => {
     render(
       <TeamGrid

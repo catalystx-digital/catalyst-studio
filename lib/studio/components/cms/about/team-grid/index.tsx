@@ -30,6 +30,7 @@ import {
 import { withPerformanceTracking } from '../../_core/monitoring';
 import { ComponentType } from '../../_core/types';
 import { SafeHtml } from '../../_core/safe-html';
+import { normalizeCmsImage } from '../../_utils/media-reference';
 import type {
   TeamGridProps,
   TeamMemberData,
@@ -108,7 +109,7 @@ function isValidProfileUrl(url?: string): boolean {
   return trimmed.startsWith('/') || validateUrl(trimmed);
 }
 
-function normalizeMember(member: TeamMemberData): NormalizedMember | null {
+function normalizeMember(member: TeamMemberData & { photo?: unknown }): NormalizedMember | null {
   if (!member || typeof member !== 'object') {
     return null;
   }
@@ -145,15 +146,12 @@ function normalizeMember(member: TeamMemberData): NormalizedMember | null {
     });
   }
 
-  const photo =
-    typeof member.photo === 'string' && member.photo.trim().length > 0
-      ? member.photo.trim()
-      : undefined;
-
   const photoAlt = sanitizeText(
     member.photoAlt ??
       (name && title ? `${name} – ${title}` : name || 'Team member photo'),
   );
+  const normalizedPhoto = normalizeCmsImage(member.photo, photoAlt);
+  const photo = normalizedPhoto?.src;
 
   const profileUrl = isValidProfileUrl(member.profileUrl)
     ? member.profileUrl!.trim()

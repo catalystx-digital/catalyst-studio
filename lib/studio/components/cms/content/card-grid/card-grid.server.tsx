@@ -21,12 +21,14 @@ import {
   NormalizedCardItem,
 } from './card-grid.types';
 
-function normalizeCard(card: CardItem & { bgColor?: string }): NormalizedCardItem {
+function normalizeCard(card: CardItem & { bgColor?: string; icon?: unknown }): NormalizedCardItem {
   const id = card.id || `card-${Math.random().toString(36).slice(2, 11)}`;
-  const { image, imageAlt, bgColor, ...rest } = card;
+  const { image, imageAlt, bgColor, icon: rawIcon, ...rest } = card;
+  const icon = typeof rawIcon === 'string' ? rawIcon : undefined;
   const link = resolveSmartLinkHref(rest.link) ?? resolveSmartLinkHref(rest.href);
   const base: NormalizedCardItem = {
     ...rest,
+    ...(icon ? { icon } : {}),
     id,
     imageAlt,
     ...(link ? { link } : {}),
@@ -34,7 +36,8 @@ function normalizeCard(card: CardItem & { bgColor?: string }): NormalizedCardIte
     backgroundColor: bgColor ?? rest.backgroundColor,
   };
 
-  const normalizedImage = normalizeCmsImage(image, imageAlt);
+  const imageCandidate = image ?? (rawIcon && typeof rawIcon === 'object' ? rawIcon : undefined);
+  const normalizedImage = normalizeCmsImage(imageCandidate, imageAlt);
   if (!normalizedImage) {
     return base;
   }

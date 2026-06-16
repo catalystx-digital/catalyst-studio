@@ -49,4 +49,49 @@ describe('CardGridServer', () => {
     expect(markup).toContain('/images/card.jpg');
     expect(markup).toContain('Canonical media image');
   });
+
+  it('treats imported media object icons as card images', () => {
+    const markup = renderToStaticMarkup(
+      <CardGridServer
+        content={{
+          heading: 'Sample grid',
+          cards: [
+            {
+              id: 'card-1',
+              title: 'Platform knowledge',
+              icon: {
+                src: 'https://cdn.example.com/icon-platform.png',
+                mediaId: 'media-icon',
+                originalUrl: 'https://cdn.example.com/icon-platform.png',
+              },
+            } as any,
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain('https://cdn.example.com/icon-platform.png');
+    expect(markup).toContain('Platform knowledge');
+    expect(markup).not.toContain('[object Object]');
+  });
+
+  it('keeps string icons as icon text', () => {
+    const markup = renderToStaticMarkup(
+      <CardGridServer
+        content={{
+          heading: 'Sample grid',
+          cards: [
+            {
+              id: 'card-1',
+              title: 'Strategy',
+              icon: '*',
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain('>*</span>');
+    expect(markup).not.toContain('<img');
+  });
 });
