@@ -1055,6 +1055,11 @@ function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] 
   let linkMatch: RegExpExecArray | null
 
   while ((linkMatch = linkRegex.exec(html)) !== null) {
+    const mediaMatch = linkMatch[0].match(/\bmedia=["']([^"']+)["']/i)
+    if (isPrintOnlyStylesheetMedia(mediaMatch?.[1])) {
+      continue
+    }
+
     const hrefMatch = linkMatch[0].match(/href=["']([^"']+)["']/i)
     if (hrefMatch && hrefMatch[1]) {
       let href = hrefMatch[1]
@@ -1073,6 +1078,17 @@ function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] 
   }
 
   return urls
+}
+
+function isPrintOnlyStylesheetMedia(media: string | undefined): boolean {
+  if (!media) return false
+  const normalized = media.trim().toLowerCase()
+  if (!normalized) return false
+  return normalized
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .every(part => part === 'print' || /^\(?\s*print\s*\)?$/.test(part))
 }
 
 function normalizeImportHostname(hostname: string): string {

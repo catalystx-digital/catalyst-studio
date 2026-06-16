@@ -22,7 +22,7 @@ import { transformComponentUrls, extractOrigin } from '../utils/url-transformer'
 // Import from decomposed processor modules
 import { cloneComponent } from './detection-post-processor/utils'
 import { assignHeaderRegions, assignHeroRegions } from './detection-post-processor/region-processor'
-import { collapseDuplicateGlobalNavigation, normalizeMultiRowNavigation, recoverOrRemoveEmptyGlobalNavigation } from './detection-post-processor/navigation-processor'
+import { collapseDuplicateGlobalNavigation, normalizeMultiRowNavigation, recoverOrRemoveEmptyGlobalNavigation, sanitizeGlobalLogosAgainstSource } from './detection-post-processor/navigation-processor'
 import { promoteHeroBackground } from './detection-post-processor/hero-processor'
 import { cleanupCtas } from './detection-post-processor/cta-processor'
 import { mergeHeroWithAdjacentCta } from './detection-post-processor/hero-cta-merger'
@@ -143,6 +143,14 @@ export function adjustDetectedComponents(
       pageUrl: options.pageUrl
     })
     c.splice(0, c.length, ...recovered)
+  })
+
+  withTelemetry('globalLogoSanitization', cloned, (c) => {
+    const sanitized = sanitizeGlobalLogosAgainstSource(c, {
+      domSnapshot: options.domSnapshot,
+      pageUrl: options.pageUrl
+    })
+    c.splice(0, c.length, ...sanitized)
   })
 
   withTelemetry('articleDetailConsolidation', cloned, (c) => {

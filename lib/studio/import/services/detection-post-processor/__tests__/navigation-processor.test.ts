@@ -3,6 +3,7 @@ import {
   collapseDuplicateGlobalNavigation,
   hasMeaningfulNavbarContent,
   recoverOrRemoveEmptyGlobalNavigation,
+  sanitizeGlobalLogosAgainstSource,
 } from '../navigation-processor'
 
 function component(type: string, content: Record<string, unknown>): DetectedComponent {
@@ -117,6 +118,189 @@ describe('recoverOrRemoveEmptyGlobalNavigation', () => {
     expect(hasMeaningfulNavbarContent({ cta: { label: 'Donate', href: { type: 'internal', path: '/donate' } }, menuItems: [] })).toBe(true)
     expect(hasMeaningfulNavbarContent({ search: { enabled: true }, menuItems: [] })).toBe(true)
     expect(hasMeaningfulNavbarContent({ menuItems: [{ label: 'Products' }] })).toBe(false)
+  })
+
+  it('downgrades navbar logo image URLs that are not backed by source DOM evidence', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', {
+        logo: {
+          alt: 'The National Archives home page',
+          src: {
+            mediaId: 'detected:tna-logo',
+            mediaType: 'image',
+            url: 'https://www.nationalarchives.gov.uk/static/assets/images/logo.svg',
+          },
+        },
+        menuItems: [
+          { label: 'Visit', href: { type: 'internal', path: '/visit' } },
+          { label: 'Research', href: { type: 'internal', path: '/research' } },
+        ],
+      }),
+    ], {
+      pageUrl: 'https://www.nationalarchives.gov.uk/news/',
+      domSnapshot: `
+        <header>
+          <a class="tna-global-header__logo" href="/" aria-label="The National Archives home page">
+            <span class="tna-logo"><svg><title>The National Archives home page</title></svg></span>
+          </a>
+          <nav class="primary-navigation">
+            <a href="/visit/">Visit</a>
+            <a href="/research/">Research</a>
+          </nav>
+        </header>
+      `,
+    })
+
+    expect(result[0].content?.logo).toEqual({
+      text: 'The National Archives home page',
+      alt: 'The National Archives home page',
+      href: '/',
+    })
+    expect(result[0].metadata).toEqual(expect.objectContaining({
+      sanitizedUnbackedNavbarLogo: true,
+      removedLogoUrl: 'https://www.nationalarchives.gov.uk/static/assets/images/logo.svg',
+    }))
+  })
+
+  it('preserves navbar logo image URLs when source DOM contains the same asset', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', {
+        logo: {
+          alt: 'Example Brand',
+          src: {
+            mediaId: 'detected:brand-logo',
+            mediaType: 'image',
+            url: 'https://example.com/brand-lockup.svg',
+          },
+        },
+        menuItems: [
+          { label: 'Products', href: { type: 'internal', path: '/products' } },
+          { label: 'Contact', href: { type: 'internal', path: '/contact' } },
+        ],
+      }),
+    ], {
+      pageUrl: 'https://example.com/',
+      domSnapshot: `
+        <header>
+          <a class="navigation-logo-link" href="/"><img src="/brand-lockup.svg" alt="Example Brand"></a>
+          <nav class="primary-navigation">
+            <a href="/products/">Products</a>
+            <a href="/contact/">Contact</a>
+          </nav>
+        </header>
+      `,
+    })
+
+    expect(result[0].content?.logo).toEqual(expect.objectContaining({
+      src: expect.objectContaining({
+        url: 'https://example.com/brand-lockup.svg',
+      }),
+    }))
+    expect(result[0].metadata).toBeUndefined()
+  })
+
+  it('preserves navbar logo image URLs when source DOM evidence is unavailable', () => {
+    const components = [
+      component('navbar', {
+        logo: {
+          alt: 'Example Brand',
+          src: {
+            mediaId: 'detected:brand-logo',
+            mediaType: 'image',
+            url: 'https://example.com/brand-lockup.svg',
+          },
+        },
+        menuItems: [
+          { label: 'Products', href: { type: 'internal', path: '/products' } },
+          { label: 'Contact', href: { type: 'internal', path: '/contact' } },
+        ],
+      }),
+    ]
+
+    const result = sanitizeGlobalLogosAgainstSource(components, {
+      pageUrl: 'https://example.com/',
+    })
+
+    expect(result).toBe(components)
+    expect(result[0].content?.logo).toEqual(expect.objectContaining({
+      src: expect.objectContaining({
+        url: 'https://example.com/brand-lockup.svg',
+      }),
+    }))
+    expect(result[0].metadata).toBeUndefined()
+  })
+
+  it('does not preserve navbar logo image URLs that only appear as content images', () => {
+    const result = recoverOrRemoveEmptyGlobalNavigation([
+      component('navbar', {
+        logo: {
+          alt: 'Image of an exhibition wall with a logo',
+          src: {
+            mediaId: 'detected:article-image',
+            mediaType: 'image',
+            url: 'https://example.com/media/article.jpg',
+          },
+        },
+        menuItems: [
+          { label: 'Products', href: { type: 'internal', path: '/products' } },
+          { label: 'Contact', href: { type: 'internal', path: '/contact' } },
+        ],
+      }),
+    ], {
+      pageUrl: 'https://example.com/',
+      domSnapshot: `
+        <header>
+          <a class="brand-logo" href="/" aria-label="Example Brand"><svg><title>Example Brand</title></svg></a>
+          <nav class="primary-navigation">
+            <a href="/products/">Products</a>
+            <a href="/contact/">Contact</a>
+          </nav>
+        </header>
+        <main><img src="/media/article.jpg" alt="Image of an exhibition wall with a logo"></main>
+      `,
+    })
+
+    expect(result[0].content?.logo).toEqual({
+      text: 'Example Brand',
+      alt: 'Example Brand',
+      href: '/',
+    })
+    expect(result[0].metadata).toEqual(expect.objectContaining({
+      sanitizedUnbackedNavbarLogo: true,
+      removedLogoUrl: 'https://example.com/media/article.jpg',
+    }))
+  })
+
+  it('downgrades footer logo image URLs that are not backed by source footer DOM evidence', () => {
+    const result = sanitizeGlobalLogosAgainstSource([
+      component('footer', {
+        logo: {
+          alt: 'The National Archives',
+          text: 'The National Archives',
+          src: {
+            mediaId: 'detected:tna-logo',
+            mediaType: 'image',
+            url: 'https://www.nationalarchives.gov.uk/static/assets/images/tna-logo.svg',
+          },
+        },
+        columns: [],
+      }),
+    ], {
+      pageUrl: 'https://www.nationalarchives.gov.uk/news/',
+      domSnapshot: `
+        <main><img src="/static/assets/images/tna-logo.svg" alt="Unrelated content image"></main>
+        <footer><span class="tna-logo"><svg><title>The National Archives</title></svg></span></footer>
+      `,
+    })
+
+    expect(result[0].content?.logo).toEqual({
+      text: 'The National Archives',
+      alt: 'The National Archives',
+    })
+    expect(result[0].metadata).toEqual(expect.objectContaining({
+      sanitizedUnbackedFooterLogo: true,
+      removedLogoUrl: 'https://www.nationalarchives.gov.uk/static/assets/images/tna-logo.svg',
+    }))
   })
 
   it('recovers an empty navbar from source DOM navigation evidence', () => {

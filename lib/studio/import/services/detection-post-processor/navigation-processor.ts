@@ -400,6 +400,10 @@ function isConsentVendorMarkup(value: string): boolean {
   return /\b(cookieyes|cookiebot|onetrust|trustarc|consent|privacy[-\s]?manager|powered\s*by\s*cky|poweredbtcky|cky-)\b/i.test(value)
 }
 
+function hasLogoToken(value: string): boolean {
+  return /(?:^|[^a-z0-9])(?:logo|brand|lockup|wordmark)(?:[^a-z0-9]|$)/i.test(value)
+}
+
 function hasAnchorLogoEvidence(attrs: string): boolean {
   const evidenceAttrs = [
     /\bclass\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2],
@@ -408,7 +412,7 @@ function hasAnchorLogoEvidence(attrs: string): boolean {
     ...Array.from(attrs.matchAll(/\bdata-[\w-]+\s*=\s*(["'])(.*?)\1/gi)).map(match => match[2]),
   ].filter((value): value is string => Boolean(value))
 
-  return evidenceAttrs.some(value => /\b(?:logo|brand|lockup|wordmark)\b/i.test(value))
+  return evidenceAttrs.some(value => hasLogoToken(value))
 }
 
 function shouldSkipNavLabel(label: string): boolean {
@@ -523,9 +527,9 @@ function extractLogoFromNavHtml(html: string, pageUrl?: string): Record<string, 
     const imgAttrs = /<img\b([^>]*)>/i.exec(linkBody)?.[1] ?? ''
     const hasLinkLogoEvidence = hasAnchorLogoEvidence(linkAttrs)
     if (imgAttrs) {
-      const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
       const linkBodyWithoutImages = linkBody.replace(/<img\b[^>]*>/gi, ' ')
-      const hasLogoEvidence = Boolean(alt) || hasLinkLogoEvidence || /\b(?:logo|brand|lockup)\b/i.test(linkBodyWithoutImages)
+      const imgAttrsWithoutAlt = imgAttrs.replace(/\balt\s*=\s*(["']).*?\1/gi, ' ')
+      const hasLogoEvidence = hasLinkLogoEvidence || hasLogoToken(`${imgAttrsWithoutAlt} ${linkBodyWithoutImages}`)
       if (!hasLogoEvidence) continue
       const logo = makeLogoFromImageAttrs(imgAttrs, hasLinkLogoEvidence ? linkAttrs : '', pageUrl)
       if (logo) return logo
@@ -546,15 +550,196 @@ function extractLogoFromNavHtml(html: string, pageUrl?: string): Record<string, 
   while ((imageMatch = imagePattern.exec(html)) !== null) {
     const imgAttrs = imageMatch[1] ?? ''
     if (isConsentVendorMarkup(imgAttrs)) continue
-    const alt = normalizeString(/\balt\s*=\s*(["'])(.*?)\1/i.exec(imgAttrs)?.[2])
-    const attrsWithoutSrc = imgAttrs.replace(/\bsrc\s*=\s*(["']).*?\1/gi, ' ')
-    const hasLogoEvidence = Boolean(alt) || /\b(?:logo|brand|lockup)\b/i.test(attrsWithoutSrc)
+    const imgAttrsWithoutAlt = imgAttrs.replace(/\balt\s*=\s*(["']).*?\1/gi, ' ')
+    const hasLogoEvidence = hasLogoToken(imgAttrsWithoutAlt)
     if (!hasLogoEvidence) continue
     const logo = makeLogoFromImageAttrs(imgAttrs, '', pageUrl)
     if (logo) return logo
   }
 
   return undefined
+}
+
+function extractExplicitTextLogoFromDom(html: string | null | undefined, pageUrl?: string): Record<string, unknown> | undefined {
+  if (!html) return undefined
+  const linkedPattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi
+  let match: RegExpExecArray | null
+  while ((match = linkedPattern.exec(html)) !== null) {
+    const attrs = match[1] ?? ''
+    if (!hasAnchorLogoEvidence(attrs) || isConsentVendorMarkup(attrs)) continue
+    const body = match[2] ?? ''
+    const label =
+      cleanLogoLabel(/\b(?:aria-label|title)\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2]) ??
+      cleanLogoLabel(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1]) ??
+      cleanLogoLabel(stripHtml(body))
+    const href = normalizeHref(/\bhref\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2], pageUrl)
+    if (label) {
+      return {
+        text: label,
+        alt: label,
+        ...(href ? { href } : {}),
+      }
+    }
+  }
+  return undefined
+}
+
+function logoImageUrlFrom(value: unknown): string | undefined {
+  if (!isPlainObject(value)) return undefined
+  const src = value.src
+  if (typeof src === 'string' && src.trim()) return src.trim()
+  if (isPlainObject(src)) {
+    for (const key of ['url', 'src', 'originalUrl']) {
+      const candidate = src[key]
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+    }
+  }
+  for (const key of ['url', 'originalUrl']) {
+    const candidate = value[key]
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  }
+  return undefined
+}
+
+function sourceBacksLogoUrl(domSnapshot: string | null | undefined, rawUrl: string | undefined, pageUrl?: string): boolean {
+  if (!domSnapshot || !rawUrl) return true
+  if (domSnapshot.includes(rawUrl)) return true
+
+  try {
+    const resolved = new URL(rawUrl, pageUrl || 'https://example.com')
+    if (domSnapshot.includes(resolved.href)) return true
+    if (resolved.pathname && domSnapshot.includes(resolved.pathname)) return true
+  } catch {
+    return true
+  }
+
+  return false
+}
+
+function equivalentLogoUrls(a: string | undefined, b: string | undefined, pageUrl?: string): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  try {
+    const left = new URL(a, pageUrl || 'https://example.com')
+    const right = new URL(b, pageUrl || 'https://example.com')
+    return left.href === right.href || left.pathname === right.pathname
+  } catch {
+    return false
+  }
+}
+
+function textLogoFrom(value: unknown, recoveredLogo?: unknown): Record<string, unknown> | undefined {
+  const source = isPlainObject(recoveredLogo) ? recoveredLogo : isPlainObject(value) ? value : undefined
+  if (!source) return undefined
+
+  const label =
+    normalizeString(source.text) ??
+    normalizeString(source.alt) ??
+    normalizeString(source.label) ??
+    normalizeString(source.title) ??
+    normalizeString(source.name)
+  const href = normalizeHref(source.href)
+  if (!label) return undefined
+  return {
+    text: label,
+    alt: label,
+    ...(href ? { href } : {}),
+  }
+}
+
+function sanitizeNavbarLogoAgainstSource(
+  component: DetectedComponent,
+  options: { domSnapshot?: string | null; pageUrl?: string } = {},
+): DetectedComponent {
+  if (!options.domSnapshot) return component
+  if (!isPlainObject(component.content)) return component
+  const content = component.content as Record<string, unknown>
+  const logo = content.logo
+  const logoUrl = logoImageUrlFrom(logo)
+  if (!logoUrl) {
+    return component
+  }
+
+  const sourceLogo =
+    extractExplicitTextLogoFromDom(options.domSnapshot, options.pageUrl) ??
+    recoverNavbarFromDom(options.domSnapshot, options.pageUrl)?.content?.logo ??
+    extractLogoFromNavHtml(options.domSnapshot ?? '', options.pageUrl)
+  const sourceUrl = logoImageUrlFrom(sourceLogo)
+  if (sourceLogo) {
+    if (sourceUrl && equivalentLogoUrls(logoUrl, sourceUrl, options.pageUrl)) {
+      return component
+    }
+  }
+
+  const replacement = sourceUrl ? sourceLogo : textLogoFrom(logo, sourceLogo)
+
+  if (!replacement) return component
+
+  return {
+    ...component,
+    content: {
+      ...content,
+      logo: replacement,
+    },
+    metadata: {
+      ...(component.metadata ?? {}),
+      sanitizedUnbackedNavbarLogo: true,
+      removedLogoUrl: logoUrl,
+    } as DetectedComponent['metadata'],
+  }
+}
+
+function extractFooterHtml(domSnapshot: string | null | undefined): string | undefined {
+  if (!domSnapshot) return undefined
+  return /<footer\b[\s\S]*?<\/footer>/i.exec(domSnapshot)?.[0]
+}
+
+function sanitizeFooterLogoAgainstSource(
+  component: DetectedComponent,
+  options: { domSnapshot?: string | null; pageUrl?: string } = {},
+): DetectedComponent {
+  if (canonicalizeComponentType(String(component.type)) !== 'footer') return component
+  if (!isPlainObject(component.content)) return component
+  const content = component.content as Record<string, unknown>
+  const logo = content.logo
+  const logoUrl = logoImageUrlFrom(logo)
+  if (!logoUrl) return component
+
+  const footerHtml = extractFooterHtml(options.domSnapshot)
+  if (sourceBacksLogoUrl(footerHtml, logoUrl, options.pageUrl)) {
+    return component
+  }
+
+  const replacement = textLogoFrom(logo)
+  if (!replacement) return component
+
+  return {
+    ...component,
+    content: {
+      ...content,
+      logo: replacement,
+    },
+    metadata: {
+      ...(component.metadata ?? {}),
+      sanitizedUnbackedFooterLogo: true,
+      removedLogoUrl: logoUrl,
+    } as DetectedComponent['metadata'],
+  }
+}
+
+export function sanitizeGlobalLogosAgainstSource(
+  components: DetectedComponent[],
+  options: { domSnapshot?: string | null; pageUrl?: string } = {},
+): DetectedComponent[] {
+  let changed = false
+  const sanitized = components.map(component => {
+    const next = isGlobalNavbar(component)
+      ? sanitizeNavbarLogoAgainstSource(component, options)
+      : sanitizeFooterLogoAgainstSource(component, options)
+    if (next !== component) changed = true
+    return next
+  })
+  return changed ? sanitized : components
 }
 
 function recoverNavbarFromDom(domSnapshot: string | null | undefined, pageUrl?: string): DetectedComponent | undefined {
@@ -622,6 +807,10 @@ export function recoverOrRemoveEmptyGlobalNavigation(
     sawGlobalNavbar = true
 
     if (hasMeaningfulNavbarContent(component.content, options.pageUrl)) {
+      const sanitized = sanitizeNavbarLogoAgainstSource(component, options)
+      if (sanitized !== component) {
+        changed = true
+      }
       if (!hasMeaningfulNavbarLinks(component.content, options.pageUrl) && !usedRecoveredNavbar) {
         const recovered = recoverNavbarFromDom(options.domSnapshot, options.pageUrl)
         if (recovered && hasMeaningfulNavbarLinks(recovered.content, options.pageUrl)) {
@@ -642,7 +831,7 @@ export function recoverOrRemoveEmptyGlobalNavigation(
           continue
         }
       }
-      result.push(component)
+      result.push(sanitized)
       continue
     }
 

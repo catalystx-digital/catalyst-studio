@@ -385,6 +385,47 @@ describe('web-tools body fallback main extraction', () => {
     expect(serialized).toContain('Desktop carousel content')
   })
 
+  it('does not apply print-only stylesheet visibility rules to screen extraction', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/print.css')) {
+        return {
+          ok: true,
+          status: 200,
+          url,
+          headers: new Headers({ 'content-type': 'text/css' }),
+          text: async () => `.site-footer { display: none !important; }`
+        } as Response
+      }
+
+      return {
+        status: 200,
+        url: 'https://example.com/',
+        headers: new Headers({ 'content-type': 'text/html' }),
+        text: async () => `<!doctype html>
+          <html>
+            <head>
+              <title>Example</title>
+              <link rel="stylesheet" href="/print.css" media="print">
+            </head>
+            <body>
+              <main><h1>Visible content</h1></main>
+              <footer class="site-footer"><p>Visible screen footer</p></footer>
+            </body>
+          </html>`
+      } as Response
+    })
+
+    const tools = getWebFetchTools()
+    const outline = await tools.fetchOutline({ url: 'https://example.com/' })
+    const footer = outline.sections?.find(section => section.key === 'footer')
+
+    expect(footer).toBeDefined()
+
+    const footerSection = await tools.getSection({ handle: outline.handle, key: 'footer' })
+    expect(JSON.stringify(footerSection.slice)).toContain('Visible screen footer')
+  })
+
   it('does not globalize compound hidden selectors', async () => {
     global.fetch = jest.fn(async () => ({
       status: 200,
