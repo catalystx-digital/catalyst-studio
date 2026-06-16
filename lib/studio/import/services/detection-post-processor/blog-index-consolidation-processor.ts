@@ -9,6 +9,42 @@ export interface BlogIndexConsolidationOptions {
 const EDITORIAL_INDEX_PATH = /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/page\/\d+)?\/?$/i
 const EDITORIAL_LINK_PATH = /\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\//i
 
+function isLikelyBrandAssetImage(src: string): boolean {
+  const lowerSrc = src.toLowerCase()
+  const pathname = (() => {
+    try {
+      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
+    } catch {
+      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
+    }
+  })()
+  const filename = pathname.split('/').filter(Boolean).pop() || pathname
+  const pathSegments = pathname.split('/').filter(Boolean)
+  const directorySegments = pathSegments.slice(0, -1)
+  const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
+
+  return (
+    directorySegments.some(segment => segment === 'logos' || segment === 'logo' || /^logo[-_]\d/.test(segment)) ||
+    filename.includes('brandmark') ||
+    filename.includes('wordmark') ||
+    (filename.includes('logo') && extension === '.svg')
+  )
+}
+
+function imageUrl(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  if (typeof record.url === 'string') return record.url
+  if (typeof record.src === 'string') return record.src
+  if (record.src && typeof record.src === 'object' && !Array.isArray(record.src)) {
+    const src = record.src as Record<string, unknown>
+    if (typeof src.url === 'string') return src.url
+  }
+  if (typeof record.originalUrl === 'string') return record.originalUrl
+  return undefined
+}
+
 function isBlogIndexPage(options: BlogIndexConsolidationOptions): boolean {
   if (options.pageTemplate?.templateKey === 'blog/index-standard') {
     return true
@@ -47,7 +83,8 @@ function normalizePostItem(value: unknown): Record<string, unknown> | undefined 
     post.slug = hrefSlug
   }
   const image = record.image ?? record.thumbnail
-  if (image && typeof image === 'object') {
+  const imageSrc = imageUrl(image)
+  if (image && typeof image === 'object' && (!imageSrc || !isLikelyBrandAssetImage(imageSrc))) {
     post.image = image
   }
   const date = record.date ?? record.publishDate ?? record.publishedAt

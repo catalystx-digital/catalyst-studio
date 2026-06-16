@@ -168,6 +168,140 @@ describe('image enrichment processor', () => {
     expect(JSON.stringify(result[0].content)).not.toContain('brand-wordmark')
   })
 
+  it('removes model-emitted brand logo images from blog-list posts', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'blog-list',
+        component: 'blog-list',
+        confidence: 0.9,
+        content: {
+          posts: [
+            {
+              title: 'Introducing the Section508.gov Content Library',
+              slug: '/news/section508-content-library',
+              image: {
+                src: {
+                  mediaId: 'detected:gsa-logo',
+                  mediaType: 'image',
+                  url: 'https://digital.gov/s3/files/styles/logo_250_x_250_convert_to_webp/public/gsa-logo.png.webp?itok=shhAqJ5g',
+                },
+                alt: 'GSA logo',
+              },
+            },
+            {
+              title: 'Rebuilding CDC.gov',
+              slug: '/news/rebuilding-cdc-gov',
+              image: {
+                src: {
+                  mediaId: 'detected:rebuilding-cdc',
+                  mediaType: 'image',
+                  url: 'https://digital.gov/s3/files/styles/large/public/m-images/hands-website-design.png',
+                },
+                alt: 'Hands designing a website',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://digital.gov/news/',
+    })
+
+    const posts = (result[0].content as { posts: Array<{ image?: unknown }> }).posts
+    expect(posts[0].image).toBeUndefined()
+    expect(posts[1].image).toBeDefined()
+    expect(JSON.stringify(result[0].content)).not.toContain('gsa-logo')
+    expect(result[0].metadata?.sourceEvidence).toMatchObject({
+      nonContentBlogPostImageRemoval: {
+        reason: 'blog-post-image-url-is-non-content',
+        removals: [
+          {
+            title: 'Introducing the Section508.gov Content Library',
+            collection: 'posts',
+          },
+        ],
+      },
+    })
+  })
+
+  it('keeps legitimate blog-list content images when the filename contains logo', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'blog-list',
+        component: 'blog-list',
+        confidence: 0.9,
+        content: {
+          posts: [
+            {
+              title: 'Logo design workshop',
+              slug: '/blog/logo-design-workshop',
+              image: {
+                src: {
+                  mediaId: 'detected:logo-design-workshop',
+                  mediaType: 'image',
+                  url: 'https://brand.example.com/uploads/logo-design-workshop.jpg',
+                },
+                alt: 'Workshop participants sketching logos',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://brand.example.com/blog/',
+    })
+
+    expect(result[0].content).toMatchObject({
+      posts: [
+        {
+          image: {
+            src: {
+              url: 'https://brand.example.com/uploads/logo-design-workshop.jpg',
+            },
+          },
+        },
+      ],
+    })
+    expect(result[0].metadata?.sourceEvidence?.nonContentBlogPostImageRemoval).toBeUndefined()
+  })
+
+  it('keeps legitimate blog-list content images under slug-like logo directories', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'blog-list',
+        component: 'blog-list',
+        confidence: 0.9,
+        content: {
+          posts: [
+            {
+              title: 'Logo design workshop',
+              slug: '/blog/logo-design-workshop',
+              image: {
+                src: {
+                  mediaId: 'detected:logo-design-workshop-hero',
+                  mediaType: 'image',
+                  url: 'https://brand.example.com/uploads/logo-design-workshop/hero.jpg',
+                },
+                alt: 'Workshop participants sketching logos',
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = enrichComponentImages(components, {
+      pageUrl: 'https://brand.example.com/blog/',
+    })
+
+    expect(JSON.stringify(result[0].content)).toContain('/uploads/logo-design-workshop/hero.jpg')
+    expect(result[0].metadata?.sourceEvidence?.nonContentBlogPostImageRemoval).toBeUndefined()
+  })
+
   it('does not attach a broad-section generic image to an unrelated card item', () => {
     const components: DetectedComponent[] = [
       {

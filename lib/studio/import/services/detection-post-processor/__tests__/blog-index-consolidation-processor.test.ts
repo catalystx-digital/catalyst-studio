@@ -90,6 +90,66 @@ describe('blog-index-consolidation-processor', () => {
     })
   })
 
+  it('does not carry agency logo images when converting content-feed items', () => {
+    const result = consolidateBlogIndexListings([
+      component(ComponentType.ContentFeed, {
+        heading: 'News',
+        pinned: [
+          {
+            title: 'Accessibility article',
+            excerpt: 'Accessibility summary',
+            href: { type: 'internal', pageId: 'accessibility', path: '/news/accessibility' },
+            image: {
+              src: {
+                mediaId: 'detected:gsa-logo',
+                mediaType: 'image',
+                url: 'https://digital.gov/s3/files/styles/logo_250_x_250_convert_to_webp/public/gsa-logo.png.webp?itok=shhAqJ5g'
+              },
+              alt: 'GSA logo'
+            }
+          },
+          {
+            title: 'Website redesign article',
+            excerpt: 'Website redesign summary',
+            href: { type: 'internal', pageId: 'redesign', path: '/news/redesign' },
+            image: {
+              src: {
+                mediaId: 'detected:redesign',
+                mediaType: 'image',
+                url: 'https://digital.gov/s3/files/styles/large/public/m-images/hands-website-design.png'
+              },
+              alt: 'Hands designing a website'
+            }
+          }
+        ]
+      })
+    ], {
+      pageTemplate: { templateKey: 'blog/index-standard', confidence: 0.9, source: 'model' }
+    })
+
+    expect(result[0]).toMatchObject({
+      type: ComponentType.BlogList,
+      content: {
+        posts: [
+          {
+            title: 'Accessibility article',
+            slug: '/news/accessibility'
+          },
+          {
+            title: 'Website redesign article',
+            slug: '/news/redesign',
+            image: {
+              src: {
+                url: 'https://digital.gov/s3/files/styles/large/public/m-images/hands-website-design.png'
+              }
+            }
+          }
+        ]
+      }
+    })
+    expect(JSON.stringify(result[0].content)).not.toContain('gsa-logo')
+  })
+
   it('converts editorial card grids on blog index pages when article evidence is present', () => {
     const result = consolidateBlogIndexListings([
       component(ComponentType.CardGrid, {

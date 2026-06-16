@@ -260,11 +260,11 @@ function isLikelyBrandAssetImage(src: string): boolean {
   })()
   const filename = pathname.split('/').filter(Boolean).pop() || pathname
   const pathSegments = pathname.split('/').filter(Boolean)
+  const directorySegments = pathSegments.slice(0, -1)
   const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
 
   return (
-    pathSegments.includes('logos') ||
-    pathSegments.includes('logo') ||
+    directorySegments.some(segment => segment === 'logos' || segment === 'logo' || /^logo[-_]\d/.test(segment)) ||
     filename.includes('brandmark') ||
     filename.includes('wordmark') ||
     (filename.includes('logo') && extension === '.svg')
@@ -1080,6 +1080,7 @@ export function enrichComponentImages(
     reconcileTeamGridMemberImagesFromSource(components, resourceImages, pageUrl)
     reconcileTeamGridMemberLinksFromSource(components, resourceImages, resourceLinks, pageUrl)
     reconcileTruncatedImageUrlsFromSource(components, resourceImages, pageUrl)
+    removeUnsupportedBlogListImages(components)
     console.log('[ImageEnrichment] No DOM snapshot, skipping enrichment')
     return components
   }
@@ -1104,6 +1105,7 @@ export function enrichComponentImages(
   reconcileTeamGridMemberImagesFromSource(components, sourceImages, pageUrl)
   reconcileTeamGridMemberLinksFromSource(components, sourceImages, sourceLinks, pageUrl)
   reconcileTruncatedImageUrlsFromSource(components, sourceImages, pageUrl)
+  removeUnsupportedBlogListImages(components)
   removeUnsupportedCardGridImages(components, domSnapshot)
 
   if (domImages.length === 0) return components
@@ -1170,6 +1172,7 @@ export function enrichComponentImages(
   }
 
   reconcileLogoCloudsFromSourceSections(components, domSnapshot, pageUrl)
+  removeUnsupportedBlogListImages(components)
   removeUnsupportedCardGridImages(components, domSnapshot)
   return components
 }
@@ -1438,6 +1441,46 @@ function removeUnsupportedCardGridImages(
           cardGridImageRemoval: {
             reason: 'matched-source-section-has-no-image-elements',
             heading: content.heading
+          }
+        }
+      }
+    }
+  }
+}
+
+function removeUnsupportedBlogListImages(components: DetectedComponent[]): void {
+  for (const component of components) {
+    if (component.type !== 'blog-list' || !isRecord(component.content)) continue
+
+    const content = component.content as Record<string, unknown>
+    const nonContentRemovals: Array<{ title: string, url: string, collection: string }> = []
+
+    for (const collection of ['posts', 'manualPosts']) {
+      const posts = content[collection]
+      if (!Array.isArray(posts)) continue
+
+      for (const post of posts) {
+        if (!isRecord(post) || !post.image) continue
+        const postImageUrl = getImageUrl(post.image)
+        if (!postImageUrl || !(isNonContentImage(postImageUrl) || isLikelyBrandAssetImage(postImageUrl))) continue
+
+        delete post.image
+        nonContentRemovals.push({
+          title: typeof post.title === 'string' ? post.title : '',
+          url: postImageUrl,
+          collection
+        })
+      }
+    }
+
+    if (nonContentRemovals.length > 0) {
+      component.metadata = {
+        ...(component.metadata || {}),
+        sourceEvidence: {
+          ...(component.metadata?.sourceEvidence || {}),
+          nonContentBlogPostImageRemoval: {
+            reason: 'blog-post-image-url-is-non-content',
+            removals: nonContentRemovals
           }
         }
       }

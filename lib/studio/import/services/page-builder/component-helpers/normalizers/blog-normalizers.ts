@@ -15,6 +15,38 @@ import {
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
 
+function getImageUrl(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (!isRecord(value)) return undefined
+  if (typeof value.url === 'string') return value.url
+  if (typeof value.src === 'string') return value.src
+  if (isRecord(value.src) && typeof value.src.url === 'string') return value.src.url
+  if (typeof value.originalUrl === 'string') return value.originalUrl
+  return undefined
+}
+
+function isLikelyBrandAssetImage(src: string): boolean {
+  const lowerSrc = src.toLowerCase()
+  const pathname = (() => {
+    try {
+      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
+    } catch {
+      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
+    }
+  })()
+  const filename = pathname.split('/').filter(Boolean).pop() || pathname
+  const pathSegments = pathname.split('/').filter(Boolean)
+  const directorySegments = pathSegments.slice(0, -1)
+  const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
+
+  return (
+    directorySegments.some(segment => segment === 'logos' || segment === 'logo' || /^logo[-_]\d/.test(segment)) ||
+    filename.includes('brandmark') ||
+    filename.includes('wordmark') ||
+    (filename.includes('logo') && extension === '.svg')
+  )
+}
+
 /**
  * Normalizes blog-list component content.
  * Handles optional post images without synthesizing placeholders.
@@ -36,11 +68,12 @@ export const normalizeBlogListContent: ComponentContentNormalizer = (
       return value
     }
     return value.map(item => {
-      if (!isRecord(item) || (item.image !== null && item.author !== null)) {
+      if (!isRecord(item)) {
         return item
       }
       const { image: _image, author: _author, ...rest } = item
-      if (item.image !== null) {
+      const imageUrl = getImageUrl(item.image)
+      if (item.image !== null && (!imageUrl || !isLikelyBrandAssetImage(imageUrl))) {
         rest.image = item.image
       }
       if (item.author !== null) {

@@ -1641,6 +1641,91 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(BlogListDef.schema.safeParse(props.content).success).toBe(true)
   })
 
+  it('removes brand logo images from blog-list posts without dropping the post', () => {
+    const detection: DetectionResult = {
+      id: 'blog-list-logo-image',
+      type: 'blog-list',
+      bounds: baseBounds,
+      content: {
+        posts: [
+          {
+            title: 'Accessibility article',
+            excerpt: 'A short update from the team.',
+            image: {
+              src: {
+                mediaId: 'detected:gsa-logo',
+                mediaType: 'image',
+                url: 'https://digital.gov/s3/files/styles/logo_250_x_250_convert_to_webp/public/gsa-logo.png.webp?itok=shhAqJ5g'
+              },
+              alt: 'GSA logo'
+            }
+          },
+          {
+            title: 'Logo design workshop',
+            excerpt: 'A workshop update.',
+            image: {
+              src: {
+                mediaId: 'detected:logo-design-workshop',
+                mediaType: 'image',
+                url: 'https://brand.example.com/uploads/logo-design-workshop.jpg'
+              },
+              alt: 'Workshop participants sketching logos'
+            }
+          },
+          {
+            title: 'Logo history',
+            excerpt: 'A history update.',
+            image: {
+              src: {
+                mediaId: 'detected:logo-history',
+                mediaType: 'image',
+                url: 'https://brand.example.com/uploads/logo-history/hero.jpg'
+              },
+              alt: 'Archive of historic logos'
+            }
+          }
+        ]
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('blog-list'))
+    const warnings = consumeNormalizationWarnings()
+
+    expect(props.content.posts).toEqual([
+      {
+        title: 'Accessibility article',
+        excerpt: 'A short update from the team.'
+      },
+      {
+        title: 'Logo design workshop',
+        excerpt: 'A workshop update.',
+        image: {
+          src: {
+            mediaId: 'detected:logo-design-workshop',
+            mediaType: 'image',
+            url: 'https://brand.example.com/uploads/logo-design-workshop.jpg'
+          },
+          alt: 'Workshop participants sketching logos'
+        }
+      },
+      {
+        title: 'Logo history',
+        excerpt: 'A history update.',
+        image: {
+          src: {
+            mediaId: 'detected:logo-history',
+            mediaType: 'image',
+            url: 'https://brand.example.com/uploads/logo-history/hero.jpg'
+          },
+          alt: 'Archive of historic logos'
+        }
+      }
+    ])
+    expect(warnings).toEqual([])
+    expect(BlogListDef.schema.safeParse(props.content).success).toBe(true)
+  })
+
   it('drops content-feed pinned entries without titles and images without renderable URLs', () => {
     const detection: DetectionResult = {
       id: 'content-feed-invalid',
