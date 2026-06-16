@@ -33,6 +33,99 @@ function slugify(value: string | undefined): string | undefined {
     .replace(/^-+|-+$/g, '');
 }
 
+function stringValue(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const values = value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+  return values.length > 0 ? values : undefined;
+}
+
+function normalizeAuthor(value: unknown): BlogPost['author'] | undefined {
+  if (typeof value === 'string') {
+    const name = stringValue(value);
+    return name ? { name } : undefined;
+  }
+
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    name: stringValue(value.name),
+    avatar: stringValue(value.avatar),
+    bio: stringValue(value.bio),
+    title: stringValue(value.title),
+    url: stringValue(value.url),
+  };
+}
+
+function normalizeThumbnail(value: unknown): BlogPost['thumbnail'] | undefined {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return value as BlogPost['thumbnail'];
+}
+
+function resolveBlogPost(entry: unknown, index: number): BlogPost | null {
+  if (!isRecord(entry)) {
+    return null;
+  }
+
+  const source = isRecord(entry.content) ? (entry.content as Record<string, unknown>) : entry;
+  const title = stringValue(source.title);
+
+  if (!title) {
+    return null;
+  }
+
+  const href = stringValue(source.href) ?? stringValue(source.url);
+  const slug = stringValue(source.slug) ?? stringValue(entry.slug) ?? normalizePath(href) ?? slugify(title) ?? `blog-post-${index}`;
+  const id = stringValue(source.id) ?? stringValue(entry.id) ?? slugify(slug) ?? slugify(title) ?? `blog-post-${index}`;
+  const categories = stringArray(source.categories) ?? (stringValue(source.category) ? [stringValue(source.category)!] : []);
+  const tags = stringArray(source.tags) ?? [];
+  const author = normalizeAuthor(source.author) ?? normalizeAuthor(entry.author) ?? {};
+  const stats = isRecord(source.stats) ? source.stats : undefined;
+
+  return {
+    id,
+    title,
+    excerpt: stringValue(source.excerpt) ?? '',
+    thumbnail: normalizeThumbnail(source.thumbnail) ?? normalizeThumbnail(source.image),
+    author,
+    publishDate: stringValue(source.publishDate) ?? stringValue(source.date) ?? '',
+    updatedDate: stringValue(source.updatedDate),
+    readingTime:
+      typeof source.readingTime === 'number'
+        ? source.readingTime
+        : typeof source.readTime === 'number'
+          ? source.readTime
+          : undefined,
+    categories,
+    tags,
+    views: typeof source.views === 'number' ? source.views : typeof stats?.views === 'number' ? stats.views : undefined,
+    likes: typeof source.likes === 'number' ? source.likes : typeof stats?.likes === 'number' ? stats.likes : undefined,
+    comments: typeof source.comments === 'number' ? source.comments : typeof stats?.comments === 'number' ? stats.comments : undefined,
+    slug,
+    featured: typeof source.featured === 'boolean' ? source.featured : undefined,
+  };
+}
+
 function resolveRelatedPost(entry: unknown, index: number): RelatedPost | null {
   if (isRecord(entry)) {
     const candidateId =
@@ -144,13 +237,19 @@ function resolveRelatedPost(entry: unknown, index: number): RelatedPost | null {
   return null;
 }
 
-function dedupeById<T extends { id: string }>(items: T[]): T[] {
+function dedupeById<T extends { id?: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   const result: T[] = [];
 
   for (const item of items) {
-    if (!seen.has(item.id)) {
-      seen.add(item.id);
+    const id = stringValue(item.id);
+    if (!id) {
+      result.push(item);
+      continue;
+    }
+
+    if (!seen.has(id)) {
+      seen.add(id);
       result.push(item);
     }
   }
@@ -163,7 +262,11 @@ function collectManualPosts(content: BlogListContent): BlogPost[] {
     ...(content.manualPosts ?? []),
     ...(content.posts ?? [])
   ];
-  return dedupeById(manual);
+  const normalized = manual
+    .map((entry, index) => resolveBlogPost(entry, index))
+    .filter((entry): entry is BlogPost => entry !== null);
+
+  return dedupeById(normalized);
 }
 
 function desiredBlogCount(autoFill: BlogAutoFillConfig | undefined, content: BlogListContent, manualCount: number): number {

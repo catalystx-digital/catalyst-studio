@@ -57,6 +57,90 @@ describe('content resolvers', () => {
     expect(autoIds).toEqual(expect.arrayContaining(['mock-blog-1', 'mock-blog-2']));
   });
 
+  it('normalizes imported blog posts without ids before deduping', () => {
+    const content = {
+      posts: [
+        {
+          title: 'Introducing the Section508.gov Content Library',
+          excerpt: 'A new content library is available.',
+          slug: '/news/section508-content-library/',
+          date: '2026-01-15',
+          image: {
+            src: {
+              url: 'https://digital.gov/assets/section508-library.webp',
+            },
+            alt: 'Content library preview',
+          },
+          category: 'Accessibility',
+          author: 'Digital.gov Team',
+        },
+        {
+          title: 'Designing services with public participation',
+          excerpt: 'A second imported article.',
+          slug: '/news/public-participation/',
+          date: '2026-02-20',
+          category: 'Service Design',
+          tags: ['research'],
+        },
+      ],
+      showPagination: false,
+    } as unknown as BlogListContent;
+
+    const resolved = resolveBlogListContent(content);
+
+    expect(resolved.posts).toHaveLength(2);
+    expect(resolved.posts?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'news-section508-content-library',
+        slug: '/news/section508-content-library/',
+        publishDate: '2026-01-15',
+        categories: ['Accessibility'],
+        author: { name: 'Digital.gov Team' },
+      }),
+    );
+    expect(resolved.posts?.[0]?.thumbnail).toEqual({
+      src: {
+        url: 'https://digital.gov/assets/section508-library.webp',
+      },
+      alt: 'Content library preview',
+    });
+    expect(resolved.posts?.[1]).toEqual(
+      expect.objectContaining({
+        id: 'news-public-participation',
+        publishDate: '2026-02-20',
+        categories: ['Service Design'],
+        tags: ['research'],
+      }),
+    );
+  });
+
+  it('dedupes imported blog posts by stable slug-derived ids', () => {
+    const content = {
+      posts: [
+        {
+          title: 'First copy',
+          slug: '/news/duplicate/',
+        },
+        {
+          title: 'Second copy',
+          slug: '/news/duplicate/',
+        },
+        {
+          title: 'Distinct title without slug',
+        },
+      ],
+      showPagination: false,
+    } as unknown as BlogListContent;
+
+    const resolved = resolveBlogListContent(content);
+
+    expect(resolved.posts).toHaveLength(2);
+    expect(resolved.posts?.map(post => post.id)).toEqual([
+      'news-duplicate',
+      'distinct-title-without-slug',
+    ]);
+  });
+
   it('does not backfill related posts when no blog provider is registered', () => {
     const content: RelatedPostsContent = {
       manualPosts: [

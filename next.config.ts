@@ -25,19 +25,10 @@ const nextConfig: NextConfig = {
   images: {
     dangerouslyAllowSVG: true,
     remotePatterns: [
-      { protocol: "https", hostname: "cdn.intelligencebank.com", pathname: "/**" },
-      { protocol: "https", hostname: "bathurstcitycentre.qicre.com", pathname: "/**" },
-      { protocol: "https", hostname: "www.qicre.com", pathname: "/**" },
-      { protocol: "https", hostname: "qicre.com", pathname: "/**" },
-      { protocol: "https", hostname: "images.pexels.com", pathname: "/**" },
-      { protocol: "https", hostname: "assets.mixkit.co", pathname: "/**" },
-      { protocol: "https", hostname: "**.kc-usercontent.com", pathname: "/**" },
-      { protocol: "https", hostname: "www.toptal.com", pathname: "/**" },
-      { protocol: "https", hostname: "www.google.com", pathname: "/**" },
-      { protocol: "https", hostname: "www.facebook.com", pathname: "/**" },
-      { protocol: "https", hostname: "linkedin.com", pathname: "/**" },
-      { protocol: "https", hostname: "github.com", pathname: "/**" },
-      { protocol: "https", hostname: "twitter.com", pathname: "/**" },
+      // Imported CMS content can reference images from arbitrary public source
+      // domains. Keep protocol constrained while allowing previews to render
+      // real imported media instead of crashing on new hostnames.
+      { protocol: "https", hostname: "**", pathname: "/**" },
     ],
   },
   webpack: (config) => {
