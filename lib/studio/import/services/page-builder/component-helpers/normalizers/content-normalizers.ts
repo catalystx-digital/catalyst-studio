@@ -1067,8 +1067,9 @@ function normalizeColumnChild(
     }
   }
 
-  // Build content object from remaining fields
-  const contentFields: Record<string, any> = {}
+  // Build content object from remaining fields. Column children can arrive as
+  // `{ content: { props: ... } }`; flatten before component-specific pruning.
+  let contentFields: Record<string, any> = {}
   const skipKeys = new Set(['type', 'component', 'kind', 'id', 'content'])
 
   for (const [key, value] of Object.entries(entry)) {
@@ -1119,6 +1120,20 @@ function normalizeColumnChild(
 
   // Only add content if there are fields
   if (Object.keys(contentFields).length > 0) {
+    contentFields = expandSourceRecord(contentFields, {
+      canonicalType: canonicalChild,
+      parentCanonicalType: 'two-column',
+      field: `${columnName}.${index}.content`,
+      index,
+      pageUrl: options.pageUrl
+    })
+    delete contentFields.content
+    delete contentFields.data
+    delete contentFields.fields
+    delete contentFields.attributes
+    delete contentFields.props
+    delete contentFields.payload
+
     const childNormalizer = {
       'text-block': normalizeTextBlockContent,
       'html-block': normalizeHtmlBlockContent,
@@ -1137,7 +1152,12 @@ function normalizeColumnChild(
       normalized.content = childResult.content
       warnings.push(...childResult.warnings)
     } else {
-      normalized.content = contentFields
+      const { result: pruned, warnings: pruneWarnings } = pruneObjectAgainstContract(contentFields, canonicalChild, {
+        field: `${columnName}.${index}.content`,
+        childType: canonicalChild
+      })
+      normalized.content = pruned
+      warnings.push(...pruneWarnings)
     }
   }
 

@@ -134,7 +134,11 @@ export class GlobalSectionArtifactCache {
     if (input.role !== 'header' && input.role !== 'footer') {
       return null
     }
-    const sortedCandidateTypes = Array.from(new Set(input.candidateTypes)).sort()
+    const expectedType = input.role === 'header' ? 'navbar' : 'footer'
+    const candidateSet = new Set(input.candidateTypes)
+    const sortedCandidateTypes = candidateSet.has(expectedType)
+      ? [expectedType]
+      : Array.from(candidateSet).sort()
     const sectionContentHash = sha256(stableStringify(input.sectionSlice))
     const candidateTypesHash = sha256(sortedCandidateTypes.join('|'))
     const keyParts = [

@@ -7,6 +7,7 @@ import {
 import { normalizeImage, SUBCOMPONENT_NORMALIZERS } from '../page-builder/subcomponent-normalizers'
 import { BlogListDef } from '@/lib/studio/components/cms/blog/blog-list/blog-list.def'
 import { ContentFeedDef } from '@/lib/studio/components/cms/content/content-feed/content-feed.def'
+import { CardGridDef } from '@/lib/studio/components/cms/content/card-grid/card-grid.def'
 import { HtmlBlockDef } from '@/lib/studio/components/cms/content/html-block/html-block.def'
 import { TextBlockDef } from '@/lib/studio/components/cms/content/text-block/text-block.def'
 import { TwoColumnDef } from '@/lib/studio/components/cms/content/two-column/two-column.def'
@@ -1334,6 +1335,79 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
         })
       ])
     )
+  })
+
+  it('normalizes nested two-column child content props into canonical child content', () => {
+    const detection: DetectionResult = {
+      id: 'two-column-card-grid',
+      type: 'two-column',
+      bounds: baseBounds,
+      content: {
+        leftColumn: [
+          {
+            id: 'intro-hero',
+            type: 'hero-simple',
+            content: {
+              props: {
+                heading: 'Better websites. Better government.',
+                alignment: 'left'
+              }
+            }
+          }
+        ],
+        rightColumn: [
+          {
+            id: 'resource-grid',
+            type: 'card-grid',
+            content: {
+              props: {
+                heading: 'How to implement 21st Century IDEA',
+                columns: 1,
+                cardStyle: 'horizontal',
+                cards: [
+                  {
+                    title: 'Requirements for digital-first public experience',
+                    description: 'Learn how to deliver better websites and digital services.',
+                    href: {
+                      type: 'internal',
+                      path: '/resources/digital-first',
+                      pageId: 'resources-digital-first'
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        columnRatio: '30-70'
+      },
+      metadata: {}
+    }
+
+    const props = extractComponentProps(detection, createComponentType('two-column'))
+
+    const leftChild = props.content?.leftColumn?.[0]
+    const rightChild = props.content?.rightColumn?.[0]
+
+    expect(leftChild.content).toMatchObject({
+      heading: 'Better websites. Better government.',
+      alignment: 'left'
+    })
+    expect(Object.keys(leftChild.content)).not.toContain('props')
+
+    expect(rightChild.content).toMatchObject({
+      heading: 'How to implement 21st Century IDEA',
+      columns: 1,
+      cardStyle: 'horizontal',
+      cards: [
+        expect.objectContaining({
+          title: 'Requirements for digital-first public experience'
+        })
+      ]
+    })
+    expect(Object.keys(rightChild.content)).not.toContain('props')
+    expect(TwoColumnDef.schema.safeParse(props.content).success).toBe(true)
+    expect(CardGridDef.schema.safeParse(rightChild.content).success).toBe(true)
   })
 
   it('normalizes image-gallery media aliases into canonical image entries', () => {

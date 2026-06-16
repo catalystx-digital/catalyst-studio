@@ -21,7 +21,7 @@ import { filterPageContentCandidateTypes } from './detection/candidate-types'
 import { parseDetectionResponse, parseSectionDetectionResponse } from './detection/response-parser'
 import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
-import type { GlobalSectionReuseProvenance } from './detection/global-section-cache'
+import type { GlobalSectionReuseKey, GlobalSectionReuseProvenance } from './detection/global-section-cache'
 import {
   buildFillBatches,
   buildPageMap,
@@ -95,6 +95,79 @@ async function mapSettledWithConcurrency<T, R>(
       return { ok: false, item, error } as const
     }
   })
+}
+
+export async function loadReusableSectionFromCheckpoint(
+  options: {
+    checkpointSession?: ImportDetectionOptions['checkpointSession']
+    checkpointService?: ImportDetectionOptions['checkpointService']
+    reuseKey: GlobalSectionReuseKey | null
+    role: DetectionSectionTask['role']
+    currentUrl: string
+  }
+): Promise<{ artifact: SectionExtractionArtifact; provenance: GlobalSectionReuseProvenance } | null> {
+  const { checkpointSession, checkpointService, reuseKey, role, currentUrl } = options
+  if (!checkpointSession || !checkpointService || !reuseKey || (role !== 'header' && role !== 'footer')) {
+    return null
+  }
+
+  const expectedType = role === 'header' ? 'navbar' : 'footer'
+  const sitemap = await checkpointService.loadSitemap(checkpointSession)
+  if (!sitemap) {
+    return null
+  }
+
+  for (const entry of sitemap.urls) {
+    if (entry.url === currentUrl) {
+      continue
+    }
+
+    for await (const section of checkpointService.streamSectionResults(checkpointSession, entry.url)) {
+      const debug = section.llmDebug
+      if (debug?.reuseKey !== reuseKey.key) {
+        continue
+      }
+      if (!Array.isArray(section.components) || !section.components.some(component => component.type === expectedType)) {
+        continue
+      }
+
+      return {
+        artifact: {
+          sectionKey: section.sectionKey,
+          sectionOrder: section.sectionOrder,
+          durationMs: section.durationMs,
+          components: section.components,
+          pageMetadata: section.pageMetadata
+        },
+        provenance: {
+          extractionMode: 'reused',
+          reusedFromUrl: section.url,
+          reusedFromSectionKey: section.sectionKey,
+          sectionContentHash: reuseKey.sectionContentHash,
+          reuseKey: reuseKey.key,
+          reuseVersion: reuseKey.version,
+          cacheHit: true
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+export function isCheckpointSectionCacheUsable(
+  role: DetectionSectionTask['role'],
+  components: Array<{ type?: string }>,
+  debug?: { requiredSectionEmpty?: boolean; satisfiedBySectionKey?: string }
+): boolean {
+  const expectedType = role === 'header' ? 'navbar' : role === 'footer' ? 'footer' : null
+  if (!expectedType) {
+    return true
+  }
+  if (components.some(component => component.type === expectedType)) {
+    return true
+  }
+  return Boolean(debug?.requiredSectionEmpty && debug.satisfiedBySectionKey)
 }
 
 let registryInitialization: Promise<void> | null = null
@@ -839,7 +912,8 @@ export class DetectionService {
       const cached = checkpointSession && checkpointService
         ? await checkpointService.loadSectionResult(checkpointSession, url, task.sectionKey)
         : null
-      if (cached) {
+      const cachedIsUsable = cached && isCheckpointSectionCacheUsable(task.role, cached.components, cached.llmDebug)
+      if (cachedIsUsable) {
         return {
           artifact: {
             sectionKey: cached.sectionKey,
@@ -1237,12 +1311,23 @@ export class DetectionService {
               model: endpointModel
             })
           : null
-        const cacheResult = await (DetectionConfig.globalSectionReuse && globalSectionCache
-          ? globalSectionCache.getOrCreate(
+        const checkpointReuseResult = DetectionConfig.globalSectionReuse
+          ? await loadReusableSectionFromCheckpoint({
+              checkpointSession,
+              checkpointService,
               reuseKey,
-              { url, sectionKey: task.sectionKey },
-              extractFreshSection
-            )
+              role: task.role,
+              currentUrl: url
+            })
+          : null
+        const cacheResult = await (checkpointReuseResult
+          ? Promise.resolve(checkpointReuseResult)
+          : DetectionConfig.globalSectionReuse && globalSectionCache
+            ? globalSectionCache.getOrCreate(
+                reuseKey,
+                { url, sectionKey: task.sectionKey },
+                extractFreshSection
+              )
           : Promise.resolve({
               artifact: await extractFreshSection(),
               provenance: {

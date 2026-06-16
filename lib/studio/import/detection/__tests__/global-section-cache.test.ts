@@ -46,6 +46,27 @@ describe('GlobalSectionArtifactCache', () => {
     expect(second.artifact.components[0].content.menuItems[0].label).toBe('Home')
   })
 
+  it('keeps header reuse keys stable when unrelated candidate types are present', () => {
+    const cache = new GlobalSectionArtifactCache()
+    const narrowKey = cache.createKey({
+      role: 'header',
+      origin: 'https://example.com',
+      sectionSlice: [{ tag: 'nav', text: 'Home' }],
+      candidateTypes: ['navbar'],
+      model: 'test-model'
+    })
+    const broadKey = cache.createKey({
+      role: 'header',
+      origin: 'https://example.com',
+      sectionSlice: [{ tag: 'nav', text: 'Home' }],
+      candidateTypes: ['card-grid', 'footer', 'hero-simple', 'navbar', 'two-column'],
+      model: 'test-model'
+    })
+
+    expect(broadKey?.key).toBe(narrowKey?.key)
+    expect(broadKey?.candidateTypesHash).toBe(narrowKey?.candidateTypesHash)
+  })
+
   it('does not retry when fresh extraction fails', async () => {
     const cache = new GlobalSectionArtifactCache()
     const key = cache.createKey({
