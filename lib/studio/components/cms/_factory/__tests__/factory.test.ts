@@ -82,9 +82,16 @@ describe('CMSComponentFactory', () => {
   it('does not register placeholder-backed subcomponents as renderable components', async () => {
     await initializeCMSComponents()
 
-    expect(factory.hasComponent(ComponentType.SideMenu)).toBe(false)
     expect(factory.hasComponent(ComponentType.NavMenuItem)).toBe(false)
     expect(factory.hasComponent(ComponentType.PromoItem)).toBe(false)
+  })
+
+  it('registers sidemenu as a renderable navigation component', async () => {
+    await initializeCMSComponents()
+
+    expect(factory.hasComponent(ComponentType.SideMenu)).toBe(true)
+    await expect(factory.loadComponent(ComponentType.SideMenu)).resolves.toBeDefined()
+    await expect(preloadComponents([ComponentType.SideMenu])).resolves.toBeUndefined()
   })
 
   it('rejects unknown component types instead of resolving placeholders', async () => {
@@ -138,7 +145,6 @@ describe('CMSComponentFactory', () => {
 
   it.each([
     ComponentType.MegaMenu,
-    ComponentType.SideMenu,
     ComponentType.Breadcrumb,
   ])('lazy preload rejects component type %s when it has no loader', async (type) => {
     await expect(preloadComponents([type])).rejects.toThrow(

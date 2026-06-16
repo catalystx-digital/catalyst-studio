@@ -138,6 +138,8 @@ const componentManifest: Partial<Record<ComponentType, () => Promise<any>>> = {
 
   [ComponentType.Breadcrumbs]: () => import('../navigation/breadcrumbs').then(m => ({ default: m.Breadcrumbs })),
 
+  [ComponentType.SideMenu]: () => import('../navigation/sidebar-nav').then(m => ({ default: m.SidebarNav })),
+
   
 
   // Hero Components
