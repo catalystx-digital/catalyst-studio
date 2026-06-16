@@ -32,7 +32,7 @@ export const blogCanonicalDefinitions: CanonicalComponentDefinition[] = [
     summary:
       'Use for blog index templates. Aggregate teaser cards into posts[] sorted chronologically with optional pagination metadata.',
     fragments: ['blog-card', 'card-grid', 'article-preview', 'article-teaser'],
-    cues: ['blog index', 'news list', 'resources overview', 'stories overview'],
+    cues: ['blog index', 'news list', 'stories overview'],
     sampleContent: {
       title: 'Latest Articles',
       description: 'Fresh stories from Bathurst City Centre.',

@@ -146,11 +146,10 @@ export function inferTemplateKeyFromUrl(path: string, summary: PageCatalogSummar
   }
 
   // Blog/content paths
-  if (/(blog|insights|resources)(\/|$)/i.test(normalizedPath)) {
+  if (/(blog|insights)(\/|$)/i.test(normalizedPath)) {
     const isIndex =
       normalizedPath === '/blog' ||
-      normalizedPath === '/insights' ||
-      normalizedPath === '/resources'
+      normalizedPath === '/insights'
     if (isIndex) {
       return (
         findTemplateByCategory(summary, PageTemplateCategory.Blog, key => key.includes('index')) ??

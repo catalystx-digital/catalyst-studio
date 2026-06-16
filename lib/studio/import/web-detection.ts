@@ -631,6 +631,7 @@ export class DetectionService {
           const templateKey = template.templateKey.toLowerCase()
           const templateCategory = String(template.category ?? '').toLowerCase()
           const isEditorialTemplate = templateCategory === 'blog' || /\b(?:blog|article|post|news)\b/i.test(haystack)
+          const isEditorialRoute = isEditorialIndexPath(path) || isEditorialDetailPath(path)
           if (isEditorialDetailPath(path) && isEditorialTemplate && /\b(?:post|article|detail)\b/i.test(templateKey)) {
             score += 4
             routeScore += 4
@@ -639,12 +640,13 @@ export class DetectionService {
             score += 4
             routeScore += 4
           }
-          return { template, score, routeScore }
+          const canOverrideComponentCompatibility = routeScore > 0 && isEditorialRoute && isEditorialTemplate
+          return { template, score, routeScore, canOverrideComponentCompatibility }
         })
         .filter(candidate =>
           candidate.score > 0 &&
           (
-            candidate.routeScore > 0 ||
+            candidate.canOverrideComponentCompatibility ||
             components.length === 0 ||
             this.templateAllowsDetectedComponents(candidate.template, components)
           )

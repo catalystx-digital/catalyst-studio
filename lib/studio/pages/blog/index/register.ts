@@ -133,8 +133,8 @@ const manifest: TemplateManifest = {
       ],
       recommendedComponents: [ComponentType.BlogList, ComponentType.CardGrid, ComponentType.CTAWithForm],
       discouragedComponents: [ComponentType.PricingTable, ComponentType.PricingComparison],
-      exampleUseCases: ['Thought leadership hub', 'Company news archive', 'Resource center index'],
-      routeHints: ['/blog', '/resources']
+      exampleUseCases: ['Thought leadership hub', 'Company news archive', 'Editorial resource archive'],
+      routeHints: ['/blog']
     }
   }
 }

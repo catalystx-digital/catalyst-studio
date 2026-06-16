@@ -197,13 +197,13 @@ jest.mock('@/lib/studio/ai/page-catalog', () => ({
         optionalRegions: [],
         propsMeta: undefined,
         aiMetadata: {
-          keywords: ['blog'],
+          keywords: ['blog', 'resources'],
           layoutGuidelines: ['List articles'],
           contentGuidelines: [],
           recommendedComponents: [],
           discouragedComponents: [],
           exampleUseCases: [],
-          routeHints: ['/blog']
+          routeHints: ['/blog', '/resources']
         }
       },
       {
@@ -1094,6 +1094,10 @@ describe('DetectionService (web-based)', () => {
     })
 
     it('selects the blog index template for article index routes without explicit route hints', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: mockBlogIndexResponse } }],
+        usage: { total_tokens: 1000 }
+      })
       const result = await service.detectComponentsFromUrl('https://example.com/articles')
 
       expect(result.pageTemplate.templateKey).toBe('blog/index-standard')
@@ -1117,6 +1121,13 @@ describe('DetectionService (web-based)', () => {
       const result = await service.detectComponentsFromUrl('https://example.com/articles/page/2/')
 
       expect(result.pageTemplate.templateKey).toBe('blog/index-standard')
+    })
+
+    it('does not select the blog index template for resource grids without article posts', async () => {
+      const result = await service.detectComponentsFromUrl('https://example.com/resources')
+
+      expect(result.components.map(component => component.type)).toEqual(['navbar', 'hero-with-image', 'card-grid'])
+      expect(result.pageTemplate.templateKey).toBe('core/generic-default')
     })
 
     it('keeps article slug routes on the blog post template', async () => {
