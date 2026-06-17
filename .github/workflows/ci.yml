@@ -33,3 +33,21 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  quickstart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Docker quickstart
+        run: npm run verify:quickstart

@@ -48,6 +48,7 @@
     "test:webkit": "playwright test --project=webkit",
     "test:mobile": "playwright test --project='Mobile Chrome' --project='Mobile Safari'",
     "test:report": "playwright show-report",
+    "verify:quickstart": "node scripts/verify-quickstart.mjs",
     "regress:dom-probe": "pnpm tsx scripts/design-system/dom-probe/regression.ts",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",

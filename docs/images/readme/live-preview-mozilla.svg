@@ -1,0 +1,81 @@
+<svg width="1660" height="951" viewBox="0 0 1660 951" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Live preview of imported website</title>
+  <desc id="desc">Catalyst Studio database-backed live preview showing an imported Mozilla example page.</desc>
+  <rect width="1660" height="951" fill="#f5f5f5"/>
+  <rect width="1660" height="68" fill="#181818"/>
+  <text x="16" y="40" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="760">Live Preview</text>
+  <rect x="129" y="23" width="87" height="20" rx="4" fill="#a1a1aa"/>
+  <text x="228" y="38" fill="#a3a3a3" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12">Database-backed preview, no Vercel Sandbox required</text>
+  <rect x="1422" y="13" width="114" height="42" rx="7" fill="#3f3f46" stroke="#52525b"/>
+  <rect x="1552" y="16" width="92" height="36" rx="6" fill="#090909" stroke="#27272a"/>
+  <text x="1598" y="39" fill="#f8fafc" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="760">Open</text>
+
+  <g transform="translate(24 91)">
+    <rect width="1612" height="832" rx="5" fill="#050505" stroke="#18181b"/>
+    <line x1="0" y1="65" x2="1612" y2="65" stroke="#1f1f1f"/>
+    <circle cx="18" cy="33" r="16" fill="#ff5a1f"/>
+    <circle cx="15" cy="31" r="9" fill="#7c3aed"/>
+    <circle cx="22" cy="29" r="8" fill="#facc15"/>
+    <text x="744" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Products</text>
+    <text x="838" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Firefox browsers</text>
+    <text x="1003" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Mozilla VPN</text>
+    <text x="1118" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Mozilla Monitor</text>
+    <text x="1255" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Firefox Relay</text>
+    <text x="1374" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">MDN Plus</text>
+    <text x="1475" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Thunderbird</text>
+    <text x="1568" y="39" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14">Solo</text>
+
+    <text x="198" y="217" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="42" font-weight="820">Love the internet again</text>
+    <text x="198" y="246" fill="#a1a1aa" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="16">Break free from big tech — our products put you in control of a safer, more private internet</text>
+    <text x="198" y="270" fill="#a1a1aa" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="16">experience.</text>
+
+    <g font-family="Inter, Segoe UI, Arial, sans-serif">
+      <rect x="198" y="312" width="448" height="236" rx="7" fill="#1a1a1a" stroke="#14532d"/>
+      <text x="216" y="352" fill="#f8fafc" font-size="20" font-weight="760">Firefox</text>
+      <text x="216" y="410" fill="#a1a1aa" font-size="16">Get the gold standard for browsing with speed, privacy</text>
+      <text x="216" y="436" fill="#a1a1aa" font-size="16">and control.</text>
+      <text x="224" y="512" fill="#00d05a" font-size="15">Learn more ↗</text>
+
+      <rect x="806" y="312" width="304" height="236" rx="7" fill="#1a1a1a" stroke="#14532d"/>
+      <text x="824" y="352" fill="#f8fafc" font-size="20" font-weight="760">Thunderbird</text>
+      <text x="824" y="408" fill="#a1a1aa" font-size="16">Go chaos-free with one app for all</text>
+      <text x="824" y="434" fill="#a1a1aa" font-size="16">your emails, calendars and contacts.</text>
+      <text x="832" y="512" fill="#00d05a" font-size="15">Learn more ↗</text>
+
+      <rect x="1110" y="312" width="304" height="236" rx="7" fill="#1a1a1a" stroke="#2a2a2a"/>
+      <text x="1128" y="352" fill="#f8fafc" font-size="20" font-weight="760">Mozilla VPN</text>
+      <text x="1128" y="410" fill="#a1a1aa" font-size="16">Keep your location and online</text>
+      <text x="1128" y="436" fill="#a1a1aa" font-size="16">adventures private — stream like a</text>
+      <text x="1128" y="462" fill="#a1a1aa" font-size="16">local, anywhere.</text>
+      <text x="1136" y="512" fill="#00d05a" font-size="15">Learn more ↗</text>
+
+      <rect x="198" y="550" width="304" height="236" rx="7" fill="#1a1a1a" stroke="#2a2a2a"/>
+      <text x="216" y="590" fill="#f8fafc" font-size="20" font-weight="760">Mozilla Monitor</text>
+      <text x="216" y="646" fill="#a1a1aa" font-size="16">Get a heads-up if your personal info</text>
+      <text x="216" y="672" fill="#a1a1aa" font-size="16">is at risk and lock it down like a pro.</text>
+      <text x="224" y="750" fill="#00d05a" font-size="15">Learn more ↗</text>
+
+      <rect x="502" y="550" width="304" height="236" rx="7" fill="#1a1a1a" stroke="#2a2a2a"/>
+      <text x="520" y="590" fill="#f8fafc" font-size="20" font-weight="760">Firefox Relay</text>
+      <text x="520" y="646" fill="#a1a1aa" font-size="16">Mask your email and phone number</text>
+      <text x="520" y="672" fill="#a1a1aa" font-size="16">so you only get the messages you</text>
+      <text x="520" y="698" fill="#a1a1aa" font-size="16">want.</text>
+      <text x="528" y="750" fill="#00d05a" font-size="15">Learn more ↗</text>
+
+      <rect x="806" y="550" width="304" height="236" rx="7" fill="#1a1a1a" stroke="#2a2a2a"/>
+      <text x="824" y="590" fill="#f8fafc" font-size="20" font-weight="760">Solo</text>
+      <text x="824" y="646" fill="#a1a1aa" font-size="16">Instantly create a beautiful website so</text>
+      <text x="824" y="672" fill="#a1a1aa" font-size="16">you can grow your business.</text>
+      <text x="832" y="750" fill="#00d05a" font-size="15">Learn more ↗</text>
+
+      <rect x="1110" y="550" width="304" height="236" rx="7" fill="#1a1a1a" stroke="#2a2a2a"/>
+      <text x="1128" y="590" fill="#f8fafc" font-size="20" font-weight="760">0DIN</text>
+      <text x="1128" y="646" fill="#a1a1aa" font-size="16">Secure your AI by finding and fixing</text>
+      <text x="1128" y="672" fill="#a1a1aa" font-size="16">GenAI vulnerabilities before attackers</text>
+      <text x="1128" y="698" fill="#a1a1aa" font-size="16">do.</text>
+      <text x="1136" y="750" fill="#00d05a" font-size="15">Learn more ↗</text>
+    </g>
+  </g>
+
+  <text x="830" y="948" text-anchor="middle" fill="#9ca3af" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12">Preview errors here come from local project data, access, or rendering. Sandbox is not used unless selected.</text>
+</svg>

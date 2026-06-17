@@ -18,12 +18,15 @@ CMS platforms to generate static sites (PULL direction).
 
 ## Providers
 
-- `optimizely/` - Export to Optimizely CMS
-- `contentful/` - Export to Contentful
-- `strapi/` - Export to Strapi
-- `contentstack/` - Export to Contentstack
-- `kontent/` - Export to Kontent.ai
-- `mock/` - Mock provider for testing
+| Provider | Directory | Status |
+| --- | --- | --- |
+| Optimizely CMS | `optimizely/` | Active adapter |
+| Kontent.ai | `kontent/` | Active adapter |
+| Contentstack | `contentstack/` | Active adapter |
+| Umbraco Compose | `umbraco-compose/` | Partial adapter; media upload is still incomplete |
+| Strapi | `strapi/` | Experimental adapter; requires a running Strapi instance and admin/API credentials |
+| Contentful | `contentful/` | Adapter present; not currently included in environment auto-detection |
+| Mock Provider | `mock/` | Development/test adapter |
 
 ---
 
