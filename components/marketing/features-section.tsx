@@ -1,58 +1,64 @@
 'use client';
 
 import {
-  Paintbrush,
-  FileEdit,
-  Rocket,
-  LayoutTemplate,
-  Palette,
+  Sparkles,
+  Layers,
+  Database,
+  Globe,
+  Share2,
   Users,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 /**
- * Features Section - FR-006
+ * Features Section — completely rewritten to match README
  *
- * 6 key features highlighted with icons/visuals
- * Benefits-focused copy addressing different persona needs
+ * Clear benefit-oriented messaging for visitors with zero prior knowledge.
+ * References actual codebase capabilities: 53 components, React Flow, global/shared components,
+ * UCS GraphQL, live DB-backed preview, AI import + greenfield, 6+ export adapters, content types, design system.
  */
-
 const features = [
   {
-    icon: Paintbrush,
-    title: 'Visual Builder',
-    description: 'Design without writing code. Drag and drop components to create beautiful, responsive pages in minutes.',
+    icon: Sparkles,
+    title: 'AI Import & Greenfield Generation',
+    description: 'Point at any live website — AI detects components, extracts navigation, shared elements, and design system. Or generate complete structured sites from a single prompt.',
     gradient: 'from-catalyst-orange/20 to-transparent',
+    detail: 'Optional OpenRouter key. Core demo works without it.',
   },
   {
-    icon: FileEdit,
-    title: 'Client-Ready CMS',
-    description: 'Let clients edit content safely. They update text and images while you control the design system.',
+    icon: Layers,
+    title: 'Visual Site Builder with React Flow',
+    description: 'Drag, drop, reorder pages and folders. Full hierarchy management. 60 production-ready CMS components (heroes, navigation, blog, pricing, forms, data viz, and more).',
     gradient: 'from-catalyst-blue/20 to-transparent',
+    detail: 'Global/shared components with live overrides + one-click propagation.',
   },
   {
-    icon: Rocket,
-    title: 'One-Click Publish',
-    description: 'Go live instantly with built-in hosting. Custom domains, SSL, and CDN included at no extra cost.',
+    icon: Database,
+    title: 'Complete Self-Contained CMS + Live Preview',
+    description: 'Per-site Content Types for structured modeling. Design system extraction & tokens. Media library with usage tracking. Everything renders from the real database — no external services.',
     gradient: 'from-emerald-500/20 to-transparent',
+    detail: 'Instant preview at studio/preview/site/... Fully functional without export.',
   },
   {
-    icon: LayoutTemplate,
-    title: 'Template Library',
-    description: 'Start fast with professional templates. Portfolio, agency, e-commerce, and more ready to customize.',
+    icon: Globe,
+    title: 'Headless GraphQL API (UCS)',
+    description: 'Use Catalyst as a real headless CMS. Full GraphQL endpoint serves pages, structure, global components, design tokens, and resolved media. Same model powers preview, builder, and API.',
     gradient: 'from-purple-500/20 to-transparent',
+    detail: 'Query from Next.js, Nuxt, custom frontends, or anything that speaks GraphQL.',
   },
   {
-    icon: Palette,
-    title: 'Design System',
-    description: 'Colors, fonts, and components stay in sync. Update once, reflect everywhere across all pages.',
+    icon: Share2,
+    title: 'Universal Export to Any CMS',
+    description: 'Model once inside the studio, then push schema + content to your client\'s existing platform. Active adapters for Optimizely CMS (full), Kontent.ai, Contentstack, Umbraco Compose, Strapi, and Contentful.',
     gradient: 'from-pink-500/20 to-transparent',
+    detail: 'Mock provider for local testing. Extensible — add your own adapter.',
   },
   {
     icon: Users,
-    title: 'Team Collaboration',
-    description: 'Work together on client projects. Invite team members with role-based permissions and handoffs.',
+    title: 'Collaboration, Keys & Extensibility',
+    description: 'Team invites, role-based access (owner/admin/member). Scoped API keys with rotation + audit. Usage tracking. Add new components, customize the library, or extend export providers.',
     gradient: 'from-cyan-500/20 to-transparent',
+    detail: 'Everything is local-first and fully hackable.',
   },
 ];
 
@@ -60,18 +66,17 @@ export function FeaturesSection() {
   return (
     <section id="features" className="bg-[#080808] px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        {/* Section header */}
+        {/* Section header — benefit first, scannable */}
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Everything you need to build faster
+            Model once. Edit visually. Deliver anywhere.
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-white/60">
-            From design to deployment, Catalyst Studio gives you the tools to create
-            professional websites without the complexity.
+          <p className="mx-auto mt-4 max-w-3xl text-lg text-white/60">
+            AI migration, professional visual editing, production-grade CMS, headless GraphQL, and universal export — all in one local-first studio. Core demo runs with a single command.
           </p>
         </div>
 
-        {/* Feature grid */}
+        {/* Feature grid — now 6 real-capability cards with concrete details */}
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature, index) => {
             const Icon = feature.icon;
@@ -91,9 +96,15 @@ export function FeaturesSection() {
                     <Icon className="h-6 w-6 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-white/60">
+                  <p className="mt-3 text-sm leading-relaxed text-white/70">
                     {feature.description}
                   </p>
+                  {/* Concrete capability line for credibility */}
+                  {feature.detail && (
+                    <p className="mt-3 border-t border-white/10 pt-3 text-xs font-medium text-catalyst-orange/90">
+                      {feature.detail}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             );

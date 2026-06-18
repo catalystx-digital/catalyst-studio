@@ -115,9 +115,9 @@ function EmptyState() {
       <div className="space-y-3">
         <h2 className="text-2xl font-semibold text-foreground">No design system captured yet</h2>
         <p className="max-w-lg text-sm text-muted-foreground">
-          We couldn&apos;t find any recorded tokens for this website. Trigger a new import run from
-          the site builder to extract colors, typography, spacing, and more.
+          We couldn&apos;t find any recorded tokens for this website. In the seeded demo, use the AI Canvas Assistant (sparkles) in Site Builder to trigger AI import or re-extraction of colors, typography, spacing, and more – everything works out of the box. Or visit the live Preview to see current rendered styles.
         </p>
+        <p className="text-xs text-muted-foreground">Design tokens power the full CMS and GraphQL headless output too.</p>
       </div>
     </div>
   )

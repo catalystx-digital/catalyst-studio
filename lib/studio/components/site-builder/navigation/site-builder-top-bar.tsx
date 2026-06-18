@@ -45,6 +45,7 @@ import {
   Loader2,
   FileText,
   Sparkles,
+  Key,
 } from 'lucide-react';
 import { useWebsiteContext } from '@/lib/context/website-context';
 import { useWebsites } from '@/lib/api/hooks/use-websites';
@@ -350,6 +351,28 @@ export function SiteBuilderTopBar({
             </TooltipTrigger>
             <TooltipContent>
               <p>Publish your changes</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {/* Quick headless/export discoverability link for newcomers */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 text-xs text-muted-foreground hover:text-foreground"
+                asChild
+              >
+                <Link href={buildUrl('/studio/settings') + (websiteId ? '&tab=api' : '?tab=api')}>
+                  <Key className="h-3.5 w-3.5 mr-1" />
+                  Headless API
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Headless API (UCS) — query your live content from any app (same model as visual builder; works on seeded test-website)</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

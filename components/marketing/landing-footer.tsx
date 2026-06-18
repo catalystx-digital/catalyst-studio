@@ -16,36 +16,20 @@ const footerLinks = {
   Product: [
     { label: 'Features', href: '#features' },
     { label: 'Templates', href: '#templates' },
-    { label: 'Changelog', href: '/changelog' },
-    { label: 'Roadmap', href: '/roadmap' },
+    { label: 'Changelog', href: 'https://github.com/catalystx/catalyst-studio-oss/releases' },
+    { label: 'Roadmap', href: 'https://github.com/catalystx/catalyst-studio-oss/issues' },
   ],
   Resources: [
-    { label: 'Documentation', href: '/docs' },
-    { label: 'Tutorials', href: '/tutorials' },
-    { label: 'Blog', href: '/blog' },
-    { label: 'API Reference', href: '/docs/api' },
-    { label: 'Community', href: '/community' },
-  ],
-  Company: [
-    { label: 'About', href: '/about' },
-    { label: 'Contact', href: '/contact' },
-    { label: 'Careers', href: '/careers' },
-    { label: 'Partners', href: '/partners' },
-    { label: 'Press', href: '/press' },
-  ],
-  Support: [
-    { label: 'Help Center', href: '/help' },
-    { label: 'Status', href: '/status' },
-    { label: 'Contact Support', href: '/support' },
-    { label: 'Report a Bug', href: '/bug-report' },
+    { label: 'Documentation', href: 'https://github.com/catalystx/catalyst-studio-oss/blob/main/README.md#quickstart-simplest-possible' },
+    { label: 'API Reference', href: 'https://github.com/catalystx/catalyst-studio-oss/blob/main/README.md#headless--delivery' },
   ],
 };
 
 const socialLinks = [
-  { icon: Twitter, label: 'Twitter', href: 'https://twitter.com/catalyststudio' },
-  { icon: Github, label: 'GitHub', href: 'https://github.com/catalyststudio' },
-  { icon: Linkedin, label: 'LinkedIn', href: 'https://linkedin.com/company/catalyststudio' },
-  { icon: Youtube, label: 'YouTube', href: 'https://youtube.com/@catalyststudio' },
+  { icon: Twitter, label: 'Twitter', href: 'https://twitter.com/catalystx' },
+  { icon: Github, label: 'GitHub', href: 'https://github.com/catalystx' },
+  { icon: Linkedin, label: 'LinkedIn', href: 'https://linkedin.com/company/catalystx' },
+  { icon: Youtube, label: 'YouTube', href: 'https://youtube.com/@catalystx' },
 ];
 
 const legalLinks = [
@@ -68,8 +52,7 @@ export function LandingFooter() {
               </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm text-white/60">
-              Visual website builder and CMS for agencies and freelancers.
-              Build faster, look professional.
+              AI-powered visual studio &amp; CMS. Import any site, edit visually, preview live, export anywhere — or run headless GraphQL. One-command local demo.
             </p>
 
             {/* Social links */}

@@ -453,7 +453,7 @@ ${extractedContent.text}`
           <TabsContent value="ai" className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="ai-prompt" className="text-gray-300">
-                Describe your website idea
+                Describe your website idea (or &quot;Import https://...&quot; to pull any live site)
               </Label>
               <textarea
                 ref={textareaRef}
@@ -620,7 +620,7 @@ ${extractedContent.text}`
                 />
               </div>
               <p className="text-xs text-gray-500">
-                We'll recreate the structure, navigation, and content of the website
+                AI analyzes the live site, extracts components + design system, and builds a fully editable visual + structured CMS version. Works for any public URL.
               </p>
             </div>
 

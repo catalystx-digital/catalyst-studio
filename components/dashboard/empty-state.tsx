@@ -37,7 +37,7 @@ export function EmptyState({
         Create your first website
       </h2>
       <p className="text-gray-400 text-center max-w-md mb-8">
-        Get started by creating a new website with AI, or import an existing site to modernize it.
+        AI-powered visual builder + full CMS. Generate from a prompt, import any live site, edit visually, preview instantly, model structured content, and export to real platforms — or use as a headless GraphQL CMS. One command gets you a complete seeded demo.
       </p>
 
       {/* Actions */}

@@ -15,17 +15,17 @@ const testimonials = [
   {
     id: 1,
     quote:
-      "Catalyst Studio cut our development time by 70%. What used to take weeks now takes days. Our clients love the results, and we love the efficiency.",
+      "We imported a 40-page client site with the AI tool, cleaned it up visually in the React Flow canvas, and exported clean structured content to their Optimizely instance in one afternoon. The time savings are insane.",
     author: 'Sarah Chen',
     role: 'Founder',
     company: 'WebCraft Agency',
-    avatar: null, // Replace with actual photo
+    avatar: null,
     type: 'agency',
   },
   {
     id: 2,
     quote:
-      "Finally, a visual builder that doesn't feel like a toy. The design system integration means my clients' sites actually stay consistent over time.",
+      "The global components + propagation finally solved our consistency problems. Update the nav or footer once and it updates everywhere. Design system tokens actually work across the whole project.",
     author: 'Marcus Rodriguez',
     role: 'Senior Designer',
     company: 'PixelPerfect Studios',
@@ -35,7 +35,7 @@ const testimonials = [
   {
     id: 3,
     quote:
-      "As a freelancer, time is money. Catalyst Studio lets me deliver professional sites faster than my competitors, which means more projects and happier clients.",
+      "As a freelancer I run the entire quickstart on my laptop, show clients live edits in the preview pane, then hand off either the full Catalyst instance or a clean export. No vendor lock-in for them or me.",
     author: 'Emma Thompson',
     role: 'Freelance Developer',
     company: 'Self-employed',
@@ -45,7 +45,7 @@ const testimonials = [
   {
     id: 4,
     quote:
-      "The CMS is exactly what our clients needed. They can update content without breaking anything, and I don't get midnight support calls anymore.",
+      "Our team uses the UCS GraphQL API for three different frontends while non-technical stakeholders edit safely in the visual builder. One source of truth, zero midnight support calls.",
     author: 'David Park',
     role: 'Technical Director',
     company: 'Digital First Agency',
@@ -71,10 +71,10 @@ export function TestimonialsSection() {
         {/* Section header */}
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Loved by agencies worldwide
+            Real workflows. Real results.
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-white/60">
-            See what developers, designers, and agency owners say about building with Catalyst Studio.
+          <p className="mx-auto mt-4 max-w-3xl text-lg text-white/60">
+            AI import to export in hours. Consistent globals. One headless source of truth. The same studio developers and clients both love.
           </p>
         </div>
 

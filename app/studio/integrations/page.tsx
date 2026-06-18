@@ -18,8 +18,9 @@ export default function IntegrationsPage() {
           Integrations
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Connect your website to external CMS platforms and services.
+          Connect your website to external CMS platforms and services. In the seeded demo, try the Publish flow or Site Builder AI to see export/headless paths in action without setup.
         </p>
+        <p className="text-xs text-muted-foreground mt-1">For pure headless use, check API Access in Website Settings – GraphQL and universal export are built-in and ready.</p>
       </div>
 
       <div className="p-6">

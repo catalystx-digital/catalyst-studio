@@ -25,17 +25,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Catalyst Studio - Website Builder & CMS for Agencies",
+  title: "Catalyst Studio - AI-powered Visual Website Studio & CMS",
   description:
-    "Build and manage client websites faster. Visual builder, CMS, and hosting for agencies and freelancers. Start free, no credit card required.",
+    "AI-powered visual website studio and CMS. Simple local hackable demo: import live sites with AI, edit visually, preview instantly. Run standalone with GraphQL headless API or export to any CMS. Core features (builder, preview, modeling) work with one command — no paid services or API keys required.",
   keywords: [
-    "website builder",
-    "CMS",
-    "agency tools",
-    "freelancer tools",
-    "visual builder",
-    "no-code",
-    "web design",
+    "AI website builder",
+    "visual site builder",
+    "headless CMS",
+    "GraphQL CMS",
+    "UCS GraphQL",
+    "website import",
+    "universal CMS export",
+    "Optimizely",
+    "Kontent.ai",
+    "Contentstack",
+    "content modeling",
+    "design system",
+    "React Flow builder",
+    "open source CMS",
+    "no-code CMS",
+    "AI content migration",
   ],
   authors: [{ name: "Catalyst Studio" }],
   openGraph: {
@@ -43,23 +52,23 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://catalyst-studio.app",
     siteName: "Catalyst Studio",
-    title: "Catalyst Studio - Build & Manage Client Websites Faster",
+    title: "Catalyst Studio - AI-powered Visual Website Studio & CMS",
     description:
-      "Ship client sites 3x faster with our visual builder and CMS. Trusted by 500+ agencies.",
+      "Simple local hackable AI visual website studio and CMS. One-command local demo with seeded site (no keys). Visual builder + live preview + headless GraphQL UCS API + export providers (Optimizely, Kontent.ai, Contentstack, etc.).",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Catalyst Studio - Website Builder for Agencies",
+        alt: "Catalyst Studio - AI-powered Visual Website Studio and CMS",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Catalyst Studio - Website Builder & CMS for Agencies",
+    title: "Catalyst Studio - AI-powered Visual Website Studio & CMS",
     description:
-      "Build and manage client websites faster. Visual builder, CMS, and hosting for agencies.",
+      "Simple local hackable demo: AI import, visual editing, live preview, headless GraphQL, universal export. Core runs with npm run verify:quickstart — no API keys needed.",
     images: ["/og-image.png"],
   },
   manifest: "/site.webmanifest",

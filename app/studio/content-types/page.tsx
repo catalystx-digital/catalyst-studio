@@ -471,7 +471,8 @@ export default function ContentTypesBoardPage() {
           {hasNoData && (
             <div className="rounded-lg border bg-card p-6 text-sm">
               <p className="font-medium">No content types are registered for this site yet.</p>
-              <p className="mt-2 text-xs text-muted-foreground">Rerun template seeding or import flows to populate the registry.</p>
+              <p className="mt-2 text-xs text-muted-foreground">In the seeded demo everything works out-of-the-box: the Site Builder AI assistant can create custom page/component types on the fly (full CMS power). Standard types are usually populated by AI import or template seeding. Explore the visual editor first – then extend here.</p>
+              <p className="mt-1 text-[10px] text-muted-foreground/70">These types drive both the visual builder and headless GraphQL queries.</p>
             </div>
           )}
 
@@ -505,6 +506,7 @@ export default function ContentTypesBoardPage() {
                         {sortedItems.length === 0 && (
                           <div className="rounded-lg border bg-muted/50 p-6 text-sm text-muted-foreground">
                             {categoryMeta?.empty ?? 'No types are registered under this category yet.'}
+                            <span className="block mt-1 text-[10px]">Try the AI assistant in Site Builder – it discovers and registers new types automatically in the demo.</span>
                           </div>
                         )}
                         {sortedItems.map((type) => {

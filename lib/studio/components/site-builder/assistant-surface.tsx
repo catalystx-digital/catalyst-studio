@@ -601,8 +601,11 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
               <SaveStatusBadge className="absolute top-1 right-1" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left" className="bg-black text-white border-white/10">
-            AI assistant
+          <TooltipContent side="left" className="bg-black text-white border-white/10 max-w-[220px]">
+            <div>
+              <p className="font-medium">AI Canvas Assistant</p>
+              <p className="text-[11px] mt-0.5 text-white/70">Edit pages, generate components, apply globals, or restructure – context-aware and fully working in the seeded demo. Click to open.</p>
+            </div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -625,7 +628,7 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white">Canvas assistant</p>
-                    <p className="text-xs text-white/60">Context aware guidance</p>
+                    <p className="text-xs text-white/60">AI-powered editing • works out-of-the-box on demo</p>
                   </div>
                 </div>
                 <Button
@@ -648,6 +651,20 @@ export function AssistantSurface({ websiteId, selectedNodes, onFocusScope, autoO
                   Replies target the current selection.
                 </span>
               </div>
+
+              {/* Quick start guidance for newcomers / demo users */}
+              {messages.length === 0 && (
+                <div className="px-4 py-2 border-b border-white/10 bg-white/5 text-[11px] text-white/70">
+                  <div className="font-medium text-white/80 mb-1">What to try first (demo ready):</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="rounded bg-white/10 px-1.5 py-px">"Add a testimonials section to this page"</span>
+                    <span className="rounded bg-white/10 px-1.5 py-px">"Create an About page"</span>
+                    <span className="rounded bg-white/10 px-1.5 py-px">"Make the hero global"</span>
+                    <span className="rounded bg-white/10 px-1.5 py-px">"List available components"</span>
+                  </div>
+                  <div className="mt-1 text-[10px] text-white/50">Full CMS + AI import power + component library available instantly.</div>
+                </div>
+              )}
 
               {/* Active Import Status Card - FIXED at top, always visible */}
               {shouldShowImportStatusCard && (

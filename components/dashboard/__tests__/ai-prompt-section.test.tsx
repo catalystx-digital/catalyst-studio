@@ -29,7 +29,7 @@ describe('AIPromptSection', () => {
       />
     );
     
-    const textarea = screen.getByPlaceholderText(/Describe your website idea/);
+    const textarea = screen.getByPlaceholderText(/Describe a new site|Import https/);
     expect(textarea).toBeInTheDocument();
   });
   
@@ -53,7 +53,7 @@ describe('AIPromptSection', () => {
       />
     );
     
-    const textarea = screen.getByPlaceholderText(/Describe your website idea/);
+    const textarea = screen.getByPlaceholderText(/Describe a new site|Import https/);
     const createButton = screen.getByRole('button', { name: /Create Website/i });
     
     await userEvent.type(textarea, 'A CRM for small businesses');
@@ -69,7 +69,7 @@ describe('AIPromptSection', () => {
       />
     );
     
-    const textarea = screen.getByPlaceholderText(/Describe your website idea/);
+    const textarea = screen.getByPlaceholderText(/Describe a new site|Import https/);
     const createButton = screen.getByRole('button', { name: /Create Website/i });
     
     await userEvent.type(textarea, 'A CRM for small businesses');

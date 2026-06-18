@@ -197,8 +197,85 @@ export function ApiAccessTab({ websiteId, websiteName }: ApiAccessTabProps) {
     );
   }
 
+  // Build the UCS GraphQL endpoint URL for the current host (client only)
+  const graphqlEndpoint =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/api/studio/ucs/graphql`
+      : '/api/studio/ucs/graphql';
+
+  // Demo values grounded in seeded "test-website" (per docs/setup.md + .env.example) and real UCS schema
+  const demoWebsiteId = websiteId ?? 'test-website';
+  const exampleQueryDisplay = `query GetHome($websiteId: ID!, $slug: String = "/") {
+  website(id: $websiteId) { id name }
+  page(websiteId: $websiteId, slug: $slug) {
+    title fullPath templateKey
+    components { id type componentType props content styles }
+    sharedComponents { id name }
+  }
+  sharedComponents(websiteId: $websiteId) { id name componentType }
+  designSystems(websiteId: $websiteId) { id version isCurrent }
+}`;
+
+  const handleTryNow = () => {
+    // Compact single-line for reliable curl paste (GraphQL ignores whitespace)
+    const q = 'query GetHome($websiteId: ID!, $slug: String = "/") { website(id: $websiteId) { id name } page(websiteId: $websiteId, slug: $slug) { title fullPath templateKey components { id type componentType props content styles } sharedComponents { id name } } sharedComponents(websiteId: $websiteId) { id name componentType } designSystems(websiteId: $websiteId) { id version isCurrent } }';
+    const curl = `curl -X POST "${graphqlEndpoint}" -H "Content-Type: application/json" -H "x-ucs-api-key: <paste-your-api-key-here>" -d '{"query":${JSON.stringify(q)},"variables":{"websiteId":"${demoWebsiteId}"}}'`;
+    handleCopy(curl);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Headless / GraphQL visibility section for newcomers */}
+      <Card className="border-catalyst-orange/40 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            Headless GraphQL API (UCS)
+          </CardTitle>
+          <CardDescription>
+            Use this website&apos;s structured content headlessly from any frontend, static site generator, or custom app.
+            The same resolved model that powers the visual builder, preview, and exports is available via GraphQL.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div>
+            <div className="font-medium text-foreground mb-1">Endpoint</div>
+            <div className="font-mono text-xs bg-black/40 px-3 py-2 rounded border border-border-default/60 break-all">
+              {graphqlEndpoint}
+            </div>
+            <p className="mt-1 text-muted-foreground text-xs">
+              POST GraphQL queries here. Requires an active website-scoped API key (WEBSITE_READ scope recommended).
+            </p>
+          </div>
+
+          <div>
+            <div className="font-medium text-foreground mb-1">Auth</div>
+            <div className="font-mono text-xs bg-black/40 px-3 py-2 rounded border border-border-default/60">
+              x-ucs-api-key: &lt;your-plaintext-api-key&gt;
+            </div>
+          </div>
+
+          <div>
+            <div className="font-medium text-foreground mb-1">Example: Fetch home page + components, shared components, design system (practical for seeded test-website)</div>
+            <pre className="text-[10px] leading-tight bg-black/60 p-3 rounded border border-border-default/60 overflow-x-auto whitespace-pre-wrap">{exampleQueryDisplay}</pre>
+            <p className="mt-1 text-muted-foreground text-xs">
+              Send as JSON: {"{ \"query\": \"...\", \"variables\": { \"websiteId\": \"...\" } }"}.
+              See README.md “Headless &amp; Delivery” section for more on using as a CMS.
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleTryNow}>
+                <Copy className="mr-2 h-3.5 w-3.5" /> Try it now (copy curl)
+              </Button>
+              <span className="text-[10px] text-muted-foreground">Generate a key in the table below first, then replace the placeholder. Uses active websiteId ({demoWebsiteId}).</span>
+            </div>
+            <p className="mt-1 text-[10px] text-catalyst-orange/80">Works instantly in the seeded demo – use the visual Site Builder + AI assistant to populate real structured content, then query it headlessly. The same resolved UCS model powers preview, builder edits, and exports.</p>
+          </div>
+
+          <div className="text-xs text-muted-foreground pt-1 border-t border-border-default/40">
+            Keys created below work immediately with this API (and headless generation scripts in the repo).
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="border-b border-border-default/40 pb-4">
           <CardTitle className="flex items-center gap-2 text-xl font-semibold text-white">
@@ -233,7 +310,7 @@ export function ApiAccessTab({ websiteId, websiteName }: ApiAccessTabProps) {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-muted-foreground">
-              Keys inherit rate limits and scopes defined in docs/graphql/ucs-read-api.md.
+              Keys inherit rate limits and WEBSITE_READ / ACCOUNT_READ scopes. See README “Headless &amp; Delivery” for UCS GraphQL usage.
             </div>
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" /> Generate API key

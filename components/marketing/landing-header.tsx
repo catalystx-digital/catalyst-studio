@@ -19,8 +19,8 @@ export function LandingHeader() {
 
   const navLinks = [
     { href: '#features', label: 'Features' },
-    { href: '#templates', label: 'Templates' },
-    { href: '/docs', label: 'Docs' },
+    { href: '#templates', label: 'Workflows' },
+    { href: 'https://github.com/catalystx/catalyst-studio-oss/blob/main/README.md', label: 'Docs' },
   ];
 
   return (

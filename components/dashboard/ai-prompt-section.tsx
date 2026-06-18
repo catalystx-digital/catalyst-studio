@@ -135,12 +135,17 @@ export function AIPromptSection({ onWebsiteCreated, isCreating }: AIPromptSectio
   return (
     <div className="ai-prompt-container bg-gray-900 rounded-2xl p-8 shadow-lg border border-gray-700">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-3">
           <Sparkles className="w-8 h-8 text-catalyst-orange" />
           <h2 className="text-3xl font-bold text-white">
             What would you build today?
           </h2>
         </div>
+        <p className="text-sm text-gray-400 mb-6 max-w-3xl">
+          AI generates complete sites from a short description — information architecture, pages, real components, and content.
+          Or import any live website: point it at a URL and the AI will recreate structure, navigation, design system, and content as editable Catalyst models.
+          No API keys needed for local core features.
+        </p>
 
         <div className="prompt-input-wrapper space-y-4">
           <div className="relative">
@@ -154,7 +159,7 @@ export function AIPromptSection({ onWebsiteCreated, isCreating }: AIPromptSectio
                 }
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Describe your website idea... (e.g., 'A CRM for small businesses with lead tracking and email automation')"
+              placeholder="Describe a new site (e.g. 'Modern SaaS marketing site with pricing, features, and testimonials') or type 'Import https://example.com' to recreate any live website"
               className="w-full min-h-[100px] max-h-[200px] p-4 pr-32 border-2 border-gray-700 rounded-xl resize-none 
                        bg-gray-800 text-gray-100
                        placeholder:text-gray-500
@@ -191,7 +196,7 @@ export function AIPromptSection({ onWebsiteCreated, isCreating }: AIPromptSectio
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex-1">
               <p className="text-sm text-gray-400 mb-2">
-                Need inspiration? Start from proven playbooks:
+                Or start from a quickstart (includes live website import):
               </p>
               <QuickCategoryTags onTagClick={handleTagClick} />
             </div>

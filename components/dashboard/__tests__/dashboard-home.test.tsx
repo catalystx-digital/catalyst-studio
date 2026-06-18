@@ -7,45 +7,20 @@ describe('DashboardHome', () => {
     jest.resetModules();
   });
 
-  function setupMocks() {
-    jest.doMock('../dashboard-layout', () => ({
-      DashboardLayout: ({ children }: { children: React.ReactNode }) => (
-        <div data-testid="layout">{children}</div>
-      ),
-    }));
-    jest.doMock('../website-creator', () => ({
-      WebsiteCreator: () => <div data-testid="website-creator">prompt</div>,
-    }));
-    jest.doMock('../recent-apps', () => ({
-      RecentApps: ({ className }: { className?: string }) => (
-        <div data-testid="recent-apps" data-class={className}>
-          websites
-        </div>
-      ),
-    }));
-  }
+  it('renders dashboard content for authenticated users (with websites grid)', () => {
+    render(<DashboardHome isAuthenticated />);
 
-  it('renders website creator and recent apps for authenticated users', async () => {
-    setupMocks();
-
-    const { DashboardHome: MockedDashboardHome } = await import('../dashboard-home');
-
-    render(<MockedDashboardHome isAuthenticated />);
-
-    expect(screen.getByTestId('layout')).toBeInTheDocument();
-    expect(screen.getByTestId('website-creator')).toBeInTheDocument();
-    expect(screen.getByTestId('recent-apps')).toBeInTheDocument();
+    // Main heading from our demo welcome hero (prominent for quickstart/demo users)
+    expect(screen.getByText(/Welcome to the Catalyst Studio demo/i)).toBeInTheDocument();
+    // Feature discovery links are present
+    expect(screen.getByText(/Try these features with the seeded demo site/i)).toBeInTheDocument();
+    expect(screen.getByText(/Visual Site Builder/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live Database-Backed Preview/i)).toBeInTheDocument();
   });
 
-  it('renders website creator and recent apps for anonymous users', async () => {
-    setupMocks();
+  it('renders sign-in guidance for anonymous users', () => {
+    render(<DashboardHome isAuthenticated={false} />);
 
-    const { DashboardHome: MockedDashboardHome } = await import('../dashboard-home');
-
-    render(<MockedDashboardHome isAuthenticated={false} />);
-
-    expect(screen.getByTestId('layout')).toBeInTheDocument();
-    expect(screen.getByTestId('website-creator')).toBeInTheDocument();
-    expect(screen.getByTestId('recent-apps')).toBeInTheDocument();
+    expect(screen.getByText(/Please sign in to view your websites/i)).toBeInTheDocument();
   });
 });

@@ -48,7 +48,7 @@ export default function StudioDeploymentPage() {
           Publish
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Deploy your website to your connected CMS platform.
+          Deploy your website to your connected CMS platform. In the seeded demo, use the wizard or trigger from Site Builder – or explore the universal export / GraphQL headless options via Proposal export and Settings &gt; API Access. Everything is functional out-of-the-box.
         </p>
       </div>
 

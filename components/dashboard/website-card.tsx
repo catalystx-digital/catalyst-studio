@@ -319,6 +319,31 @@ export function WebsiteCard({
               AI Build
             </Badge>
           )}
+
+          {/* Capability hints + seeded demo guidance (portfolio/demo focused) */}
+          {config.showDescription && !importJob && website.id === 'test-website' && (
+            <div className="mb-3">
+              <div className="inline-flex items-center rounded border border-gray-600 bg-gray-800/60 px-2 py-0.5 text-[10px] font-medium text-gray-300">
+                Visual + Structured CMS
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="ml-2 text-[10px] text-amber-400/90 cursor-help underline decoration-dotted">
+                    Seeded demo — fully editable
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[240px] text-xs">
+                  This is a complete, real seeded demo site (not a mock). Edit pages/components in the builder. Changes appear instantly in Preview and power the headless API.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+          {/* Subtle general capability hint for other sites (professional polish) */}
+          {config.showDescription && !importJob && website.id !== 'test-website' && (
+            <div className="mb-1">
+              <span className="text-[10px] text-gray-500">Full visual editor • live preview • CMS + headless</span>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions Footer - Always Visible */}

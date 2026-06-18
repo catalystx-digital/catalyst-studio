@@ -2,7 +2,7 @@
 
  * CMS Component Library - Main Export File
 
- * Exports all 46 CMS components across 9 categories
+ * Exports all 60 CMS components across categories
 
  * 
 

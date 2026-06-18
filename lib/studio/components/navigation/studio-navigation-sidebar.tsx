@@ -48,6 +48,7 @@ import {
   Plus,
   ExternalLink,
   Globe,
+  Key,
 } from 'lucide-react';
 import { useWebsiteContext } from '@/lib/context/website-context';
 import { useWebsites } from '@/lib/api/hooks/use-websites';
@@ -153,7 +154,7 @@ export const StudioNavigationSidebar = React.memo(function StudioNavigationSideb
       label: 'Preview',
       href: buildUrl('/studio/preview'),
       icon: <Eye className="h-4 w-4" />,
-      tooltip: 'Preview your website on different devices',
+      tooltip: 'Preview your website on different devices (DB-backed renderer)',
     },
     {
       id: 'deploy',
@@ -161,6 +162,13 @@ export const StudioNavigationSidebar = React.memo(function StudioNavigationSideb
       href: buildUrl('/studio/deployment'),
       icon: <Rocket className="h-4 w-4" />,
       tooltip: 'Publish your website changes',
+    },
+    {
+      id: 'api-headless',
+      label: 'Headless API (UCS)',
+      href: buildUrl('/studio/settings') + (websiteId ? '&tab=api' : '?tab=api'),
+      icon: <Key className="h-4 w-4" />,
+      tooltip: 'Headless API (UCS) — query your live content from any app (same CMS model as the visual builder; ready on seeded test-website)',
     },
     {
       id: 'integrations',

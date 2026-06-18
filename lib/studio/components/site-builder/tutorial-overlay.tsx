@@ -14,30 +14,46 @@ interface TutorialStep {
 
 const TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: 'Welcome to Site Builder',
-    description: 'This quick tutorial will show you the main features. You can skip anytime or press ? to view keyboard shortcuts.',
+    title: 'Welcome to Site Builder (Demo)',
+    description: 'Explore the seeded demo – everything works out of the box. This visual hierarchy (React Flow) editor shows your full page tree. Drag nodes, zoom, and use the AI assistant (sparkles button) for AI import-style edits, content, and components. Press ? for shortcuts.',
     position: 'bottom',
   },
   {
+    title: 'Visual Hierarchy Editor',
+    description: 'The canvas is a live React Flow sitemap. Click nodes to select pages, drag to reorder hierarchy, double-click to dive into page components. Global sections apply across pages.',
+    position: 'bottom',
+  },
+  {
+    title: 'Component Library & Globals',
+    description: 'Use the Global Sections (layers icon) or component tools to add powerful reusable blocks. Mark components global for site-wide reuse – fully functional in the demo.',
+    targetSelector: '[data-tutorial-id="global-sections"]',
+    position: 'right',
+  },
+  {
     title: 'Add Components',
-    description: 'Click the component library button to add new sections, headers, footers, and more to your pages.',
+    description: 'Click the component library button (or ask the AI) to add new sections, headers, footers, and more to your pages. The seeded demo includes rich component types.',
     targetSelector: '[data-tutorial-id="component-library"]',
     position: 'right',
   },
   {
-    title: 'Edit Properties',
-    description: 'Select any component to edit its content, images, links, and styles in the properties panel.',
+    title: 'Edit Properties & Live CMS',
+    description: 'Select any component to edit its content, images, links, and styles in the properties panel. This is a full database-backed CMS – changes are live.',
     targetSelector: '[data-tutorial-id="properties-panel"]',
     position: 'left',
   },
   {
-    title: 'Reorder Components',
-    description: 'Drag components to reorder them, or use Alt+↑/↓ keyboard shortcuts for precise positioning.',
-    position: 'top',
+    title: 'AI Canvas Assistant',
+    description: 'Click the floating Sparkles button (bottom right). Tell it "add a hero to home", "create about page", or "make this global". It understands your selection and the full component library. Works instantly on the demo site.',
+    position: 'left',
   },
   {
-    title: 'Auto-Save',
-    description: 'Your changes are automatically saved. Watch the save indicator in the top bar to see the status.',
+    title: 'Design System, Preview & Export',
+    description: 'Visit Colors & Styles for live design tokens. Use Preview for the DB-backed renderer. Generate Proposal (export) from top bar or logo menu. For headless/GraphQL API or universal export options, check Settings > API Access.',
+    position: 'bottom',
+  },
+  {
+    title: 'Reorder, Auto-Save & More',
+    description: 'Drag components or use Alt+↑/↓. Changes auto-save (watch top bar status). Content types, Integrations, and Publish are one click in the rail or logo menu. Everything ready in the seeded demo.',
     targetSelector: '[data-tutorial-id="save-indicator"]',
     position: 'bottom',
   },

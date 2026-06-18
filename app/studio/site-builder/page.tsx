@@ -816,6 +816,18 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
     lastReimportedAt?: string
     sourceNotFoundAt?: string
   }>>([])
+
+  // Getting Started hint state (dismissible demo guidance, follows existing first-visit/localStorage pattern)
+  const DEMO_HINT_KEY = 'site-builder-demo-hint-dismissed'
+  const [hintDismissed, setHintDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try { return localStorage.getItem(DEMO_HINT_KEY) === 'true' } catch { return false }
+  })
+  const dismissDemoHint = useCallback(() => {
+    try { localStorage.setItem(DEMO_HINT_KEY, 'true') } catch {}
+    setHintDismissed(true)
+  }, [])
+
   const isGreenfieldJob = importJobIdParam?.startsWith('bootstrap-') ?? false
   const shouldAutoOpenAssistant =
     (!!currentImportJob && currentImportJob.state !== 'completed') ||
@@ -2721,6 +2733,22 @@ const SitemapFlow: React.FC<SitemapFlowProps> = ({
       />
 
       {/* SEARCH INTEGRATION: Client-side empty state removed - SearchOverlay handles its own empty state */}
+
+      {/* Getting Started / Feature Tour hint panel (dismissible) – placed before ReactFlow */}
+      {!hintDismissed && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[70] max-w-xl pointer-events-auto">
+          <div className="rounded-lg border border-primary/30 bg-background/95 backdrop-blur px-3 py-2 text-xs shadow flex items-start gap-2">
+            <div className="flex-1">
+              <span className="font-medium text-foreground">Demo ready: </span>
+              <span className="text-muted-foreground">
+                Visual React Flow hierarchy • drag/reorder nodes • AI assistant (✨ bottom-right) edits structure/content/globals instantly • Global Sections (layers icon) • live DB preview • design tokens • Proposal export • headless GraphQL via Settings. All features work out-of-the-box on this seeded site.
+              </span>
+              <button onClick={() => window.dispatchEvent(new CustomEvent('open-help'))} className="ml-1 underline text-primary hover:text-primary/80">Open full tour</button>
+            </div>
+            <button onClick={dismissDemoHint} className="text-muted-foreground hover:text-foreground ml-1 leading-none" aria-label="Dismiss hint">×</button>
+          </div>
+        </div>
+      )}
 
         <div style={{ width: '100%', height: '100vh' }}>
         <ReactFlow

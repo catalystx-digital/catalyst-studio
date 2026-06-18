@@ -203,7 +203,7 @@ function PreviewPageContent() {
             Vercel Sandbox
           </span>
           <span className="text-xs text-muted-foreground">
-            Explicitly selected with sandbox=true
+            Explicitly selected with sandbox=true (DB renderer is default – see note below)
           </span>
           </div>
           <div className="flex items-center gap-4">
@@ -296,7 +296,7 @@ function PreviewPageContent() {
             Local Preview
           </span>
           <span className="text-xs text-muted-foreground">
-            Database-backed preview, no Vercel Sandbox required
+            Database-backed renderer (instant from your CMS edits)
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -382,7 +382,7 @@ function PreviewPageContent() {
         </div>
         <div className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <AlertCircle className="h-3.5 w-3.5" />
-          Preview errors here come from local project data, access, or rendering. Sandbox is not used unless selected.
+          This is the database-backed live renderer – edits in Site Builder (visual React Flow hierarchy + component CMS) update instantly. For headless GraphQL API access or universal export options, open Settings &gt; API Access or use Proposal export from the Site Builder logo menu. (Everything works out-of-the-box in the seeded demo.)
         </div>
       </div>
     </div>
