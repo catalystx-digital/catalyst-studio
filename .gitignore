@@ -119,3 +119,15 @@ ralph/spec.md
 ralph/prompt-*.txt
 nul
 ralphv2/server.log
+
+# Temporary AI/sub-agent helper artifacts (session-specific, do not commit)
+# These files are generated during AI-assisted code improvement, analysis, or
+# sub-agent sessions (e.g. FINAL_ACTIONS.md, FINAL_STEPS.md,
+# FINAL_USER_COMMANDS.ps1, LOCAL_VERIFICATION_AND_COMMIT_CHECKLIST.md,
+# changed.txt). They are transient working notes/checklists/commands and must
+# not be committed to keep the repo clean. (PORTFOLIO.md is intentionally
+# excluded from this rule as it is a committed user-facing job-search deliverable.)
+FINAL_*.md
+LOCAL_*_CHECKLIST.md
+*_USER_COMMANDS.ps1
+changed.txt
