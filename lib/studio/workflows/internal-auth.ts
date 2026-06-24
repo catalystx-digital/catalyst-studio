@@ -13,9 +13,8 @@ export function isAuthorizedInternalWorkflowRequest(request: NextRequest): boole
   const host = request.headers.get('host') ?? ''
   const isLocalHost = isLocalHostHeader(host)
   const isLocalEnv = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
-  const isVercelRuntime = Boolean(process.env.VERCEL_URL)
 
-  if (isLocalHost && (isLocalEnv || !isVercelRuntime)) {
+  if (isLocalHost && isLocalEnv) {
     return true
   }
 
