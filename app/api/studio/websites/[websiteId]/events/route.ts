@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthContext } from '@/lib/auth/context'
+import { assertPermission, getAuthorizedContext } from '@/lib/auth/authorization'
 import { assertWebsiteOwnership } from '@/lib/auth/ownership'
 import { studioEventBus } from '@/lib/studio/activity/studio-event-bus'
 import { ImportActivityReadService } from '@/lib/studio/import/services/import-activity-read-service'
@@ -17,7 +17,7 @@ export async function GET(
 ) {
   let auth
   try {
-    auth = await getAuthContext(request)
+    auth = await getAuthorizedContext(request)
   } catch {
     return new Response('Unauthorized', { status: 401 })
   }
@@ -25,6 +25,7 @@ export async function GET(
   const { websiteId } = await params
   try {
     await assertWebsiteOwnership(prisma as any, auth.accountId, websiteId)
+    await assertPermission(auth, 'website:view', websiteId)
   } catch {
     return new Response('Forbidden', { status: 403 })
   }
