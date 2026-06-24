@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
+const databaseHost = process.env.CATALYST_STUDIO_DB_HOST || '127.0.0.1';
 const databasePort = process.env.CATALYST_STUDIO_DB_PORT || '5432';
-const databaseUrl = `postgresql://postgres:postgres@localhost:${databasePort}/catalyst_studio`;
+const databaseUrl = `postgresql://postgres:postgres@${databaseHost}:${databasePort}/catalyst_studio`;
 const appUrl = 'http://127.0.0.1:3100';
 const env = {
   ...process.env,
