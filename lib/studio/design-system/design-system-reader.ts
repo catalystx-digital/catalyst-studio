@@ -66,6 +66,34 @@ function cloneTokens(tokens: ShadcnDesignSystemTokens): ShadcnDesignSystemTokens
   return JSON.parse(JSON.stringify(tokens)) as ShadcnDesignSystemTokens
 }
 
+function isSafeCssCustomPropertyValue(value: string): boolean {
+  return (
+    !/[;{}]/.test(value) &&
+    !/[\u0000-\u001f\u007f]/.test(value) &&
+    !/<\/?style/i.test(value)
+  )
+}
+
+function validateStringRecordCssValues(
+  values: Record<string, string>,
+  path: string
+): string | null {
+  for (const [key, value] of Object.entries(values)) {
+    if (!isSafeCssCustomPropertyValue(value)) {
+      return `${path}.${key}`
+    }
+  }
+
+  return null
+}
+
+function validateTypographyCssValue(
+  value: unknown,
+  path: string
+): string | null {
+  return typeof value === 'string' && !isSafeCssCustomPropertyValue(value) ? path : null
+}
+
 /**
  * Check if a string produces a valid Date when parsed
  */
@@ -115,6 +143,11 @@ function validateShadcnDesignSystemTokens(tokens: unknown): string | null {
     return 'variables'
   }
 
+  const invalidVariablePath = validateStringRecordCssValues(tokens.variables, 'variables')
+  if (invalidVariablePath) {
+    return invalidVariablePath
+  }
+
   if (!isRecord(tokens.extraction)) {
     return 'extraction'
   }
@@ -123,6 +156,13 @@ function validateShadcnDesignSystemTokens(tokens: unknown): string | null {
   const source = extraction.source
   if (tokens.darkVariables !== undefined && !isStringRecord(tokens.darkVariables)) {
     return 'darkVariables'
+  }
+
+  if (tokens.darkVariables !== undefined) {
+    const invalidDarkVariablePath = validateStringRecordCssValues(tokens.darkVariables, 'darkVariables')
+    if (invalidDarkVariablePath) {
+      return invalidDarkVariablePath
+    }
   }
 
   if (tokens.typography !== undefined) {
@@ -161,6 +201,17 @@ function validateShadcnDesignSystemTokens(tokens: unknown): string | null {
         if (entry.letterSpacing !== undefined && typeof entry.letterSpacing !== 'string') {
           return `typography.${group}.${index}.letterSpacing`
         }
+
+        const unsafeTypographyPath =
+          validateTypographyCssValue(entry.fontFamily, `typography.${group}.${index}.fontFamily`) ??
+          validateTypographyCssValue(entry.fontSize, `typography.${group}.${index}.fontSize`) ??
+          validateTypographyCssValue(entry.fontStack, `typography.${group}.${index}.fontStack`) ??
+          validateTypographyCssValue(entry.lineHeight, `typography.${group}.${index}.lineHeight`) ??
+          validateTypographyCssValue(entry.letterSpacing, `typography.${group}.${index}.letterSpacing`)
+        if (unsafeTypographyPath) {
+          return unsafeTypographyPath
+        }
+
         if (entry.name !== undefined && typeof entry.name !== 'string') {
           return `typography.${group}.${index}.name`
         }

@@ -311,6 +311,34 @@ describe('strict runtime readers', () => {
     expect(css).not.toContain('--background: 240 10% 3.9%;')
   })
 
+  it('rejects CSS-breaking design-system values before generating preview CSS', () => {
+    expect(() => generateStrictDesignSystemCss({
+      variables: {
+        '--primary': '240 5.9% 10%',
+        '--background': '0 0% 100%; color: red',
+      },
+      extraction: currentTokens.extraction,
+    })).toThrow('Design-system payload is not valid current shadcn token data.')
+
+    expect(() => generateStrictDesignSystemCss({
+      variables: currentTokens.variables,
+      typography: {
+        heading: [],
+        body: [
+          {
+            role: 'body',
+            fontFamily: 'Inter',
+            fontStack: '</style><script>window.__studioXss=1</script><style>, serif',
+            fontSize: '13px',
+            fontWeight: 400,
+          },
+        ],
+        ui: [],
+      },
+      extraction: currentTokens.extraction,
+    })).toThrow('Design-system payload is not valid current shadcn token data.')
+  })
+
   it('emits captured typography variables for preview runtime CSS', () => {
     const css = generateStrictDesignSystemCss({
       variables: currentTokens.variables,
