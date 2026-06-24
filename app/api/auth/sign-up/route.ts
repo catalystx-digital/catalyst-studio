@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { AccountRole, autoAcceptPendingInvitations } from '@/lib/auth/account';
+import { AccountRole } from '@/lib/auth/account';
 import { hashPassword, normalizeEmail } from '@/lib/auth/password';
 import { AUTH_SESSION_COOKIE } from '@/lib/auth/session-cookie';
 import { createSessionRecord } from '@/lib/auth/create-session';
@@ -65,7 +65,6 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await autoAcceptPendingInvitations(tx, user.id, email);
       const session = await createSessionRecord(tx, {
         userId: user.id,
         activeAccountId: user.id,
