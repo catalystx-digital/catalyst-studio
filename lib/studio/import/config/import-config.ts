@@ -409,6 +409,9 @@ export const DetectionConfig = {
   /** Detection harness implementation. "page-map" uses plan/fill batches; "section" uses one extraction per section. */
   detectionHarness: parseEnvString('IMPORT_DETECTION_HARNESS', 'section') as 'page-map' | 'section',
 
+  /** Maximum source sections to extract with LLMs for a single page import */
+  maxSectionTasks: parseEnvInt('IMPORT_MAX_SECTION_TASKS', 40),
+
   /** Maximum LLM section extraction requests to run concurrently within a page */
   sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 2),
 
