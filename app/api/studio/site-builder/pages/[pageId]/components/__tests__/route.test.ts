@@ -7,8 +7,14 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
-jest.mock('@/lib/auth/context', () => ({
-  getAuthContext: jest.fn().mockResolvedValue({ accountId: 'account-1' }),
+jest.mock('@/lib/auth/authorization', () => ({
+  getAuthorizedContext: jest.fn().mockResolvedValue({
+    accountId: 'account-1',
+    role: 'member',
+    websiteAccess: 'all',
+    websiteIds: [],
+  }),
+  assertPermission: jest.fn().mockResolvedValue(undefined),
 }))
 
 jest.mock('@/lib/auth/ownership', () => ({
@@ -22,6 +28,10 @@ import { PATCH } from '@/app/api/studio/site-builder/pages/[pageId]/components/r
 const { prisma } = require('@/lib/prisma')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { assertWebsiteOwnership } = require('@/lib/auth/ownership')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { assertPermission } = require('@/lib/auth/authorization')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { ApiError } = require('@/lib/api/errors')
 
 describe('PATCH page structural components', () => {
   beforeEach(() => {
@@ -75,6 +85,11 @@ describe('PATCH page structural components', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ success: true, updatedAt: '2026-05-22T00:05:00.000Z' })
     expect(assertWebsiteOwnership).toHaveBeenCalledWith(prisma, 'account-1', 'website-1')
+    expect(assertPermission).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'account-1' }),
+      'website:edit',
+      'website-1'
+    )
     expect(prisma.websitePage.update).toHaveBeenCalledWith({
       where: { id: 'page-1' },
       data: {
@@ -86,6 +101,34 @@ describe('PATCH page structural components', () => {
       },
       select: { updatedAt: true },
     })
+  })
+
+
+  it('rejects writes when website-scoped edit permission is denied', async () => {
+    ;(prisma.websitePage.findUnique as jest.Mock).mockResolvedValue({
+      id: 'page-1',
+      websiteId: 'website-denied',
+      updatedAt: new Date('2026-05-22T00:00:00.000Z'),
+      content: { components: [] },
+    })
+    ;(assertPermission as jest.Mock).mockRejectedValueOnce(
+      new ApiError(403, 'No access to this website', 'FORBIDDEN')
+    )
+
+    const req = new NextRequest('http://localhost:3000/api/studio/site-builder/pages/page-1/components', {
+      method: 'PATCH',
+      body: JSON.stringify({ pageId: 'page-1', components: [] }),
+    })
+
+    const res = await PATCH(req, { params: Promise.resolve({ pageId: 'page-1' }) })
+
+    expect(res.status).toBe(403)
+    expect(assertPermission).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'account-1' }),
+      'website:edit',
+      'website-denied'
+    )
+    expect(prisma.websitePage.update).not.toHaveBeenCalled()
   })
 
   it('rejects requests without a components array before writing', async () => {

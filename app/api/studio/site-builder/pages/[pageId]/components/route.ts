@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@/lib/generated/prisma';
 import { prisma } from '@/lib/prisma';
-import { getAuthContext } from '@/lib/auth/context';
 import { assertWebsiteOwnership } from '@/lib/auth/ownership';
+import { assertPermission, getAuthorizedContext } from '@/lib/auth/authorization';
+import { ApiError, handleApiError } from '@/lib/api/errors';
 import { PageContentNormalizationError, toCanonicalPageContent } from '@/lib/studio/page-content';
 import { MAX_CONTENT_SIZE_BYTES, MAX_JSON_DEPTH, checkJSONDepth, checkJSONSizeBytes } from '@/lib/studio/utils/json-constraints';
 
@@ -59,7 +60,7 @@ export async function PATCH(
 
     let auth;
     try {
-      auth = await getAuthContext(request);
+      auth = await getAuthorizedContext(request);
     } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -72,6 +73,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
     await assertWebsiteOwnership(db, auth.accountId, page.websiteId);
+    await assertPermission(auth, 'website:edit', page.websiteId);
     if (ifUnchangedSince && page.updatedAt > ifUnchangedSince) {
       return NextResponse.json({ error: 'Conflict: page modified since' }, { status: 409 });
     }
@@ -91,6 +93,9 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, updatedAt });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return handleApiError(error);
+    }
     if (error instanceof PageContentNormalizationError) {
       return NextResponse.json(
         { error: 'Invalid page components', diagnostics: error.diagnostics },
