@@ -57,23 +57,23 @@ export async function ensureAccountForUser(prisma: PrismaClient, user: AppUser):
     update: {},
   });
 
-  // Auto-accept any pending invitations for this user's email
-  if (user.email) {
-    await autoAcceptPendingInvitations(prisma, user.id, user.email);
-  }
-
   return accountId;
 }
 
 /**
- * Auto-accept pending invitations for a newly signed-up user.
- * This creates memberships in the accounts they were invited to.
+ * Auto-accept pending invitations for a user with a verified email address.
+ * This creates memberships in the accounts they were invited to only after mailbox ownership is established.
  */
 export async function autoAcceptPendingInvitations(
   prisma: PrismaClient,
   userId: string,
-  userEmail: string
+  userEmail: string,
+  options: { emailVerifiedAt?: Date | null } = {}
 ): Promise<void> {
+  if (!options.emailVerifiedAt) {
+    return;
+  }
+
   try {
     // Find all pending, non-expired invitations for this email
     const pendingInvitations = await (prisma as any).invitation?.findMany?.({
