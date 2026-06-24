@@ -15,7 +15,7 @@ function cardGrid(cards: Array<Record<string, unknown>>): DetectedComponent {
   }
 }
 
-const Example AgencyProjectsDom = `
+const ExampleAgencyProjectsDom = `
   <main>
     <section class="columns-section cols-two">
       <div class="columns-header"><h2 class="title">Some of our latest projects</h2></div>
@@ -68,7 +68,7 @@ describe('completeCardGridsFromSource', () => {
     ]
 
     completeCardGridsFromSource(components, {
-      domSnapshot: Example AgencyProjectsDom,
+      domSnapshot: ExampleAgencyProjectsDom,
       pageUrl: 'https://agency.example.com/',
     })
 
@@ -112,7 +112,7 @@ describe('completeCardGridsFromSource', () => {
     ]
 
     completeCardGridsFromSource(components, {
-      domSnapshot: Example AgencyProjectsDom,
+      domSnapshot: ExampleAgencyProjectsDom,
       pageUrl: 'https://agency.example.com/',
     })
 
@@ -165,7 +165,7 @@ describe('completeCardGridsFromSource', () => {
     ]
 
     completeCardGridsFromSource(components, {
-      domSnapshot: Example AgencyProjectsDom,
+      domSnapshot: ExampleAgencyProjectsDom,
       pageUrl: 'https://agency.example.com/',
     })
 
@@ -231,7 +231,7 @@ describe('completeCardGridsFromSource', () => {
         },
       ]),
     ], {
-      domSnapshot: Example AgencyProjectsDom,
+      domSnapshot: ExampleAgencyProjectsDom,
       pageUrl: 'https://agency.example.com/',
     })
 
@@ -244,4 +244,67 @@ describe('completeCardGridsFromSource', () => {
     ])
     expect(cards[3].href).toMatchObject({ path: '/byd-discovery' })
   })
+
+  it('caps source card completion to avoid unbounded output growth', () => {
+    const components = [
+      cardGrid([
+        {
+          title: 'Project 1',
+          href: { type: 'internal', path: '/project-1' },
+          image: { src: { mediaType: 'image', url: '/project-1.png' }, alt: '' },
+        },
+        {
+          title: 'Project 2',
+          href: { type: 'internal', path: '/project-2' },
+          image: { src: { mediaType: 'image', url: '/project-2.png' }, alt: '' },
+        },
+      ]),
+    ]
+    const anchors = Array.from({ length: 80 }, (_, index) => {
+      const projectNumber = index + 1
+      return `
+        <a href="/project-${projectNumber}">
+          <img src="/project-${projectNumber}.png" alt="Project ${projectNumber}" />
+          <h3>Project ${projectNumber}</h3>
+        </a>
+      `
+    }).join('')
+
+    completeCardGridsFromSource(components, {
+      domSnapshot: `<main><section><h2>Some of our latest projects</h2>${anchors}</section></main>`,
+      pageUrl: 'https://agency.example.com/',
+    })
+
+    const cards = components[0].content.cards as Array<Record<string, unknown>>
+    expect(cards).toHaveLength(26)
+    expect(components[0].metadata?.sourceEvidence?.cardGridCompletion).toMatchObject({
+      addedCards: 24,
+      sourceCards: 80,
+    })
+  })
+
+  it('skips card grid completion for oversized DOM snapshots', () => {
+    const components = [
+      cardGrid([
+        {
+          title: 'Project 1',
+          href: { type: 'internal', path: '/project-1' },
+          image: { src: { mediaType: 'image', url: '/project-1.png' }, alt: '' },
+        },
+        {
+          title: 'Project 2',
+          href: { type: 'internal', path: '/project-2' },
+          image: { src: { mediaType: 'image', url: '/project-2.png' }, alt: '' },
+        },
+      ]),
+    ]
+
+    completeCardGridsFromSource(components, {
+      domSnapshot: `<main><section><h2>Some of our latest projects</h2>${' '.repeat(250_001)}</section></main>`,
+      pageUrl: 'https://agency.example.com/',
+    })
+
+    expect(components[0].content.cards).toHaveLength(2)
+  })
+
 })

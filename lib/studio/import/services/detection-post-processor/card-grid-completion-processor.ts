@@ -2,6 +2,12 @@ import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 import { resolveAssetUrl } from './utils'
 
+const MAX_DOM_SNAPSHOT_LENGTH = 250_000
+const MAX_SOURCE_SECTIONS = 50
+const MAX_SECTION_ANCHORS = 200
+const MAX_SOURCE_CARDS_PER_SECTION = 100
+const MAX_APPENDED_CARDS = 24
+
 interface CardGridCompletionOptions {
   domSnapshot?: string | null
   pageUrl?: string
@@ -100,9 +106,10 @@ function smartLink(rawHref: string | undefined, pageUrl?: string): unknown {
 
 function extractSourceSections(html: string, pageUrl?: string): SourceCardSection[] {
   const sections: SourceCardSection[] = []
-  const sectionMatches = Array.from(html.matchAll(/<section\b[^>]*>[\s\S]*?(?=<section\b|<\/main>|$)/gi))
+  const sectionRegex = /<section\b[^>]*>[\s\S]*?(?=<section\b|<\/main>|$)/gi
+  let sectionMatch
 
-  for (const sectionMatch of sectionMatches) {
+  while (sections.length < MAX_SOURCE_SECTIONS && (sectionMatch = sectionRegex.exec(html)) !== null) {
     const section = sectionMatch[0]
     const headingMatch = /<h2\b[^>]*>([\s\S]*?)<\/h2>/i.exec(section)
     if (!headingMatch) {
@@ -115,8 +122,11 @@ function extractSourceSections(html: string, pageUrl?: string): SourceCardSectio
     }
 
     const cards: SourceCard[] = []
-    const anchorMatches = Array.from(section.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>[\s\S]*?<\/a>/gi))
-    for (const anchorMatch of anchorMatches) {
+    const anchorRegex = /<a\b[^>]*href=["']([^"']+)["'][^>]*>[\s\S]*?<\/a>/gi
+    let anchorMatch
+    let anchorCount = 0
+    while (anchorCount < MAX_SECTION_ANCHORS && cards.length < MAX_SOURCE_CARDS_PER_SECTION && (anchorMatch = anchorRegex.exec(section)) !== null) {
+      anchorCount++
       const anchor = anchorMatch[0]
       if (!/<img\b/i.test(anchor)) {
         continue
@@ -181,7 +191,7 @@ export function completeCardGridsFromSource(
   components: DetectedComponent[],
   options: CardGridCompletionOptions = {}
 ): void {
-  if (!options.domSnapshot) {
+  if (!options.domSnapshot || options.domSnapshot.length > MAX_DOM_SNAPSHOT_LENGTH) {
     return
   }
 
@@ -220,7 +230,9 @@ export function completeCardGridsFromSource(
       continue
     }
 
-    const missingCards = sourceSection.cards.filter(card => !existingTitles.has(normalizeText(card.title)))
+    const missingCards = sourceSection.cards
+      .filter(card => !existingTitles.has(normalizeText(card.title)))
+      .slice(0, MAX_APPENDED_CARDS)
     if (missingCards.length === 0) {
       continue
     }

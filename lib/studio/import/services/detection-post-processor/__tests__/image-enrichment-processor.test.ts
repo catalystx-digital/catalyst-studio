@@ -1754,4 +1754,33 @@ describe('image enrichment processor', () => {
       profileUrl: 'https://www.example.com/team/avery-stone',
     })
   })
+
+  it('skips DOM image enrichment for oversized snapshots', () => {
+    const components: DetectedComponent[] = [
+      {
+        type: 'card-grid',
+        component: 'card-grid',
+        confidence: 0.9,
+        content: {
+          cards: [{ title: 'Emergency Department', description: 'Emergency Department care' }],
+        },
+      },
+    ]
+    const domSnapshot = `
+      <section>
+        <h2>Emergency Department</h2>
+        <p>Emergency Department care</p>
+        <img src="/uploaded/ed-waiting-room.jpg" alt="Emergency Department waiting room">
+      </section>
+      ${' '.repeat(250_001)}
+    `
+
+    const result = enrichComponentImages(components, {
+      domSnapshot,
+      pageUrl: 'https://health.example.org/home/',
+    })
+
+    expect(JSON.stringify(result[0].content)).not.toContain('ed-waiting-room')
+  })
+
 })
