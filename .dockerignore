@@ -1,0 +1,15 @@
+.git
+.github
+.next
+node_modules
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+.media-cache
+.vercel
+Dockerfile
+README.md
+docs
