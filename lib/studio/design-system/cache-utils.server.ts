@@ -10,6 +10,7 @@
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { DesignSystem } from '../import/types/design-system.types'
 import { generateDesignSystemCSSVariables } from './generate-css-variables'
+import { validateDesignSystemCssVariableRecord } from './design-system-reader'
 
 // Cache key patterns
 const CACHE_KEYS = {
@@ -135,6 +136,37 @@ export function validateDesignSystem(designSystem: any): { valid: boolean; error
 
   // Check if it's the new ShadcnDesignSystemTokens format
   if ('variables' in designSystem && typeof designSystem.variables === 'object') {
+    const variables = designSystem.variables
+    const darkVariables = designSystem.darkVariables
+    if (!variables || Array.isArray(variables)) {
+      return { valid: false, errors: ['Design system CSS variables must be an object'] }
+    }
+    if (!Object.values(variables).every(value => typeof value === 'string')) {
+      return { valid: false, errors: ['Design system CSS variables must be strings'] }
+    }
+    if (darkVariables !== undefined) {
+      if (!darkVariables || typeof darkVariables !== 'object' || Array.isArray(darkVariables)) {
+        return { valid: false, errors: ['Design system dark CSS variables must be an object'] }
+      }
+      if (!Object.values(darkVariables).every(value => typeof value === 'string')) {
+        return { valid: false, errors: ['Design system dark CSS variables must be strings'] }
+      }
+    }
+
+    const invalidPath =
+      validateDesignSystemCssVariableRecord(variables as Record<string, string>, 'variables') ??
+      (
+        darkVariables
+          ? validateDesignSystemCssVariableRecord(darkVariables as Record<string, string>, 'darkVariables')
+          : null
+      )
+    if (invalidPath) {
+      return {
+        valid: false,
+        errors: [`Design system CSS variables contain an invalid value at ${invalidPath}`]
+      }
+    }
+
     // New format validation
     if ('extraction' in designSystem && typeof designSystem.extraction === 'object') {
       // Valid new format
