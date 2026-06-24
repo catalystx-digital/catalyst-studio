@@ -217,6 +217,43 @@ function validateShadcnDesignSystemTokens(tokens: unknown): string | null {
   return null
 }
 
+const CSS_CUSTOM_PROPERTY_NAME_PATTERN = /^--[A-Za-z0-9_-]+$/
+const UNSAFE_CSS_VALUE_PATTERN = /[<>{};]|\*\/|\/\*/
+
+export function validateDesignSystemCssVariableRecord(
+  variables: Record<string, string>,
+  path: string
+): string | null {
+  for (const [name, value] of Object.entries(variables)) {
+    if (!CSS_CUSTOM_PROPERTY_NAME_PATTERN.test(name)) {
+      return `${path}.${name}`
+    }
+
+    if (value.trim().length === 0 || UNSAFE_CSS_VALUE_PATTERN.test(value)) {
+      return `${path}.${name}`
+    }
+  }
+
+  return null
+}
+
+export function validateDesignSystemCssVariables(tokens: unknown): string | null {
+  const invalidPath = validateShadcnDesignSystemTokens(tokens)
+  if (invalidPath) {
+    return invalidPath
+  }
+
+  const parsed = tokens as ShadcnDesignSystemTokens
+  return (
+    validateDesignSystemCssVariableRecord(parsed.variables, 'variables') ??
+    (
+      parsed.darkVariables
+        ? validateDesignSystemCssVariableRecord(parsed.darkVariables, 'darkVariables')
+        : null
+    )
+  )
+}
+
 /**
  * Strict nullable runtime reader.
  *
@@ -239,7 +276,7 @@ export function readNullableShadcnDesignSystemTokens(
     )
   }
 
-  const invalidPath = validateShadcnDesignSystemTokens(tokens)
+  const invalidPath = validateDesignSystemCssVariables(tokens)
   if (invalidPath) {
     throw new DesignSystemReaderError(
       'DESIGN_SYSTEM_INVALID_PAYLOAD',
