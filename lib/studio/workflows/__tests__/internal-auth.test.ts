@@ -25,18 +25,30 @@ describe('isAuthorizedInternalWorkflowRequest', () => {
     process.env = ORIGINAL_ENV
   })
 
-  it('allows localhost internal workflow calls when running locally with NODE_ENV=production', () => {
-    process.env.NODE_ENV = 'production'
+  it.each(['development', 'test'])(
+    'allows localhost internal workflow calls when running locally with NODE_ENV=%s',
+    (nodeEnv) => {
+      process.env.NODE_ENV = nodeEnv
 
-    expect(isAuthorizedInternalWorkflowRequest(makeRequest('http://localhost:3000/api/internal/import-job'))).toBe(true)
-  })
+      expect(isAuthorizedInternalWorkflowRequest(makeRequest('http://localhost:3000/api/internal/import-job'))).toBe(true)
+    },
+  )
 
   it.each(['127.0.0.1:3000', '[::1]:3000', '::1'])(
-    'allows loopback host %s when running locally with NODE_ENV=production',
+    'allows loopback host %s when running in development',
+    (host) => {
+      process.env.NODE_ENV = 'development'
+
+      expect(isAuthorizedInternalWorkflowRequest(makeRequestWithHost(host))).toBe(true)
+    },
+  )
+
+  it.each(['localhost', 'localhost:3000', '127.0.0.1:3000', '[::1]:3000', '::1'])(
+    'rejects spoofable loopback host %s in self-hosted production without the workflow secret',
     (host) => {
       process.env.NODE_ENV = 'production'
 
-      expect(isAuthorizedInternalWorkflowRequest(makeRequestWithHost(host))).toBe(true)
+      expect(isAuthorizedInternalWorkflowRequest(makeRequestWithHost(host))).toBe(false)
     },
   )
 
