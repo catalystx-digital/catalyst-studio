@@ -4,11 +4,12 @@ Catalyst Studio is a server-rendered Next.js application with Prisma/PostgreSQL,
 
 ## What the workflow does
 
-The workflow in `.github/workflows/deploy.yml` runs on pushes to `main` and on manual dispatch:
+The workflow in `.github/workflows/deploy.yml` validates deployment-related pull requests, runs on pushes to `main`, and supports manual dispatch:
 
 1. Builds the production Docker image.
-2. Pushes the image to `ghcr.io/<owner>/<repo>:main` and `ghcr.io/<owner>/<repo>:<sha>`.
-3. If SSH deployment secrets are configured, connects to your host, writes the production `.env`, runs `prisma migrate deploy`, and restarts the container.
+2. On pull requests, loads the image locally without publishing it.
+3. On `main`/manual runs, pushes the image to `ghcr.io/<owner>/<repo>:main` and `ghcr.io/<owner>/<repo>:<sha>`.
+4. If SSH deployment secrets are configured, connects to your host, writes the production `.env`, runs `prisma migrate deploy`, and restarts the container.
 
 The Vercel-specific project configuration has been removed; runtime settings now come from normal GitHub Actions secrets and your production environment file.
 
@@ -20,6 +21,8 @@ In GitHub, go to **Settings → Actions → General → Workflow permissions** a
 - **Allow GitHub Actions to create and approve pull requests** is not required for deploys.
 
 The workflow uses the built-in `GITHUB_TOKEN` for GHCR publishing, so you do **not** need to create a personal access token for the default package push.
+
+The Docker build also receives safe defaults for `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_APP_NAME`, and `IMPORT_MODEL_CHAIN` so pull-request validation works before repository variables are configured. For production, set repository variables for any values that should be baked into the client build.
 
 ## Required secrets
 
@@ -63,6 +66,7 @@ Add optional secrets inside the same env file when you enable those features:
 ```bash
 OPENROUTER_API_KEY="..."
 OPENROUTER_MODEL="anthropic/claude-3.5-sonnet"
+IMPORT_MODEL_CHAIN="x-ai/grok-4.1-fast"
 CMS_PROVIDER="auto"
 OPTIMIZELY_CLIENT_ID="..."
 OPTIMIZELY_CLIENT_SECRET="..."
@@ -175,3 +179,10 @@ curl -I https://your-staging-domain.example
 | SSH rollout is skipped | One or more rollout secrets are missing. | Add `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_PRIVATE_KEY`, and `GITHUB_DEPLOY_ENV_B64`. |
 | `docker pull ghcr.io/...` fails on your server | GHCR package is private or server is not logged in. | Make the package public or run `docker login ghcr.io` on the server with a token that has `read:packages`. |
 | `prisma migrate deploy` fails | Production env file is missing `DATABASE_URL` or `DIRECT_URL`, or the database is unreachable. | Update `.env.production`, regenerate `GITHUB_DEPLOY_ENV_B64`, and rerun the workflow. |
+
+## Why PR checks can fail
+
+This PR previously failed for two build-time reasons:
+
+1. The Docker deps stage copied only `package.json` and `package-lock.json`, but `npm ci` runs the project `postinstall` script (`prisma generate`). Prisma needs `prisma/schema.prisma`, so the Docker build failed before dependencies finished installing. The Dockerfile now copies `prisma/` before `npm ci`.
+2. The app used `next/font/google`, which requires fetching Google font CSS during `next build`. In restricted CI/build environments this can fail with `Failed to fetch font`. The root layout now uses local CSS font-family variables instead of network-fetched build-time fonts.

@@ -12,6 +12,9 @@ jobs:
     env:
       SKIP_DB_SETUP: "true"
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/catalyst_studio"
+      DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/catalyst_studio"
+      IMPORT_MODEL_CHAIN: "x-ai/grok-4.1-fast"
+      STUDIO_DISABLE_WORKFLOW_PLUGIN: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

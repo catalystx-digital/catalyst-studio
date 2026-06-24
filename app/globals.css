@@ -63,6 +63,8 @@
     --color-border-active: #ff5500;
 
     --font-family: Inter, system-ui, -apple-system, sans-serif;
+    --font-geist-sans: var(--font-family);
+    --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     --font-weight-light: 200;
     --font-weight-normal: 400;
     --font-weight-medium: 500;

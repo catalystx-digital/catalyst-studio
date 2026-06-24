@@ -62,6 +62,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}
             NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Catalyst Studio' }}
+            IMPORT_MODEL_CHAIN=${{ vars.IMPORT_MODEL_CHAIN || 'x-ai/grok-4.1-fast' }}
           tags: |
             ${{ steps.meta.outputs.image }}:main
             ${{ steps.meta.outputs.sha_tag }}
