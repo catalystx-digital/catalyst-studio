@@ -15,6 +15,12 @@
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 import type { ResourcesSummary } from '../web-tools'
 
+const MAX_DOM_SNAPSHOT_LENGTH = 250_000
+const MAX_DOM_IMAGES = 200
+const MAX_DOM_ANCHORS = 500
+const MAX_CONTEXT_LOOKBACK = 12_000
+const CONTEXT_WINDOW_SIZE = 500
+
 /**
  * Extracted image from DOM
  */
@@ -71,6 +77,7 @@ function extractImagesFromDom(html: string): ExtractedImage[] {
 
   let match
   while ((match = imgTagRegex.exec(html)) !== null) {
+    if (images.length >= MAX_DOM_IMAGES) break
     const src = match[1]?.trim()
 
     // Skip data URLs and empty sources
@@ -127,28 +134,40 @@ function extractNearestSectionHtml(html: string, tagIndex: number): string {
 }
 
 function extractNearestOpenElement(html: string, tagIndex: number, tags: string[]): string | null {
-  const before = html.slice(0, tagIndex)
+  const startWindow = Math.max(0, tagIndex - MAX_CONTEXT_LOOKBACK)
+  const before = html.slice(startWindow, tagIndex)
   const tagPattern = tags.map(tag => tag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
-  const openMatches = Array.from(before.matchAll(new RegExp(`<(${tagPattern})\\b[^>]*>`, 'gi')))
-  const opening = openMatches.reverse().find(match => {
+  const tagRegex = new RegExp(`</?(${tagPattern})\\b[^>]*>`, 'gi')
+  const stack: Array<{ tag: string; index: number }> = []
+  let match
+  while ((match = tagRegex.exec(before)) !== null) {
     const tag = match[1]?.toLowerCase()
-    if (!tag) return false
-    const afterOpen = before.slice((match.index || 0) + match[0].length)
-    const closeCount = (afterOpen.match(new RegExp(`</${tag}>`, 'gi')) || []).length
-    const openCount = (afterOpen.match(new RegExp(`<${tag}\\b[^>]*>`, 'gi')) || []).length
-    return closeCount <= openCount
-  })
+    if (!tag) continue
+    if (match[0].startsWith('</')) {
+      for (let i = stack.length - 1; i >= 0; i--) {
+        if (stack[i].tag === tag) {
+          stack.splice(i, 1)
+          break
+        }
+      }
+      continue
+    }
+    if (!/\/\s*>$/.test(match[0])) {
+      stack.push({ tag, index: startWindow + (match.index || 0) })
+    }
+  }
 
+  const opening = stack.pop()
   if (!opening) {
     return null
   }
 
-  const tag = opening[1].toLowerCase()
-  const start = opening.index || 0
+  const tag = opening.tag
+  const start = opening.index
   const closingRegex = new RegExp(`</${tag}>`, 'gi')
   closingRegex.lastIndex = tagIndex
   const closing = closingRegex.exec(html)
-  const end = closing ? closing.index + closing[0].length : Math.min(html.length, tagIndex + 500)
+  const end = closing ? closing.index + closing[0].length : Math.min(html.length, tagIndex + CONTEXT_WINDOW_SIZE)
   return html.slice(start, end)
 }
 
@@ -275,7 +294,7 @@ function isLikelyBrandAssetImage(src: string): boolean {
  * Extracts text near an image tag for context matching
  */
 function extractNearbyText(html: string, tagIndex: number): string {
-  const windowSize = 500
+  const windowSize = CONTEXT_WINDOW_SIZE
   const start = Math.max(0, tagIndex - windowSize)
   const end = Math.min(html.length, tagIndex + windowSize)
 
@@ -373,6 +392,7 @@ function sourceLinksFromDom(domSnapshot?: string | null): SourceLinkEvidence[] {
   const anchorRegex = /<a\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>[\s\S]*?<\/a>/gi
   let match
   while ((match = anchorRegex.exec(domSnapshot)) !== null) {
+    if (links.length >= MAX_DOM_ANCHORS) break
     const href = match[1]?.trim()
     if (!href || href.startsWith('#') || /^javascript:/i.test(href)) continue
     const html = match[0]
@@ -1113,17 +1133,24 @@ export function enrichComponentImages(
   const resourceImages = sourceImagesFromResources(resourcesSummary)
   const resourceLinks = sourceLinksFromResources(resourcesSummary)
 
-  if (!domSnapshot) {
+  const usableDomSnapshot = domSnapshot && domSnapshot.length <= MAX_DOM_SNAPSHOT_LENGTH
+    ? domSnapshot
+    : undefined
+
+  if (!usableDomSnapshot) {
     reconcileTeamGridMemberImagesFromSource(components, resourceImages, pageUrl)
     reconcileTeamGridMemberLinksFromSource(components, resourceImages, resourceLinks, pageUrl)
     reconcileTruncatedImageUrlsFromSource(components, resourceImages, pageUrl)
     removeUnsupportedBlogListImages(components)
-    console.log('[ImageEnrichment] No DOM snapshot, skipping enrichment')
+    console.log('[ImageEnrichment] No usable DOM snapshot, skipping DOM enrichment', {
+      reason: domSnapshot ? 'dom_snapshot_too_large' : 'missing_dom_snapshot',
+      maxDomSnapshotLength: MAX_DOM_SNAPSHOT_LENGTH,
+    })
     return components
   }
 
   // Extract all images from DOM
-  const domImages = extractImagesFromDom(domSnapshot)
+  const domImages = extractImagesFromDom(usableDomSnapshot)
 
   console.log('[ImageEnrichment] Extracted images from DOM:', {
     count: domImages.length,
@@ -1135,7 +1162,7 @@ export function enrichComponentImages(
     ...resourceImages
   ], pageUrl)
   const sourceLinks = [
-    ...sourceLinksFromDom(domSnapshot),
+    ...sourceLinksFromDom(usableDomSnapshot),
     ...resourceLinks
   ]
 
@@ -1143,13 +1170,13 @@ export function enrichComponentImages(
   reconcileTeamGridMemberLinksFromSource(components, sourceImages, sourceLinks, pageUrl)
   reconcileTruncatedImageUrlsFromSource(components, sourceImages, pageUrl)
   removeUnsupportedBlogListImages(components)
-  removeUnsupportedCardGridImages(components, domSnapshot)
+  removeUnsupportedCardGridImages(components, usableDomSnapshot)
 
   if (domImages.length === 0) return components
 
-  reconcileLogoCloudsFromSourceSections(components, domSnapshot, pageUrl)
+  reconcileLogoCloudsFromSourceSections(components, usableDomSnapshot, pageUrl)
   reconcileLogoCloudsWithSourceSections(components, domImages, pageUrl)
-  reconcileCtaImagesWithSourceSections(components, domSnapshot, domImages, pageUrl)
+  reconcileCtaImagesWithSourceSections(components, usableDomSnapshot, domImages, pageUrl)
 
   // Collect all already-captured image URLs across all components
   const capturedUrls = new Set<string>()
@@ -1208,9 +1235,9 @@ export function enrichComponentImages(
     }
   }
 
-  reconcileLogoCloudsFromSourceSections(components, domSnapshot, pageUrl)
+  reconcileLogoCloudsFromSourceSections(components, usableDomSnapshot, pageUrl)
   removeUnsupportedBlogListImages(components)
-  removeUnsupportedCardGridImages(components, domSnapshot)
+  removeUnsupportedCardGridImages(components, usableDomSnapshot)
   return components
 }
 
