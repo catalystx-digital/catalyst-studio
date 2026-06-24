@@ -1,4 +1,6 @@
 import crypto from 'node:crypto'
+import { lookup } from 'node:dns/promises'
+import net from 'node:net'
 import { createWriteStream } from 'node:fs'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
@@ -40,6 +42,8 @@ export interface MediaIngestResult {
   mediaAssets: IngestedAssetSummary[]
   warnings: MediaIngestWarning[]
 }
+
+const MAX_MEDIA_REDIRECTS = 5
 
 interface MediaCandidate {
   url: string
@@ -575,7 +579,7 @@ export class MediaIngestService {
 
   private async downloadToTemp(url: string, tempDir: string): Promise<DownloadResult> {
     const start = performance.now()
-    const response = await fetch(url)
+    const response = await this.fetchPublicMediaUrl(url)
     if (!response.ok || !response.body) {
       throw new Error(`Failed to fetch media (${response.status})`)
     }
@@ -606,6 +610,119 @@ export class MediaIngestService {
     })
 
     return { filePath, checksum, contentType, contentLength, filename }
+  }
+
+  private async fetchPublicMediaUrl(url: string, redirectCount = 0): Promise<Response> {
+    if (redirectCount > MAX_MEDIA_REDIRECTS) {
+      throw new Error('media_url_too_many_redirects')
+    }
+
+    await this.assertPublicHttpUrl(url)
+    const response = await fetch(url, { redirect: 'manual' })
+
+    if (this.isRedirectStatus(response.status)) {
+      const location = response.headers.get('location')
+      if (!location) {
+        throw new Error('media_url_redirect_missing_location')
+      }
+      const redirectUrl = new URL(location, url).toString()
+      await this.assertPublicHttpUrl(redirectUrl)
+      return this.fetchPublicMediaUrl(redirectUrl, redirectCount + 1)
+    }
+
+    return response
+  }
+
+  private isRedirectStatus(status: number): boolean {
+    return status >= 300 && status < 400
+  }
+
+  private async assertPublicHttpUrl(url: string): Promise<void> {
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      throw new Error('media_url_invalid')
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('media_url_invalid_scheme')
+    }
+
+    const hostname = this.normalizeHostname(parsed.hostname)
+    if (this.isLocalHostname(hostname)) {
+      throw new Error('media_url_private_host')
+    }
+
+    const literalVersion = net.isIP(hostname)
+    if (literalVersion !== 0) {
+      if (this.isPrivateIpAddress(hostname, literalVersion)) {
+        throw new Error('media_url_private_host')
+      }
+      return
+    }
+
+    let addresses: Array<{ address: string, family: number }>
+    try {
+      addresses = await lookup(hostname, { all: true, verbatim: true })
+    } catch {
+      throw new Error('media_url_dns_failed')
+    }
+
+    if (addresses.length === 0 || addresses.some(({ address, family }) => this.isPrivateIpAddress(address, family))) {
+      throw new Error('media_url_private_host')
+    }
+  }
+
+  private normalizeHostname(hostname: string): string {
+    return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  }
+
+  private isLocalHostname(hostname: string): boolean {
+    const normalized = hostname.toLowerCase().replace(/\.$/, '')
+    return normalized === 'localhost' || normalized.endsWith('.localhost')
+  }
+
+  private isPrivateIpAddress(address: string, family: number): boolean {
+    if (family === 4) {
+      const parts = address.split('.').map(part => Number(part))
+      if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
+        return true
+      }
+      const [a, b] = parts
+      return (
+        a === 0 ||
+        a === 10 ||
+        a === 127 ||
+        (a === 169 && b === 254) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        (a === 100 && b >= 64 && b <= 127) ||
+        a >= 224
+      )
+    }
+
+    if (family === 6) {
+      const normalized = address.toLowerCase()
+      if (normalized.startsWith('::ffff:')) {
+        const mappedIpv4 = normalized.slice('::ffff:'.length)
+        return net.isIP(mappedIpv4) === 4 ? this.isPrivateIpAddress(mappedIpv4, 4) : true
+      }
+
+      return (
+        normalized === '::' ||
+        normalized === '::1' ||
+        normalized.startsWith('fc') ||
+        normalized.startsWith('fd') ||
+        normalized.startsWith('fe8') ||
+        normalized.startsWith('fe9') ||
+        normalized.startsWith('fea') ||
+        normalized.startsWith('feb') ||
+        normalized.startsWith('ff')
+      )
+    }
+
+    return true
   }
 
   private normalizeMimeType(value?: string | null): string | undefined {

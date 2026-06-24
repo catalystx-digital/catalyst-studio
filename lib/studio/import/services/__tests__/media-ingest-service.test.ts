@@ -399,6 +399,51 @@ describe('MediaIngestService', () => {
     await fs.rm(tempDir, { recursive: true, force: true })
   })
 
+  it('blocks private network media URLs before fetching imported media candidates', async () => {
+    const { service, repository, storageProvider } = createService()
+    const privateUrl = 'http://127.0.0.1/latest/meta-data/logo.svg'
+    const detection = buildDetection({
+      components: [
+        {
+          component: 'cta-banner',
+          type: 'cta-banner',
+          confidence: 0.9,
+          content: { backgroundImage: privateUrl }
+        }
+      ]
+    })
+    ;(repository.resolveByOriginalUrl as jest.Mock).mockResolvedValue(null)
+    const originalFetch = global.fetch
+    const fetchSpy = jest.fn()
+    Object.defineProperty(global, 'fetch', { configurable: true, value: fetchSpy })
+
+    try {
+      const result = await service.ingest({
+        websiteId: 'site-1',
+        detectionResults: [detection],
+        designTokens: null
+      })
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(storageProvider.put).not.toHaveBeenCalled()
+      expect(repository.createMediaAsset).not.toHaveBeenCalled()
+      expect(result.mediaAssets).toHaveLength(0)
+      expect(result.warnings).toEqual([
+        expect.objectContaining({
+          normalizedUrl: privateUrl,
+          reason: 'media_url_private_host',
+          fieldPath: 'cta-banner[0].backgroundImage'
+        })
+      ])
+    } finally {
+      if (originalFetch) {
+        Object.defineProperty(global, 'fetch', { configurable: true, value: originalFetch })
+      } else {
+        delete (global as typeof globalThis & { fetch?: typeof fetch }).fetch
+      }
+    }
+  })
+
   it('rejects downloads with disallowed MIME types', async () => {
     const { service, repository } = createService()
     const detection = buildDetection()
