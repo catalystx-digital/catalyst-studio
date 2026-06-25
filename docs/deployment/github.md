@@ -1,67 +1,58 @@
-# GitHub-based deployment
+# GitHub Actions and Vercel deployment
 
-Catalyst Studio is a server-rendered Next.js application with Prisma/PostgreSQL, so it should be deployed as a running Node.js container rather than as static GitHub Pages. The included GitHub Actions workflow uses the free minutes available to public/open-source repositories to build a Docker image, publish it to GitHub Container Registry (GHCR), and optionally roll it out to a Docker host over SSH.
+Catalyst Studio is a server-rendered Next.js application backed by Prisma and PostgreSQL. Production deployments are handled by GitHub Actions and Vercel CLI: GitHub validates the code, builds the Vercel output, runs production migrations with protected database secrets, and deploys that prebuilt output to Vercel.
 
-## What the workflow does
+## Workflow behavior
 
-The workflow in `.github/workflows/deploy.yml` validates deployment-related pull requests, runs on pushes to `main`, and supports manual dispatch:
+The repository has two workflows:
 
-1. Builds the production Docker image.
-2. On pull requests, loads the image locally without publishing it.
-3. On `main`/manual runs, pushes the image to `ghcr.io/<owner>/<repo>:main` and `ghcr.io/<owner>/<repo>:<sha>`.
-4. If SSH deployment secrets are configured, connects to your host, writes the production `.env`, runs `prisma migrate deploy`, and restarts the container.
+1. `CI` runs on pull requests and pushes to `main`.
+2. `Production Deploy` runs only after a successful `CI` workflow on `main`, or by manual dispatch from `main`.
 
-The Vercel-specific project configuration has been removed; runtime settings now come from normal GitHub Actions secrets and your production environment file.
+Pull requests do not deploy and do not receive production secrets. Stale pull request CI runs are cancelled automatically, while `main` CI runs are allowed to finish because deployment depends on their result.
 
-## Required repository settings
+## Required GitHub configuration
 
-In GitHub, go to **Settings → Actions → General → Workflow permissions** and enable:
+Create a GitHub Actions environment named `production` at **Settings -> Environments**. Restrict deployments to the `main` branch. Add required reviewers if production deploys should need human approval.
 
-- **Read and write permissions**
-- **Allow GitHub Actions to create and approve pull requests** is not required for deploys.
+Add these `production` environment secrets:
 
-The workflow uses the built-in `GITHUB_TOKEN` for GHCR publishing, so you do **not** need to create a personal access token for the default package push.
+| Secret | Purpose |
+| --- | --- |
+| `VERCEL_TOKEN` | Vercel token used by the CLI. |
+| `VERCEL_ORG_ID` | Vercel team or user ID for the linked project. |
+| `VERCEL_PROJECT_ID` | Vercel project ID. |
+| `DATABASE_URL` | Production runtime database URL. This may be pooled if your database provider recommends pooling for the app. |
+| `DIRECT_URL` | Direct, non-pooled production database URL for `prisma migrate deploy`. |
+| `VERCEL_ENV_FILE_PRODUCTION` | Dotenv-formatted production app environment used for Vercel build and runtime deployment. Do not include Vercel system variables, deployment metadata, or `VERCEL_TOKEN`. |
 
-The Docker build also receives safe defaults for `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_APP_NAME`, and `IMPORT_MODEL_CHAIN` so pull-request validation works before repository variables are configured. For production, set repository variables for any values that should be baked into the client build.
+Add these `production` environment variables:
 
-## Required secrets
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_APP_URL` | Public production URL used by the build, deployed runtime, and post-deploy smoke check. Example: `https://studio.example.com`. |
+| `NEXT_PUBLIC_APP_NAME` | Optional public application name. Defaults to `Catalyst Studio` if omitted. |
+| `STUDIO_DISABLE_WORKFLOW_PLUGIN` | Optional runtime mode flag. Defaults to `true` if omitted. |
+| `STUDIO_QUOTA_ENFORCEMENT_MODE` | Optional quota mode. Defaults to `log` if omitted. |
 
-Add secrets at **Settings → Secrets and variables → Actions → New repository secret**.
+The workflow uses only `contents: read` permissions. It does not require package publishing permissions. Production secrets are scoped to the steps that need them, and the deployment job starts only after a no-secret guard verifies that the triggering CI run came from the current `main` SHA in this repository.
 
-### Always required for the deployed app
+## Required Vercel configuration
 
-Create a production `.env` file locally, then base64 encode it and store it as `GITHUB_DEPLOY_ENV_B64`:
+Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to write Vercel project environment variables. Instead, it prepares a production env file from `VERCEL_ENV_FILE_PRODUCTION`, uses it for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
 
-```bash
-base64 -w 0 .env.production
-```
-
-On macOS, use:
-
-```bash
-base64 < .env.production | tr -d '\n'
-```
-
-Minimum production values:
+`VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
 ```bash
 DATABASE_URL="postgresql://user:password@host:5432/catalyst_studio"
 DIRECT_URL="postgresql://user:password@host:5432/catalyst_studio"
 AUTH_SECRET="a-long-random-production-secret"
-NEXT_PUBLIC_APP_URL="https://your-domain.example"
-NEXT_PUBLIC_APP_NAME="Catalyst Studio"
-NODE_ENV="production"
-STUDIO_DISABLE_WORKFLOW_PLUGIN="true"
-STUDIO_QUOTA_ENFORCEMENT_MODE="log"
-STUDIO_MEDIA_STORAGE_PROVIDER="S3"
-STUDIO_MEDIA_STORAGE_S3_BUCKET="your-bucket"
-STUDIO_MEDIA_STORAGE_S3_REGION="your-region"
-STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL="https://cdn-or-bucket-url.example"
-STUDIO_MEDIA_STORAGE_S3_ACCESS_KEY_ID="..."
-STUDIO_MEDIA_STORAGE_S3_SECRET_ACCESS_KEY="..."
+AUTH_SESSION_SECRET="a-long-random-production-secret"
 ```
 
-Add optional secrets inside the same env file when you enable those features:
+Do not include Vercel-provided system variables such as `VERCEL`, `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_GIT_*`, `VERCEL_OIDC_TOKEN`, or the CLI `VERCEL_TOKEN`. The workflow filters those names if they are present, but keeping the secret file clean makes review safer.
+
+Add optional provider values to `VERCEL_ENV_FILE_PRODUCTION` when enabling those features:
 
 ```bash
 OPENROUTER_API_KEY="..."
@@ -79,120 +70,51 @@ STUDIO_ENCRYPTION_KEY_ID="v1"
 STUDIO_ENCRYPTION_KEY="base64-encoded-32-byte-key"
 ```
 
-### Required only for automatic SSH rollout
+GitHub environment secrets are the source of truth for deploy credentials, migrations, and app runtime/build configuration. Keep `DATABASE_URL` and `DIRECT_URL` consistent between the dedicated migration secrets and `VERCEL_ENV_FILE_PRODUCTION`.
 
-If you only want to publish images to GHCR, skip these. If you want GitHub Actions to restart the app on a server, add:
+## Deployment sequence
 
-| Secret | Description |
-| --- | --- |
-| `DEPLOY_HOST` | Hostname or IP address of the Docker server. |
-| `DEPLOY_USER` | SSH username on that server. |
-| `DEPLOY_SSH_PRIVATE_KEY` | Private key that can SSH to the server. Use a deploy-only key. |
-| `DEPLOY_PORT` | Optional SSH port. Defaults to `22`. |
-| `DEPLOY_APP_DIR` | Optional app directory on the server. Defaults to `/opt/catalyst-studio`. |
-| `DEPLOY_APP_PORT` | Optional public host port. Defaults to `3000`. |
+On a successful `CI` run for `main`, the deploy workflow:
 
-Generate a deploy key:
+1. Verifies the CI run was a successful push to the current `main` SHA in this repository.
+2. Checks out the exact commit that passed CI.
+3. Installs dependencies with `npm ci`.
+4. Runs `vercel pull --environment=production`.
+5. Prepares a production env file from GitHub environment secrets and variables.
+6. Runs `vercel build --prod` with that production env loaded.
+7. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
+8. Runs `vercel deploy --prebuilt --prod`, passing runtime env values with `--env`.
+9. Smoke-checks the returned Vercel deployment URL and `${NEXT_PUBLIC_APP_URL}/sign-in`.
 
-```bash
-ssh-keygen -t ed25519 -C "github-actions-catalyst-studio" -f ./catalyst_studio_deploy_key
-```
+If the Vercel build fails, migrations do not run. If migrations fail, deployment stops before Vercel receives a new production deployment.
 
-Install the public key on your server:
+## Rollback policy
 
-```bash
-ssh-copy-id -i ./catalyst_studio_deploy_key.pub deploy@your-server
-```
+Vercel can roll back application deployments from the Vercel dashboard. Database migrations are not automatically rolled back. Treat production migrations as forward-compatible changes and prefer expand/contract migrations for destructive schema changes.
 
-Paste the private key contents into `DEPLOY_SSH_PRIVATE_KEY`:
+Before risky migrations:
 
-```bash
-cat ./catalyst_studio_deploy_key
-```
+- Take a database backup or snapshot.
+- Deploy backward-compatible schema additions first.
+- Remove old columns/tables only after deployed code no longer depends on them.
 
-## Server prerequisites
+## Manual deployment
 
-On the server, install Docker and make sure the deploy user can run Docker:
+Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**, but the workflow only proceeds from the `main` branch. Manual runs use the selected `main` commit SHA and the same protected production environment, Vercel build, migration step, deployment, and smoke check as automatic deploys.
 
-```bash
-sudo usermod -aG docker deploy
-```
-
-Log out and back in after changing group membership.
-
-If your GHCR package is private, authenticate Docker on the server once with a GitHub token that has `read:packages` permission:
-
-```bash
-echo YOUR_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-```
-
-Public packages do not need a server-side GHCR token.
-
-## Manual rollback
-
-Use any previously published SHA tag:
-
-```bash
-docker pull ghcr.io/<owner>/<repo>:<sha>
-docker stop catalyst-studio || true
-docker rm catalyst-studio || true
-docker run -d --name catalyst-studio --restart unless-stopped --env-file /opt/catalyst-studio/.env -p 3000:3000 ghcr.io/<owner>/<repo>:<sha>
-```
-
-## How to test the GitHub workflow
-
-### 1. Test on every deployment PR
-
-The deploy workflow now runs on pull requests that touch deployment-related files. On a PR, it builds the Docker image but does **not** log in to GHCR, publish packages, run migrations, or SSH to a server. This catches Dockerfile and workflow regressions before merge without needing production secrets.
-
-Expected PR behavior:
-
-- `build-and-publish` runs.
-- `Build and push image` shows `push: false` and `load: true`.
-- `deploy-ssh` is skipped.
-
-### 2. Test image publishing manually
-
-After merging, open **Actions → Deploy → Run workflow**. This publishes the image to GHCR and only attempts SSH rollout if all rollout secrets exist.
-
-Expected behavior without SSH secrets:
-
-- The image is published to `ghcr.io/<owner>/<repo>:main` and `ghcr.io/<owner>/<repo>:<sha>`.
-- The SSH job prints `SSH deployment secrets are incomplete; image was published to GHCR only.` and exits successfully.
-
-### 3. Test SSH rollout safely
-
-Before pointing at production, create a temporary Docker host or staging VM and configure the SSH secrets for that host. Use a staging `GITHUB_DEPLOY_ENV_B64` with a staging database URL. Run the workflow manually and verify:
-
-```bash
-ssh deploy@your-staging-host "docker ps --filter name=catalyst-studio"
-ssh deploy@your-staging-host "docker logs --tail 100 catalyst-studio"
-curl -I https://your-staging-domain.example
-```
-
-### 4. Common GitHub Actions errors
+## Common failures
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `denied: permission_denied: write_package` | Workflow token cannot write packages. | In **Settings → Actions → General**, set workflow permissions to **Read and write permissions**. |
-| Docker build sees an empty app URL | `NEXT_PUBLIC_APP_URL` repository variable is missing. | Add **Settings → Secrets and variables → Actions → Variables → NEXT_PUBLIC_APP_URL**. The workflow has a localhost fallback for PR validation. |
-| SSH rollout is skipped | One or more rollout secrets are missing. | Add `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_PRIVATE_KEY`, and `GITHUB_DEPLOY_ENV_B64`. |
-| `docker pull ghcr.io/...` fails on your server | GHCR package is private or server is not logged in. | Make the package public or run `docker login ghcr.io` on the server with a token that has `read:packages`. |
-| `prisma migrate deploy` fails | Production env file is missing `DATABASE_URL` or `DIRECT_URL`, or the database is unreachable. | Update `.env.production`, regenerate `GITHUB_DEPLOY_ENV_B64`, and rerun the workflow. |
+| `VERCEL_TOKEN is required` | Missing GitHub `production` environment secret. | Add all required secrets in the `production` environment. |
+| `VERCEL_ENV_FILE_PRODUCTION is required` | Missing GitHub `production` environment secret. | Add the sanitized production dotenv content as a protected environment secret. |
+| `prisma migrate deploy` cannot connect | `DATABASE_URL` or `DIRECT_URL` is missing, pooled incorrectly, or unreachable from GitHub-hosted runners. | Use a direct production DB URL for `DIRECT_URL` and allow GitHub Actions network access if your DB is firewalled. |
+| `vercel pull` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
+| Deployment source guard fails | The triggering CI run was not a successful push to the current `main` SHA in this repository. | Let the latest `main` CI run finish, then use its automatic deploy or rerun the deploy manually from `main`. |
+| Smoke check fails | `NEXT_PUBLIC_APP_URL` is wrong, the returned Vercel deployment URL is unreachable, or the deployed app is not serving `/sign-in`. | Update the GitHub environment variable and verify the Vercel domains. |
 
-## Why PR checks can fail
+## References
 
-This PR previously failed for two build-time reasons:
-
-1. The Docker deps stage copied only `package.json` and `package-lock.json`, but `npm ci` runs the project `postinstall` script (`prisma generate`). Prisma needs `prisma/schema.prisma`, so the Docker build failed before dependencies finished installing. The Dockerfile now copies `prisma/` before `npm ci`, regenerates the Prisma client after the full source copy, and copies `lib/generated` into the runtime image.
-2. The app used `next/font/google`, which requires fetching Google font CSS during `next build`. In restricted CI/build environments this can fail with `Failed to fetch font`. The root layout now uses local CSS font-family variables instead of network-fetched build-time fonts.
-
-## Why more than one GitHub Action runs
-
-Seeing multiple Actions runs is expected after this migration:
-
-- `CI` remains the normal quality gate for tests and the Next.js build.
-- `Deploy` is separate because it validates/publishes the Docker image and optionally performs rollout.
-- On pull requests that touch deployment files, `Deploy` builds the image without pushing it. On `main`, `Deploy` publishes to GHCR.
-
-Keeping these as separate workflows makes it clear whether a failure is in product tests/builds (`CI`) or in the container/deployment path (`Deploy`).
+- Vercel GitHub Actions guide: https://vercel.com/docs/git/vercel-for-github
+- Vercel build CLI: https://vercel.com/docs/cli/build
+- Vercel deploy CLI: https://vercel.com/docs/cli/deploy

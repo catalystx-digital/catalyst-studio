@@ -1,125 +1,304 @@
-name: Deploy
+name: Production Deploy
 
 on:
-  pull_request:
-    paths:
-      - .github/workflows/deploy.yml
-      - Dockerfile
-      - .dockerignore
-      - package.json
-      - package-lock.json
-      - next.config.ts
-      - prisma/**
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  guard:
+    name: Validate deploy source
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    timeout-minutes: 5
     outputs:
-      image: ${{ steps.meta.outputs.image }}
-      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set image metadata
-        id: meta
+      - name: Validate workflow_run source
+        id: workflow_run_source
+        if: github.event_name == 'workflow_run'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          IMAGE="${REGISTRY}/${IMAGE_NAME,,}"
-          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "sha_tag=${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          load: ${{ github.event_name == 'pull_request' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}
-            NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Catalyst Studio' }}
-            IMPORT_MODEL_CHAIN=${{ vars.IMPORT_MODEL_CHAIN || 'x-ai/grok-4.1-fast' }}
-          tags: |
-            ${{ steps.meta.outputs.image }}:main
-            ${{ steps.meta.outputs.sha_tag }}
-
-  deploy-ssh:
-    runs-on: ubuntu-latest
-    needs: build-and-publish
-    if: github.event_name != 'pull_request'
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      GITHUB_DEPLOY_ENV_B64: ${{ secrets.GITHUB_DEPLOY_ENV_B64 }}
-      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-      DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR || '/opt/catalyst-studio' }}
-      DEPLOY_APP_PORT: ${{ secrets.DEPLOY_APP_PORT || '3000' }}
-      IMAGE_TAG: ${{ needs.build-and-publish.outputs.sha_tag }}
-    steps:
-      - name: Check SSH deployment configuration
-        id: config
-        run: |
-          if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ -n "$DEPLOY_SSH_PRIVATE_KEY" ] && [ -n "$GITHUB_DEPLOY_ENV_B64" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "SSH deployment secrets are incomplete; image was published to GHCR only."
+          if [ "$RUN_CONCLUSION" != "success" ]; then
+            echo "::error::Refusing to deploy because CI concluded with '$RUN_CONCLUSION'."
+            exit 1
           fi
 
-      - name: Configure SSH
-        if: steps.config.outputs.enabled == 'true'
-        run: |
-          mkdir -p ~/.ssh
-          install -m 600 /dev/null ~/.ssh/deploy_key
-          printf '%s' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          if [ "$RUN_EVENT" != "push" ]; then
+            echo "::error::Refusing to deploy workflow_run event '$RUN_EVENT'. Production deploys require a push to main."
+            exit 1
+          fi
 
-      - name: Write production environment file
-        if: steps.config.outputs.enabled == 'true'
-        run: |
-          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_APP_DIR' && chmod 700 '$DEPLOY_APP_DIR'"
-          printf '%s' "$GITHUB_DEPLOY_ENV_B64" | base64 -d > /tmp/catalyst-studio.env
-          scp -i ~/.ssh/deploy_key -P "$DEPLOY_PORT" /tmp/catalyst-studio.env "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_APP_DIR/.env"
+          if [ "$RUN_HEAD_BRANCH" != "main" ]; then
+            echo "::error::Refusing to deploy branch '$RUN_HEAD_BRANCH'. Production deploys require main."
+            exit 1
+          fi
 
-      - name: Run migrations and restart container
-        if: steps.config.outputs.enabled == 'true'
+          if [ "$RUN_HEAD_REPOSITORY" != "$REPOSITORY" ]; then
+            echo "::error::Refusing to deploy CI from repository '$RUN_HEAD_REPOSITORY'. Expected '$REPOSITORY'."
+            exit 1
+          fi
+
+          latest_main_sha="$(git ls-remote "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          if [ -z "$latest_main_sha" ]; then
+            echo "::error::Could not resolve the latest main SHA."
+            exit 1
+          fi
+
+          if [ "$RUN_HEAD_SHA" != "$latest_main_sha" ]; then
+            echo "::error::Refusing to deploy stale CI SHA '$RUN_HEAD_SHA'. Latest main is '$latest_main_sha'."
+            exit 1
+          fi
+
+          echo "source_sha=$RUN_HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Validate manual dispatch source
+        id: manual_source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REF: ${{ github.ref }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" <<EOF
           set -euo pipefail
-          docker pull "$IMAGE_TAG"
-          docker run --rm --env-file "$DEPLOY_APP_DIR/.env" "$IMAGE_TAG" npm run db:migrate:deploy
-          docker stop catalyst-studio || true
-          docker rm catalyst-studio || true
-          docker run -d \
-            --name catalyst-studio \
-            --restart unless-stopped \
-            --env-file "$DEPLOY_APP_DIR/.env" \
-            -p "$DEPLOY_APP_PORT:3000" \
-            "$IMAGE_TAG"
-          docker image prune -f
-          EOF
+
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Manual production deploys must be run from main."
+            exit 1
+          fi
+
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Export source SHA
+        id: source
+        env:
+          MANUAL_SOURCE_SHA: ${{ steps.manual_source.outputs.source_sha }}
+          WORKFLOW_RUN_SOURCE_SHA: ${{ steps.workflow_run_source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+
+          source_sha="${WORKFLOW_RUN_SOURCE_SHA:-$MANUAL_SOURCE_SHA}"
+          if [ -z "$source_sha" ]; then
+            echo "::error::Could not determine source SHA for deployment."
+            exit 1
+          fi
+
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy to Vercel
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: needs.guard.outputs.source_sha != ''
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_CLI_VERSION: 54.17.0
+    steps:
+      - name: Checkout deploy source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.guard.outputs.source_sha }}
+
+      - name: Validate deployment configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          VERCEL_ENV_FILE_PRODUCTION: ${{ secrets.VERCEL_ENV_FILE_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL DIRECT_URL NEXT_PUBLIC_APP_URL VERCEL_ENV_FILE_PRODUCTION; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for production deployment."
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel production environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Prepare production environment file
+        env:
+          NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          STUDIO_DISABLE_WORKFLOW_PLUGIN: ${{ vars.STUDIO_DISABLE_WORKFLOW_PLUGIN }}
+          STUDIO_QUOTA_ENFORCEMENT_MODE: ${{ vars.STUDIO_QUOTA_ENFORCEMENT_MODE }}
+          VERCEL_ENV_FILE_PRODUCTION: ${{ secrets.VERCEL_ENV_FILE_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const dotenv = require('dotenv');
+
+          const parsed = dotenv.parse(process.env.VERCEL_ENV_FILE_PRODUCTION || '');
+          const blockedKeys = new Set([
+            'NODE_ENV',
+            'NX_DAEMON',
+            'TURBO_CACHE',
+            'TURBO_DOWNLOAD_LOCAL_ENABLED',
+            'TURBO_REMOTE_ONLY',
+            'TURBO_RUN_SUMMARY',
+            'VERCEL',
+            'VERCEL_ENV',
+            'VERCEL_OIDC_TOKEN',
+            'VERCEL_PROJECT_ID',
+            'VERCEL_TARGET_ENV',
+            'VERCEL_TEAM_ID',
+            'VERCEL_TOKEN',
+            'VERCEL_URL',
+          ]);
+
+          function shouldKeep(key, value) {
+            return (
+              /^[A-Z0-9_]+$/.test(key) &&
+              value &&
+              !blockedKeys.has(key) &&
+              !key.startsWith('VERCEL_GIT_')
+            );
+          }
+
+          const values = {};
+          for (const [key, value] of Object.entries(parsed)) {
+            if (shouldKeep(key, value)) {
+              values[key] = value;
+            }
+          }
+
+          values.NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+          values.NEXT_PUBLIC_APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || values.NEXT_PUBLIC_APP_NAME || 'Catalyst Studio';
+          values.STUDIO_DISABLE_WORKFLOW_PLUGIN =
+            process.env.STUDIO_DISABLE_WORKFLOW_PLUGIN || values.STUDIO_DISABLE_WORKFLOW_PLUGIN || 'true';
+          values.STUDIO_QUOTA_ENFORCEMENT_MODE =
+            process.env.STUDIO_QUOTA_ENFORCEMENT_MODE || values.STUDIO_QUOTA_ENFORCEMENT_MODE || 'log';
+
+          for (const key of ['DATABASE_URL', 'DIRECT_URL', 'AUTH_SECRET', 'NEXT_PUBLIC_APP_URL']) {
+            if (!values[key]) {
+              throw new Error(`${key} is required in VERCEL_ENV_FILE_PRODUCTION or production variables.`);
+            }
+          }
+
+          const orderedKeys = Object.keys(values).sort();
+          const dotenvLines = orderedKeys.map((key) => `${key}=${JSON.stringify(values[key])}`);
+          const shellLines = orderedKeys.map((key) => {
+            const quoted = String(values[key]).replace(/'/g, `'\\''`);
+            return `export ${key}='${quoted}'`;
+          });
+
+          fs.mkdirSync('.vercel', { recursive: true });
+          fs.writeFileSync('.env.production.local', `${dotenvLines.join('\n')}\n`, { mode: 0o600 });
+          fs.writeFileSync('.vercel/env.sh', `${shellLines.join('\n')}\n`, { mode: 0o600 });
+          fs.writeFileSync('.vercel/runtime-env-names.txt', `${orderedKeys.join('\n')}\n`, { mode: 0o600 });
+
+          console.log(`Prepared ${orderedKeys.length} production environment variables for Vercel build and deploy.`);
+          NODE
+
+      - name: Build Vercel production output
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          . .vercel/env.sh
+          npx --yes vercel@${VERCEL_CLI_VERSION} build --prod --token="$VERCEL_TOKEN"
+
+      - name: Run production migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: npm run db:migrate:deploy
+
+      - name: Deploy prebuilt output to Vercel
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          . .vercel/env.sh
+
+          deploy_args=(--prebuilt --prod --token="$VERCEL_TOKEN")
+          while IFS= read -r name; do
+            if [ -n "$name" ] && [ -n "${!name:-}" ]; then
+              deploy_args+=(--env "$name=${!name}")
+            fi
+          done < .vercel/runtime-env-names.txt
+
+          deploy_output="$(npx --yes vercel@${VERCEL_CLI_VERSION} deploy "${deploy_args[@]}")"
+          printf '%s\n' "$deploy_output"
+
+          deployment_url="$(printf '%s\n' "$deploy_output" | grep -Eo 'https://[^[:space:]]+' | tail -n 1)"
+          if [ -z "$deployment_url" ]; then
+            echo "::error::Could not determine Vercel deployment URL from CLI output."
+            exit 1
+          fi
+
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+          source_sha="$(git rev-parse HEAD)"
+          {
+            echo "### Vercel production deployment"
+            echo
+            echo "- Deployment URL: $deployment_url"
+            echo "- Source SHA: $source_sha"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke check deployment URL
+        run: |
+          set -euo pipefail
+          deployment_url="${{ steps.deploy.outputs.url }}"
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30 "${deployment_url%/}/sign-in" --output /dev/null
+
+      - name: Smoke check canonical production URL
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+        run: |
+          set -euo pipefail
+          base_url="${NEXT_PUBLIC_APP_URL%/}"
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30 "$base_url/sign-in" --output /dev/null

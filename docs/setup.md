@@ -29,7 +29,7 @@ See the **Quickstart** section in [README.md](../README.md). It boils down to a 
 npm run verify:quickstart
 ```
 
-This command starts everything (Docker Postgres + migrations + seed + app on port 3100) and verifies the sign-in flow.
+This command starts the verification path (Docker Postgres + migrations + seed + app on port 3100), verifies the sign-in flow, then shuts the app and Compose services down. If port 3100 is already in use, set `CATALYST_STUDIO_APP_PORT` to another port. Use the manual setup below when you want to keep the app running for exploration.
 
 ## 2. Manual Step-by-Step Setup
 
@@ -128,12 +128,12 @@ npm run dev
 
 > The default `dev` script disables the Workflow SDK plugin (it can rewrite files repeatedly on Windows). If you need to work on workflows, use `npm run dev:workflow` instead.
 
-Open the app (default port 3000 after `npm run dev`; the quickstart uses port 3100):
+Open the app (default port 3000 after `npm run dev`; the quickstart verifier uses port 3100 only while it is running):
 
-- Sign in: http://localhost:3000/sign-in (or http://localhost:3100/sign-in after quickstart)
+- Sign in: http://localhost:3000/sign-in
 - Dashboard: http://localhost:3000/dashboard
 - Site Builder: http://localhost:3000/studio/site-builder?websiteId=test-website
-- Preview: http://localhost:3000/studio/preview?websiteId=test-website (or http://localhost:3100/studio/preview?websiteId=test-website after quickstart)
+- Preview: http://localhost:3000/studio/preview?websiteId=test-website
 - Content Types: http://localhost:3000/studio/content-types?websiteId=test-website
 
 ## Optional: CMS Export Providers
@@ -169,7 +169,7 @@ npm run typecheck            # TypeScript check
 npm run test:ci              # Run the stable public test suite
 ```
 
-**One-command full verification** (Docker + seed + start + check):
+**One-command full verification** (Docker + seed + start + check + cleanup):
 
 ```bash
 npm run verify:quickstart
