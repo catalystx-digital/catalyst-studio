@@ -396,15 +396,53 @@ jobs:
         run: npm run db:migrate:deploy
 
       - name: Smoke check deployment URL
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
           deployment_url="${{ steps.deploy.outputs.url }}"
           base_url="${deployment_url%/}"
 
-          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30 "$base_url/sign-in" --output /dev/null
+          curl_common=(--silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30)
+          smoke_headers=()
+          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+            smoke_headers+=(--header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET")
+          fi
+
+          probe_headers="$(mktemp)"
+          trap 'rm -f "$probe_headers"' EXIT
+          probe_status="$(
+            curl "${curl_common[@]}" "${smoke_headers[@]}" \
+              --output /dev/null \
+              --dump-header "$probe_headers" \
+              --write-out '%{http_code}' \
+              "$base_url/api/auth/session"
+          )"
+
+          if [ "$probe_status" = "302" ] && grep -iq '^location: https://vercel.com/sso-api' "$probe_headers"; then
+            if [ -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+              echo "::warning::Vercel Deployment Protection blocked the staged deployment URL. Skipping staged smoke checks because VERCEL_AUTOMATION_BYPASS_SECRET is not configured; the canonical production URL smoke check remains mandatory after promotion."
+              exit 0
+            fi
+
+            echo "::error::Vercel Deployment Protection still blocked the staged deployment URL. Verify that VERCEL_AUTOMATION_BYPASS_SECRET matches an active Protection Bypass for Automation secret for this Vercel project."
+            exit 1
+          fi
+
+          page_status="$(
+            curl "${curl_common[@]}" "${smoke_headers[@]}" \
+              --output /dev/null \
+              --write-out '%{http_code}' \
+              "$base_url/sign-in"
+          )"
+
+          if [ "$page_status" -lt 200 ] || [ "$page_status" -ge 400 ]; then
+            echo "::error::Expected deployment sign-in page to return a 2xx/3xx status, got $page_status."
+            exit 1
+          fi
 
           auth_status="$(
-            curl --location --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30 \
+            curl "${curl_common[@]}" "${smoke_headers[@]}" \
               --request POST \
               --header 'content-type: application/json' \
               --data '{"email":"ci-smoke-db-check@example.invalid","password":"not-a-real-password"}' \
@@ -454,10 +492,22 @@ jobs:
         run: |
           set -euo pipefail
           base_url="${NEXT_PUBLIC_APP_URL%/}"
-          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30 "$base_url/sign-in" --output /dev/null
+          curl_common=(--silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30)
+
+          page_status="$(
+            curl "${curl_common[@]}" \
+              --output /dev/null \
+              --write-out '%{http_code}' \
+              "$base_url/sign-in"
+          )"
+
+          if [ "$page_status" -lt 200 ] || [ "$page_status" -ge 400 ]; then
+            echo "::error::Expected canonical sign-in page to return a 2xx/3xx status, got $page_status."
+            exit 1
+          fi
 
           auth_status="$(
-            curl --location --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused --max-time 30 \
+            curl "${curl_common[@]}" \
               --request POST \
               --header 'content-type: application/json' \
               --data '{"email":"ci-smoke-db-check@example.invalid","password":"not-a-real-password"}' \
