@@ -207,16 +207,19 @@ jobs:
           set -euo pipefail
 
           expected_name="${VERCEL_PROJECT_NAME:-catalyst-studio}"
-          project_json="$(
-            npx --yes vercel@${VERCEL_CLI_VERSION} api \
-              "/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" \
-              --scope "$VERCEL_TEAM_SLUG" \
-              --token="$VERCEL_TOKEN" \
-              --raw
-          )"
+          project_json_path="$(mktemp)"
+          trap 'rm -f "$project_json_path"' EXIT
 
-          PROJECT_JSON="$project_json" EXPECTED_NAME="$expected_name" node <<'NODE'
-          const project = JSON.parse(process.env.PROJECT_JSON || '{}');
+          npx --yes vercel@${VERCEL_CLI_VERSION} api \
+            "/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" \
+            --scope "$VERCEL_TEAM_SLUG" \
+            --token="$VERCEL_TOKEN" \
+            --raw > "$project_json_path"
+
+          PROJECT_JSON_PATH="$project_json_path" EXPECTED_NAME="$expected_name" node <<'NODE'
+          const fs = require('node:fs');
+
+          const project = JSON.parse(fs.readFileSync(process.env.PROJECT_JSON_PATH, 'utf8'));
           const expected = {
             id: process.env.VERCEL_PROJECT_ID,
             name: process.env.EXPECTED_NAME,
