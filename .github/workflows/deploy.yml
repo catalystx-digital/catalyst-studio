@@ -161,11 +161,16 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_PROJECT_NAME: ${{ vars.VERCEL_PROJECT_NAME }}
+          VERCEL_PROJECT_CREATED_AT: ${{ vars.VERCEL_PROJECT_CREATED_AT }}
+          VERCEL_PROJECT_FRAMEWORK: ${{ vars.VERCEL_PROJECT_FRAMEWORK }}
+          VERCEL_PROJECT_NODE_VERSION: ${{ vars.VERCEL_PROJECT_NODE_VERSION }}
         run: |
           set -euo pipefail
           mkdir -p .vercel
           node <<'NODE'
           const fs = require('node:fs');
+
+          const createdAt = Number(process.env.VERCEL_PROJECT_CREATED_AT || '1765103936888');
 
           fs.writeFileSync(
             '.vercel/project.json',
@@ -173,6 +178,17 @@ jobs:
               orgId: process.env.VERCEL_ORG_ID,
               projectId: process.env.VERCEL_PROJECT_ID,
               projectName: process.env.VERCEL_PROJECT_NAME || 'catalyst-studio',
+              settings: {
+                createdAt,
+                framework: process.env.VERCEL_PROJECT_FRAMEWORK || 'nextjs',
+                devCommand: null,
+                installCommand: null,
+                buildCommand: null,
+                outputDirectory: null,
+                rootDirectory: null,
+                directoryListing: false,
+                nodeVersion: process.env.VERCEL_PROJECT_NODE_VERSION || '24.x',
+              },
             })}\n`,
             { mode: 0o600 },
           );
