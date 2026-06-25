@@ -869,6 +869,20 @@ export class DetectionService {
       })
     }
 
+    const maxSectionTasks = Math.max(1, DetectionConfig.maxSectionTasks)
+    if (tasks.length > maxSectionTasks) {
+      throw new DetectionFailureError(
+        `Detection outline returned ${tasks.length} sections, exceeding the per-page limit of ${maxSectionTasks}`,
+        {
+          model: endpointModel,
+          stage: 'budget',
+          validationPath: 'outline.sections',
+          requestCount: 0,
+          skippedSectionsDueToBudget: tasks.slice(maxSectionTasks).map(task => task.sectionKey)
+        }
+      )
+    }
+
     if (checkpointSession && checkpointService) {
       await checkpointService.savePagePlan(checkpointSession, url, {
         url,

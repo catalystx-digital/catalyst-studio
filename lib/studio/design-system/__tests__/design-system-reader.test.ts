@@ -256,6 +256,22 @@ describe('strict runtime readers', () => {
     })).toThrow('Design-system payload is not valid current shadcn token data.')
   })
 
+  it('rejects CSS variables that can break out of the preview style tag', () => {
+    expect(() => generateStrictDesignSystemCss({
+      variables: {
+        '--primary': '</style><script>window.__xss = true</script><style>',
+      },
+      extraction: currentTokens.extraction,
+    })).toThrow('Design-system payload is not valid current shadcn token data.')
+
+    expect(() => generateStrictDesignSystemCss({
+      variables: {
+        '--primary;color': '240 5.9% 10%',
+      },
+      extraction: currentTokens.extraction,
+    })).toThrow('Design-system payload is not valid current shadcn token data.')
+  })
+
   it('rejects malformed optional typography and spacing payloads', () => {
     expect(() => readNullableShadcnDesignSystemTokens({
       ...currentTokens,

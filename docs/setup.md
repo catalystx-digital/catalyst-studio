@@ -41,11 +41,13 @@ This command starts everything (Docker Postgres + migrations + seed + app on por
 docker compose up -d postgres
 ```
 
-This gives you:
+This binds PostgreSQL to the host loopback interface only and gives you:
 
 ```text
-postgresql://postgres:postgres@localhost:5432/catalyst_studio
+postgresql://postgres:postgres@127.0.0.1:5432/catalyst_studio
 ```
+
+To use a different local port, set `CATALYST_STUDIO_DB_PORT` before starting Compose, for example `CATALYST_STUDIO_DB_PORT=5433 docker compose up -d postgres`.
 
 **Alternative: Use your own PostgreSQL**
 
@@ -175,7 +177,7 @@ npm run verify:quickstart
 
 ## Common Issues
 
-- **Port 5432 already in use** — Stop the other Postgres or remap the port in `docker-compose.yml` and set `CATALYST_STUDIO_DB_PORT=5433 npm run verify:quickstart`.
+- **Port 5432 already in use** — Stop the other Postgres or set `CATALYST_STUDIO_DB_PORT=5433 npm run verify:quickstart`.
 - **Prisma can't connect** — Make sure `.env` is in the project root and `DIRECT_URL` is a direct connection (not pooled).
 - **AI import fails** — Confirm `OPENROUTER_API_KEY` and that you have credits/quota on OpenRouter.
 - **Preview looks wrong** — The built-in database-backed renderer is the default and does **not** require Vercel Sandbox. Use `?sandbox=true` only if you have a configured Vercel Sandbox.

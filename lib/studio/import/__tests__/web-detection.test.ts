@@ -361,6 +361,7 @@ describe('DetectionService (web-based)', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(DetectionConfig as any).detectionHarness = 'section'
+    ;(DetectionConfig as any).maxSectionTasks = 40
     ;(DetectionConfig as any).fillBatchConcurrency = 1
     mockWebTools.fetchOutline.mockResolvedValue(mockOutline)
     mockWebTools.getLastFetchOutline.mockReturnValue(mockOutline)
@@ -447,6 +448,23 @@ describe('DetectionService (web-based)', () => {
       summaryMock.mockClear()
       await service.detectComponentsFromUrl(mockPageUrl)
       expect(summaryMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects outlines that exceed the per-page section task budget before LLM extraction', async () => {
+      ;(DetectionConfig as any).maxSectionTasks = 2
+      mockWebTools.fetchOutline.mockResolvedValueOnce({
+        ...mockOutline,
+        sections: [
+          { key: 'main:0-99', approxBytes: 500, hash: 'a', nodeCount: 6 },
+          { key: 'main:100-199', approxBytes: 500, hash: 'b', nodeCount: 6 },
+          { key: 'main:200-299', approxBytes: 500, hash: 'c', nodeCount: 6 }
+        ]
+      })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
+        'exceeding the per-page limit of 2'
+      )
+      expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled()
     })
 
     it('reuses validated same-origin global header sections across pages', async () => {
