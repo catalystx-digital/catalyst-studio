@@ -38,18 +38,17 @@ Add these `production` environment variables:
 | `VERCEL_PROJECT_CREATED_AT` | Optional Vercel project creation timestamp in milliseconds. Defaults to the current production project metadata. |
 | `VERCEL_PROJECT_FRAMEWORK` | Optional Vercel framework setting. Defaults to `nextjs`. |
 | `VERCEL_PROJECT_NODE_VERSION` | Optional Vercel Node runtime setting. Defaults to `24.x`. |
+| `VERCEL_TEAM_SLUG` | Vercel team slug used as the CLI `--scope`, for example `coding-koala`. |
 
 The workflow uses only `contents: read` permissions. It does not require package publishing permissions. Production secrets are scoped to the steps that need them, and the deployment job starts only after a no-secret guard verifies that the triggering CI run came from the current `main` SHA in this repository.
 
 ## Required Vercel configuration
 
-Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link and project settings from the protected GitHub configuration, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt --skip-domain` with runtime `--env` flags.
+Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. Vercel Git auto-deploys must not be a second production deployment path; disable or ignore Vercel Git builds for this project so GitHub Actions remains the only production promotion path. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link and project settings from the protected GitHub configuration, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt --skip-domain` with runtime `--env` flags. All Vercel CLI commands run with `--scope "$VERCEL_TEAM_SLUG"` so deploy promotion stays under the target team rather than the token owner's personal scope.
 
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
 ```bash
-DATABASE_URL="postgresql://user:password@host:5432/catalyst_studio"
-DIRECT_URL="postgresql://user:password@host:5432/catalyst_studio"
 AUTH_SECRET="a-long-random-production-secret"
 AUTH_SESSION_SECRET="a-long-random-production-secret"
 ```
@@ -74,7 +73,7 @@ STUDIO_ENCRYPTION_KEY_ID="v1"
 STUDIO_ENCRYPTION_KEY="base64-encoded-32-byte-key"
 ```
 
-GitHub environment secrets are the source of truth for deploy credentials, migrations, and app runtime/build configuration. Keep `DATABASE_URL` and `DIRECT_URL` consistent between the dedicated migration secrets and `VERCEL_ENV_FILE_PRODUCTION`.
+GitHub environment secrets are the source of truth for deploy credentials, migrations, and app runtime/build configuration. The dedicated `DATABASE_URL` and `DIRECT_URL` secrets are authoritative for both migrations and the Vercel build/runtime env. If those keys are also present in `VERCEL_ENV_FILE_PRODUCTION`, the workflow fails unless they match the dedicated secrets.
 
 ## Deployment sequence
 
@@ -88,10 +87,12 @@ On a successful `CI` run for `main`, the deploy workflow:
 6. Runs `vercel build --prod` with that production env loaded.
 7. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
 8. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
-9. Promotes the production deployment after migrations pass.
-10. Smoke-checks the returned Vercel deployment URL and `${NEXT_PUBLIC_APP_URL}/sign-in`.
+9. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, including a DB-backed fake sign-in request that must return `401` instead of `500`.
+10. Verifies the checked-out SHA is still the latest `main` SHA.
+11. Promotes the production deployment after migrations, staged smoke checks, and the final source guard pass.
+12. Smoke-checks `${NEXT_PUBLIC_APP_URL}/sign-in` and the DB-backed fake sign-in request after promotion.
 
-If the Vercel build fails, migrations do not run. If the Vercel token cannot create a production deployment, migrations do not run. If migrations fail, the new Vercel deployment is not promoted to the production domains.
+If the Vercel build fails, migrations do not run. If the Vercel token cannot create a production deployment, migrations do not run. If migrations fail, the new Vercel deployment is not promoted to the production domains. If the staged smoke check or promotion fails after migrations have run, production remains on the previous deployment while the database may already be migrated; handle that case with forward-compatible migration design, not automatic rollback.
 
 ## Rollback policy
 
@@ -113,11 +114,13 @@ Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**,
 | --- | --- | --- |
 | `VERCEL_TOKEN is required` | Missing GitHub `production` environment secret. | Add all required secrets in the `production` environment. |
 | `VERCEL_ENV_FILE_PRODUCTION is required` | Missing GitHub `production` environment secret. | Add the sanitized production dotenv content as a protected environment secret. |
+| `DATABASE_URL in VERCEL_ENV_FILE_PRODUCTION must match...` | The runtime/build dotenv content points at a different database than the protected migration secret. | Update the dedicated database secrets and `VERCEL_ENV_FILE_PRODUCTION` so they agree, or remove database URLs from `VERCEL_ENV_FILE_PRODUCTION`. |
 | `prisma migrate deploy` cannot connect | `DATABASE_URL` or `DIRECT_URL` is missing, pooled incorrectly, or unreachable from GitHub-hosted runners. | Use a direct production DB URL for `DIRECT_URL` and allow GitHub Actions network access if your DB is firewalled. |
 | `vercel build` or `vercel deploy` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
 | `You don't have permission to create a Production Deployment for this project` | `VERCEL_TOKEN` belongs to a user or team role that cannot deploy production for the Vercel project. | Replace `VERCEL_TOKEN` with a token created by a Vercel user/team member allowed to create production deployments for the project. |
+| `Not authorized: Trying to access resource under scope ...` during promotion | `VERCEL_TEAM_SLUG` points at the wrong Vercel scope, or the token cannot access that scope. A missing slug is caught earlier by workflow validation. | Set `VERCEL_TEAM_SLUG` to the Vercel team slug that owns the production project and use a token with access to that team. |
 | Deployment source guard fails | The triggering CI run was not a successful push to the current `main` SHA in this repository. | Let the latest `main` CI run finish, then use its automatic deploy or rerun the deploy manually from `main`. |
-| Smoke check fails | `NEXT_PUBLIC_APP_URL` is wrong, the returned Vercel deployment URL is unreachable, or the deployed app is not serving `/sign-in`. | Update the GitHub environment variable and verify the Vercel domains. |
+| Smoke check fails | `NEXT_PUBLIC_APP_URL` is wrong, the returned Vercel deployment URL is unreachable, the deployed app is not serving `/sign-in`, or `/api/auth/sign-in` cannot reach the production database with the migrated schema. | Update the GitHub environment variable, verify the Vercel domains, and inspect app/database runtime logs. |
 
 ## References
 
