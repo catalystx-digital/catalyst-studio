@@ -83,7 +83,7 @@ On a successful `CI` run for `main`, the deploy workflow:
 2. Checks out the exact commit that passed CI.
 3. Installs dependencies with `npm ci`.
 4. Writes `.vercel/project.json` from the protected Vercel project secrets and Vercel project settings.
-5. Verifies the Vercel project name and ID resolve to the intended `coding-koala/catalyst-studio` project before build or deploy.
+5. Verifies the Vercel project name, ID, owner, and framework resolve to the intended `coding-koala/catalyst-studio` project before build or deploy.
 6. Prepares a production env file from GitHub environment secrets and variables.
 7. Runs `vercel build --prod` with that production env loaded.
 8. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
