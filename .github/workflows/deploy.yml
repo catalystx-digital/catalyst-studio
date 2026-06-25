@@ -160,6 +160,7 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_NAME: ${{ vars.VERCEL_PROJECT_NAME }}
         run: |
           set -euo pipefail
           mkdir -p .vercel
@@ -171,6 +172,7 @@ jobs:
             `${JSON.stringify({
               orgId: process.env.VERCEL_ORG_ID,
               projectId: process.env.VERCEL_PROJECT_ID,
+              projectName: process.env.VERCEL_PROJECT_NAME || 'catalyst-studio',
             })}\n`,
             { mode: 0o600 },
           );
@@ -245,6 +247,7 @@ jobs:
 
           fs.mkdirSync('.vercel', { recursive: true });
           fs.writeFileSync('.env.production.local', `${dotenvLines.join('\n')}\n`, { mode: 0o600 });
+          fs.writeFileSync('.vercel/.env.production.local', `${dotenvLines.join('\n')}\n`, { mode: 0o600 });
           fs.writeFileSync('.vercel/env.sh', `${shellLines.join('\n')}\n`, { mode: 0o600 });
           fs.writeFileSync('.vercel/runtime-env-names.txt', `${orderedKeys.join('\n')}\n`, { mode: 0o600 });
 

@@ -34,12 +34,13 @@ Add these `production` environment variables:
 | `NEXT_PUBLIC_APP_NAME` | Optional public application name. Defaults to `Catalyst Studio` if omitted. |
 | `STUDIO_DISABLE_WORKFLOW_PLUGIN` | Optional runtime mode flag. Defaults to `true` if omitted. |
 | `STUDIO_QUOTA_ENFORCEMENT_MODE` | Optional quota mode. Defaults to `log` if omitted. |
+| `VERCEL_PROJECT_NAME` | Optional Vercel project name for the local project link. Defaults to `catalyst-studio` if omitted. |
 
 The workflow uses only `contents: read` permissions. It does not require package publishing permissions. Production secrets are scoped to the steps that need them, and the deployment job starts only after a no-secret guard verifies that the triggering CI run came from the current `main` SHA in this repository.
 
 ## Required Vercel configuration
 
-Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link from `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`, prepares a production env file from `VERCEL_ENV_FILE_PRODUCTION`, uses it for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
+Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link from `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and `VERCEL_PROJECT_NAME`, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
 
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
