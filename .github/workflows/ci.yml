@@ -6,9 +6,14 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       SKIP_DB_SETUP: "true"
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/catalyst_studio"
@@ -39,6 +44,7 @@ jobs:
 
   quickstart:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4

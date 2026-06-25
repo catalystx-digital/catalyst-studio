@@ -8,7 +8,7 @@
 
 Fully hackable locally. Core features (visual builder, preview, content modeling, seeded demos) run without any paid services or API keys.
 
-> **Try it locally (no API keys required for core demo):** `npm run verify:quickstart` — one command spins up everything with a seeded test site.
+> **Verify the local demo (no API keys required):** `npm run verify:quickstart` — one command spins up the seeded path, checks it, and exits cleanly.
 
 ## Key Features
 
@@ -49,7 +49,7 @@ Active provider adapters:
 - Team members, invitations, and role-based access (owner/admin/member) with per-website scoping.
 - Scoped API keys with rotation and audit events.
 - Usage tracking, quotas, and deployment history.
-- GitHub Actions container deployment via GHCR for open-source friendly hosting. See [GitHub deployment setup](docs/deployment/github.md).
+- GitHub Actions production deployment to Vercel with protected migrations. See [GitHub deployment setup](docs/deployment/github.md).
 - Activity streams and audit logs.
 
 Everything is extensible: add new CMS components, customize the component library, or add new export providers.
@@ -88,14 +88,14 @@ The easiest way to run everything locally:
 npm run verify:quickstart
 ```
 
-This **one command** does all of the following:
+This **one command** does all of the following, then shuts the app and Compose services down:
 - Starts a PostgreSQL database using Docker Compose
 - Applies migrations
 - Seeds a full demo account + sample website with pages and components
 - Starts the app (on port 3100)
 - Verifies the sign-in flow works
 
-Open **http://localhost:3100/sign-in** (the `verify:quickstart` script starts the app on port 3100; plain `npm run dev` defaults to port 3000) and use the seeded demo account:
+To explore the app interactively after verification, run the manual setup in [docs/setup.md](docs/setup.md), then open **http://localhost:3000/sign-in** and use the seeded demo account:
 
 ```
 Email:    seed@example.com
@@ -103,28 +103,28 @@ Password: SeedUser!234
 ```
 
 **Recommended places to explore immediately:**
-- Dashboard: http://localhost:3100/dashboard
-- Visual Site Builder: http://localhost:3100/studio/site-builder?websiteId=test-website
-- Live Preview: http://localhost:3100/studio/preview?websiteId=test-website
-- Content Types: http://localhost:3100/studio/content-types?websiteId=test-website
+- Dashboard: http://localhost:3000/dashboard
+- Visual Site Builder: http://localhost:3000/studio/site-builder?websiteId=test-website
+- Live Preview: http://localhost:3000/studio/preview?websiteId=test-website
+- Content Types: http://localhost:3000/studio/content-types?websiteId=test-website
 
 **You do not need any API keys** for the seeded demo, visual builder, preview, content types, or local rendering.
 
 ### Quick Demo Walkthrough
 
-Follow these 6 steps after `npm run verify:quickstart` to experience the full AI-powered visual + headless flow from one model (the seeded `test-website` is real, editable, and powers preview, export, and the UCS GraphQL API):
+Follow these 6 steps after the manual setup in [docs/setup.md](docs/setup.md) to experience the full AI-powered visual + headless flow from one model (the seeded `test-website` is real, editable, and powers preview, export, and the UCS GraphQL API):
 
-1. Sign in at http://localhost:3100/sign-in with the seeded demo account:
+1. Sign in at http://localhost:3000/sign-in with the seeded demo account:
    ```
    Email:    seed@example.com
    Password: SeedUser!234
    ```
 
-2. Go to the Dashboard at http://localhost:3100/dashboard and use the "Try these features with the seeded demo site" cards (direct links to the seeded `test-website`):
-   - Visual Site Builder: http://localhost:3100/studio/site-builder?websiteId=test-website
-   - Live Database-Backed Preview: http://localhost:3100/studio/preview?websiteId=test-website
-   - Content Types & CMS: http://localhost:3100/studio/content-types?websiteId=test-website
-   - Export & Headless: http://localhost:3100/studio/deployment?websiteId=test-website (plus the "Explore Headless GraphQL (UCS) on seeded test site" sub-link in that card or the welcome area above)
+2. Go to the Dashboard at http://localhost:3000/dashboard and use the "Try these features with the seeded demo site" cards (direct links to the seeded `test-website`):
+   - Visual Site Builder: http://localhost:3000/studio/site-builder?websiteId=test-website
+   - Live Database-Backed Preview: http://localhost:3000/studio/preview?websiteId=test-website
+   - Content Types & CMS: http://localhost:3000/studio/content-types?websiteId=test-website
+   - Export & Headless: http://localhost:3000/studio/deployment?websiteId=test-website (plus the "Explore Headless GraphQL (UCS) on seeded test site" sub-link in that card or the welcome area above)
 
 3. In the Site Builder, click the floating Sparkles button (bottom-right) to open the in-canvas AI assistant. Try a simple prompt such as "add a hero to home" or "make the main nav global" — it operates on the real seeded pages, components, and globals (core drag-drop, props, and hierarchy require no keys).
 
