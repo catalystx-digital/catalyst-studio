@@ -35,12 +35,15 @@ Add these `production` environment variables:
 | `STUDIO_DISABLE_WORKFLOW_PLUGIN` | Optional runtime mode flag. Defaults to `true` if omitted. |
 | `STUDIO_QUOTA_ENFORCEMENT_MODE` | Optional quota mode. Defaults to `log` if omitted. |
 | `VERCEL_PROJECT_NAME` | Optional Vercel project name for the local project link. Defaults to `catalyst-studio` if omitted. |
+| `VERCEL_PROJECT_CREATED_AT` | Optional Vercel project creation timestamp in milliseconds. Defaults to the current production project metadata. |
+| `VERCEL_PROJECT_FRAMEWORK` | Optional Vercel framework setting. Defaults to `nextjs`. |
+| `VERCEL_PROJECT_NODE_VERSION` | Optional Vercel Node runtime setting. Defaults to `24.x`. |
 
 The workflow uses only `contents: read` permissions. It does not require package publishing permissions. Production secrets are scoped to the steps that need them, and the deployment job starts only after a no-secret guard verifies that the triggering CI run came from the current `main` SHA in this repository.
 
 ## Required Vercel configuration
 
-Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link from `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and `VERCEL_PROJECT_NAME`, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
+Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link and project settings from the protected GitHub configuration, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
 
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
@@ -80,7 +83,7 @@ On a successful `CI` run for `main`, the deploy workflow:
 1. Verifies the CI run was a successful push to the current `main` SHA in this repository.
 2. Checks out the exact commit that passed CI.
 3. Installs dependencies with `npm ci`.
-4. Writes `.vercel/project.json` from the protected Vercel project secrets.
+4. Writes `.vercel/project.json` from the protected Vercel project secrets and Vercel project settings.
 5. Prepares a production env file from GitHub environment secrets and variables.
 6. Runs `vercel build --prod` with that production env loaded.
 7. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
