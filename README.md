@@ -49,6 +49,7 @@ Active provider adapters:
 - Team members, invitations, and role-based access (owner/admin/member) with per-website scoping.
 - Scoped API keys with rotation and audit events.
 - Usage tracking, quotas, and deployment history.
+- GitHub Actions container deployment via GHCR for open-source friendly hosting. See [GitHub deployment setup](docs/deployment/github.md).
 - Activity streams and audit logs.
 
 Everything is extensible: add new CMS components, customize the component library, or add new export providers.
