@@ -39,7 +39,7 @@ The workflow uses only `contents: read` permissions. It does not require package
 
 ## Required Vercel configuration
 
-Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to write Vercel project environment variables. Instead, it prepares a production env file from `VERCEL_ENV_FILE_PRODUCTION`, uses it for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
+Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link from `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`, prepares a production env file from `VERCEL_ENV_FILE_PRODUCTION`, uses it for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
 
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
@@ -79,7 +79,7 @@ On a successful `CI` run for `main`, the deploy workflow:
 1. Verifies the CI run was a successful push to the current `main` SHA in this repository.
 2. Checks out the exact commit that passed CI.
 3. Installs dependencies with `npm ci`.
-4. Runs `vercel pull --environment=production`.
+4. Writes `.vercel/project.json` from the protected Vercel project secrets.
 5. Prepares a production env file from GitHub environment secrets and variables.
 6. Runs `vercel build --prod` with that production env loaded.
 7. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
@@ -109,7 +109,7 @@ Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**,
 | `VERCEL_TOKEN is required` | Missing GitHub `production` environment secret. | Add all required secrets in the `production` environment. |
 | `VERCEL_ENV_FILE_PRODUCTION is required` | Missing GitHub `production` environment secret. | Add the sanitized production dotenv content as a protected environment secret. |
 | `prisma migrate deploy` cannot connect | `DATABASE_URL` or `DIRECT_URL` is missing, pooled incorrectly, or unreachable from GitHub-hosted runners. | Use a direct production DB URL for `DIRECT_URL` and allow GitHub Actions network access if your DB is firewalled. |
-| `vercel pull` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
+| `vercel build` or `vercel deploy` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
 | Deployment source guard fails | The triggering CI run was not a successful push to the current `main` SHA in this repository. | Let the latest `main` CI run finish, then use its automatic deploy or rerun the deploy manually from `main`. |
 | Smoke check fails | `NEXT_PUBLIC_APP_URL` is wrong, the returned Vercel deployment URL is unreachable, or the deployed app is not serving `/sign-in`. | Update the GitHub environment variable and verify the Vercel domains. |
 

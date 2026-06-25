@@ -156,12 +156,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Pull Vercel production environment
+      - name: Write Vercel project link
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production --token="$VERCEL_TOKEN"
+        run: |
+          set -euo pipefail
+          mkdir -p .vercel
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          fs.writeFileSync(
+            '.vercel/project.json',
+            `${JSON.stringify({
+              orgId: process.env.VERCEL_ORG_ID,
+              projectId: process.env.VERCEL_PROJECT_ID,
+            })}\n`,
+            { mode: 0o600 },
+          );
+          NODE
 
       - name: Prepare production environment file
         env:
