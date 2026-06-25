@@ -184,5 +184,15 @@ curl -I https://your-staging-domain.example
 
 This PR previously failed for two build-time reasons:
 
-1. The Docker deps stage copied only `package.json` and `package-lock.json`, but `npm ci` runs the project `postinstall` script (`prisma generate`). Prisma needs `prisma/schema.prisma`, so the Docker build failed before dependencies finished installing. The Dockerfile now copies `prisma/` before `npm ci`.
+1. The Docker deps stage copied only `package.json` and `package-lock.json`, but `npm ci` runs the project `postinstall` script (`prisma generate`). Prisma needs `prisma/schema.prisma`, so the Docker build failed before dependencies finished installing. The Dockerfile now copies `prisma/` before `npm ci`, regenerates the Prisma client after the full source copy, and copies `lib/generated` into the runtime image.
 2. The app used `next/font/google`, which requires fetching Google font CSS during `next build`. In restricted CI/build environments this can fail with `Failed to fetch font`. The root layout now uses local CSS font-family variables instead of network-fetched build-time fonts.
+
+## Why more than one GitHub Action runs
+
+Seeing multiple Actions runs is expected after this migration:
+
+- `CI` remains the normal quality gate for tests and the Next.js build.
+- `Deploy` is separate because it validates/publishes the Docker image and optionally performs rollout.
+- On pull requests that touch deployment files, `Deploy` builds the image without pushing it. On `main`, `Deploy` publishes to GHCR.
+
+Keeping these as separate workflows makes it clear whether a failure is in product tests/builds (`CI`) or in the container/deployment path (`Deploy`).

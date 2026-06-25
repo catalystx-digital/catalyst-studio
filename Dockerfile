@@ -26,6 +26,7 @@ ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 ENV IMPORT_MODEL_CHAIN=$IMPORT_MODEL_CHAIN
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN npm run db:generate
 RUN npm run build
 RUN npm prune --omit=dev
 
@@ -41,6 +42,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/lib/generated ./lib/generated
 USER nextjs
 EXPOSE 3000
 CMD ["npm", "run", "start"]
