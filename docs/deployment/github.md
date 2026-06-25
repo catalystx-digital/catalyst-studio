@@ -25,6 +25,7 @@ Add these `production` environment secrets:
 | `DATABASE_URL` | Production runtime database URL. This may be pooled if your database provider recommends pooling for the app. |
 | `DIRECT_URL` | Direct, non-pooled production database URL for `prisma migrate deploy`. |
 | `VERCEL_ENV_FILE_PRODUCTION` | Dotenv-formatted production app environment used for Vercel build and runtime deployment. Do not include Vercel system variables, deployment metadata, or `VERCEL_TOKEN`. |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Optional but recommended when Vercel Deployment Protection applies to generated `*.vercel.app` deployment URLs. Use a Vercel Protection Bypass for Automation secret so staged smoke checks can reach the unaliased deployment before promotion. |
 
 Add these `production` environment variables:
 
@@ -45,6 +46,8 @@ The workflow uses only `contents: read` permissions. It does not require package
 ## Required Vercel configuration
 
 Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. Vercel Git auto-deploys must not be a second production deployment path; disable or ignore Vercel Git builds for this project so GitHub Actions remains the only production promotion path. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link and project settings from the protected GitHub configuration, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt --skip-domain` with runtime `--env` flags. All Vercel CLI commands run with `--scope "$VERCEL_TEAM_SLUG"` so deploy promotion stays under the target team rather than the token owner's personal scope.
+
+If Vercel Authentication or other Deployment Protection applies to generated deployment URLs, create a Protection Bypass for Automation secret in the Vercel project settings and store it as the GitHub `production` environment secret `VERCEL_AUTOMATION_BYPASS_SECRET`. The workflow passes that value only as the `x-vercel-protection-bypass` smoke-check header. Custom production domains may be public while the staged `*.vercel.app` URL remains protected. Without this secret, the workflow logs a warning and skips the staged deployment URL smoke check, but the canonical production URL smoke check after promotion remains mandatory.
 
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
@@ -88,7 +91,7 @@ On a successful `CI` run for `main`, the deploy workflow:
 7. Runs `vercel build --prod` with that production env loaded.
 8. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
 9. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
-10. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, including a DB-backed fake sign-in request that must return `401` instead of `500`.
+10. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, using `VERCEL_AUTOMATION_BYPASS_SECRET` when Vercel Deployment Protection is enabled. If the staged URL is protected and no bypass secret is configured, this staged smoke check is skipped with a warning. When it runs, the DB-backed fake sign-in request must return `401` instead of `500`.
 11. Verifies the checked-out SHA is still the latest `main` SHA.
 12. Promotes the production deployment after migrations, staged smoke checks, and the final source guard pass.
 13. Smoke-checks `${NEXT_PUBLIC_APP_URL}/sign-in` and the DB-backed fake sign-in request after promotion.
@@ -121,6 +124,8 @@ Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**,
 | `VERCEL_PROJECT_ID points to...` | The protected GitHub secret points at a different Vercel project than `VERCEL_PROJECT_NAME`, such as `coding-koala-website` instead of `catalyst-studio`. | Set `VERCEL_PROJECT_ID` to the ID shown by `vercel project inspect catalyst-studio --scope coding-koala`. |
 | `You don't have permission to create a Production Deployment for this project` | `VERCEL_TOKEN` belongs to a user or team role that cannot deploy production for the Vercel project. | Replace `VERCEL_TOKEN` with a token created by a Vercel user/team member allowed to create production deployments for the project. |
 | `Not authorized: Trying to access resource under scope ...` during promotion | `VERCEL_TEAM_SLUG` points at the wrong Vercel scope, or the token cannot access that scope. A missing slug is caught earlier by workflow validation. | Set `VERCEL_TEAM_SLUG` to the Vercel team slug that owns the production project and use a token with access to that team. |
+| `Vercel Deployment Protection blocked the staged deployment URL` | The unaliased deployment URL redirects automation to Vercel SSO before the app can respond, and no bypass secret is configured. | This is a warning. The deployment continues to promotion and the canonical production smoke check remains mandatory. To restore pre-promotion staged smoke checks, create a Vercel Protection Bypass for Automation secret and add it as the GitHub `production` environment secret `VERCEL_AUTOMATION_BYPASS_SECRET`. |
+| `Vercel Deployment Protection still blocked...` | A bypass secret is configured in GitHub but does not match an active Vercel bypass secret for the project. | Regenerate or copy the active Vercel bypass secret and update the GitHub `production` environment secret. Redeploy after changing it. |
 | Deployment source guard fails | The triggering CI run was not a successful push to the current `main` SHA in this repository. | Let the latest `main` CI run finish, then use its automatic deploy or rerun the deploy manually from `main`. |
 | Smoke check fails | `NEXT_PUBLIC_APP_URL` is wrong, the returned Vercel deployment URL is unreachable, the deployed app is not serving `/sign-in`, or `/api/auth/sign-in` cannot reach the production database with the migrated schema. | Update the GitHub environment variable, verify the Vercel domains, and inspect app/database runtime logs. |
 
