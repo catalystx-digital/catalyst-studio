@@ -1,6 +1,6 @@
 # GitHub Actions and Vercel deployment
 
-Catalyst Studio is a server-rendered Next.js application backed by Prisma and PostgreSQL. Production deployments are handled by GitHub Actions and Vercel CLI: GitHub validates the code, builds the Vercel output, runs production migrations with protected database secrets, and deploys that prebuilt output to Vercel.
+Catalyst Studio is a server-rendered Next.js application backed by Prisma and PostgreSQL. Production deployments are handled by GitHub Actions and Vercel CLI: GitHub validates the code, builds the Vercel output, creates an unaliased production deployment, runs production migrations with protected database secrets, and promotes the deployment after migrations pass.
 
 ## Workflow behavior
 
@@ -43,7 +43,7 @@ The workflow uses only `contents: read` permissions. It does not require package
 
 ## Required Vercel configuration
 
-Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link and project settings from the protected GitHub configuration, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt` with runtime `--env` flags.
+Link the GitHub repository to the Vercel project or configure the project IDs through the secrets above. The workflow does not require permission to read or write Vercel project environment variables. Instead, it writes the local Vercel project link and project settings from the protected GitHub configuration, prepares production env files from `VERCEL_ENV_FILE_PRODUCTION`, uses them for `vercel build`, and passes those values to `vercel deploy --prebuilt --skip-domain` with runtime `--env` flags.
 
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
@@ -86,11 +86,12 @@ On a successful `CI` run for `main`, the deploy workflow:
 4. Writes `.vercel/project.json` from the protected Vercel project secrets and Vercel project settings.
 5. Prepares a production env file from GitHub environment secrets and variables.
 6. Runs `vercel build --prod` with that production env loaded.
-7. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
-8. Runs `vercel deploy --prebuilt --prod`, passing runtime env values with `--env`.
-9. Smoke-checks the returned Vercel deployment URL and `${NEXT_PUBLIC_APP_URL}/sign-in`.
+7. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
+8. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
+9. Promotes the production deployment after migrations pass.
+10. Smoke-checks the returned Vercel deployment URL and `${NEXT_PUBLIC_APP_URL}/sign-in`.
 
-If the Vercel build fails, migrations do not run. If migrations fail, deployment stops before Vercel receives a new production deployment.
+If the Vercel build fails, migrations do not run. If the Vercel token cannot create a production deployment, migrations do not run. If migrations fail, the new Vercel deployment is not promoted to the production domains.
 
 ## Rollback policy
 
@@ -114,6 +115,7 @@ Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**,
 | `VERCEL_ENV_FILE_PRODUCTION is required` | Missing GitHub `production` environment secret. | Add the sanitized production dotenv content as a protected environment secret. |
 | `prisma migrate deploy` cannot connect | `DATABASE_URL` or `DIRECT_URL` is missing, pooled incorrectly, or unreachable from GitHub-hosted runners. | Use a direct production DB URL for `DIRECT_URL` and allow GitHub Actions network access if your DB is firewalled. |
 | `vercel build` or `vercel deploy` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
+| `You don't have permission to create a Production Deployment for this project` | `VERCEL_TOKEN` belongs to a user or team role that cannot deploy production for the Vercel project. | Replace `VERCEL_TOKEN` with a token created by a Vercel user/team member allowed to create production deployments for the project. |
 | Deployment source guard fails | The triggering CI run was not a successful push to the current `main` SHA in this repository. | Let the latest `main` CI run finish, then use its automatic deploy or rerun the deploy manually from `main`. |
 | Smoke check fails | `NEXT_PUBLIC_APP_URL` is wrong, the returned Vercel deployment URL is unreachable, or the deployed app is not serving `/sign-in`. | Update the GitHub environment variable and verify the Vercel domains. |
 
