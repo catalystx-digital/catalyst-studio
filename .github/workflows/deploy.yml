@@ -195,6 +195,35 @@ jobs:
           );
           NODE
 
+      - name: Validate Vercel project target
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_NAME: ${{ vars.VERCEL_PROJECT_NAME }}
+          VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
+        run: |
+          set -euo pipefail
+
+          expected_name="${VERCEL_PROJECT_NAME:-catalyst-studio}"
+          inspect_output="$(npx --yes vercel@${VERCEL_CLI_VERSION} project inspect "$expected_name" --scope "$VERCEL_TEAM_SLUG" --token="$VERCEL_TOKEN")"
+          printf '%s\n' "$inspect_output"
+
+          actual_id="$(printf '%s\n' "$inspect_output" | awk '$1 == "ID" { print $2; exit }')"
+          actual_name="$(printf '%s\n' "$inspect_output" | awk '$1 == "Name" { print $2; exit }')"
+
+          if [ "$actual_name" != "$expected_name" ]; then
+            echo "::error::Expected Vercel project name '$expected_name', got '${actual_name:-unknown}'."
+            exit 1
+          fi
+
+          if [ "$actual_id" != "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::VERCEL_PROJECT_ID points to '$VERCEL_PROJECT_ID', but coding-koala/$expected_name is '${actual_id:-unknown}'."
+            exit 1
+          fi
+
+          echo "Verified Vercel project target: $VERCEL_TEAM_SLUG/$actual_name ($actual_id)."
+
       - name: Prepare production environment file
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
