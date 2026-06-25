@@ -9,7 +9,7 @@ The repository has two workflows:
 1. `CI` runs on pull requests and pushes to `main`.
 2. `Production Deploy` runs only after a successful `CI` workflow on `main`, or by manual dispatch from `main`.
 
-Pull requests do not deploy and do not receive production secrets. Stale pull request CI runs are cancelled automatically, while `main` CI runs are allowed to finish because deployment depends on their result.
+Pull requests do not deploy and do not receive production secrets. Stale CI runs are cancelled automatically, including older `main` runs. Production deploys still verify that the completed CI run belongs to the current `main` SHA before any production secrets are exposed.
 
 ## Required GitHub configuration
 
