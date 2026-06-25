@@ -83,14 +83,15 @@ On a successful `CI` run for `main`, the deploy workflow:
 2. Checks out the exact commit that passed CI.
 3. Installs dependencies with `npm ci`.
 4. Writes `.vercel/project.json` from the protected Vercel project secrets and Vercel project settings.
-5. Prepares a production env file from GitHub environment secrets and variables.
-6. Runs `vercel build --prod` with that production env loaded.
-7. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
-8. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
-9. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, including a DB-backed fake sign-in request that must return `401` instead of `500`.
-10. Verifies the checked-out SHA is still the latest `main` SHA.
-11. Promotes the production deployment after migrations, staged smoke checks, and the final source guard pass.
-12. Smoke-checks `${NEXT_PUBLIC_APP_URL}/sign-in` and the DB-backed fake sign-in request after promotion.
+5. Verifies the Vercel project name and ID resolve to the intended `coding-koala/catalyst-studio` project before build or deploy.
+6. Prepares a production env file from GitHub environment secrets and variables.
+7. Runs `vercel build --prod` with that production env loaded.
+8. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
+9. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
+10. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, including a DB-backed fake sign-in request that must return `401` instead of `500`.
+11. Verifies the checked-out SHA is still the latest `main` SHA.
+12. Promotes the production deployment after migrations, staged smoke checks, and the final source guard pass.
+13. Smoke-checks `${NEXT_PUBLIC_APP_URL}/sign-in` and the DB-backed fake sign-in request after promotion.
 
 If the Vercel build fails, migrations do not run. If the Vercel token cannot create a production deployment, migrations do not run. If migrations fail, the new Vercel deployment is not promoted to the production domains. If the staged smoke check or promotion fails after migrations have run, production remains on the previous deployment while the database may already be migrated; handle that case with forward-compatible migration design, not automatic rollback.
 
@@ -117,6 +118,7 @@ Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**,
 | `DATABASE_URL in VERCEL_ENV_FILE_PRODUCTION must match...` | The runtime/build dotenv content points at a different database than the protected migration secret. | Update the dedicated database secrets and `VERCEL_ENV_FILE_PRODUCTION` so they agree, or remove database URLs from `VERCEL_ENV_FILE_PRODUCTION`. |
 | `prisma migrate deploy` cannot connect | `DATABASE_URL` or `DIRECT_URL` is missing, pooled incorrectly, or unreachable from GitHub-hosted runners. | Use a direct production DB URL for `DIRECT_URL` and allow GitHub Actions network access if your DB is firewalled. |
 | `vercel build` or `vercel deploy` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
+| `VERCEL_PROJECT_ID points to...` | The protected GitHub secret points at a different Vercel project than `VERCEL_PROJECT_NAME`, such as `coding-koala-website` instead of `catalyst-studio`. | Set `VERCEL_PROJECT_ID` to the ID shown by `vercel project inspect catalyst-studio --scope coding-koala`. |
 | `You don't have permission to create a Production Deployment for this project` | `VERCEL_TOKEN` belongs to a user or team role that cannot deploy production for the Vercel project. | Replace `VERCEL_TOKEN` with a token created by a Vercel user/team member allowed to create production deployments for the project. |
 | `Not authorized: Trying to access resource under scope ...` during promotion | `VERCEL_TEAM_SLUG` points at the wrong Vercel scope, or the token cannot access that scope. A missing slug is caught earlier by workflow validation. | Set `VERCEL_TEAM_SLUG` to the Vercel team slug that owns the production project and use a token with access to that team. |
 | Deployment source guard fails | The triggering CI run was not a successful push to the current `main` SHA in this repository. | Let the latest `main` CI run finish, then use its automatic deploy or rerun the deploy manually from `main`. |
