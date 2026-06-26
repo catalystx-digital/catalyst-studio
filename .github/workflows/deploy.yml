@@ -319,6 +319,23 @@ jobs:
           values.STUDIO_QUOTA_ENFORCEMENT_MODE =
             process.env.STUDIO_QUOTA_ENFORCEMENT_MODE || values.STUDIO_QUOTA_ENFORCEMENT_MODE || 'log';
 
+          const legacyPremiumAliases = {
+            PREMIUM_MEDIA_STORAGE_PROVIDER: 'STUDIO_MEDIA_STORAGE_PROVIDER',
+            PREMIUM_MEDIA_STORAGE_S3_ACCESS_KEY_ID: 'STUDIO_MEDIA_STORAGE_S3_ACCESS_KEY_ID',
+            PREMIUM_MEDIA_STORAGE_S3_BUCKET: 'STUDIO_MEDIA_STORAGE_S3_BUCKET',
+            PREMIUM_MEDIA_STORAGE_S3_ENDPOINT: 'STUDIO_MEDIA_STORAGE_S3_ENDPOINT',
+            PREMIUM_MEDIA_STORAGE_S3_FORCE_PATH_STYLE: 'STUDIO_MEDIA_STORAGE_S3_FORCE_PATH_STYLE',
+            PREMIUM_MEDIA_STORAGE_S3_PUBLIC_BASE_URL: 'STUDIO_MEDIA_STORAGE_S3_PUBLIC_BASE_URL',
+            PREMIUM_MEDIA_STORAGE_S3_REGION: 'STUDIO_MEDIA_STORAGE_S3_REGION',
+            PREMIUM_MEDIA_STORAGE_S3_SECRET_ACCESS_KEY: 'STUDIO_MEDIA_STORAGE_S3_SECRET_ACCESS_KEY',
+          };
+
+          for (const [legacyKey, studioKey] of Object.entries(legacyPremiumAliases)) {
+            if (!values[studioKey] && values[legacyKey]) {
+              values[studioKey] = values[legacyKey];
+            }
+          }
+
           for (const key of ['DATABASE_URL', 'DIRECT_URL', 'WORKFLOW_INTERNAL_SECRET']) {
             const secretValue = process.env[key];
             if (!secretValue) {
