@@ -163,7 +163,7 @@
     "react-error-boundary": "^6.1.2",
     "react-hook-form": "^7.80.0",
     "react-markdown": "^10.1.0",
-    "react-virtualized-auto-sizer": "^1.0.26",
+    "react-virtualized-auto-sizer": "^2.0.3",
     "react-window": "^1.8.11",
     "react-window-infinite-loader": "^1.0.10",
     "reactflow": "^11.11.4",
