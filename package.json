@@ -152,7 +152,7 @@
     "nodemailer": "9.0.1",
     "openai": "^6.45.0",
     "parse5": "^8.0.1",
-    "pdfjs-dist": "^5.4.530",
+    "pdfjs-dist": "^6.0.227",
     "playwright-core": "^1.54.2",
     "prisma": "6.19.3",
     "qrcode": "^1.5.4",
