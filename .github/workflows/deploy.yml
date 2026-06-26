@@ -131,13 +131,14 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          WORKFLOW_INTERNAL_SECRET: ${{ secrets.WORKFLOW_INTERNAL_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
           VERCEL_ENV_FILE_PRODUCTION: ${{ secrets.VERCEL_ENV_FILE_PRODUCTION }}
         run: |
           set -euo pipefail
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL DIRECT_URL NEXT_PUBLIC_APP_URL VERCEL_TEAM_SLUG VERCEL_ENV_FILE_PRODUCTION; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL DIRECT_URL WORKFLOW_INTERNAL_SECRET NEXT_PUBLIC_APP_URL VERCEL_TEAM_SLUG VERCEL_ENV_FILE_PRODUCTION; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required for production deployment."
               missing=1
@@ -151,11 +152,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
 
       - name: Write Vercel project link
         env:
@@ -202,6 +206,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_PROJECT_FRAMEWORK: ${{ vars.VERCEL_PROJECT_FRAMEWORK }}
           VERCEL_PROJECT_NAME: ${{ vars.VERCEL_PROJECT_NAME }}
+          VERCEL_PROJECT_NODE_VERSION: ${{ vars.VERCEL_PROJECT_NODE_VERSION }}
           VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
         run: |
           set -euo pipefail
@@ -225,6 +230,7 @@ jobs:
             name: process.env.EXPECTED_NAME,
             accountId: process.env.VERCEL_ORG_ID,
             framework: process.env.VERCEL_PROJECT_FRAMEWORK || 'nextjs',
+            nodeVersion: process.env.VERCEL_PROJECT_NODE_VERSION || '24.x',
           };
 
           function fail(message) {
@@ -248,6 +254,11 @@ jobs:
             fail(`Vercel project framework '${project.framework || 'unknown'}' does not match '${expected.framework}'.`);
           }
 
+          const projectNodeVersion = project.nodeVersion || project.settings?.nodeVersion;
+          if (projectNodeVersion && projectNodeVersion !== expected.nodeVersion) {
+            fail(`Vercel project Node.js version '${projectNodeVersion}' does not match '${expected.nodeVersion}'.`);
+          }
+
           console.log(`Verified Vercel project target: ${process.env.VERCEL_TEAM_SLUG}/${project.name}.`);
           NODE
 
@@ -255,6 +266,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          WORKFLOW_INTERNAL_SECRET: ${{ secrets.WORKFLOW_INTERNAL_SECRET }}
           NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           STUDIO_DISABLE_WORKFLOW_PLUGIN: ${{ vars.STUDIO_DISABLE_WORKFLOW_PLUGIN }}
@@ -307,7 +319,7 @@ jobs:
           values.STUDIO_QUOTA_ENFORCEMENT_MODE =
             process.env.STUDIO_QUOTA_ENFORCEMENT_MODE || values.STUDIO_QUOTA_ENFORCEMENT_MODE || 'log';
 
-          for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
+          for (const key of ['DATABASE_URL', 'DIRECT_URL', 'WORKFLOW_INTERNAL_SECRET']) {
             const secretValue = process.env[key];
             if (!secretValue) {
               throw new Error(`${key} production secret is required.`);
@@ -320,10 +332,19 @@ jobs:
             values[key] = secretValue;
           }
 
-          for (const key of ['DATABASE_URL', 'DIRECT_URL', 'AUTH_SECRET', 'NEXT_PUBLIC_APP_URL']) {
+          for (const key of ['DATABASE_URL', 'DIRECT_URL', 'AUTH_SECRET', 'NEXT_PUBLIC_APP_URL', 'WORKFLOW_INTERNAL_SECRET']) {
             if (!values[key]) {
               throw new Error(`${key} is required in VERCEL_ENV_FILE_PRODUCTION or production variables.`);
             }
+          }
+
+          const mediaProvider = String(values.STUDIO_MEDIA_STORAGE_PROVIDER || '').toUpperCase();
+          const allowEphemeralMediaStorage = values.STUDIO_ALLOW_EPHEMERAL_MEDIA_STORAGE === 'true';
+          if ((!mediaProvider || mediaProvider === 'FILE') && !allowEphemeralMediaStorage) {
+            throw new Error(
+              'STUDIO_MEDIA_STORAGE_PROVIDER must be set to durable storage such as S3 for production Vercel deploys. ' +
+              'FILE is local-only because Vercel filesystem writes are ephemeral.'
+            );
           }
 
           const orderedKeys = Object.keys(values).sort();
@@ -351,6 +372,7 @@ jobs:
         run: |
           set -euo pipefail
           . .vercel/env.sh
+          npm run db:generate
           npx --yes vercel@${VERCEL_CLI_VERSION} build --prod --scope "$VERCEL_TEAM_SLUG" --token="$VERCEL_TOKEN"
 
       - name: Create unaliased production deployment
@@ -393,7 +415,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
-        run: npm run db:migrate:deploy
+        run: |
+          npm run db:generate
+          npm run db:migrate:deploy
 
       - name: Smoke check deployment URL
         env:

@@ -197,4 +197,42 @@ describe('SitemapDiscoveryService', () => {
       ])
     );
   });
+
+  it('preserves namespaced image metadata from sitemap entries', async () => {
+    const imageService = new SitemapDiscoveryService();
+    (global.fetch as any).mockImplementation(async (input: any) => {
+      const url = typeof input === 'string' ? input : input?.toString();
+      if (url === 'https://example.com/') {
+        return makeResponse(200, '<html>home</html>', 'text/html');
+      }
+      if (url === 'https://example.com/sitemap.xml') {
+        return makeResponse(
+          200,
+          `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+             <url>
+               <loc>https://example.com/gallery/</loc>
+               <lastmod>2026-06-20</lastmod>
+               <image:image>
+                 <image:loc>https://cdn.example.com/gallery.jpg</image:loc>
+               </image:image>
+             </url>
+           </urlset>`
+        );
+      }
+      if (url === 'https://example.com/gallery/') {
+        return makeResponse(200, '<html>gallery</html>', 'text/html');
+      }
+      return makeResponse(404, 'not found', 'text/html');
+    });
+
+    const result = await imageService.expandUrlsForImport('https://example.com/', 2);
+
+    expect(result.urls).toContain('https://example.com/gallery/');
+    expect(result.sitemapMetaByUrl.get('https://example.com/gallery/')).toEqual(
+      expect.objectContaining({
+        lastmod: '2026-06-20',
+        images: ['https://cdn.example.com/gallery.jpg'],
+      }),
+    );
+  });
 });

@@ -13,7 +13,7 @@ This document covers:
 
 ## Prerequisites
 
-- Node.js 20 or newer
+- Node.js 24.x. Node 20 and 22 are not supported for this release.
 - npm (using the checked-in `package-lock.json`)
 - Docker with Compose v2 (easiest database option)
 - (Optional) PostgreSQL 14+ if you prefer to run it yourself
@@ -64,9 +64,10 @@ DIRECT_URL="postgresql://user:pass@localhost:5432/catalyst_studio"
 
 ```bash
 npm ci
+npm run db:generate
 ```
 
-This also runs `prisma generate` automatically.
+Prisma generation is explicit. The `postinstall` hook does not run `prisma generate`, so run `npm run db:generate` after every fresh `npm ci` and after Prisma schema changes.
 
 ### Configure Environment
 
@@ -148,6 +149,8 @@ You can also disable providers you don't want to show:
 CMS_DISABLED_PROVIDERS="strapi,contentful"
 ```
 
+Kontent.ai sync/debug scripts require `KONTENT_ENVIRONMENT_ID` and `KONTENT_MANAGEMENT_API_KEY` from your environment. If you ever used credentials copied from older local debug examples, rotate that Kontent Management API token before running production exports.
+
 ## Media Storage (Local Development)
 
 Defaults are already configured for local file storage:
@@ -160,11 +163,14 @@ STUDIO_MEDIA_STORAGE_LOCAL_PUBLIC_URL="http://localhost:3000/media"
 
 S3 configuration is available if needed (see `.env.example`).
 
+Do not use `STUDIO_MEDIA_STORAGE_PROVIDER="FILE"` for Vercel production. Vercel filesystem writes are ephemeral; production media should use durable storage such as S3-compatible object storage.
+
 ## Verification & Maintenance Commands
 
 ```bash
+npm ci                         # Install dependencies
+npm run db:generate            # Regenerate Prisma client after install
 npm run build:components     # Regenerate CMS component registry (required after editing components)
-npm run db:generate          # Regenerate Prisma client
 npm run typecheck            # TypeScript check
 npm run test:ci              # Run the stable public test suite
 ```
@@ -198,7 +204,7 @@ This completely resets the local database volume and re-seeds the demo content.
 
 1. Create the database `catalyst_studio`.
 2. Set `DATABASE_URL` and `DIRECT_URL` in `.env`.
-3. Run the normal steps: `npm ci`, `npm run db:migrate:deploy`, `npm run db:seed`, `npm run dev`.
+3. Run the normal steps: `npm ci`, `npm run db:generate`, `npm run db:migrate:deploy`, `npm run db:seed`, `npm run dev`.
 
 ## Next Steps
 

@@ -97,7 +97,7 @@ Provides `getInternalApiUrl()` and `callInternalApi()` for server-to-server API 
 **Why needed**: Prisma cannot be bundled in Vercel Workflow steps. All database operations must go through internal API routes.
 
 ```typescript
-import { callInternalApi, getInternalApiUrl } from '@/lib/studio/workflows/shared';
+import { callInternalApi, getInternalApiHeaders, getInternalApiUrl } from '@/lib/studio/workflows/shared';
 
 // Option 1: Using the helper (recommended for simple POST)
 const result = await callInternalApi<{ success: boolean }>(
@@ -108,7 +108,7 @@ const result = await callInternalApi<{ success: boolean }>(
 // Option 2: Manual fetch (for complex scenarios)
 const response = await fetch(getInternalApiUrl('/api/internal/design-system'), {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: getInternalApiHeaders(),
   body: JSON.stringify({ websiteId, targetUrl }),
 });
 ```
@@ -117,6 +117,8 @@ const response = await fetch(getInternalApiUrl('/api/internal/design-system'), {
 
 When running on Vercel with deployment protection enabled, workflow steps run in an isolated runtime. The `getInternalApiUrl()` function automatically adds the `x-vercel-protection-bypass` query parameter when `VERCEL_AUTOMATION_BYPASS_SECRET` is set.
 
+The bypass token only gets the request through Vercel's edge protection. Mutating internal app APIs require `x-workflow-internal: $WORKFLOW_INTERNAL_SECRET`; use `callInternalApi()` or `getInternalApiHeaders()` so callers send that header consistently.
+
 See: [Vercel Docs - Protection Bypass Automation](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)
 
 ## Environment Variables
@@ -124,5 +126,6 @@ See: [Vercel Docs - Protection Bypass Automation](https://vercel.com/docs/deploy
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `VERCEL_URL` | Auto-set by Vercel in production | Auto |
-| `VERCEL_AUTOMATION_BYPASS_SECRET` | Secret for bypassing deployment protection | Production |
+| `WORKFLOW_INTERNAL_SECRET` | Secret sent in `x-workflow-internal` for mutating internal APIs | Production |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Secret for bypassing Vercel deployment protection only | Production when deployment protection is enabled |
 | `PORT` | Development server port (default: 3000) | No |

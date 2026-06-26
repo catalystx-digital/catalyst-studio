@@ -1,7 +1,7 @@
 # Catalyst Studio
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D24%20%3C25-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![CI](https://img.shields.io/github/actions/workflow/status/catalystx/catalyst-studio-oss/ci.yml)](https://github.com/catalystx/catalyst-studio-oss/actions/workflows/ci.yml)
 
 **AI-powered visual website studio and CMS.** Import any live site with AI, edit visually, preview instantly, and export to the CMS your clients already use — or run it as a complete standalone CMS with a GraphQL headless API.
@@ -9,6 +9,8 @@
 Fully hackable locally. Core features (visual builder, preview, content modeling, seeded demos) run without any paid services or API keys.
 
 > **Verify the local demo (no API keys required):** `npm run verify:quickstart` — one command spins up the seeded path, checks it, and exits cleanly.
+
+> **Runtime requirement:** Node.js 24.x with npm. Use the checked-in `.nvmrc` or `.node-version` and run `npm run db:generate` after every fresh `npm ci`.
 
 ## Key Features
 
@@ -90,6 +92,7 @@ npm run verify:quickstart
 
 This **one command** does all of the following, then shuts the app and Compose services down:
 - Starts a PostgreSQL database using Docker Compose
+- Generates the Prisma client
 - Applies migrations
 - Seeds a full demo account + sample website with pages and components
 - Starts the app (on port 3100)
@@ -165,13 +168,15 @@ Use `CMS_PROVIDER=auto` (default) or set a specific provider (e.g. `CMS_PROVIDER
 
 - [Setup Guide](docs/setup.md) — Full instructions, own database, troubleshooting, and advanced configuration.
 - [Architecture Notes](docs/architecture.md) — High-level code layout (mainly for contributors).
+- [Node 24 Stabilization Notes](docs/release-notes/node-24-stabilization.md) — Breaking setup, dependency, and deploy migration notes.
 - [Contributing](CONTRIBUTING.md)
 
 ## Useful Commands
 
 ```bash
 npm run verify:quickstart   # One-command full local setup + verification
-npm run dev                 # Start development (after build:components)
+npm run dev                 # Generate Prisma, build component registry, then start development
+npm run db:generate         # Regenerate Prisma client after npm ci or schema changes
 npm run build:components    # Regenerate the CMS component registry (run after editing components)
 npm run db:seed             # Re-seed demo data
 ```
