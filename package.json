@@ -139,7 +139,7 @@
     "graphql-validation-complexity": "^0.4.2",
     "gray-matter": "^4.0.3",
     "html2canvas": "^1.4.1",
-    "immer": "^10.1.1",
+    "immer": "^11.1.8",
     "isomorphic-dompurify": "^2.26.0",
     "jsonrepair": "^3.14.1",
     "jspdf": "4.2.1",
