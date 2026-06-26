@@ -377,6 +377,7 @@ async function main() {
     await run('docker', ['compose', 'up', '-d', 'postgres'], { timeoutMs: 120000 });
     composeStarted = true;
     await waitForPostgres();
+    await run('npm', ['run', 'db:generate'], { timeoutMs: 120000 });
     await run('npm', ['run', 'db:migrate:deploy'], { timeoutMs: 120000 });
     await run('npm', ['run', 'db:seed'], { timeoutMs: 120000 });
 

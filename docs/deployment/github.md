@@ -2,6 +2,8 @@
 
 Catalyst Studio is a server-rendered Next.js application backed by Prisma and PostgreSQL. Production deployments are handled by GitHub Actions and Vercel CLI: GitHub validates the code, builds the Vercel output, creates an unaliased production deployment, runs production migrations with protected database secrets, and promotes the deployment after migrations pass.
 
+This deployment path requires Node.js 24.x in GitHub Actions, Docker, and Vercel. Node 20 and 22 are not supported for this release.
+
 ## Workflow behavior
 
 The repository has two workflows:
@@ -24,8 +26,9 @@ Add these `production` environment secrets:
 | `VERCEL_PROJECT_ID` | Vercel project ID. |
 | `DATABASE_URL` | Production runtime database URL. This may be pooled if your database provider recommends pooling for the app. |
 | `DIRECT_URL` | Direct, non-pooled production database URL for `prisma migrate deploy`. |
+| `WORKFLOW_INTERNAL_SECRET` | Shared secret sent as `x-workflow-internal` by workflow steps when mutating internal app APIs. Generate a unique value with `openssl rand -base64 32`. |
 | `VERCEL_ENV_FILE_PRODUCTION` | Dotenv-formatted production app environment used for Vercel build and runtime deployment. Do not include Vercel system variables, deployment metadata, or `VERCEL_TOKEN`. |
-| `VERCEL_AUTOMATION_BYPASS_SECRET` | Optional but recommended when Vercel Deployment Protection applies to generated `*.vercel.app` deployment URLs. Use a Vercel Protection Bypass for Automation secret so staged smoke checks can reach the unaliased deployment before promotion. |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Optional but recommended when Vercel Deployment Protection applies to generated `*.vercel.app` deployment URLs. This only bypasses Vercel edge protection; it does not authorize mutating app APIs. |
 
 Add these `production` environment variables:
 
@@ -49,11 +52,14 @@ Link the GitHub repository to the Vercel project or configure the project IDs th
 
 If Vercel Authentication or other Deployment Protection applies to generated deployment URLs, create a Protection Bypass for Automation secret in the Vercel project settings and store it as the GitHub `production` environment secret `VERCEL_AUTOMATION_BYPASS_SECRET`. The workflow passes that value only as the `x-vercel-protection-bypass` smoke-check header. Custom production domains may be public while the staged `*.vercel.app` URL remains protected. Without this secret, the workflow logs a warning and skips the staged deployment URL smoke check, but the canonical production URL smoke check after promotion remains mandatory.
 
+`WORKFLOW_INTERNAL_SECRET` is separate from the Vercel bypass secret. Workflow HTTP callers send it as `x-workflow-internal`, and internal mutating routes reject requests that only have `VERCEL_AUTOMATION_BYPASS_SECRET`. The deploy workflow validates this secret before dependency install/build and injects it into the Vercel build/runtime environment.
+
 `VERCEL_ENV_FILE_PRODUCTION` should include the production app values that Vercel needs during build and function execution, including:
 
 ```bash
 AUTH_SECRET="a-long-random-production-secret"
 AUTH_SESSION_SECRET="a-long-random-production-secret"
+WORKFLOW_INTERNAL_SECRET="a-long-random-workflow-secret"
 ```
 
 Do not include Vercel-provided system variables such as `VERCEL`, `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_GIT_*`, `VERCEL_OIDC_TOKEN`, or the CLI `VERCEL_TOKEN`. The workflow filters those names if they are present, but keeping the secret file clean makes review safer.
@@ -76,6 +82,9 @@ STUDIO_ENCRYPTION_KEY_ID="v1"
 STUDIO_ENCRYPTION_KEY="base64-encoded-32-byte-key"
 ```
 
+For media uploads in Vercel production, configure durable storage. `STUDIO_MEDIA_STORAGE_PROVIDER="FILE"` is intended for local development only because Vercel function filesystem writes are ephemeral. Use S3-compatible storage before enabling production uploads.
+The deploy workflow rejects production env files that omit `STUDIO_MEDIA_STORAGE_PROVIDER` or set it to `FILE`, unless `STUDIO_ALLOW_EPHEMERAL_MEDIA_STORAGE="true"` is explicitly set for a temporary non-upload deployment.
+
 GitHub environment secrets are the source of truth for deploy credentials, migrations, and app runtime/build configuration. The dedicated `DATABASE_URL` and `DIRECT_URL` secrets are authoritative for both migrations and the Vercel build/runtime env. If those keys are also present in `VERCEL_ENV_FILE_PRODUCTION`, the workflow fails unless they match the dedicated secrets.
 
 ## Deployment sequence
@@ -85,16 +94,17 @@ On a successful `CI` run for `main`, the deploy workflow:
 1. Verifies the CI run was a successful push to the current `main` SHA in this repository.
 2. Checks out the exact commit that passed CI.
 3. Installs dependencies with `npm ci`.
-4. Writes `.vercel/project.json` from the protected Vercel project secrets and Vercel project settings.
-5. Verifies the Vercel project name, ID, owner, and framework resolve to the intended `coding-koala/catalyst-studio` project before build or deploy.
-6. Prepares a production env file from GitHub environment secrets and variables.
-7. Runs `vercel build --prod` with that production env loaded.
-8. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
-9. Runs `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
-10. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, using `VERCEL_AUTOMATION_BYPASS_SECRET` when Vercel Deployment Protection is enabled. If the staged URL is protected and no bypass secret is configured, this staged smoke check is skipped with a warning. When it runs, the DB-backed fake sign-in request must return `401` instead of `500`.
-11. Verifies the checked-out SHA is still the latest `main` SHA.
-12. Promotes the production deployment after migrations, staged smoke checks, and the final source guard pass.
-13. Smoke-checks `${NEXT_PUBLIC_APP_URL}/sign-in` and the DB-backed fake sign-in request after promotion.
+4. Runs `npm run db:generate`; Prisma generation is explicit and no longer runs from `postinstall`.
+5. Writes `.vercel/project.json` from the protected Vercel project secrets and Vercel project settings.
+6. Verifies the Vercel project name, ID, owner, and framework resolve to the intended `coding-koala/catalyst-studio` project before build or deploy.
+7. Prepares a production env file from GitHub environment secrets and variables.
+8. Runs `npm run db:generate` again with the production env loaded, then `vercel build --prod`.
+9. Runs `vercel deploy --prebuilt --prod --skip-domain`, passing runtime env values with `--env`.
+10. Runs `npm run db:generate` and `npm run db:migrate:deploy` with protected `DATABASE_URL` and `DIRECT_URL`.
+11. Smoke-checks the returned Vercel deployment URL before any production alias is promoted, using `VERCEL_AUTOMATION_BYPASS_SECRET` when Vercel Deployment Protection is enabled. If the staged URL is protected and no bypass secret is configured, this staged smoke check is skipped with a warning. When it runs, the DB-backed fake sign-in request must return `401` instead of `500`.
+12. Verifies the checked-out SHA is still the latest `main` SHA.
+13. Promotes the production deployment after migrations, staged smoke checks, and the final source guard pass.
+14. Smoke-checks `${NEXT_PUBLIC_APP_URL}/sign-in` and the DB-backed fake sign-in request after promotion.
 
 If the Vercel build fails, migrations do not run. If the Vercel token cannot create a production deployment, migrations do not run. If migrations fail, the new Vercel deployment is not promoted to the production domains. If the staged smoke check or promotion fails after migrations have run, production remains on the previous deployment while the database may already be migrated; handle that case with forward-compatible migration design, not automatic rollback.
 
@@ -118,7 +128,9 @@ Manual deploys can be run from **Actions -> Production Deploy -> Run workflow**,
 | --- | --- | --- |
 | `VERCEL_TOKEN is required` | Missing GitHub `production` environment secret. | Add all required secrets in the `production` environment. |
 | `VERCEL_ENV_FILE_PRODUCTION is required` | Missing GitHub `production` environment secret. | Add the sanitized production dotenv content as a protected environment secret. |
+| `WORKFLOW_INTERNAL_SECRET is required` | Missing internal workflow auth secret. | Add a unique `WORKFLOW_INTERNAL_SECRET` production environment secret and include the same value in `VERCEL_ENV_FILE_PRODUCTION` if you manage runtime env through that file. |
 | `DATABASE_URL in VERCEL_ENV_FILE_PRODUCTION must match...` | The runtime/build dotenv content points at a different database than the protected migration secret. | Update the dedicated database secrets and `VERCEL_ENV_FILE_PRODUCTION` so they agree, or remove database URLs from `VERCEL_ENV_FILE_PRODUCTION`. |
+| `STUDIO_MEDIA_STORAGE_PROVIDER must be set to durable storage...` | Production env is missing durable media storage or still uses local `FILE` storage. | Configure `STUDIO_MEDIA_STORAGE_PROVIDER="S3"` and the required S3 variables before enabling production uploads. |
 | `prisma migrate deploy` cannot connect | `DATABASE_URL` or `DIRECT_URL` is missing, pooled incorrectly, or unreachable from GitHub-hosted runners. | Use a direct production DB URL for `DIRECT_URL` and allow GitHub Actions network access if your DB is firewalled. |
 | `vercel build` or `vercel deploy` cannot link the project | `VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is wrong. | Copy the IDs from Vercel project settings or `.vercel/project.json`. |
 | `VERCEL_PROJECT_ID points to...` | The protected GitHub secret points at a different Vercel project than `VERCEL_PROJECT_NAME`, such as `coding-koala-website` instead of `catalyst-studio`. | Set `VERCEL_PROJECT_ID` to the ID shown by `vercel project inspect catalyst-studio --scope coding-koala`. |

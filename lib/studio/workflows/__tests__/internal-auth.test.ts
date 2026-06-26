@@ -81,4 +81,61 @@ describe('isAuthorizedInternalWorkflowRequest', () => {
       ),
     ).toBe(true)
   })
+
+  it('rejects wrong workflow secret headers', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.VERCEL_URL = 'example.vercel.app'
+    process.env.WORKFLOW_INTERNAL_SECRET = 'secret'
+
+    expect(
+      isAuthorizedInternalWorkflowRequest(
+        new NextRequest('https://example.vercel.app/api/internal/import-job', {
+          headers: { 'x-workflow-internal': 'wrong-secret' },
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  it('does not authorize an empty workflow header when the secret is missing', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.VERCEL_URL = 'example.vercel.app'
+    process.env.WORKFLOW_INTERNAL_SECRET = ''
+
+    expect(
+      isAuthorizedInternalWorkflowRequest(
+        new NextRequest('https://example.vercel.app/api/internal/import-job', {
+          headers: { 'x-workflow-internal': '' },
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  it('rejects Vercel automation bypass tokens by default', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.VERCEL_URL = 'example.vercel.app'
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = 'bypass-secret'
+
+    expect(
+      isAuthorizedInternalWorkflowRequest(
+        new NextRequest(
+          'https://example.vercel.app/api/internal/import-job?x-vercel-protection-bypass=bypass-secret',
+        ),
+      ),
+    ).toBe(false)
+  })
+
+  it('allows Vercel automation bypass tokens only when explicitly enabled', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.VERCEL_URL = 'example.vercel.app'
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = 'bypass-secret'
+
+    expect(
+      isAuthorizedInternalWorkflowRequest(
+        new NextRequest(
+          'https://example.vercel.app/api/internal/import-job?x-vercel-protection-bypass=bypass-secret',
+        ),
+        { allowVercelBypass: true },
+      ),
+    ).toBe(true)
+  })
 })

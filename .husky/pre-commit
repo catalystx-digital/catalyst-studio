@@ -7,14 +7,14 @@ PACKAGE_JSON_STAGED=$(git diff --cached --name-only | grep "^package.json$" || t
 if [ -n "$PACKAGE_JSON_STAGED" ]; then
   echo "📦 package.json is staged, ensuring lockfile is synced..."
 
-  # Run pnpm install to update lockfile (--frozen-lockfile=false)
-  pnpm install --ignore-scripts 2>/dev/null
+  # Update package-lock.json without mutating node_modules or running install scripts.
+  npm install --package-lock-only --ignore-scripts
 
   # Check if lockfile changed
-  LOCKFILE_CHANGED=$(git diff --name-only pnpm-lock.yaml || true)
+  LOCKFILE_CHANGED=$(git diff --name-only package-lock.json || true)
   if [ -n "$LOCKFILE_CHANGED" ]; then
     echo "🔄 Lockfile updated, adding to commit..."
-    git add pnpm-lock.yaml
+    git add package-lock.json
   fi
 fi
 
