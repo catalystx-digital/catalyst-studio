@@ -5,7 +5,7 @@ import { withAccelerate } from '@prisma/extension-accelerate';
 // Set PRISMA_QUERY_LOG=true to enable detailed query logging
 const ENABLE_QUERY_LOG = process.env.PRISMA_QUERY_LOG === 'true';
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient {
   const client = new PrismaClient({
     log: ENABLE_QUERY_LOG
       ? [
@@ -28,7 +28,12 @@ function createPrismaClient() {
     });
   }
 
-  return client.$extends(withAccelerate());
+  const databaseUrl = process.env.DATABASE_URL ?? '';
+  if (databaseUrl.startsWith('prisma://') || databaseUrl.startsWith('prisma+postgres://')) {
+    return client.$extends(withAccelerate()) as unknown as PrismaClient;
+  }
+
+  return client;
 }
 
 // Export the extended client type for use in function signatures

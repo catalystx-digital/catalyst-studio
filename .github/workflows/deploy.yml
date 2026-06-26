@@ -120,7 +120,7 @@ jobs:
       VERCEL_CLI_VERSION: 54.17.0
     steps:
       - name: Checkout deploy source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.guard.outputs.source_sha }}
 
@@ -150,7 +150,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
