@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { AUTH_SESSION_COOKIE } from '@/lib/auth/session-cookie';
 import { getSessionByCookieValue } from '@/lib/auth/session-store';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * System Admin Layout with Server-Side Authorization
  *
