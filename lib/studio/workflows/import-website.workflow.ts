@@ -23,6 +23,7 @@ import type { ExpandedImportUrls } from "@/lib/studio/import/services/sitemap-di
 import type { NavigationHierarchy, Template, DesignTokens, NavigationPage, TemplateRegion } from "@/lib/studio/import/types";
 import type { CapturedDesignSystem } from "@/lib/studio/import/types/design-system.types";
 import type { CaptureDesignSystemResult } from "@/lib/studio/design-system/dom-probe/service";
+import { getInternalApiHeaders, getInternalApiUrl } from "@/lib/studio/workflows/shared/internal-api";
 
 // ============================================================================
 // Types
@@ -563,52 +564,6 @@ interface ProgressDetails {
   totalPages?: number;
   currentUrl?: string | null;
   processedCount?: number;
-}
-
-/**
- * Get the base URL for internal API calls.
- * Uses environment variable or falls back to localhost for local development.
- */
-function getInternalApiBaseUrl(): string {
-  // In production, use the Vercel URL
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  // In local development, use localhost with the dev port
-  const port = process.env.PORT || "3000";
-  return `http://localhost:${port}`;
-}
-
-/**
- * Build a full internal API URL with Vercel deployment protection bypass.
- *
- * When running on Vercel with deployment protection enabled (e.g., Vercel Authentication),
- * workflow steps run in an isolated runtime and their HTTP calls to the same deployment
- * are blocked by the edge protection. The bypass token allows authenticated automation.
- *
- * @see https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation
- */
-function getInternalApiUrl(path: string): string {
-  const baseUrl = getInternalApiBaseUrl();
-  const url = new URL(path, baseUrl);
-
-  // Add bypass token for Vercel deployment protection (only in production)
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-  if (bypassSecret && process.env.VERCEL_URL) {
-    url.searchParams.set("x-vercel-protection-bypass", bypassSecret);
-  }
-
-  return url.toString();
-}
-
-function getInternalApiHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (process.env.WORKFLOW_INTERNAL_SECRET) {
-    headers["x-workflow-internal"] = process.env.WORKFLOW_INTERNAL_SECRET;
-  }
-  return headers;
 }
 
 /**

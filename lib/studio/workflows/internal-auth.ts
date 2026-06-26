@@ -9,7 +9,14 @@ function isLocalHostHeader(host: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 }
 
-export function isAuthorizedInternalWorkflowRequest(request: NextRequest): boolean {
+interface InternalWorkflowAuthOptions {
+  allowVercelBypass?: boolean
+}
+
+export function isAuthorizedInternalWorkflowRequest(
+  request: NextRequest,
+  options: InternalWorkflowAuthOptions = {},
+): boolean {
   const host = request.headers.get('host') ?? ''
   const isLocalHost = isLocalHostHeader(host)
   const isLocalEnv = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
@@ -24,10 +31,14 @@ export function isAuthorizedInternalWorkflowRequest(request: NextRequest): boole
     return true
   }
 
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-  const bypassToken = request.nextUrl.searchParams.get('x-vercel-protection-bypass')
-  if (bypassSecret && bypassToken === bypassSecret) {
-    return true
+  if (options.allowVercelBypass) {
+    const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+    const bypassToken =
+      request.nextUrl.searchParams.get('x-vercel-protection-bypass') ??
+      request.headers.get('x-vercel-protection-bypass')
+    if (bypassSecret && bypassToken === bypassSecret) {
+      return true
+    }
   }
 
   return false

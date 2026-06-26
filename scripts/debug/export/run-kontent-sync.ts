@@ -8,6 +8,14 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true 
 import { BundleExporter } from '@/lib/services/export/bundle-exporter';
 import { KontentProvider } from '@/lib/cms-export/kontent';
 
+function requireEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required. Set it in .env.local or the shell before running Kontent sync.`);
+  }
+  return value;
+}
+
 async function main() {
   const websiteId = process.argv[2];
   if (!websiteId) {
@@ -22,8 +30,8 @@ async function main() {
       : undefined;
 
   const provider = new KontentProvider({
-    environmentId: process.env.KONTENT_ENVIRONMENT_ID || '5ab1f731-664f-0083-cbe2-b5ae9c3d9ef5',
-    managementApiKey: process.env.KONTENT_MANAGEMENT_API_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZGUzM2UxMjQ0NWE0ZTkwODA5ODI1NDFjMDA1ZmQwMSIsImlhdCI6MTc2MDA0ODg2MiwibmJmIjoxNzYwMDQ4ODYyLCJleHAiOjE3NzU3NzcyMjAsInZlciI6IjMuMC4wIiwidWlkIjoidmlydHVhbF9kZTk0MDc1MS1kYWQ0LTQzZDctYmRjOC1kYWM1ZTMzYWExNzciLCJzY29wZV9pZCI6ImUyMWJmNjFkNTNkYTQ1OWE4YWVkMDBlNjEyOGM3MTAyIiwicHJvamVjdF9jb250YWluZXJfaWQiOiIzMjdhNWYyZmQ4NmEwMDhkNGM2Y2UwMmFiYjg3OTgyMSIsImF1ZCI6Im1hbmFnZS5rZW50aWNvY2xvdWQuY29tIn0.9W8OQSNfRIyygxY2Dm7peVp3hkOPxFa_LUt-bUohgM0',
+    environmentId: requireEnv('KONTENT_ENVIRONMENT_ID'),
+    managementApiKey: requireEnv('KONTENT_MANAGEMENT_API_KEY'),
     languageCodename: process.env.KONTENT_LANGUAGE_CODE || 'default',
     rateLimitMs: Number(process.env.KONTENT_RATE_LIMIT_MS ?? '250'),
     maxRetries: Number(process.env.KONTENT_MAX_RETRIES ?? '5'),

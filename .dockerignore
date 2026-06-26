@@ -2,6 +2,7 @@
 .github
 .next
 node_modules
+lib/generated/prisma
 coverage
 playwright-report
 test-results

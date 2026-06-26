@@ -46,6 +46,22 @@ export function getInternalApiUrl(path: string): string {
   return url.toString();
 }
 
+export function getInternalApiHeaders(
+  headers: Record<string, string> = {}
+): Record<string, string> {
+  const internalHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...headers,
+  };
+
+  const workflowSecret = process.env.WORKFLOW_INTERNAL_SECRET;
+  if (workflowSecret) {
+    internalHeaders['x-workflow-internal'] = workflowSecret;
+  }
+
+  return internalHeaders;
+}
+
 /**
  * Make a POST request to an internal API route.
  * Handles error responses and returns typed data.
@@ -71,7 +87,7 @@ export async function callInternalApi<T>(
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getInternalApiHeaders(),
     body: JSON.stringify(body),
   });
 

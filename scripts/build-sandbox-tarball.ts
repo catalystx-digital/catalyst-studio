@@ -10,7 +10,7 @@
  * Falls back to a generic S3-compatible bucket if BLOB_READ_WRITE_TOKEN is not set.
  *
  * Usage:
- *   pnpm tsx scripts/build-sandbox-tarball.ts
+ *   npx tsx scripts/build-sandbox-tarball.ts
  *
  * Output:
  *   Uploads to Vercel Blob: sandbox-template.tar.gz
@@ -245,7 +245,7 @@ async function main(): Promise<void> {
 
   // Step 1: Generate standalone HEAD
   log('Generating standalone HEAD...')
-  run(`pnpm tsx scripts/generate-head/index.ts --provider standalone --website-id PLACEHOLDER --output "${TEMP_DIR}" --force --copy-env`)
+  run(`npx tsx scripts/generate-head/index.ts --provider standalone --website-id PLACEHOLDER --output "${TEMP_DIR}" --force --copy-env`)
 
   // Step 2: Check that schema.prisma exists (required for prisma generate)
   const schemaPath = path.join(TEMP_DIR, 'lib', 'generated', 'prisma', 'schema.prisma')

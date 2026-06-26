@@ -51,9 +51,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic';
-
 // =============================================================================
 // Types
 // =============================================================================

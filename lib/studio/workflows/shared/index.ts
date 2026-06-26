@@ -19,5 +19,6 @@ export {
 export {
   getInternalApiBaseUrl,
   getInternalApiUrl,
+  getInternalApiHeaders,
   callInternalApi,
 } from './internal-api';
