@@ -2,9 +2,16 @@ import { PrismaClient } from '../generated/prisma'
 import { withAccelerate } from '@prisma/extension-accelerate'
 
 function createPrismaClient(): PrismaClient {
-  return new PrismaClient({
+  const client = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  }).$extends(withAccelerate()) as unknown as PrismaClient
+  })
+
+  const databaseUrl = process.env.DATABASE_URL ?? ''
+  if (databaseUrl.startsWith('prisma://') || databaseUrl.startsWith('prisma+postgres://')) {
+    return client.$extends(withAccelerate()) as unknown as PrismaClient
+  }
+
+  return client
 }
 
 // Export a stable client type for use in function signatures
