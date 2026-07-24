@@ -132,7 +132,7 @@
     "delta-e": "^0.0.8",
     "docx": "^9.7.1",
     "docx-templates": "^4.15.0",
-    "fast-xml-parser": "5.9.3",
+    "fast-xml-parser": "5.10.1",
     "framer-motion": "^12.42.0",
     "graphql": "^17.0.1",
     "graphql-depth-limit": "^1.1.0",
