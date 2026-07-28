@@ -223,7 +223,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "jest-mock-extended": "^4.0.1",
     "null-loader": "^4.0.1",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.18",
     "shadcn": "^4.11.0",
     "storybook": "^10.0.1",
     "tailwindcss": "^3.4.19",
