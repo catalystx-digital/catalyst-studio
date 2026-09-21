@@ -186,7 +186,7 @@ export class ImportPipeline {
 
       // Post-process and validate both fresh and checkpoint-resumed detections.
       detectionResults = detectionResults.map(result => {
-        if (result.postProcessed) {
+        if (result.postProcessed || result.detectionHarness === 'blocks') {
           return result
         }
         return {
