@@ -54,7 +54,7 @@ jobs:
 
   quickstart:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -73,3 +73,11 @@ jobs:
 
       - name: Verify Docker quickstart
         run: npm run verify:quickstart
+
+      - name: Verify headless browser in app image
+        run: |
+          docker build -t catalyst-studio-headless-check .
+          npx tsc scripts/check-headless-browser.ts --rootDir . --outDir "$RUNNER_TEMP/headless-check" --module commonjs --target ES2017 --esModuleInterop --skipLibCheck
+          docker run --rm --network none \
+            --mount "type=bind,source=$RUNNER_TEMP/headless-check,target=/app/headless-check,readonly" \
+            catalyst-studio-headless-check node headless-check/scripts/check-headless-browser.js

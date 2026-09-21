@@ -43,6 +43,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/lib/generated ./lib/generated
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx playwright-core install --with-deps --only-shell chromium \
+  && rm -rf /var/lib/apt/lists/*
 USER nextjs
 EXPOSE 3000
 CMD ["npm", "run", "start"]
