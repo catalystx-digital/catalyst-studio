@@ -96,6 +96,8 @@ tmp-head/**
 generated-head-*/**
 .cache/**
 reports/eval/detection/**
+# Decision-model shadow log: developer evidence, disposable
+reports/decisions*/**
 prompts/evals/*/*/raw.**.json
 .import-progress/**
 media-storage/**
@@ -131,3 +133,4 @@ FINAL_*.md
 LOCAL_*_CHECKLIST.md
 *_USER_COMMANDS.ps1
 changed.txt
+.import-lab/

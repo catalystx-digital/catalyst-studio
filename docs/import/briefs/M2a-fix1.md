@@ -1,0 +1,24 @@
+# Brief M2a fix round 1: build block input straight from production's own styling map
+
+You are a coder with one bounded task. Not an orchestrator. Do not commit, stage, push or branch. No internet, no paid calls, never read `.env*` files. The uncommitted M2a work is in this working copy (`lib/studio/import/detection/blocks/`, four added `export` keywords in `lib/studio/import/services/web-tools.ts`); `docs/import/briefs/M2a-cut-and-input.md` is the original brief. The owner's standard: no over-engineering, no slop, no over- or under-delivery, no dead code, as simple as possible.
+
+## What went wrong
+The previous run ended incomplete: block cutting matches the lab on all 20 saved pages, but block input did not match on about a fifth of blocks, and stalled Jest runs exhausted the machine's memory.
+
+The mismatch has one cause, and it comes from the brief, not from your code: I asked you to port the lab's trick of ALIGNING a block's nodes against already-computed page nodes to recover CSS-derived data. The lab needed that trick only because it had saved nodes and no styling map. Production has the real thing: `fetchOutline` in `lib/studio/import/services/web-tools.ts` builds a `BackgroundImageMap` (`extractBackgroundImages(raw)` then `fetchExternalCssBackgroundImages(...)`, around lines 1665-1690) holding background images, background colours AND the hidden-by-class / hidden-by-id selectors, and passes it to `traverseToNodes`. A block's nodes are simply `traverseToNodes` over the block's subtree with that same map.
+
+## Fix
+1. `web-tools.ts`: keep the page's `BackgroundImageMap` in the cache entry that `fetchOutline` already stores (next to `rawHtml`), and add ONE small accessor on the web tools to read it by handle. Nothing else in that file changes beyond the `export` keywords M2a already added (export the `BackgroundImageMap` type if needed).
+2. `block-input.ts`: `buildBlockInput({ html, block, bgImageMap })` = resolve the block's anchor in the fetched html, take the subtree, apply production's own preprocessing (`removeScriptsStylesAndComments`), and run `traverseToNodes` with `bgImageMap` and the same options the section path uses for that region (look at how `fetchOutline` calls it for header / main / footer, including the option that preserves a class-hidden navigation root for the header). DELETE the alignment machinery entirely (sequence matching, occurrence indices, enrichment counters). Keep: unresolved anchor throws; a block too large for one call is split at child-block boundaries.
+3. Tests: replace the alignment tests with: block nodes equal `traverseToNodes` output for the same subtree and map; a class hidden by an external-stylesheet rule in the map is filtered out; a background image from the map lands on the node; header option honoured; unresolved anchor throws; split at child boundary.
+4. Parity check on the real saved pages (read-only, git-ignored, never copy names or text out): for each page build the map the way `fetchOutline` does from `page.html` plus the saved stylesheet texts in `stylesheets.json` (the lab's `block-input.ts` shows how it combined them), then for every block check that each of its nodes appears, in order, in the page's saved production node list (`sections.json`, all sections concatenated; ignore the `pathId` counter). Report per page by number only: blocks, blocks fully contained, and for any block not contained the reason in one line. A block whose anchor does not resolve is reported, not counted as a mismatch. Use a throwaway script and DELETE it before you finish; confirm `git status` afterwards.
+5. While you are in `block-cutter.ts` (about 25 KB): remove anything the production path does not use - no lab audit trees, no screenshot or outerHTML capture, no options without a caller. Do not restructure what is used.
+
+## Memory discipline (the last run exhausted the machine)
+Run Jest one file at a time with `--runInBand --forceExit`, never the browser test in parallel with anything, never more than one Jest or typecheck process at once, and make sure no Node or Chromium process you started is left running when you finish.
+
+## Verify
+`npm run typecheck` 0 errors; each test file under `lib/studio/import/detection/blocks/` passes (browser test with `CHROMIUM_EXECUTABLE_PATH=C:/Users/Admin/AppData/Local/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-win64/chrome-headless-shell.exe`); `SKIP_DB_SETUP=true npx jest lib/studio/import/detection --runInBand --forceExit --silent` shows no new failures (baseline 124 tests, 4 failing in `response-parser.test.ts`); `SKIP_DB_SETUP=true npx jest lib/studio/import/__tests__/web-tools --runInBand --forceExit --silent` if such tests exist - report before/after.
+
+## Final message
+Plain English: what changed; lines of `block-input.ts` and `block-cutter.ts` before and after; the parity table; test counts; anything not done and why.
