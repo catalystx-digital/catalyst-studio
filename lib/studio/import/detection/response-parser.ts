@@ -573,7 +573,7 @@ function isDroppedLogoCloudItemWarning(warning: { field?: string; issue: string;
   )
 }
 
-function inferLocationFromType(type: string): DetectedComponent['location'] {
+export function inferLocationFromType(type: string): DetectedComponent['location'] {
   const typeLower = type.toLowerCase()
   if (typeLower.includes('nav') || typeLower.includes('header')) return 'header'
   if (typeLower.includes('hero')) return 'hero'

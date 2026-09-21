@@ -34,8 +34,36 @@ jest.mock('@/lib/studio/components/cms/_factory/initialize', () => ({ initialize
 import { adjustDetectedComponents } from '../detection-post-processor'
 import { selectPresentationSkeleton } from '../page-builder/presentation-skeleton'
 import { DetectionConfig } from '../../config'
+import { PageBuilderService } from '../page-builder-service'
 
 describe('ImportResultHandler repair selection', () => {
+  test.each(['blocks', 'section'] as const)('preserves %s provenance through page-builder preflight', async detectionHarness => {
+    const preflightReached = new Error('Reached page-builder preflight')
+    const preflight = jest.spyOn(PageBuilderService.prototype, 'validatePagesInBatch').mockRejectedValue(preflightReached)
+    jest.mocked(selectPresentationSkeleton).mockReturnValue({ key: 'unknown', diagnostics: [] } as any)
+    const handler = new ImportResultHandler({
+      repository: {
+        findById: async () => ({ id: 'job', websiteId: 'website', url: 'https://example.com/' }),
+        update: jest.fn(),
+      },
+      prisma: {}, progressManager: {}, orchestrator: {},
+    } as any)
+    try {
+      await expect(handler.persist('job', { data: { detectedComponents: [{
+        detectionHarness,
+        pageUrl: 'https://example.com/',
+        components: [{ component: 'text-block', type: 'text-block', location: 'main', confidence: 0.9, content: { text: 'Fixture' } }],
+      }] } }, {
+        sitemapMetaByUrl: new Map(), skipDesignSystemProcessing: true, skipMediaIngestion: true,
+      })).rejects.toBe(preflightReached)
+      const child = preflight.mock.calls[0][0][0].pageData.detectedComponents[0].children![0]
+      expect(child.metadata?.region).toBe('main')
+      expect(child.metadata?.detectionHarness).toBe(detectionHarness === 'blocks' ? 'blocks' : undefined)
+    } finally {
+      preflight.mockRestore()
+    }
+  })
+
   test.each(['blocks', 'section', undefined] as const)('uses the result harness field for %s', async detectionHarness => {
     jest.mocked(adjustDetectedComponents).mockClear()
     const auditReached = new Error('Reached design-fit audit after repair selection')

@@ -8,8 +8,10 @@ import { launchHeadlessChromium } from '@/lib/studio/design-system/dom-probe/lau
 import { buildDetectionPromptFromCatalog } from '../prompt-builder'
 import { GlobalSectionArtifactCache } from '../global-section-cache'
 import type { Geometry } from './block-cutter'
+import * as blockCutter from './block-cutter'
 import type { ImportDetectionOptions } from '../types'
 
+jest.mock('./block-cutter', () => ({ __esModule: true, ...jest.requireActual('./block-cutter') }))
 jest.mock('@/lib/studio/design-system/dom-probe/launch-headless-chromium', () => ({ launchHeadlessChromium: jest.fn() }))
 jest.mock('@/lib/studio/decisions/shadow-log', () => ({ recordDecision: jest.fn() }))
 jest.mock('@/lib/studio/components/cms/_factory/initialize', () => ({ initializeCMSComponents: jest.fn() }))
@@ -28,7 +30,7 @@ jest.mock('../prompt-builder', () => ({
     prompt: 'Fixture contracts: ' + (candidateTypes || []).join(', '),
     components: (candidateTypes || ['text-block']).map(type => ({ type, confidence: 0.9 })),
     pageSummary: {
-      templates: [{ templateKey: 'core/generic-default', name: 'Generic', category: 'core', requiredRegions: [{ region: 'main', allowedComponents: ['text-block'] }], optionalRegions: [{ region: 'header', allowedComponents: ['navbar'] }, { region: 'footer', allowedComponents: ['footer'] }] }],
+      templates: [{ templateKey: 'core/generic-default', name: 'Generic', category: 'core', requiredRegions: [{ region: 'main', allowedComponents: ['text-block'] }], optionalRegions: [{ region: 'header', allowedComponents: ['navbar', 'text-block'] }, { region: 'footer', allowedComponents: ['footer'] }] }],
       homeEligibleTemplates: []
     }
   }))
@@ -169,6 +171,7 @@ test('fixture imports in block order with regional header roles and head metadat
   const onProgress = jest.fn()
   const result = await detect({ onProgress })
   expect(result.detectionHarness).toBe('blocks')
+  expect(result.components.map(component => component.location)).toEqual(['header', 'header', 'main', 'main', 'footer'])
   expect(result.components.map(component => component.type)).toEqual(['navbar', 'text-block', 'text-block', 'text-block', 'footer'])
   expect(result.pageMetadata).toMatchObject({ title: 'Fixture page', description: 'Fixture description' })
   expect(result.pageTemplate?.templateKey).toBe('core/generic-default')
@@ -300,11 +303,28 @@ test('finishes picking before filling and limits concurrent block extractions', 
 })
 
 
-test('rejects block counts over the section task cap before any model calls', async () => {
-  DetectionConfig.maxSectionTasks = 4
+test.each([149, 150, 151])('enforces the independent per-page block cap for %i blocks', async count => {
+  DetectionConfig.maxSectionTasks = 40
+  const renderAndCut = blockCutter.renderAndCut
+  jest.spyOn(blockCutter, 'renderAndCut').mockImplementationOnce(async args => {
+    const cut = await renderAndCut(args)
+    return {
+      ...cut,
+      blocks: Array.from({ length: count }, (_, index) => ({
+        ...(cut.blocks[index] || cut.blocks[2]),
+        id: 'fixture-' + index,
+        order: index + 1
+      }))
+    }
+  })
+  if (count <= 150) {
+    expect((await detect()).components).toHaveLength(count)
+    expect(checkpointService.saveSectionResult).toHaveBeenCalledTimes(count)
+    return
+  }
   await expect(detect()).rejects.toMatchObject({
-    message: expect.stringContaining('Detection outline returned 5 blocks, exceeding the per-page limit of 4'),
-    debug: { stage: 'budget', validationPath: 'outline.blocks', requestCount: 0, skippedSectionsDueToBudget: ['block:5'] }
+    message: expect.stringContaining('Detection outline returned 151 blocks, exceeding the per-page limit of 150'),
+    debug: { stage: 'budget', validationPath: 'outline.blocks', requestCount: 0, skippedSectionsDueToBudget: ['block:151'] }
   })
   expect(decision).not.toHaveBeenCalled()
   expect(fill).not.toHaveBeenCalled()
@@ -312,7 +332,31 @@ test('rejects block counts over the section task cap before any model calls', as
   expect(checkpointService.saveSectionResult).not.toHaveBeenCalled()
 })
 
-test('allows exactly the section task cap', async () => {
-  DetectionConfig.maxSectionTasks = 5
-  expect((await detect()).components).toHaveLength(5)
+test('a header-only type in a main block is assigned header on fresh extraction and checkpoint resume', async () => {
+  const originalDecision = decision.getMockImplementation()!
+  decision.mockImplementation(async (state, questions) => {
+    const result = await originalDecision(state, questions)
+    if (state.startsWith('Block 3;')) {
+      result.answers['import.block.component'].value = 'navbar'
+      result.answers['import.block.component'].distribution = Object.fromEntries(
+        Object.keys(questions[0].criteria).map(type => [type, type === 'navbar' ? 1 : 0])
+      )
+    }
+    return result
+  })
+  const originalFill = fill.getMockImplementation()!
+  fill.mockImplementation(async payload => {
+    const user = payload.messages.find((message: any) => message.role === 'user').content
+    if (user.includes('"sectionKey":"block:3"')) {
+      return response('block:3', 'navbar', { menuItems: [{ label: 'Section', href: '/section' }] })
+    }
+    return originalFill(payload)
+  })
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await detect()
+    expect(result.components[2]).toMatchObject({ type: 'navbar', location: 'header', metadata: { region: 'header' } })
+    expect(result.components[3]).toMatchObject({ type: 'text-block', location: 'main' })
+    expect(checkpoints.get('block:3').components[0].location).toBe('header')
+  }
+  expect(fill).toHaveBeenCalledTimes(5)
 })

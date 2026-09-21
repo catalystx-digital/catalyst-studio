@@ -29,6 +29,7 @@ export interface ComponentPattern {
 }
 
 export interface AIComponentMetadata {
+  detectionHarness?: 'blocks'
   confidence?: number
   detectedPatterns?: string[]
   suggestedCategory?: string
@@ -73,11 +74,13 @@ export interface ImportDetectionDiagnostic {
   context?: Record<string, unknown>
 }
 
+export const DETECTED_PAGE_TEMPLATE_SOURCES = ['model', 'fallback', 'redirect-detection', 'url-scorer'] as const
+
 export interface DetectedPageTemplate {
   templateKey: string
   confidence?: number
   reason?: string
-  source?: 'model' | 'fallback' | 'redirect-detection' | 'url-scorer'
+  source?: (typeof DETECTED_PAGE_TEMPLATE_SOURCES)[number]
 }
 
 export interface PageMetadata {

@@ -1,5 +1,6 @@
 import {
   ComponentRegionManager,
+  ComponentRegionPlacementError,
   ComponentRegionValidationError,
   RequiredRegionCoverageError
 } from '../page-builder/component-region-manager'
@@ -312,5 +313,88 @@ describe('ComponentRegionManager strict validation', () => {
         pageData: createPageData()
       })
     ).toThrow(RequiredRegionCoverageError)
+  })
+
+  it.each([
+    [{ region: 'main' }, { region: 'header' }],
+    [{ metadata: { region: 'main' } }, { region: 'header' }],
+    [{}, { region: 'main', metadata: { region: 'header' } }],
+    [{ region: 'main' }, { metadata: { region: 'header' } }],
+    [{ metadata: { region: 'main' } }, { metadata: { region: 'header' } }],
+    [{ region: 'main', metadata: { region: 'header' } }, {}],
+  ])('throws for conflicting blocks assignments before relocation: %j, %j', (props, content) => {
+    const component = createComponent('navbar', {
+      ...props,
+      metadata: { ...props.metadata, detectionHarness: 'blocks' }
+    }, { content })
+
+    expect(() => manager.ensureRequiredRegionCoverage({
+      tree: createTree([component]),
+      template: createTemplate({ optionalRegions: [{ region: 'header', allowedComponents: ['navbar' as any] }] }),
+      componentTypes: [createComponentType('navbar')],
+      pageData: createPageData()
+    })).toThrow('conflicting region assignments')
+  })
+
+  it.each(['hero', undefined])('drops only the blocks component with invalid placement %s', region => {
+    const retained = createComponent('text-block', { region: 'main' })
+    const dropped = createComponent('text-block', {
+      region,
+      metadata: { region, detectionHarness: 'blocks' }
+    }, { id: 'misplaced-text' })
+    const template = createTemplate({
+      requiredRegions: [{ region: 'main', min: 1, allowedComponents: ['text-block' as any] }]
+    })
+    const result = manager.ensureRequiredRegionCoverage({
+      tree: createTree([dropped, retained]),
+      template,
+      componentTypes: [createComponentType('text-block')],
+      pageData: createPageData()
+    })
+    expect(result.components.map(component => component.id)).toEqual([retained.id])
+    expect(result.metadata.totalComponents).toBe(1)
+    expect(() => manager.ensureRequiredRegionCoverage({
+      tree: createTree([{ ...dropped, props: { region } }]),
+      template,
+      componentTypes: [createComponentType('text-block')],
+      pageData: createPageData()
+    })).toThrow(ComponentRegionPlacementError)
+  })
+
+  it('names all placement drops, including nested components, when required coverage fails', () => {
+    const dropped = (id: string) => createComponent('hero-banner', {
+      region: 'main', metadata: { region: 'main', detectionHarness: 'blocks' }
+    }, { id })
+    const tree = createTree([
+      dropped('dropped-banner'),
+      createComponent('navbar', { region: 'header' }, { children: [dropped('nested-banner')] })
+    ])
+
+    expect(() => manager.ensureRequiredRegionCoverage({
+      tree,
+      template: createTemplate({
+        requiredRegions: [{ region: 'main', min: 1, allowedComponents: ['text-block' as any] }],
+        optionalRegions: [{ region: 'header', allowedComponents: ['navbar' as any] }]
+      }),
+      componentTypes: ['hero-banner', 'navbar', 'text-block'].map(createComponentType),
+      pageData: createPageData()
+    })).toThrow('Components dropped for placement: "dropped-banner" (hero-banner), "nested-banner" (hero-banner).')
+  })
+
+  it.each([
+    ['navbar', 'header', 'top'],
+    ['footer', 'footer', 'bottom']
+  ] as const)('updates the placement bucket when %s moves to %s', (type, region, placementBucket) => {
+    const component = createComponent(type, {
+      region: 'main', metadata: { region: 'main', detectionHarness: 'blocks' }, placementBucket: 'middle'
+    })
+    const result = manager.ensureRequiredRegionCoverage({
+      tree: createTree([component]),
+      template: createTemplate({ optionalRegions: [{ region, allowedComponents: [type as any] }] }),
+      componentTypes: [createComponentType(type)],
+      pageData: createPageData()
+    })
+    expect(result.components[0].props).toMatchObject({ region, metadata: { region }, placementBucket })
+    expect(component.props.placementBucket).toBe('middle')
   })
 })

@@ -1,4 +1,5 @@
 export type NormalizationIssueCode =
+  | 'component-region-dropped'
   | 'missing-required-field'
   | 'unknown-field'
   | 'unsupported-subcomponent'

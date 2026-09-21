@@ -577,6 +577,7 @@ export class ImportResultHandler {
             pageUrl,
             metadata: {
               ...(component.metadata || {}),
+              ...(detection.detectionHarness === 'blocks' ? { detectionHarness: 'blocks' } : {}),
               region:
                 component.location || (component.metadata && (component.metadata.region || component.metadata.region_hint)) ||
                 undefined,

@@ -9,7 +9,7 @@
 
 import { GENERIC_PAGE_TEMPLATE_KEY, FOLDER_TEMPLATE_KEY } from '@/lib/studio/pages/_core/constants'
 import { normalizePath, normalizePathname, isHomePath } from '../../utils/path-utils'
-import { PageData } from '../interfaces'
+import { PageData, PageTemplateSelection } from '../interfaces'
 import {
   getPageCatalogSummary,
   type PageCatalogSummary,
@@ -23,7 +23,7 @@ export interface ResolvedTemplateMetadata {
   templateName: string
   category: string
   isHomeEligible: boolean
-  source: 'model' | 'fallback' | 'home-enforced'
+  source: NonNullable<PageTemplateSelection['source']>
   confidence?: number
   reason?: string
   requestedKey?: string
@@ -207,13 +207,7 @@ export class TemplateResolver {
       const candidate = pageData.pageTemplate
       const requestedKey = candidate?.templateKey?.trim() || undefined
       let template = requestedKey ? registry.get(requestedKey) : undefined
-      let source: 'model' | 'fallback' | 'home-enforced' = candidate?.source === 'home-enforced'
-        ? 'home-enforced'
-        : candidate?.source === 'fallback'
-          ? 'fallback'
-          : candidate
-            ? 'model'
-            : 'fallback'
+      let source: ResolvedTemplateMetadata['source'] = candidate?.source ?? (candidate ? 'model' : 'fallback')
       let reason = candidate?.reason
       let enforcedHome = false
 
