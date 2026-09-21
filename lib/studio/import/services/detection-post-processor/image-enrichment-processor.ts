@@ -14,6 +14,7 @@
 
 import type { DetectedComponent } from '@/lib/studio/import/detection/types'
 import type { ResourcesSummary } from '../web-tools'
+import { isLikelyBrandAssetImage } from '../../utils/brand-assets'
 
 const MAX_DOM_SNAPSHOT_LENGTH = 250_000
 const MAX_DOM_IMAGES = 200
@@ -266,28 +267,6 @@ function isNonContentImage(src: string): boolean {
   if (lowerSrc.includes('twitter') && lowerSrc.includes('share')) return true
 
   return false
-}
-
-function isLikelyBrandAssetImage(src: string): boolean {
-  const lowerSrc = src.toLowerCase()
-  const pathname = (() => {
-    try {
-      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
-    } catch {
-      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
-    }
-  })()
-  const filename = pathname.split('/').filter(Boolean).pop() || pathname
-  const pathSegments = pathname.split('/').filter(Boolean)
-  const directorySegments = pathSegments.slice(0, -1)
-  const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
-
-  return (
-    directorySegments.some(segment => segment === 'logos' || segment === 'logo' || /^logo[-_]\d/.test(segment)) ||
-    filename.includes('brandmark') ||
-    filename.includes('wordmark') ||
-    (filename.includes('logo') && extension === '.svg')
-  )
 }
 
 /**

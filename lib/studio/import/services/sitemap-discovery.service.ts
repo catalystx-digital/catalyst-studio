@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import * as zlib from 'zlib';
 import { SitemapConfig, LoggingConfig } from '../config';
+import { ask } from '@/lib/studio/decisions';
 
 /**
  * File extensions that indicate non-HTML assets.
@@ -63,6 +64,8 @@ export interface ExpandUrlsOptions {
   maxUrls?: number;
   /** Priority paths/URLs to guarantee inclusion (even if not in sitemap) */
   priorityPaths?: string[];
+  /** Owning website, for the decision-model per-tenant allowlist. */
+  websiteId?: string;
 }
 
 /**
@@ -88,6 +91,7 @@ export class SitemapDiscoveryService {
       : maxUrlsOrOptions;
     const maxUrls = options.maxUrls ?? 20;
     const priorityPaths = options.priorityPaths ?? [];
+    const websiteId = options.websiteId;
 
     const metadataByUrl = new Map<string, SitemapMetadata>();
     let detectedPlatform: string | null = null;
@@ -229,7 +233,7 @@ export class SitemapDiscoveryService {
       const sorted = entries.sort((a, b) => this.compareEntries(a.url, b.url, homeUrl));
       const ordered = [homeUrl, ...sorted.map((entry) => entry.url).filter((entryUrl) => entryUrl !== homeUrl)];
       const normalizedUrls = this.normalizeAndDedupeUrls(ordered);
-      const { reachable, skipped: skippedUrls } = await this.filterReachableUrls(normalizedUrls, maxUrls);
+      const { reachable, skipped: skippedUrls } = await this.filterReachableUrls(normalizedUrls, maxUrls, websiteId);
       skipped.push(...skippedUrls);
       let urls = reachable.slice(0, maxUrls);
 
@@ -239,7 +243,8 @@ export class SitemapDiscoveryService {
           urls,
           priorityPaths,
           origin,
-          maxUrls
+          maxUrls,
+          websiteId
         );
         urls = urlsWithPriority;
         injectedPriorityUrls.push(...injected);
@@ -371,7 +376,7 @@ export class SitemapDiscoveryService {
     return normalized;
   }
 
-  private async filterReachableUrls(urls: string[], maxUrls: number): Promise<{ reachable: string[]; skipped: Array<{ url: string; reason: string }> }> {
+  private async filterReachableUrls(urls: string[], maxUrls: number, websiteId?: string): Promise<{ reachable: string[]; skipped: Array<{ url: string; reason: string }> }> {
     const reachable: string[] = [];
     const skipped: Array<{ url: string; reason: string }> = [];
 
@@ -381,7 +386,7 @@ export class SitemapDiscoveryService {
     if (skipReachability) {
       console.log('[DISCOVERY] Fast mode: skipping reachability checks');
       for (const url of urls) {
-        if (this.isLikelyPrivate(url)) {
+        if (await this.isLikelyPrivate(url, websiteId)) {
           skipped.push({ url, reason: 'private-path' });
           continue;
         }
@@ -402,7 +407,7 @@ export class SitemapDiscoveryService {
     let checked = 0;
     const total = Math.min(urls.length, maxUrls * 2); // Estimate
     for (const url of urls) {
-      if (this.isLikelyPrivate(url)) {
+      if (await this.isLikelyPrivate(url, websiteId)) {
         skipped.push({ url, reason: 'private-path' });
         continue;
       }
@@ -432,7 +437,8 @@ export class SitemapDiscoveryService {
     existingUrls: string[],
     priorityPaths: string[],
     origin: string,
-    maxUrls: number
+    maxUrls: number,
+    websiteId?: string
   ): Promise<{ urls: string[]; injected: string[] }> {
     const injected: string[] = [];
     const existingPathsLower = new Set(
@@ -472,7 +478,7 @@ export class SitemapDiscoveryService {
       const fullUrl = `${origin}${normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath}`;
 
       // Skip private URLs
-      if (this.isLikelyPrivate(fullUrl)) {
+      if (await this.isLikelyPrivate(fullUrl, websiteId)) {
         console.log(`[DISCOVERY] Skipping private priority URL: ${fullUrl}`);
         continue;
       }
@@ -505,14 +511,23 @@ export class SitemapDiscoveryService {
     return { urls: result.slice(0, maxUrls), injected };
   }
 
-  private isLikelyPrivate(url: string): boolean {
-    try {
-      const parsed = new URL(url);
-      const path = parsed.pathname.toLowerCase();
-      return path.includes('/intranet/') || path.includes('/picu_intranet/');
-    } catch {
-      return false;
-    }
+  /**
+   * Is this page internal-only, and therefore must not be imported onto a
+   * public site?
+   *
+   * This is the only barrier between a client's staff area and publication, so
+   * the question fails safe: if the model is asked and nothing usable comes
+   * back — the request fails, times out, or answers in a shape the client
+   * cannot read — the page is excluded. An UNCERTAIN answer is not a failure
+   * and is published as before; see `whenUnanswered` on the question. The
+   * previous rule
+   * — two hardcoded substrings, one of them a single customer's path — is kept
+   * as the fallback and still governs whenever the decision model is off or in
+   * shadow mode, which is the default.
+   */
+  private async isLikelyPrivate(url: string, websiteId?: string): Promise<boolean> {
+    const answer = await ask<boolean>('page.isInternal', { url, nodes: [] }, { url, websiteId });
+    return answer.value === true;
   }
 
   private shouldSkipReachability(maxUrls: number): boolean {

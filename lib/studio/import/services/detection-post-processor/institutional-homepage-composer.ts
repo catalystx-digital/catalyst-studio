@@ -7,8 +7,9 @@ import type { DetectedComponent, PageMetadata } from '@/lib/studio/import/detect
 import type { ImportDesignProfile, PresentationSkeletonSelection } from '@/lib/studio/import/types/design-profile.types'
 import { isHomePath, normalizePath } from '@/lib/studio/import/utils/path-utils'
 import { cloneComponent, cloneValue, isPlainObject, normalizeHref } from './utils'
+import { ConfidenceConfig } from '../../config'
 
-const MIN_SKELETON_CONFIDENCE = 0.65
+const MIN_SKELETON_CONFIDENCE = ConfidenceConfig.presentationSkeleton
 const MIN_DESIGN_PROFILE_CONFIDENCE = 0.35
 const INSTITUTIONAL_PATTERN =
   /\b(?:hospital|health|clinic|medical|patient|education|school|university|college|government|council|public sector|community|research|department|service)\b/i

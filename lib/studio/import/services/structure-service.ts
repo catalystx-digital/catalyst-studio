@@ -242,6 +242,10 @@ export class StructureService implements IStructureService {
     const canonicalSlug = trimmedSlug.length > 0 ? trimmedSlug : 'page'
     const isRootParent = canonicalParent === '/' || canonicalParent.length === 0
 
+    // Deliberately narrower than isHomeLike: this builds a URL path, and
+    // widening it to accept 'homepage' would map a real /homepage page onto
+    // '/', where validateStructureUniqueness then SKIPS one of them with a
+    // warning. A page would silently lose its structure entry.
     if (isRootParent && (canonicalSlug === 'index' || canonicalSlug === 'home')) {
       return '/'
     }

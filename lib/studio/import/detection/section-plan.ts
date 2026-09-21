@@ -51,14 +51,14 @@ function isDedicatedEditorialListingUrl(pageUrl: string): boolean {
   }
 }
 
-function roleForSection(sectionKey: string, index: number): DetectionSectionRole {
+export function roleForSection(sectionKey: string, index: number): DetectionSectionRole {
   const key = sectionKey.toLowerCase()
   if (key.includes('header')) return 'header'
   if (key.includes('footer')) return 'footer'
   return index === 0 ? 'hero' : 'main'
 }
 
-function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[] {
+export function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[] {
   const routeIntent = classifyRouteIntent(pageUrl)
   const dedicatedEditorialListing = isDedicatedEditorialListingUrl(pageUrl)
   const candidates = new Set<string>(

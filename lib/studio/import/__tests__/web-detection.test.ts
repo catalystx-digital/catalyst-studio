@@ -306,6 +306,7 @@ const { __mock: performanceMonitorMocks } = jest.requireMock('@/lib/studio/compo
   }
 }
 jest.mock('openai')
+jest.mock('@/lib/studio/design-system/dom-probe/launch-headless-chromium', () => ({ launchHeadlessChromium: jest.fn() }))
 
 // Avoid initializing CMS components (ESM build not supported in Jest)
 jest.mock('@/lib/studio/components/cms/_factory/initialize', () => ({
@@ -416,6 +417,23 @@ describe('DetectionService (web-based)', () => {
 
   describe('detectComponentsFromUrl', () => {
     const mockPageUrl = 'https://example.com'
+
+    it('defaults to section without loading block modules or launching a browser', async () => {
+      const previous = process.env.IMPORT_DETECTION_HARNESS
+      delete process.env.IMPORT_DETECTION_HARNESS
+      try {
+        jest.isolateModules(() => {
+          expect(require('../config/import-config').DetectionConfig.detectionHarness).toBe('section')
+        })
+        const result = await service.detectComponentsFromUrl(mockPageUrl)
+        expect(result.detectionHarness).toBe('section')
+        expect(Object.keys(require.cache).filter(file => /detection[/\\]blocks[/\\]/.test(file))).toEqual([])
+        expect(require('@/lib/studio/design-system/dom-probe/launch-headless-chromium').launchHeadlessChromium).not.toHaveBeenCalled()
+      } finally {
+        if (previous === undefined) delete process.env.IMPORT_DETECTION_HARNESS
+        else process.env.IMPORT_DETECTION_HARNESS = previous
+      }
+    })
 
     it('detects components from URL successfully', async () => {
       const result = await service.detectComponentsFromUrl(mockPageUrl)
@@ -578,6 +596,116 @@ describe('DetectionService (web-based)', () => {
       } finally {
         ;(DetectionConfig as any).sectionConcurrency = originalConcurrency
       }
+    })
+
+    it('keeps the sections that succeeded when another section fails outright', async () => {
+      // On one site, the 1,258-byte header request hit the 300s per-request
+      // timeout while the nine other sections had already produced components.
+      // The whole page used to be discarded with it.
+      mockWebTools.fetchOutline.mockResolvedValue({
+        ...mockOutline,
+        sections: [
+          { key: 'header', approxBytes: 300, hash: 'one', nodeCount: 2 },
+          { key: 'main:0-99', approxBytes: 500, hash: 'two', nodeCount: 4 }
+        ]
+      })
+      mockOpenAI.chat.completions.create = jest.fn(async (payload: any) => {
+        const content = payload.messages[payload.messages.length - 1].content as string
+        if (content.includes('"sectionKey":"header"')) {
+          throw new Error('web detection timeout after 300000ms')
+        }
+        return {
+          choices: [{ message: { content: mockWebResponse }, finish_reason: 'stop' }],
+          usage: { total_tokens: 1500, total_cost: 0.02 }
+        } as any
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components.map(component => component.type)).toEqual([
+        'navbar',
+        'hero-with-image',
+        'card-grid'
+      ])
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'SECTION_EXTRACTION_DROPPED',
+            context: expect.objectContaining({
+              sections: [
+                expect.objectContaining({
+                  sectionKey: 'header',
+                  role: 'header',
+                  required: true,
+                  reason: 'web detection timeout after 300000ms'
+                })
+              ]
+            })
+          })
+        ])
+      )
+    })
+
+    it('keeps the components a cut-off reply finished instead of losing the section', async () => {
+      // finish_reason is "stop", not "length": the provider reported a normal
+      // stop on a reply that ends mid-object. Retrying returns the same reply,
+      // so the components already written are all there is to keep.
+      const truncated =
+        '{"sectionKey":"main:0-99","components":[' +
+        '{"component":"navbar","confidence":0.95,"content":{"menuItems":[{"label":"Home","href":{"type":"internal","pageId":"home","path":"/"}}]}},' +
+        '{"component":"card-grid","confidence":0.85,"content":{"cards":[{"type":"card-item","title":"Feature 1","description":"Feature description"}]}},' +
+        '{"component":"hero-with-image","confidence":0.9,"content":{"headi'
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: truncated }, finish_reason: 'stop' }],
+        usage: { total_tokens: 1500, total_cost: 0.02 }
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.components.map(component => component.type)).toEqual(['navbar', 'card-grid'])
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('reports a salvaged section so a partial page is not silently partial', async () => {
+      const truncated =
+        '{"sectionKey":"main:0-99","components":[' +
+        '{"component":"navbar","confidence":0.95,"content":{"menuItems":[{"label":"Home","href":{"type":"internal","pageId":"home","path":"/"}}]}},' +
+        '{"component":"hero-with-image","confidence":0.9,"content":{"headi'
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: truncated }, finish_reason: 'stop' }],
+        usage: { total_tokens: 1500, total_cost: 0.02 }
+      })
+
+      const result = await service.detectComponentsFromUrl(mockPageUrl)
+
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'SECTION_REPLY_TRUNCATED',
+            severity: 'warning',
+            context: expect.objectContaining({
+              sections: expect.arrayContaining([
+                expect.objectContaining({
+                  sectionKey: 'main:0-99',
+                  keptComponents: 1,
+                  isolatedInvalidComponents: 0
+                })
+              ])
+            })
+          })
+        ])
+      )
+    })
+
+    it('still fails the page when the only section is cut off before any component finished', async () => {
+      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [{ message: { content: '{"sectionKey":"main:0-99","components":[{"compo' } }],
+        usage: { total_tokens: 1500, total_cost: 0.02 }
+      })
+
+      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
+        /exceeded output limit or returned incomplete JSON/
+      )
     })
 
     it('uses the page-map plan/fill harness when explicitly enabled', async () => {

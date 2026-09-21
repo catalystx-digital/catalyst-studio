@@ -62,7 +62,7 @@ export interface ParserRepairNote {
   index: number
   component: string
   type: string
-  action: 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero'
+  action: 'drop_trailing_characters' | 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero'
   reason: string
 }
 
@@ -77,7 +77,7 @@ export interface DetectedPageTemplate {
   templateKey: string
   confidence?: number
   reason?: string
-  source?: 'model' | 'fallback' | 'redirect-detection'
+  source?: 'model' | 'fallback' | 'redirect-detection' | 'url-scorer'
 }
 
 export interface PageMetadata {
@@ -109,6 +109,7 @@ export interface PageMetadata {
 }
 
 export interface ImportDetectionResult {
+  detectionHarness?: 'section' | 'page-map' | 'blocks'
   components: DetectedComponent[]
   pageTemplate?: DetectedPageTemplate
   pageMetadata?: PageMetadata
@@ -180,6 +181,8 @@ export interface ImportDetectionOptions {
   checkpointService?: IImportCheckpointService
   /** Optional same-import cache for validated global header/footer section artifacts */
   globalSectionCache?: GlobalSectionArtifactCache
+  /** Owning website, for the decision-model per-tenant allowlist. */
+  websiteId?: string
 }
 
 export interface DetectionPromptPayload {

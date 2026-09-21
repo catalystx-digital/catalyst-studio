@@ -163,4 +163,59 @@ describe('article-detail-consolidation-processor', () => {
 
     expect(result.some(entry => entry.type === ComponentType.BlogPost)).toBe(false)
   })
+
+  it('does not treat a paginated editorial index as an article detail route', () => {
+    const teasers = [
+      component(ComponentType.TextBlock, {
+        heading: 'First teaser headline',
+        body: 'The opening teaser on page two of the blog index, long enough on its own to clear the article body length threshold.'
+      }),
+      component(ComponentType.TextBlock, {
+        heading: 'Second teaser headline',
+        body: 'The second teaser on page two of the blog index, also long enough on its own to clear the article body length threshold.'
+      })
+    ]
+
+    for (const pageUrl of [
+      'https://example.com/blog/page/2',
+      'https://example.com/blog/page/2/',
+      'https://example.com/news/page/17'
+    ]) {
+      const result = consolidateArticleDetailFragments([
+        component(ComponentType.ArticleHeader, { title: 'Blog' }, 'header'),
+        ...teasers
+      ], { pageUrl })
+
+      expect(result.some(entry => entry.type === ComponentType.BlogPost)).toBe(false)
+      expect(result.map(entry => entry.type)).toEqual([
+        ComponentType.ArticleHeader,
+        ComponentType.TextBlock,
+        ComponentType.TextBlock
+      ])
+    }
+  })
+
+  it('still consolidates a real article detail route under the same editorial prefix', () => {
+    const result = consolidateArticleDetailFragments([
+      component(ComponentType.ArticleHeader, { title: 'Some Article' }, 'header'),
+      component(ComponentType.TextBlock, {
+        heading: 'Opening section',
+        body: 'The first section of a genuine article detail page, written at enough length to clear the article body threshold.'
+      }),
+      component(ComponentType.TextBlock, {
+        body: 'The closing section of the same genuine article detail page, also long enough to count as real article body copy.'
+      })
+    ], {
+      pageUrl: 'https://example.com/blog/some-article'
+    })
+
+    expect(result.map(entry => entry.type)).toEqual([
+      ComponentType.ArticleHeader,
+      ComponentType.BlogPost
+    ])
+
+    const blogPost = result.find(entry => entry.type === ComponentType.BlogPost)
+    expect(blogPost?.content.title).toBe('Some Article')
+    expect(blogPost?.content.bodyHtml).toContain('<h2>Opening section</h2>')
+  })
 })

@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { performanceMonitor } from '@/lib/studio/components/cms/_import/performance'
-import { WebToolsConfig } from '../config'
+import { DetectionConfig, WebToolsConfig } from '../config'
 
 type Dict<T = any> = Record<string, T>
 
@@ -124,11 +124,18 @@ function resolveSectionMaxBytes(): number {
   return configured >= MIN_SECTION_MAX_BYTES ? configured : MIN_SECTION_MAX_BYTES
 }
 
+export interface Stylesheet {
+  url: string
+  text: string
+}
+
 interface CachedPage {
   url: string
   finalUrl?: string
   status?: number
   rawHtml: string
+  bgImageMap?: BackgroundImageMap
+  stylesheets?: Stylesheet[]
   headMeta: HeadMeta
   sections: Map<string, DomNode[]>
   resources: ResourcesSummary
@@ -208,7 +215,7 @@ function classListContainsHiddenSelector(className: string | undefined, hiddenBy
   return false
 }
 
-function isExplicitlyHiddenDomNode(params: {
+export function isExplicitlyHiddenDomNode(params: {
   tag: string
   attrs: Dict<string>
   id?: string
@@ -242,7 +249,7 @@ async function parseHtml(html: string): Promise<any> {
 }
 
 // Traverse parse5 AST and build DomNode[] for a given root element
-function traverseToNodes(
+export function traverseToNodes(
   root: any,
   opts: {
     maxTextPerNode: number
@@ -250,6 +257,21 @@ function traverseToNodes(
     skipTags?: Set<string>
     skipNode?: (node: { tag: string; id?: string; className?: string; role?: string }) => boolean
     preserveClassHiddenRoot?: boolean
+    onNode?: (source: any, node: DomNode) => void
+    /**
+     * Attribute names to keep IN ADDITION to the shared allowlist below.
+     *
+     * Scoped rather than added to that allowlist because the body traversals
+     * feed the model, and every attribute kept there is extra payload on every
+     * node of every page. Only the head needs `content` and `property`.
+     */
+    extraAttrKeys?: Set<string>
+    /**
+     * Cap for non-URL attribute values. Defaults to 160, which suits the body
+     * (class lists, labels) and is far too short for a meta description or an
+     * og:image address.
+     */
+    attrValueMaxChars?: number
   }
 ): DomNode[] {
   const nodes: DomNode[] = []
@@ -351,11 +373,16 @@ function traverseToNodes(
       if (lower.startsWith('aria-')) {
         continue
       }
-      if (!allowedAttrKeys.has(lower) && !lower.startsWith('data-cms') && !lower.startsWith('data-import')) {
+      if (
+        !allowedAttrKeys.has(lower) &&
+        !opts.extraAttrKeys?.has(lower) &&
+        !lower.startsWith('data-cms') &&
+        !lower.startsWith('data-import')
+      ) {
         continue
       }
       if (typeof value === "string") {
-        filteredAttrs[key] = serializeAttrValue(lower, value, urlAttrKeys)
+        filteredAttrs[key] = serializeAttrValue(lower, value, urlAttrKeys, opts.attrValueMaxChars)
       } else {
         filteredAttrs[key] = String(value)
       }
@@ -463,6 +490,7 @@ function traverseToNodes(
       bgColor
     }
     nodes.push(nodeOut)
+    opts.onNode?.(node, nodeOut)
 
     if (Array.isArray(node.childNodes)) {
       node.childNodes.forEach((c: any, idx: number) => walk(c, path + '/' + idx))
@@ -473,9 +501,14 @@ function traverseToNodes(
   return nodes
 }
 
-function serializeAttrValue(lowerKey: string, value: string, urlAttrKeys: Set<string>): string {
+function serializeAttrValue(
+  lowerKey: string,
+  value: string,
+  urlAttrKeys: Set<string>,
+  maxChars: number = 160
+): string {
   if (!urlAttrKeys.has(lowerKey)) {
-    return value.length > 160 ? value.slice(0, 160) : value
+    return value.length > maxChars ? value.slice(0, maxChars) : value
   }
 
   if (lowerKey === 'srcset') {
@@ -513,7 +546,7 @@ function sanitizeResourceSrcset(value: string | undefined): string | undefined {
   return srcset.length > 2048 ? srcset.slice(0, 2048) : srcset
 }
 
-function shouldSkipBodyFallbackMainNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
+export function shouldSkipBodyFallbackMainNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
   if (node.role === 'navigation') {
     return true
   }
@@ -674,7 +707,7 @@ function sliceByApproxBytes(nodes: DomNode[], maxBytes: number): { slices: DomNo
   return { slices, sections }
 }
 
-function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesSummary {
+export function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesSummary {
   const anchors: ResourcesSummary['anchors'] = []
   const images: ResourcesSummary['images'] = []
   const videos: ResourcesSummary['videos'] = []
@@ -728,6 +761,35 @@ function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesS
   return { anchors, images, videos, forms, links }
 }
 
+/**
+ * Head text budget. Only <title> is read as text, and a title longer than this
+ * is already past anything a page renders; 1500 matches the per-node limit the
+ * body traversals use, so the head is not a special case with its own number.
+ */
+const HEAD_TITLE_MAX_CHARS = 1500
+
+/**
+ * `content` and `property` are not in the shared attribute allowlist, so every
+ * <meta> node used to arrive carrying its name and no value. Nothing downstream
+ * could see one: buildPageMetadataFromHead reads `entry.content` for the
+ * description and matches og:/twitter: keys through `entry.property`, so every
+ * imported page got an empty SEO description, no social preview, and no robots
+ * or viewport setting. They are allowed for the HEAD only — the body
+ * traversals feed the model, and widening the shared list would put these on
+ * every node of every page.
+ */
+const HEAD_META_ATTR_KEYS = new Set<string>(['content', 'property'])
+
+/**
+ * The default cap on an attribute value is 160 characters, which is tuned for
+ * body attributes. A meta description sits right at that length by SEO
+ * convention and an og:image is a full URL, so 160 would silently clip both.
+ */
+const HEAD_ATTR_MAX_CHARS = 1024
+
+/** Head tags whose text is never read, skipped with their subtrees. */
+const HEAD_NON_TEXT_TAGS = new Set<string>(['script', 'style', 'noscript'])
+
 async function buildHeadMeta(document: any, htmlNode: any): Promise<HeadMeta> {
   // parse5 AST nodes: document.childNodes -> html -> head/body
   const headMeta: HeadMeta = { meta: [], links: [], openGraph: {}, twitter: {} }
@@ -741,7 +803,22 @@ async function buildHeadMeta(document: any, htmlNode: any): Promise<HeadMeta> {
     if (htmlAttrs.lang) headMeta.language = htmlAttrs.lang
 
     if (head) {
-      const headNodes = traverseToNodes(head, { maxTextPerNode: 0 })
+      // maxTextPerNode must be non-zero: the loop below reads n.text to pick up
+      // <title>, and traverseToNodes slices every node's text to this length.
+      // It was 0, which sliced all head text to '' and made the title check on
+      // the next line unreachable — so headMeta.title was null on every page
+      // ever imported, and page-metadata fell back to a heading or the URL
+      // slug. Meta and link tags were unaffected because they read attributes.
+      //
+      // script/style/noscript are skipped rather than truncated: with
+      // stripScriptsStyles off they are still in the head at this point, and
+      // there is no reason to carry inline JS around just to find a title.
+      const headNodes = traverseToNodes(head, {
+        maxTextPerNode: HEAD_TITLE_MAX_CHARS,
+        skipTags: HEAD_NON_TEXT_TAGS,
+        extraAttrKeys: HEAD_META_ATTR_KEYS,
+        attrValueMaxChars: HEAD_ATTR_MAX_CHARS
+      })
       for (const n of headNodes) {
         const a = n.attrs || {}
         if (n.tag === 'title' && n.text) headMeta.title = n.text
@@ -764,7 +841,7 @@ async function buildHeadMeta(document: any, htmlNode: any): Promise<HeadMeta> {
   return headMeta
 }
 
-function removeScriptsStylesAndComments(html: string): string {
+export function removeScriptsStylesAndComments(html: string): string {
   // Remove comments first
   let s = html.replace(/<!--([\s\S]*?)-->/g, '')
   // Remove <script>...</script> and <style>...</style>
@@ -800,7 +877,7 @@ export interface BackgroundImageMap {
  * @param html - Raw HTML string
  * @returns BackgroundImageMap for selector-based lookup
  */
-function extractBackgroundImages(html: string): BackgroundImageMap {
+export function extractBackgroundImages(html: string): BackgroundImageMap {
   const byClass = new Map<string, string>()
   const byId = new Map<string, string>()
   const bgColorByClass = new Map<string, string>()
@@ -870,7 +947,7 @@ function extractBackgroundImages(html: string): BackgroundImageMap {
 /**
  * Parses CSS content for background-color rules.
  */
-function parseCssForBackgroundColors(
+export function parseCssForBackgroundColors(
   cssContent: string,
   bgColorByClass: Map<string, string>,
   bgColorById: Map<string, string>
@@ -925,7 +1002,7 @@ function parseCssForBackgroundColors(
   }
 }
 
-function parseCssForHiddenSelectors(
+export function parseCssForHiddenSelectors(
   cssContent: string,
   hiddenByClass: Set<string>,
   hiddenById: Set<string>
@@ -962,7 +1039,7 @@ function parseCssForHiddenSelectors(
  * Parses CSS content for background-image rules.
  * Helper function used by both inline styles and external CSS.
  */
-function parseCssForBackgroundImages(
+export function parseCssForBackgroundImages(
   cssContent: string,
   byClass: Map<string, string>,
   byId: Map<string, string>,
@@ -1049,7 +1126,7 @@ function parseCssForBackgroundImages(
 /**
  * Extracts external stylesheet URLs from HTML.
  */
-function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] {
+export function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] {
   const urls: string[] = []
   const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi
   let linkMatch: RegExpExecArray | null
@@ -1080,7 +1157,7 @@ function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] 
   return urls
 }
 
-function isPrintOnlyStylesheetMedia(media: string | undefined): boolean {
+export function isPrintOnlyStylesheetMedia(media: string | undefined): boolean {
   if (!media) return false
   const normalized = media.trim().toLowerCase()
   if (!normalized) return false
@@ -1325,9 +1402,9 @@ async function fetchExternalCssBackgroundImages(
   html: string,
   baseUrl: string,
   bgImageMap: BackgroundImageMap
-): Promise<{ cssFilesFetched: number; imagesFound: number }> {
+): Promise<{ cssFilesFetched: number; imagesFound: number; stylesheets: Stylesheet[] }> {
   const cssUrls = extractExternalStylesheetUrls(html, baseUrl)
-  const stats = { cssFilesFetched: 0, imagesFound: 0 }
+  const stats = { cssFilesFetched: 0, imagesFound: 0, stylesheets: [] as Stylesheet[] }
 
   // Only fetch CSS from same origin to avoid CORS/cross-domain issues
   const baseOrigin = new URL(baseUrl).origin
@@ -1357,6 +1434,7 @@ async function fetchExternalCssBackgroundImages(
       if (!res.ok) return
 
       const cssContent = await res.text()
+      stats.stylesheets.push({ url: cssUrl, text: cssContent })
       const beforeCount = bgImageMap.byClass.size + bgImageMap.byId.size
       parseCssForBackgroundImages(cssContent, bgImageMap.byClass, bgImageMap.byId, cssUrl)
       // Also extract background-colors from external CSS
@@ -1692,6 +1770,8 @@ export class WebFetchTools {
         finalUrl,
         status,
         rawHtml: raw,
+        bgImageMap,
+        stylesheets: DetectionConfig.detectionHarness === 'blocks' ? externalCssStats.stylesheets : [],
         headMeta,
         sections: sectionMap,
         resources,
@@ -1712,6 +1792,21 @@ export class WebFetchTools {
         redirectInfo: redirectInfo || undefined
       }
     })
+  }
+
+  getRawHtml(handle: string): string {
+    const cached = this.cache.get(handle)
+    if (!cached) {
+      throw new Error('Invalid handle')
+    }
+    return cached.rawHtml
+  }
+
+  getPageStyling(handle: string): { bgImageMap: BackgroundImageMap; stylesheets: Stylesheet[] } {
+    const cached = this.cache.get(handle)
+    if (!cached) throw new Error('Invalid handle')
+    if (!cached.bgImageMap) throw new Error('No styling map for this page')
+    return { bgImageMap: cached.bgImageMap, stylesheets: cached.stylesheets || [] }
   }
 
   async getSection(args: GetSectionArgs): Promise<GetSectionResult> {

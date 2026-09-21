@@ -6,6 +6,7 @@ import type {
   ImportDesignProfile,
   PresentationSkeletonSelection,
 } from '@/lib/studio/import/types/design-profile.types'
+import { ConfidenceConfig } from '../../config'
 
 type ComponentMetadataWithDesignFit = NonNullable<DetectedComponent['metadata']> & {
   designFit?: {
@@ -194,7 +195,7 @@ function shouldApplyDesignFit(
   profile: ImportDesignProfile | null | undefined,
   skeleton: PresentationSkeletonSelection | null | undefined,
 ): boolean {
-  return hasUsableDesignProfile(profile) && Boolean(skeleton && skeleton.key !== 'unknown' && skeleton.confidence >= 0.55)
+  return hasUsableDesignProfile(profile) && Boolean(skeleton && skeleton.key !== 'unknown' && skeleton.confidence >= ConfidenceConfig.presentationSkeleton)
 }
 
 export function applyDesignFit(

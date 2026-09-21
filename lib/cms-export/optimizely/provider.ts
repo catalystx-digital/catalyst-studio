@@ -43,6 +43,7 @@ import type { OptimizelyContentType, OptimizelyProperty } from './types'
 import { CMSComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 import type { PropertyMeta } from '@/lib/studio/components/cms/_core/propsmeta'
 import { stripAiMetadata } from '@/lib/services/export/helpers/strip-ai-metadata'
+import { isPage } from '@/lib/utils/content-type-utils'
 import { zodSchemaToTypeString } from '@/lib/studio/components/cms/_core/component-definition'
 import { pickTypeKey } from '@/lib/services/export/helpers/content-type-builder'
 
@@ -179,7 +180,7 @@ export class OptimizelyProvider implements ICMSProvider {
       // Register content type mappings for all types
       for (const ct of bundle.contentTypes || []) {
         const safeKey = pickTypeKey(ct.key, ct.name, ct.id) || ct.key || ct.name || ct.id
-        const baseType: '_page' | '_component' = ct.category === 'page' ? '_page' : '_component'
+        const baseType: '_page' | '_component' = isPage(ct) ? '_page' : '_component'
         try {
           typeSupport.registerContentTypeMapping?.(ct.id, String(safeKey), baseType)
         } catch (error) {
@@ -1185,8 +1186,7 @@ export class OptimizelyProvider implements ICMSProvider {
         for (const ct of contentTypes) {
           // Apply Optimizely naming transformation: hyphens → underscores
           const key = sanitizeOptiKey(ct.key || ct.id || ct.name) || ct.id
-          const isPage = ct.category === 'page'
-          const baseType: '_page' | '_component' = isPage ? '_page' : '_component'
+          const baseType: '_page' | '_component' = isPage(ct) ? '_page' : '_component'
           const fields = Array.isArray(ct.fields) ? ct.fields : []
 
           byKey[key] = { fields, baseType }

@@ -193,6 +193,92 @@ export function getCategoryFromType(type: ComponentType): ComponentCategory {
   return ComponentCategory.Content;
 }
 
+/**
+ * Infer a component category from a free-form component type NAME.
+ *
+ * Unlike `getCategoryFromType`, which classifies values of the known
+ * `ComponentType` enum, this handles arbitrary AI-invented type strings
+ * produced during greenfield bootstrap. Both the greenfield workflow and the
+ * greenfield bootstrapper use this to fill `websiteComponentType.category`.
+ *
+ * Matching is first-match-wins substring matching in the branch order below,
+ * so a name containing two keywords is classified by the EARLIER branch.
+ *
+ * ---------------------------------------------------------------------------
+ * BEHAVIOUR DELTA (merged 2026-09-19)
+ * ---------------------------------------------------------------------------
+ * This is the greenfield WORKFLOW's implementation. The greenfield
+ * BOOTSTRAPPER previously used a narrower copy that lacked the keywords
+ * `carousel`, `slider`, `call-to-action`, `quote`, `bio`, `post`, `price` and
+ * the whole `data`/`chart`/`graph` branch. Workflow-side behaviour is
+ * unchanged; bootstrap-side categories change as follows. The value is
+ * persisted to `websiteComponentType.category`, so existing rows keep their
+ * old category and only newly bootstrapped sites see the new one.
+ *
+ * Verified changes for names in the `ComponentType` enum:
+ *   quote-block    content -> social-proof
+ *   author-bio     content -> about
+ *   related-posts  content -> blog
+ *   data-table     content -> data
+ *   chart          content -> data
+ *
+ * Verified changes for plausible AI-invented names outside the enum:
+ *   price-list, price-table          content -> pricing
+ *   call-to-action-block             content -> cta
+ *   image-carousel, logo-slider      content -> heroes
+ *   post-list                        content -> blog
+ *
+ * NOTE: `hero-carousel` and `hero-slider` do NOT change - `hero` already
+ * matched the Heroes branch in both copies.
+ *
+ * REORDERING RISK: the added keywords sit in EARLIER branches, so a compound
+ * name that the old bootstrapper matched on a later branch can now land
+ * earlier - e.g. `testimonial-carousel` social-proof -> heroes,
+ * `feature-slider` features -> heroes, `pricing-carousel` pricing -> heroes.
+ * None of these are in the `ComponentType` enum, but AI-generated names can
+ * take these shapes.
+ *
+ * SUBSTRING RISK (inherited from the workflow copy, deliberately preserved):
+ * `graph` also matches `paragraph` and `infographic`, `bio` also matches
+ * `biography`, and `post` also matches `poster`.
+ */
+export function inferComponentCategoryFromTypeName(type: string): ComponentCategory {
+  const t = type.toLowerCase();
+
+  if (t.includes('nav') || t.includes('menu') || t.includes('header') || t.includes('footer')) {
+    return ComponentCategory.Navigation;
+  }
+  if (t.includes('hero') || t.includes('banner') || t.includes('carousel') || t.includes('slider')) {
+    return ComponentCategory.Heroes;
+  }
+  if (t.includes('form') || t.includes('contact')) {
+    return ComponentCategory.Contact;
+  }
+  if (t.includes('cta') || t.includes('call-to-action')) {
+    return ComponentCategory.CTA;
+  }
+  if (t.includes('feature')) {
+    return ComponentCategory.Features;
+  }
+  if (t.includes('testimonial') || t.includes('review') || t.includes('quote')) {
+    return ComponentCategory.SocialProof;
+  }
+  if (t.includes('about') || t.includes('team') || t.includes('bio')) {
+    return ComponentCategory.About;
+  }
+  if (t.includes('blog') || t.includes('article') || t.includes('post')) {
+    return ComponentCategory.Blog;
+  }
+  if (t.includes('pricing') || t.includes('price')) {
+    return ComponentCategory.Pricing;
+  }
+  if (t.includes('data') || t.includes('chart') || t.includes('graph')) {
+    return ComponentCategory.Data;
+  }
+
+  return ComponentCategory.Content;
+}
+
 export function mergeComponentProps(
   baseProps: CMSComponentProps,
   overrides: Partial<CMSComponentProps>

@@ -408,37 +408,40 @@ describe('Component Detection Accuracy Tests', () => {
         { type: 'sidebar', usageCount: 3, expectedAccuracy: 100 }
       ];
 
-      // Mock highly accurate detection
-      jest.spyOn(sharedComponentDetector, 'detectShared').mockImplementation(async () => {
-        // Simulate 92% accuracy detection
-        const detectedShared = [];
-        
-        expectedSharedComponents.forEach((expected, index) => {
-          // Simulate occasional missed detections (8% error rate)
-          const isDetected = Math.random() > 0.08; // 92% success rate
-          
-          if (isDetected) {
-            detectedShared.push({
-              id: `shared-${index}`,
-              websiteId,
-              name: `Shared ${expected.type}`,
-              websiteComponentTypeId: `ct-${expected.type}`,
-              content: { type: expected.type },
-              usageCount: expected.usageCount,
-              detectionAccuracy: expected.expectedAccuracy
-            });
-          }
-        });
+      // Fixed detection outcome. This test scores a KNOWN detection result; it
+      // does not sample one. Previously the mock flipped `Math.random() > 0.08`
+      // per component, so with four components the assertions below failed on
+      // roughly 28% of runs (1 - 0.92^4) for reasons unrelated to any code here.
+      const detectionFixture: Record<string, boolean> = {
+        header: true,
+        footer: true,
+        navigation: true,
+        sidebar: true
+      };
 
-        return detectedShared;
-      });
+      // Mock detection: returns exactly the components the fixture marks as found
+      jest.spyOn(sharedComponentDetector, 'detectShared').mockImplementation(async () =>
+        expectedSharedComponents
+          .filter(expected => detectionFixture[expected.type])
+          .map((expected, index) => ({
+            id: `shared-${index}`,
+            websiteId,
+            name: `Shared ${expected.type}`,
+            websiteComponentTypeId: `ct-${expected.type}`,
+            content: { type: expected.type },
+            usageCount: expected.usageCount,
+            detectionAccuracy: expected.expectedAccuracy
+          }))
+      );
 
       // Act
       const detectedShared = await sharedComponentDetector.detectShared(testDataset.pages, websiteId);
 
-      // Assert
+      // Assert - exact values for the fixed fixture, not a threshold over a sample
+      expect(detectedShared.length).toBe(expectedSharedComponents.length);
+
       const detectionRate = detectedShared.length / expectedSharedComponents.length;
-      expect(detectionRate).toBeGreaterThan(0.9); // >90% detection accuracy
+      expect(detectionRate).toBe(1); // every known shared component was detected
 
       // Verify no false positives (all detected components should be legitimate)
       detectedShared.forEach(shared => {
@@ -463,9 +466,12 @@ describe('Component Detection Accuracy Tests', () => {
       const recall = truePositives / (truePositives + falseNegatives);
       const f1Score = 2 * (precision * recall) / (precision + recall);
 
-      expect(precision).toBeGreaterThan(0.9);
-      expect(recall).toBeGreaterThan(0.9);
-      expect(f1Score).toBeGreaterThan(0.9);
+      expect(truePositives).toBe(4);
+      expect(falsePositives).toBe(0);
+      expect(falseNegatives).toBe(0);
+      expect(precision).toBe(1);
+      expect(recall).toBe(1);
+      expect(f1Score).toBe(1);
     });
 
     it('should use structural patterns for similarity matching, not content', async () => {
@@ -575,21 +581,35 @@ describe('Component Detection Accuracy Tests', () => {
         { id: '4', type: 'button', structure: { size: 'large', style: 'secondary' } }, // Variation
       ];
 
-      // Simulate similarity analysis
-      const duplicates = testComponents.filter((comp, index, array) => 
-        array.findIndex(c => 
-          JSON.stringify(c.structure) === JSON.stringify(comp.structure)
-        ) !== index
+      // NOTE: this classification is inline test logic. No production code in
+      // lib/studio/import computes "variation vs duplicate", so this case
+      // documents the intended rule rather than verifying an implementation.
+      //
+      // The rule, in words: within one component type, the first component with
+      // a given structure is the original. A later component whose structure is
+      // byte-identical to one already seen is a DUPLICATE. A later component
+      // whose structure is new - it differs from every structure seen before it,
+      // while still being the same type - is a VARIATION. The very first
+      // component of a type is neither; it is the baseline the others vary from.
+      const structureKey = (comp: (typeof testComponents)[number]) =>
+        JSON.stringify(comp.structure);
+
+      const duplicates = testComponents.filter((comp, index, array) =>
+        array.findIndex(c => structureKey(c) === structureKey(comp)) !== index
       );
 
-      const variations = testComponents.filter((comp, index, array) => 
-        array.find(c => 
-          c.type === comp.type && 
-          JSON.stringify(c.structure) !== JSON.stringify(comp.structure) &&
-          Object.keys(c.structure).some(key => comp.structure[key] !== c.structure[key])
-        )
-      );
+      const variations = testComponents.filter((comp, index, array) => {
+        const isFirstWithThisStructure =
+          array.findIndex(c => structureKey(c) === structureKey(comp)) === index;
+        const isBaselineForThisType =
+          array.findIndex(c => c.type === comp.type) === index;
+        return isFirstWithThisStructure && !isBaselineForThisType;
+      });
 
+      // Button 2 repeats button 1 exactly; buttons 3 and 4 each change one
+      // property of the baseline, so they are variations of it.
+      expect(duplicates.map(c => c.id)).toEqual(['2']);
+      expect(variations.map(c => c.id)).toEqual(['3', '4']);
       expect(duplicates.length).toBe(1); // One duplicate button
       expect(variations.length).toBe(2); // Two variations
     });
@@ -612,14 +632,19 @@ function generateLargeComponentSet(targetCount: number): DetectionResult[] {
     const components = [];
 
     for (let i = 0; i < componentsForPage; i++) {
-      const type = componentTypes[Math.floor(Math.random() * componentTypes.length)];
+      // Deterministic spread over types/variants/confidences - the assertions in
+      // these tests are about counts and structure, so the fixture must not vary
+      // run to run.
+      const index = componentCount + i;
+      const type = componentTypes[index % componentTypes.length];
+      const variant = index % 3;
       components.push({
-        id: `comp-${componentCount + i}`,
-        type: `${type}-variant-${Math.floor(Math.random() * 3)}`, // Create variants
-        confidence: 0.8 + Math.random() * 0.2,
+        id: `comp-${index}`,
+        type: `${type}-variant-${variant}`, // Create variants
+        confidence: 0.8 + (index % 20) / 100, // 0.80 - 0.99
         properties: {
           baseType: type,
-          variant: Math.floor(Math.random() * 3),
+          variant,
           structure: generateComponentStructure(type)
         }
       });
@@ -657,8 +682,8 @@ function createReducedComponentTypes(websiteId: string, count: number) {
     placeholderData: generatePlaceholderData(type),
     aiMetadata: {
       model: 'gpt-4o-mini',
-      confidence: 0.85 + Math.random() * 0.15,
-      reductionRatio: Math.random() * 0.3 + 0.7 // 70-100% reduction
+      confidence: 0.85 + (index % 15) / 100, // 0.85 - 0.99, deterministic
+      reductionRatio: 0.7 + (index % 30) / 100 // 70-99% reduction, deterministic
     }
   }));
 }

@@ -174,7 +174,8 @@ export class ImportPipeline {
             model: options.model,
             apiKey: options.apiKey,
             progressCallback: options.progressCallback,
-            checkpointSession: options.checkpointSession
+            checkpointSession: options.checkpointSession,
+            websiteId: options.websiteId
           },
           options.onProgress
         )
@@ -536,7 +537,7 @@ export class ImportPipeline {
 
   private async detectComponents(
     urls: string[],
-    options: { model?: string; apiKey?: string; progressCallback?: ProgressCallback; checkpointSession?: CheckpointSession },
+    options: { model?: string; apiKey?: string; progressCallback?: ProgressCallback; checkpointSession?: CheckpointSession; websiteId?: string },
     onProgress?: (payload: ImportPipelineProgressPayload) => void
   ): Promise<ImportDetectionResult[]> {
     traceMemory('pipeline:detectComponents:start', { urls: urls.length })
@@ -761,6 +762,7 @@ export class ImportPipeline {
             checkpointSession: session ?? undefined,
             checkpointService: checkpointService ?? undefined,
             globalSectionCache,
+            websiteId: options.websiteId,
           })
         )
       }

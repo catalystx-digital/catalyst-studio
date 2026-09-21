@@ -24,6 +24,35 @@ export interface JsonExtractionResult<T = unknown> {
   error?: string
 }
 
+export function parseFirstJsonValue(input: string, onTrailingCharacters?: (count: number) => void): unknown {
+  const source = input.trimStart()
+  if (source[0] !== '{' && source[0] !== '[') return JSON.parse(input)
+
+  let depth = 0
+  let inString = false
+  let escapeNext = false
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i]
+    if (inString) {
+      if (escapeNext) escapeNext = false
+      else if (char === '\\') escapeNext = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{' || char === '[') depth++
+    else if (char === '}' || char === ']') {
+      depth--
+      if (depth === 0) {
+        const value = JSON.parse(source.slice(0, i + 1))
+        if (source.slice(i + 1).trim()) onTrailingCharacters?.(source.length - i - 1)
+        return value
+      }
+    }
+  }
+  return JSON.parse(input)
+}
+
 /**
  * Sanitizes a string for JSON parsing by normalizing quotes and removing code blocks.
  *
@@ -381,4 +410,154 @@ export function deepClone<T>(value: T): T | undefined {
  */
 export function isValidJson(input: string): boolean {
   return tryParseJson(input).success
+}
+
+/**
+ * Result of salvaging a response the model cut off mid-JSON.
+ */
+export interface TruncatedJsonSalvage {
+  /** Re-closed JSON text, parseable by JSON.parse */
+  text: string
+  /** Number of container levels that had to be closed artificially */
+  closedContainers: number
+  /**
+   * Characters dropped from the end of the REPLY THAT ARRIVED — the element the
+   * model was still writing. This is not a measure of how much content was
+   * lost: the rest of the document never arrived, so it cannot be counted. It
+   * is a log detail, not a quality signal, and nothing decides on it.
+   */
+  droppedChars: number
+}
+
+/**
+ * Re-closes a JSON document that stops part-way through, keeping every element
+ * the model actually finished and discarding the one it was still writing.
+ *
+ * Why this exists: detection sends one DOM section per request and the reply is
+ * a single JSON object. Providers do not always report a cut-off reply as
+ * finish_reason="length" — one site's footer came back with unclosed brackets
+ * and finish_reason="stop" against a 90,000-token cap on a 6,486-byte section,
+ * so the cap was never the constraint and retrying the same request does not
+ * help. Without this, every component the reply did finish was thrown away
+ * along with the half-written one.
+ *
+ * Only elements the model finished are kept. The cut is taken at the outermost
+ * array that closed at least one element, so a unit that was still being
+ * written is dropped whole rather than re-closed with whatever fraction of its
+ * content had arrived.
+ *
+ * Returns null when the input is not truncated (nothing open at the end) — a
+ * document that merely fails to parse is a syntax error, not a cut-off, and
+ * must keep surfacing as one — and when the cut-off left no finished element
+ * at the outermost repetition level, which means nothing is recoverable.
+ *
+ * @param input - Raw model response
+ * @returns Salvage result, or null when there is nothing to salvage
+ *
+ * @example
+ * salvageTruncatedJson('{"items":[{"a":1},{"a"')
+ * // { text: '{"items":[{"a":1}]}', closedContainers: 2, droppedChars: 5 }
+ */
+export function salvageTruncatedJson(input: string): TruncatedJsonSalvage | null {
+  if (!input) return null
+  const source = input.trim()
+  if (!source) return null
+
+  type Frame = { closer: '}' | ']'; openIndex: number; lastComplete: number }
+  const stack: Frame[] = []
+  let inString = false
+  let escapeNext = false
+
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i]
+
+    if (escapeNext) {
+      escapeNext = false
+      continue
+    }
+    if (inString) {
+      if (char === '\\') escapeNext = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') {
+      inString = true
+      continue
+    }
+
+    if (char === '{' || char === '[') {
+      stack.push({ closer: char === '{' ? '}' : ']', openIndex: i, lastComplete: i + 1 })
+      continue
+    }
+    if (char === '}' || char === ']') {
+      stack.pop()
+      // The value that just closed is complete, so its parent is complete up to here.
+      const parent = stack[stack.length - 1]
+      if (parent) parent.lastComplete = i + 1
+      continue
+    }
+    if (char === ',') {
+      const top = stack[stack.length - 1]
+      // Everything before the separator is a finished element; the comma itself
+      // is not, because what follows it may be the truncated tail.
+      if (top) top.lastComplete = i
+    }
+  }
+
+  if (stack.length === 0) return null
+
+  const hasFinishedMember = (frame: Frame) => frame.lastComplete > frame.openIndex + 1
+
+  // Cut at the OUTERMOST array that finished at least one element.
+  //
+  // Arrays are where the repeated units live — components, links, cards, menu
+  // items — and an element that closed on its own is one the model actually
+  // finished writing. Descending past the outermost array to a deeper one keeps
+  // the unit that was still in flight, re-closed as an object missing most of
+  // its keys, and hands it downstream as if it were whole. Measured on
+  // realistic replies: a 20-link navbar cut at link 3 re-closes to a navbar
+  // with 2 links, and a footer cut inside its logo re-closes to links with no
+  // logo. Both keep every byte that arrived except the half-written tail, so
+  // the size of that tail (droppedChars: 5% and 10% of the reply here) cannot
+  // detect the damage — the content that was lost never arrived to be counted.
+  // What can be checked exactly is the structural fact that the unit never
+  // closed, so that is what this bounds.
+  //
+  // When the outermost array finished nothing, every repeated unit in the
+  // document was still in flight and there is nothing to salvage. Documents
+  // with no array in flight fall back to the deepest object that finished a
+  // member; those carry no repeated units, so no unit can be kept half-built.
+  const firstArrayDepth = stack.findIndex(frame => frame.closer === ']')
+  let cutFrame: number
+  if (firstArrayDepth !== -1) {
+    if (!hasFinishedMember(stack[firstArrayDepth])) return null
+    cutFrame = firstArrayDepth
+  } else {
+    const deepestObject = stack
+      .map((frame, depth) => ({ frame, depth }))
+      .filter(entry => hasFinishedMember(entry.frame))
+      .pop()
+    if (!deepestObject) return null
+    cutFrame = deepestObject.depth
+  }
+
+  const closers = stack
+    .slice(0, cutFrame + 1)
+    .map(frame => frame.closer)
+    .reverse()
+    .join('')
+  const text = `${source.slice(0, stack[cutFrame].lastComplete)}${closers}`
+
+  // Strict parse only: sanitizing fallbacks would hide a salvage that did not work.
+  try {
+    JSON.parse(text)
+  } catch {
+    return null
+  }
+
+  return {
+    text,
+    closedContainers: closers.length,
+    droppedChars: source.length - stack[cutFrame].lastComplete
+  }
 }

@@ -203,6 +203,18 @@ export const TimeoutConfig = {
  * - veryHigh (0.85): For clustering/grouping to avoid false positives
  */
 export const ConfidenceConfig = {
+  /**
+   * Minimum presentation-skeleton confidence before a page may be restructured.
+   *
+   * One value, read by both consumers. They previously disagreed — design-fit
+   * accepted >= 0.55 while the institutional composer required >= 0.65 — and
+   * presentation-skeleton emits a literal 0.6 for an institutional homepage
+   * with no hero detected. That value passed one gate and failed the other, so
+   * the page got design-fit's mutations without the composer's layout: a
+   * half-restructured page, silently, in the most common institutional case.
+   */
+  presentationSkeleton: parseEnvFloat('IMPORT_CONFIDENCE_SKELETON', 0.65),
+
   /** Minimum confidence to keep a detected component (maximizes recall) */
   detection: parseEnvFloat('IMPORT_CONFIDENCE_DETECTION', 0.25),
 
@@ -214,14 +226,6 @@ export const ConfidenceConfig = {
 
   /** Very high confidence (clustering, grouping) */
   veryHigh: 0.85,
-
-  /** Synthetic component confidence by type */
-  synthetic: {
-    hero: 0.88,
-    blog: 0.93,
-    commerce: 0.84,
-    common: 0.90
-  },
 
   // Legacy aliases for backward compatibility
   /** @deprecated Use highConfidence instead */
@@ -406,8 +410,14 @@ export const DetectionConfig = {
   /** Enable same-import reuse of validated global header/footer section artifacts */
   globalSectionReuse: parseEnvBool('IMPORT_GLOBAL_SECTION_REUSE', true),
 
-  /** Detection harness implementation. "page-map" uses plan/fill batches; "section" uses one extraction per section. */
-  detectionHarness: parseEnvString('IMPORT_DETECTION_HARNESS', 'section') as 'page-map' | 'section',
+  /** Detection harness: section extraction, page-map plan/fill batches, or rendered block picking and filling. */
+  detectionHarness: parseEnvString('IMPORT_DETECTION_HARNESS', 'section') as 'page-map' | 'section' | 'blocks',
+
+  /** Model used to fill each picked block */
+  blockFillModel: parseEnvString('IMPORT_BLOCK_FILL_MODEL', 'inception/mercury-2.5'),
+
+  /** Maximum concurrent block picks and extractions within a page */
+  blockConcurrency: parseEnvInt('IMPORT_BLOCK_CONCURRENCY', 8),
 
   /** Maximum source sections to extract with LLMs for a single page import */
   maxSectionTasks: parseEnvInt('IMPORT_MAX_SECTION_TASKS', 40),

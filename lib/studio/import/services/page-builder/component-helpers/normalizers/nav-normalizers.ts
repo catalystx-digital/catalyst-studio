@@ -104,7 +104,7 @@ function isMediaReferenceLike(value: unknown): value is Record<string, any> {
     (value.url == null || typeof value.url === 'string')
 }
 
-function pageIdFromPath(path: string): string {
+export function pageIdFromPath(path: string): string {
   return path.replace(/^\/+|\/+$/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'home'
 }
 
@@ -1036,7 +1036,26 @@ function normalizeFooterSocialLinks(value: unknown, warnings: LocalNormalization
 }
 
 function normalizeFooterLogo(flattened: Record<string, any>): Record<string, any> | undefined {
-  const logoSource = flattened.logo ?? flattened.logoImage ?? flattened.logoUrl ?? flattened.logoSrc ?? flattened.brandLogo
+  // The navbar path has filtered these out since it was written; the footer
+  // path never did. A CookieYes or OneTrust "powered by" badge sitting in
+  // footer content was being published as the client's own footer logo, on
+  // every page of their site.
+  //
+  // Rejecting a badge must not abandon the whole resolution. The first version
+  // of this filter returned undefined outright, which also skipped the
+  // site-name text fallback at the end of this function: a footer carrying a
+  // badge and a site name then rendered no logo at all. The navbar loop
+  // `continue`s to the next candidate instead (see normalizeNavbarContent), so
+  // the alias chain below does the same — a rejected badge is treated as if
+  // the field were not there.
+  const logoSource = [
+    flattened.logo,
+    flattened.logoImage,
+    flattened.logoUrl,
+    flattened.logoSrc,
+    flattened.brandLogo
+  ].find(candidate => candidate != null && !isConsentVendorLogoAsset(candidate))
+
   const fallbackAlt =
     normalizeString(flattened.logoAlt) ??
     normalizeString(flattened.siteName) ??
@@ -1109,8 +1128,16 @@ export const normalizeFooterContent: ComponentContentNormalizer = (
   const socialLinks = normalizeFooterSocialLinks(flattened.socialLinks ?? flattened.social ?? flattened.socials, warnings)
   if (socialLinks) normalized.socialLinks = socialLinks
 
+  // `normalized` starts as a copy of the raw content, so a rejected logo has to
+  // be deleted, not merely left unassigned: otherwise the raw payload the
+  // resolver just refused — a consent vendor badge, or an object with neither a
+  // usable image nor a text label — survives the spread and is published.
   const logo = normalizeFooterLogo(flattened)
-  if (logo) normalized.logo = logo
+  if (logo) {
+    normalized.logo = logo
+  } else {
+    delete normalized.logo
+  }
 
   const newsletterSource = isRecord(flattened.newsletter) ? flattened.newsletter : undefined
   if (newsletterSource) {

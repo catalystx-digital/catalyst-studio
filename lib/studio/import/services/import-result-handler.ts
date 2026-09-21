@@ -545,15 +545,17 @@ export class ImportResultHandler {
       skeletonByUrl.set(pageUrl, presentationSkeleton);
 
       if (Array.isArray(detection.components)) {
-        detection.components = adjustDetectedComponents(detection.components, {
-          domSnapshot: domSnapshotHtml,
-          pageUrl,
-          resourcesSummary: detection.resourcesSummary,
-          pageMetadata: detection.pageMetadata,
-          pageTemplate: detection.pageTemplate,
-          designProfile: importDesignProfile,
-          presentationSkeleton,
-        });
+        if (detection.detectionHarness !== 'blocks') {
+          detection.components = adjustDetectedComponents(detection.components, {
+            domSnapshot: domSnapshotHtml,
+            pageUrl,
+            resourcesSummary: detection.resourcesSummary,
+            pageMetadata: detection.pageMetadata,
+            pageTemplate: detection.pageTemplate,
+            designProfile: importDesignProfile,
+            presentationSkeleton,
+          });
+        }
         designFitAuditByUrl.set(
           pageUrl,
           collectDesignFitAudit(detection.components, importDesignProfile, presentationSkeleton)

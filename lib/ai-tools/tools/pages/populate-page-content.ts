@@ -1,3 +1,4 @@
+import { isHomeLike } from '@/lib/studio/utils/home-page-utils';
 /**
  * AI Tool for Populating Page Content
  *
@@ -22,7 +23,7 @@ import { prisma } from '@/lib/prisma';
  * The AI sometimes outputs section names (like "services") instead of component types (like "feature-grid").
  * This runtime normalization ensures consistent rendering.
  */
-const COMPONENT_TYPE_NORMALIZATION_MAP: Record<string, string> = {
+export const COMPONENT_TYPE_NORMALIZATION_MAP: Record<string, string> = {
   // Services/capabilities sections → feature-grid
   'services': 'feature-grid',
   'services-overview': 'feature-grid',
@@ -95,14 +96,14 @@ const COMPONENT_TYPE_NORMALIZATION_MAP: Record<string, string> = {
   'newsletter': 'cta-simple',
   'signup': 'cta-simple',
   'sign-up': 'cta-simple',
-  // Stats variants → stats-grid
-  'stats': 'stats-grid',
-  'stats-section': 'stats-grid',
-  'stats-highlights': 'stats-grid',
-  'key-stats': 'stats-grid',
-  'metrics': 'stats-grid',
-  'numbers': 'stats-grid',
-  'by-the-numbers': 'stats-grid',
+  // Stats variants → statistics
+  'stats': 'statistics',
+  'stats-section': 'statistics',
+  'stats-highlights': 'statistics',
+  'key-stats': 'statistics',
+  'metrics': 'statistics',
+  'numbers': 'statistics',
+  'by-the-numbers': 'statistics',
   // Menu/location sections → feature-grid
   'menu-highlights': 'feature-grid',
   'visit-us': 'feature-grid',
@@ -355,7 +356,7 @@ function enhanceVisualQuality(content: Record<string, any>, slug: string): Recor
     return content;
   }
 
-  const isHomepage = slug === 'home' || slug === 'index' || slug === '';
+  const isHomepage = isHomeLike(slug, { allowEmpty: true });
   let contentSectionIndex = 0; // Track content sections for background rhythm (excludes navbar/footer)
 
   content.components = content.components.map((comp: Record<string, unknown>) => {

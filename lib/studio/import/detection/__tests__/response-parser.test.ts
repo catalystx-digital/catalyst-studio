@@ -1078,6 +1078,171 @@ describe('parseComponentsArray strict contract', () => {
 })
 
 describe('parseSectionDetectionResponse', () => {
+  it.each([' trailing text', ' {"second":true}', ' {"unfinished":', ' "unterminated'])('parses the complete first section value before %s', tail => {
+    const text = 'Braces } ] and quote " plus slash \\ stay inside the string'
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: ' \n' + JSON.stringify({ sectionKey: 'main', components: [{ component: 'text-block', confidence: 0.9, content: { text } }] }) + tail,
+      sectionKey: 'main', availableComponents: patterns, url: 'https://example.com/', confidenceThreshold: 0.25
+    })
+    expect(parsed.components).toHaveLength(1)
+    expect(parsed.components[0].content).toEqual({ body: text })
+    expect(parsed.parserRepairs).toEqual([{
+      index: -1, component: 'response', type: 'response', action: 'drop_trailing_characters',
+      reason: `Dropped ${tail.length} trailing characters after the first complete JSON value`
+    }])
+  })
+
+  it('does not report trailing whitespace as a repair', () => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: '{"sectionKey":"main","components":[]} \n\t',
+      sectionKey: 'main', availableComponents: patterns, url: 'https://example.com/', confidenceThreshold: 0.25
+    })
+    expect(parsed.parserRepairs).toBeUndefined()
+  })
+
+  it.each([
+    '{"sectionKey":"main","components":[],} trailing',
+    '{"sectionKey":"main","components":[} trailing',
+    '{"sectionKey":"main","components":[',
+    'prefix {"sectionKey":"main","components":[]} trailing'
+  ])('does not repair malformed JSON: %s', rawResponse => {
+    expect(() => parseSectionDetectionResponse({
+      rawResponse, sectionKey: 'main', availableComponents: patterns, url: 'https://example.com/', confidenceThreshold: 0.25
+    })).toThrow(SyntaxError)
+  })
+
+  it('does not accept a nested object in place of a top-level object', () => {
+    expect(() => parseSectionDetectionResponse({
+      rawResponse: '[{"sectionKey":"main","components":[]}] trailing',
+      sectionKey: 'main', availableComponents: patterns, url: 'https://example.com/', confidenceThreshold: 0.25
+    })).toThrow('must be a JSON object')
+  })
+
+  describe('generic internal link page ids', () => {
+    const parseLinkedComponent = (component: string, content: Record<string, unknown>) =>
+      parseSectionDetectionResponse({
+        rawResponse: JSON.stringify({
+          sectionKey: 'header',
+          components: [{ component, confidence: 0.9, content }]
+        }),
+        sectionKey: 'header',
+        availableComponents: [
+          ...patterns,
+          { type: 'sidemenu', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
+          { type: 'feature-list', category: 'features', confidence: 0.9, keywords: [], patterns: [] }
+        ],
+        url: 'https://example.com/',
+        confidenceThreshold: 0.25,
+        isolateInvalidComponents: true
+      })
+
+    it.each([undefined, null, ''])('derives missing feature and card link page ids (%s) before validation', pageId => {
+      const href = { type: 'internal', path: '/Guides/Getting Started/', pageId }
+      const feature = parseLinkedComponent('feature-list', {
+        items: [{ title: 'Guide', description: 'Read the guide', link: { label: 'Read', href } }]
+      })
+      const card = parseLinkedComponent('card-grid', { cards: [{ title: 'Guide', href }] })
+      expect(feature.invalidComponents).toBeUndefined()
+      expect(card.invalidComponents).toBeUndefined()
+      expect(feature.components).toHaveLength(1)
+      expect(card.components).toHaveLength(1)
+      const expectedHref = { type: 'internal', path: '/Guides/Getting Started/', pageId: 'guides-getting-started' }
+      expect(feature.components[0].content).toMatchObject({ items: [{ link: { href: expectedHref } }] })
+      expect(card.components[0].content).toMatchObject({ cards: [{ href: expectedHref }] })
+    })
+
+    it.each([
+      { type: 'internal', path: '/guide', pageId: ' preserved-id ' },
+      { type: 'external', url: 'https://example.org/' },
+      { type: 'anchor', href: '#details' }
+    ])('preserves existing $type feature links', href => {
+      const parsed = parseLinkedComponent('feature-list', {
+        items: [{ title: 'Guide', description: 'Read the guide', link: { label: 'Read', href } }]
+      })
+      expect(parsed.invalidComponents).toBeUndefined()
+      expect(parsed.components[0].content).toMatchObject({ items: [{ link: { href } }] })
+    })
+
+    it.each([{ type: 'internal' }, { type: 'internal', path: 42 }, { type: 'internal', path: '/guide', pageId: 42 }])(
+      'does not invent a path or replace an invalid existing page id', href => {
+        const parsed = parseLinkedComponent('feature-list', {
+          items: [{ title: 'Guide', description: 'Read the guide', link: { label: 'Read', href } }]
+        })
+        expect(parsed.components).toHaveLength(0)
+        expect(parsed.invalidComponents).toHaveLength(1)
+        expect(parsed.invalidComponents?.[0].reason).toContain('invalid_type')
+      }
+    )
+
+    it.each([undefined, ''])('derives missing or empty navbar page ids (%s) before validation', pageId => {
+      const link = (path: string) => ({ type: 'internal', path, pageId })
+      const parsed = parseLinkedComponent('navbar', {
+        menuItems: [{
+          label: 'About',
+          href: link('/About/'),
+          children: [{ label: 'Our team', href: link('/about/our-team') }],
+          groups: [{ items: [{ label: 'Careers', href: link('/about/careers') }] }]
+        }],
+        utilityNav: [{ label: 'Home', href: link('/') }],
+        cta: { label: 'Contact', href: link('/contact') }
+      })
+
+      expect(parsed.invalidComponents).toBeUndefined()
+      expect(parsed.components).toHaveLength(1)
+      expect(parsed.components[0].content).toEqual({
+        menuItems: [{
+          label: 'About',
+          href: { type: 'internal', path: '/About/', pageId: 'about' },
+          children: [{ label: 'Our team', href: { type: 'internal', path: '/about/our-team', pageId: 'about-our-team' } }],
+          groups: [{ items: [{ label: 'Careers', href: { type: 'internal', path: '/about/careers', pageId: 'about-careers' } }] }]
+        }],
+        utilityNav: [{ label: 'Home', href: { type: 'internal', path: '/', pageId: 'home' } }],
+        cta: { label: 'Contact', href: { type: 'internal', path: '/contact', pageId: 'contact' } }
+      })
+    })
+
+    it.each([
+      { type: 'internal', path: '/about', pageId: ' existing-page-id ', label: 'About' },
+      { type: 'external', url: 'https://example.org/', label: 'Partner', openInNewTab: true },
+      { type: 'anchor', href: '#details', label: 'Details' }
+    ])('preserves existing $type navbar links', href => {
+      const item = { label: 'Link', href }
+      const content = {
+        menuItems: [{ ...item, children: [item], groups: [{ items: [item] }] }],
+        utilityNav: [item],
+        cta: item
+      }
+      const parsed = parseLinkedComponent('navbar', content)
+
+      expect(parsed.invalidComponents).toBeUndefined()
+      expect(parsed.components).toHaveLength(1)
+      expect(parsed.components[0].content).toEqual(content)
+    })
+
+    it.each(['sidemenu', 'footer'])('keeps deriving internal page ids in %s link lists', component => {
+      const items = [{
+        label: 'About',
+        href: { type: 'internal', path: '/about' },
+        children: [{ label: 'Home', href: { type: 'internal', path: '/', pageId: '' } }]
+      }]
+      const expectedItems = [{
+        label: 'About',
+        href: { type: 'internal', path: '/about', pageId: 'about' },
+        children: [{ label: 'Home', href: { type: 'internal', path: '/', pageId: 'home' } }]
+      }]
+      const content = component === 'sidemenu'
+        ? { items, sections: [{ heading: 'Links', items }] }
+        : { columns: [{ title: 'Links', links: items }], legalLinks: items }
+      const parsed = parseLinkedComponent(component, content)
+
+      expect(parsed.invalidComponents).toBeUndefined()
+      expect(parsed.components).toHaveLength(1)
+      expect(parsed.components[0].content).toEqual(component === 'sidemenu'
+        ? { items: expectedItems, sections: [{ heading: 'Links', items: expectedItems }] }
+        : { columns: [{ title: 'Links', links: expectedItems }], legalLinks: expectedItems })
+    })
+  })
+
   it('parses an empty section artifact with matching section key', () => {
     const parsed = parseSectionDetectionResponse({
       rawResponse: JSON.stringify({ sectionKey: 'main:0-99', components: [] }),

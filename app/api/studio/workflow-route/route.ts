@@ -13,6 +13,8 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
 
+import { ask } from '@/lib/studio/decisions'
+
 export const maxDuration = 30
 
 /**
@@ -117,6 +119,39 @@ ${userPrompt}`
     })
 
     const decision = result.object as WorkflowDecision
+
+    // Ask the decision model the one part of this that changes behaviour: is
+    // this an import request? `reasoning` is debug logging and `confidence` is
+    // invented by the router, so neither is worth asking for.
+    //
+    // The router's own answer is handed in as the fallback, so in shadow mode
+    // this records the disagreement and changes nothing. Once the question is
+    // trusted, the generateObject call above can be skipped entirely for
+    // prompts it decides — that is a deliberate follow-up, not a guess to make
+    // now.
+    const routingAnswer = await ask<boolean>(
+      'workflow.isImport',
+      { nodes: [{ tag: 'p', text: userPrompt }] },
+      { input: { workflow: decision.workflow } }
+    )
+
+    if (routingAnswer.source === 'model') {
+      const modelSaysImport = routingAnswer.value === true
+
+      if (!modelSaysImport) {
+        decision.workflow = 'greenfield'
+        decision.importUrl = undefined
+        decision.reasoning = 'Decision model read this as a request to build a new site, not to copy one.'
+      } else if (decision.importUrl) {
+        decision.workflow = 'import'
+        decision.reasoning = 'Decision model read this as a request to copy an existing site.'
+      }
+      // An import with no URL is not actionable — the caller requires both —
+      // so in that case the router's answer stands rather than producing a
+      // decision nothing can act on.
+
+      decision.confidence = routingAnswer.probability ?? decision.confidence
+    }
 
     console.log('[workflow-route] Decision:', {
       workflow: decision.workflow,

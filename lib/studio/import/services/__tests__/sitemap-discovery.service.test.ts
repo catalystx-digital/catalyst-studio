@@ -1,5 +1,22 @@
 import { SitemapDiscoveryService } from '../sitemap-discovery.service';
 
+/**
+ * Put an environment variable back exactly as it was.
+ *
+ * `process.env.X = saved` is not that: when the variable was unset, Node
+ * coerces the undefined to the literal string "undefined" and the key is now
+ * set. Harmless for the boolean flags, which are compared against 'true', but
+ * DECISION_MODEL_API_KEY="undefined" then leaks into every later test file
+ * sharing this worker and reads as a configured key.
+ */
+function restoreEnv(key: string, saved: string | undefined): void {
+  if (saved === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = saved;
+  }
+}
+
 describe('SitemapDiscoveryService', () => {
   const service = new SitemapDiscoveryService();
   const originalFetch = (global as any).fetch;
@@ -118,6 +135,117 @@ describe('SitemapDiscoveryService', () => {
     expect(result.urls[0]).toBe('https://example.com/');
     expect(result.urls).toContain('https://example.com/valid/');
     expect(result.urls.some((u) => u.includes('/intranet/'))).toBe(false);
+  });
+
+  it('drops an internal path the hardcoded rule misses, once the decision model is on', async () => {
+    // The old rule recognises only /intranet/ and one site-specific path, so
+    // /staff-portal/ is published today. This is the gap the question closes.
+    const { setDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'false';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    // A canned "internal" for every URL would make the assertion below pass
+    // even if discovery dropped the whole site, so this stand-in answers from
+    // the URL in the state the way the real model would: internal for the
+    // staff portal, public for everything else.
+    setDecisionClient({
+      async askRaw(state: string) {
+        const internal = state.includes('/staff-portal/');
+        const probability = internal ? 0.92 : 0.02;
+        return {
+          answers: {
+            'page.isInternal': { value: probability, probability, confidence: null },
+          },
+          usage: { inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 },
+        };
+      },
+    });
+
+    try {
+      const staffService = new SitemapDiscoveryService();
+      (global.fetch as any).mockImplementation(async (input: any) => {
+        const url = typeof input === 'string' ? input : input?.toString();
+        if (url === 'https://example.com/') {
+          return makeResponse(200, '<html>home</html>', 'text/html');
+        }
+        if (url === 'https://example.com/sitemap.xml') {
+          return makeResponse(
+            200,
+            `<urlset>
+               <url><loc>https://example.com/staff-portal/</loc></url>
+               <url><loc>https://example.com/valid/</loc></url>
+             </urlset>`
+          );
+        }
+        return makeResponse(200, '<html>ok</html>', 'text/html');
+      });
+
+      const result = await staffService.expandUrlsForImport('https://example.com/', 5);
+      expect(result.urls.some((u) => u.includes('/staff-portal/'))).toBe(false);
+      // The internal page is dropped and nothing else is: the site root and a
+      // genuinely public page both survive.
+      expect(result.urls[0]).toBe('https://example.com/');
+      expect(result.urls).toContain('https://example.com/valid/');
+      expect(result.skipped).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            url: 'https://example.com/staff-portal/',
+            reason: 'private-path',
+          }),
+        ])
+      );
+    } finally {
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+    }
+  });
+
+  it('keeps publishing that same path while the model is in shadow mode', async () => {
+    const { setDecisionClient, createFakeDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'true';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    setDecisionClient(
+      createFakeDecisionClient({
+        'page.isInternal': { value: 0.92, probability: 0.92 },
+      })
+    );
+
+    try {
+      const shadowService = new SitemapDiscoveryService();
+      (global.fetch as any).mockImplementation(async (input: any) => {
+        const url = typeof input === 'string' ? input : input?.toString();
+        if (url === 'https://example.com/') {
+          return makeResponse(200, '<html>home</html>', 'text/html');
+        }
+        if (url === 'https://example.com/sitemap.xml') {
+          return makeResponse(
+            200,
+            `<urlset><url><loc>https://example.com/staff-portal/</loc></url></urlset>`
+          );
+        }
+        return makeResponse(200, '<html>ok</html>', 'text/html');
+      });
+
+      const result = await shadowService.expandUrlsForImport('https://example.com/', 5);
+      // Shadow records the disagreement; the old rule still governs.
+      expect(result.urls.some((u) => u.includes('/staff-portal/'))).toBe(true);
+    } finally {
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+    }
   });
 
   it('continues past soft-404 pages to fill the max URLs cap', async () => {

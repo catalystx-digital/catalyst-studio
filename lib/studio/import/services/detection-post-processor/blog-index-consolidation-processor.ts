@@ -1,35 +1,14 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { DetectedComponent, DetectedPageTemplate } from '@/lib/studio/import/detection/types'
+import { isLikelyBrandAssetImage } from '../../utils/brand-assets'
 
 export interface BlogIndexConsolidationOptions {
   pageUrl?: string
   pageTemplate?: DetectedPageTemplate
 }
 
-const EDITORIAL_INDEX_PATH = /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/page\/\d+)?\/?$/i
+export const EDITORIAL_INDEX_PATH = /^\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)(?:\/page\/\d+)?\/?$/i
 const EDITORIAL_LINK_PATH = /\/(?:news|blog|blogs|article|articles|post|posts|press|media|insights?)\//i
-
-function isLikelyBrandAssetImage(src: string): boolean {
-  const lowerSrc = src.toLowerCase()
-  const pathname = (() => {
-    try {
-      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
-    } catch {
-      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
-    }
-  })()
-  const filename = pathname.split('/').filter(Boolean).pop() || pathname
-  const pathSegments = pathname.split('/').filter(Boolean)
-  const directorySegments = pathSegments.slice(0, -1)
-  const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
-
-  return (
-    directorySegments.some(segment => segment === 'logos' || segment === 'logo' || /^logo[-_]\d/.test(segment)) ||
-    filename.includes('brandmark') ||
-    filename.includes('wordmark') ||
-    (filename.includes('logo') && extension === '.svg')
-  )
-}
 
 function imageUrl(value: unknown): string | undefined {
   if (typeof value === 'string') return value

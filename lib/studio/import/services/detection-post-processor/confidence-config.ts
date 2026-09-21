@@ -77,60 +77,6 @@ export const PROCESSOR_THRESHOLDS: Record<string, Partial<ConfidenceThresholds>>
 }
 
 /**
- * Determines if a processor should be skipped based on average component confidence.
- *
- * @param processorName - Name of the processor (matches telemetry names)
- * @param components - Components to process (average confidence is calculated)
- * @returns true if processor should be skipped
- */
-export function shouldSkipProcessor(
-  processorName: string,
-  components: DetectedComponent[]
-): boolean {
-  if (components.length === 0) {
-    return false
-  }
-
-  const avgConfidence = calculateAverageConfidence(components)
-  const threshold = getThresholdForProcessor(processorName)
-
-  return avgConfidence > threshold
-}
-
-/**
- * Determines if a processor should skip a specific component.
- *
- * @param processorName - Name of the processor
- * @param componentConfidence - Confidence score of the component (0-1)
- * @returns true if component should be skipped
- */
-export function shouldSkipComponent(
-  processorName: string,
-  componentConfidence: number
-): boolean {
-  const threshold = getThresholdForProcessor(processorName)
-  return componentConfidence > threshold
-}
-
-/**
- * Determines if components should be flagged for manual review
- * instead of being auto-corrected.
- *
- * @param components - Components to check
- * @returns true if components should be flagged for review
- */
-export function shouldFlagForReview(
-  components: DetectedComponent[]
-): boolean {
-  if (components.length === 0) {
-    return false
-  }
-
-  const avgConfidence = calculateAverageConfidence(components)
-  return avgConfidence < DEFAULT_CONFIDENCE_THRESHOLDS.flagForReviewThreshold
-}
-
-/**
  * Gets the skip threshold for a specific processor.
  *
  * @param processorName - Name of the processor

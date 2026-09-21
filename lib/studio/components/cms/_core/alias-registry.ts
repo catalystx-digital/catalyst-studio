@@ -89,6 +89,52 @@ function buildAliasMap(): Map<string, string> {
     'testimonials': [
       'testimonials-grid',
       'social-proof',
+      // KEEP THIS ALIAS. It is load-bearing, not a synonym mistake.
+      //
+      // ComponentType.Reviews really is registered and renderable
+      // (social-proof/register.ts registers it with ReviewCardAdapter), and
+      // import really does offer it to the model: prompt-builder.ts:116 and
+      // section-taxonomy.ts:116 list 'reviews' as a candidate type on
+      // portfolio/work/case-study/clients routes, and
+      // detection/canonical/experience.ts declares cues for it. So the model
+      // picks 'reviews', and this line converts it to 'testimonials'.
+      //
+      // That conversion is the only thing that makes the pick renderable.
+      // review-card CANNOT carry what detection produces for a reviews
+      // section — the two shapes do not meet:
+      //
+      //   detection (canonical/experience.ts, ComponentType.Reviews) emits a
+      //   SECTION:  { heading, reviews: [ {id, rating, reviewText, author,
+      //   date}, ... ] }
+      //
+      //   review-card's schema (review-card.def.ts) is ONE review, flat:
+      //   { rating, reviewText, author, date } all required, plus optional
+      //   verified/platform/helpful. There is no `heading` field and no
+      //   `reviews` array field.
+      //
+      // Consequences if this alias were removed:
+      //   - ReviewCardAdapter (social-proof/adapters.tsx) returns null when
+      //     `typeof content.rating !== 'number' || !content.reviewText ||
+      //     !content.author`. A detection reviews payload has none of those at
+      //     top level, so the section would render nothing at all.
+      //   - COMPONENT_CONTENT_NORMALIZERS has no 'reviews' entry, so the
+      //     payload would not be normalized or pruned on the way in either.
+      //
+      // review-card is a fragment, not a section, and the codebase says so in
+      // three places: review-card.def.ts sets `subOnly: true`, its description
+      // is "Individual review", and experience.ts lists 'review-card' among
+      // the FRAGMENTS that make up the reviews section.
+      //
+      // The testimonials path, by contrast, was written for this payload on
+      // purpose: normalizeTestimonialsContent
+      // (page-builder/component-helpers/normalizers/social-proof-normalizers.ts)
+      // explicitly reads `flattened.reviews` as a source array for
+      // testimonials[] and then deletes the key.
+      //
+      // The correct fix therefore lives upstream, not here: stop OFFERING
+      // 'reviews' as a candidate type so the model is not invited to pick
+      // something that is always converted. See prompt-builder.ts:116 and
+      // section-taxonomy.ts:116.
       'reviews',
     ],
     'hero-simple': [

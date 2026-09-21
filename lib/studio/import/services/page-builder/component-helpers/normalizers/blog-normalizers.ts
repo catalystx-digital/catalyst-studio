@@ -14,6 +14,7 @@ import {
   type LocalNormalizationWarning,
   type ComponentContentNormalizer
 } from './shared-normalizer-utils'
+import { isLikelyBrandAssetImage } from '../../../../utils/brand-assets'
 
 function getImageUrl(value: unknown): string | undefined {
   if (typeof value === 'string') return value
@@ -23,28 +24,6 @@ function getImageUrl(value: unknown): string | undefined {
   if (isRecord(value.src) && typeof value.src.url === 'string') return value.src.url
   if (typeof value.originalUrl === 'string') return value.originalUrl
   return undefined
-}
-
-function isLikelyBrandAssetImage(src: string): boolean {
-  const lowerSrc = src.toLowerCase()
-  const pathname = (() => {
-    try {
-      return new URL(src, 'https://example.invalid').pathname.toLowerCase()
-    } catch {
-      return lowerSrc.split(/[?#]/, 1)[0] || lowerSrc
-    }
-  })()
-  const filename = pathname.split('/').filter(Boolean).pop() || pathname
-  const pathSegments = pathname.split('/').filter(Boolean)
-  const directorySegments = pathSegments.slice(0, -1)
-  const extension = filename.match(/\.[a-z0-9]+$/i)?.[0] ?? ''
-
-  return (
-    directorySegments.some(segment => segment === 'logos' || segment === 'logo' || /^logo[-_]\d/.test(segment)) ||
-    filename.includes('brandmark') ||
-    filename.includes('wordmark') ||
-    (filename.includes('logo') && extension === '.svg')
-  )
 }
 
 /**

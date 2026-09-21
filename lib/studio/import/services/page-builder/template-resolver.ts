@@ -128,57 +128,6 @@ export function findTemplateByCategory(
 }
 
 /**
- * Infers template key from URL path patterns.
- * This is used as a fallback when no explicit template is specified.
- */
-export function inferTemplateKeyFromUrl(path: string, summary: PageCatalogSummary): string {
-  const normalizedPath = normalizePath(path)
-
-  // Try route hints first
-  const byRouteHint = matchTemplateByRouteHints(normalizedPath, summary)
-  if (byRouteHint) {
-    return byRouteHint
-  }
-
-  // Home page
-  if (isHomePath(normalizedPath)) {
-    return pickHomeTemplateKey(summary) ?? pickFallbackTemplateKey(summary) ?? 'marketing/home-default'
-  }
-
-  // Blog/content paths
-  if (/(blog|insights)(\/|$)/i.test(normalizedPath)) {
-    const isIndex =
-      normalizedPath === '/blog' ||
-      normalizedPath === '/insights'
-    if (isIndex) {
-      return (
-        findTemplateByCategory(summary, PageTemplateCategory.Blog, key => key.includes('index')) ??
-        findTemplateByCategory(summary, PageTemplateCategory.Blog) ??
-        pickFallbackTemplateKey(summary) ??
-        'marketing/home-default'
-      )
-    }
-    return (
-      findTemplateByCategory(summary, PageTemplateCategory.Blog, key => key.includes('post')) ??
-      findTemplateByCategory(summary, PageTemplateCategory.Blog) ??
-      pickFallbackTemplateKey(summary) ??
-      'marketing/home-default'
-    )
-  }
-
-  // Commerce paths
-  if (/(product|products|pricing|plans)(\/|$)/i.test(normalizedPath)) {
-    const commerce = findTemplateByCategory(summary, PageTemplateCategory.Commerce)
-    if (commerce) {
-      return commerce
-    }
-  }
-
-  // Default fallback
-  return pickFallbackTemplateKey(summary) ?? 'marketing/home-default'
-}
-
-/**
  * Ensures a template is home-eligible if the path is a home path.
  * Returns the adjusted template key.
  */

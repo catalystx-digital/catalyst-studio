@@ -1,5 +1,6 @@
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { DetectedComponent, PageMetadata } from '@/lib/studio/import/detection/types'
+import { EDITORIAL_INDEX_PATH } from './blog-index-consolidation-processor'
 
 export interface ArticleDetailConsolidationOptions {
   pageUrl?: string
@@ -14,14 +15,18 @@ const ARTICLE_FRAGMENT_TYPES = new Set<string>([
   ComponentType.QuoteBlock
 ])
 
+function isEditorialDetailPath(path: string): boolean {
+  return EDITORIAL_DETAIL_PATH.test(path) && !EDITORIAL_INDEX_PATH.test(path)
+}
+
 function isEditorialDetailUrl(pageUrl?: string): boolean {
   if (!pageUrl) {
     return false
   }
   try {
-    return EDITORIAL_DETAIL_PATH.test(new URL(pageUrl).pathname)
+    return isEditorialDetailPath(new URL(pageUrl).pathname)
   } catch {
-    return EDITORIAL_DETAIL_PATH.test(pageUrl)
+    return isEditorialDetailPath(pageUrl)
   }
 }
 

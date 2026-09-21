@@ -1,4 +1,5 @@
 import type { UniversalContentType } from '@/lib/cms-export/types'
+import { isPage } from '@/lib/utils/content-type-utils'
 import type { ContentTypeExport } from '../types'
 
 /**
@@ -369,8 +370,8 @@ export const buildUniversalContentType = (
       pluralName: contentType.pluralName,
       description: typeof (surfaceMeta as any)?.description === 'string' ? (surfaceMeta as any).description : '',
       version: '1.0',
-      type: (contentType.category && contentType.category.toLowerCase() === 'page') ? 'page' : 'component',
-      isRoutable: contentType.category === 'page',
+      type: isPage(contentType) ? 'page' : 'component',
+      isRoutable: isPage(contentType),
       fields: universalFields,
       metadata: metadataPayload as any,
     } as UniversalContentType

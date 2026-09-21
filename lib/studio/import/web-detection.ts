@@ -35,7 +35,9 @@ import { summarizeSectionNodes } from './detection/section-summarizer'
 import { enrichNavbarRowStylesFromEvidence } from './detection/navbar-row-style-enrichment'
 import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata, ParserRepairNote } from './detection/types'
+import { ask, getDecisionConfig, isDecisionModelEnabledFor } from '@/lib/studio/decisions'
 import { traceMemory } from './utils/memory-trace'
+import { parseFirstJsonValue, salvageTruncatedJson } from './utils/json-parsing'
 import { createDetectionTelemetry } from './telemetry/detection-telemetry'
 import type { DetectionPhaseRecord, DetectionTelemetry } from './telemetry/detection-telemetry'
 import { applyAllowedProviders, createLLMClient, validateLLMApiKey } from './services/llm-client'
@@ -60,7 +62,7 @@ const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max 
 const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
 const REPAIR_PREVIOUS_JSON_CHAR_LIMIT = 6_000
 
-async function mapWithConcurrency<T, R>(
+export async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
   worker: (item: T) => Promise<R>
@@ -213,12 +215,25 @@ interface LLMRequestPayload {
 /**
  * Token usage information from LLM response.
  */
-interface TokenUsage {
+export interface TokenUsage {
   total_tokens?: number
   prompt_tokens?: number
   completion_tokens?: number
   reasoning_tokens?: number
   total_cost?: number
+}
+
+export interface SectionProcessingResult {
+  artifact: SectionExtractionArtifact
+  pageSummary?: DetectionPromptPayload['pageSummary']
+  usage: TokenUsage
+  requestCount: number
+  reuse: {
+    freshSections: number
+    reusedSections: number
+    cacheHits: number
+    cacheMisses: number
+  }
 }
 
 export interface DetectionFailureDebug {
@@ -324,7 +339,7 @@ function responseMissingSectionKey(rawResult: string): boolean {
   }
 }
 
-function capRepairPreviousJson(rawResult: string): { text: string; capped: boolean; chars: number } {
+export function capRepairPreviousJson(rawResult: string): { text: string; capped: boolean; chars: number } {
   if (rawResult.length <= REPAIR_PREVIOUS_JSON_CHAR_LIMIT) {
     return { text: rawResult, capped: false, chars: rawResult.length }
   }
@@ -423,11 +438,91 @@ function buildFooterQualityDiagnostics(
   }]
 }
 
+/**
+ * Records the sections that were dropped so a partial page is never silently
+ * partial. Without this the only trace of a lost footer would be a console
+ * line, and the import would look complete.
+ */
+function buildDroppedSectionDiagnostics(
+  failedSections: Array<{ task: DetectionSectionTask; error: unknown }>
+): ImportDetectionResult['diagnostics'] {
+  if (failedSections.length === 0) {
+    return undefined
+  }
+  return [{
+    code: 'SECTION_EXTRACTION_DROPPED',
+    severity: 'warning',
+    message: `${failedSections.length} section${failedSections.length === 1 ? '' : 's'} failed to extract and ${failedSections.length === 1 ? 'was' : 'were'} dropped from the page.`,
+    context: {
+      sections: failedSections.map(failure => ({
+        sectionKey: failure.task.sectionKey,
+        role: failure.task.role,
+        required: failure.task.required,
+        reason: failure.error instanceof Error ? failure.error.message : String(failure.error)
+      }))
+    }
+  }]
+}
+
+/** One section whose reply was cut off mid-JSON and salvaged. */
+interface TruncatedSectionSalvage {
+  sectionKey: string
+  role?: string
+  /** Components the model had finished before it stopped */
+  keptComponents: number
+  /**
+   * Finished components the salvage parse isolated for failing schema
+   * validation. A salvaged section returns before the repair round, so these
+   * are dropped without a retry; recording them keeps that from being silent.
+   */
+  isolatedInvalidComponents: number
+  /** Characters of the received reply discarded as the half-written tail */
+  droppedChars: number
+  /** Length of the received reply */
+  rawResponseChars: number
+}
+
+/**
+ * Records the sections that arrived cut off, so a page assembled from partial
+ * replies is never silently partial. A FAILED section already reports itself as
+ * SECTION_EXTRACTION_DROPPED; a SALVAGED one publishes components and needs the
+ * same visibility, because the components the model never got to write are
+ * indistinguishable, in the finished page, from content the source did not have.
+ */
+function buildTruncatedSectionDiagnostics(
+  salvaged: TruncatedSectionSalvage[]
+): ImportDetectionResult['diagnostics'] {
+  if (salvaged.length === 0) {
+    return undefined
+  }
+  const isolated = salvaged.reduce((total, section) => total + section.isolatedInvalidComponents, 0)
+  return [{
+    code: 'SECTION_REPLY_TRUNCATED',
+    severity: 'warning',
+    message:
+      `${salvaged.length} section${salvaged.length === 1 ? '' : 's'} replied with cut-off JSON; ` +
+      `only the components the model finished were kept, so ${salvaged.length === 1 ? 'that section' : 'those sections'} may be incomplete.` +
+      (isolated > 0
+        ? ` ${isolated} salvaged component${isolated === 1 ? ' was' : 's were'} dropped for failing validation without a repair attempt.`
+        : ''),
+    context: {
+      sections: salvaged.map(section => ({
+        sectionKey: section.sectionKey,
+        role: section.role,
+        keptComponents: section.keptComponents,
+        isolatedInvalidComponents: section.isolatedInvalidComponents,
+        droppedChars: section.droppedChars,
+        rawResponseChars: section.rawResponseChars
+      }))
+    }
+  }]
+}
+
 function checkpointArtifactKey(prefix: string, url: string): string {
   return `${prefix}-${Buffer.from(url).toString('base64url').slice(0, 80)}`
 }
 
-function isDedicatedEditorialListingUrl(url: string): boolean {
+export function isDedicatedEditorialListingUrl(url: string): boolean {
   try {
     const path = new URL(url).pathname
     return isEditorialIndexPath(path)
@@ -482,7 +577,7 @@ function hasAccordionEvidence(value: unknown): boolean {
  * Detects if a JSON string is incomplete (truncated mid-output).
  * Returns an object with completion status and details about the truncation.
  */
-function detectIncompleteJson(jsonStr: string): {
+export function detectIncompleteJson(jsonStr: string): {
   isComplete: boolean
   reason?: string
   truncationPoint?: string
@@ -495,7 +590,7 @@ function detectIncompleteJson(jsonStr: string): {
 
   // Try to parse - if it works, JSON is complete
   try {
-    JSON.parse(trimmed)
+    parseFirstJsonValue(trimmed)
     return { isComplete: true }
   } catch {
     // JSON is invalid, check if it's truncated
@@ -581,14 +676,14 @@ function detectIncompleteJson(jsonStr: string): {
   }
 }
 
-function extractValidationPath(message: string): string | undefined {
+export function extractValidationPath(message: string): string | undefined {
   const afterColon = message.split(':').slice(1).join(':').trim()
   const firstIssue = afterColon.split(';')[0]?.trim()
   const path = firstIssue?.split(':')[0]?.trim()
   return path || undefined
 }
 
-function expandCandidatesFromSectionEvidence(candidateTypes: Set<string>, sectionSlice: unknown): void {
+export function expandCandidatesFromSectionEvidence(candidateTypes: Set<string>, sectionSlice: unknown): void {
   const sectionText = JSON.stringify(sectionSlice).toLowerCase()
   if (/\b(header|nav|navigation|menu|navbar)\b/.test(sectionText)) {
     candidateTypes.add('navbar')
@@ -643,7 +738,7 @@ function filterResourcesForSection(resources: ResourcesSummary | undefined, sect
   }
 }
 
-function clampCompletionTokens(
+export function clampCompletionTokens(
   model: string,
   messages: ChatCompletionMessageParam[],
   requested: number
@@ -688,6 +783,121 @@ export class DetectionService {
         .map(type => String(type))
       return allowed.includes(String(component.component)) || allowed.includes(String(component.type))
     })
+  }
+
+  /**
+   * Asks the decision model which template this page is, with the deterministic
+   * URL scorer below as the fallback.
+   *
+   * The scorer's own answer is handed in via context.input so the shadow log
+   * compares like with like, and the model's answer is only accepted if it
+   * names a registered template that allows the components actually detected.
+   */
+  private async selectPageTemplateWithModel(
+    pageSummary: DetectionPromptPayload['pageSummary'],
+    url: string,
+    components: DetectedComponent[],
+    pageMetadata: PageMetadata,
+    websiteId?: string
+  ): Promise<DetectedPageTemplate> {
+    const deterministic = this.selectPageTemplate(pageSummary, url, components)
+
+    // Evidence is what detection actually found: the page's own title and
+    // description, and the component types on the page.
+    const nodes = [
+      ...(pageMetadata.title ? [{ tag: 'h1', text: pageMetadata.title }] : []),
+      ...(pageMetadata.description ? [{ tag: 'p', text: pageMetadata.description }] : []),
+      ...components.map(component => ({ tag: 'p', text: `component: ${component.type}` }))
+    ]
+
+    const answer = await ask<string | null>(
+      'page.type',
+      { url, nodes },
+      { url, websiteId, input: { deterministicTemplateKey: deterministic.templateKey } }
+    )
+
+    if (answer.source !== 'model' || !answer.value || answer.value === deterministic.templateKey) {
+      return deterministic
+    }
+
+    const accepted = pageSummary.templates.find(template => template.templateKey === answer.value)
+    if (!accepted || !this.templateAllowsDetectedComponents(accepted, components)) {
+      return deterministic
+    }
+
+    return {
+      templateKey: accepted.templateKey,
+      confidence: answer.probability ?? deterministic.confidence,
+      source: 'model',
+      reason: `Selected by the decision model from page content (p=${(answer.probability ?? 0).toFixed(2)}).`
+    }
+  }
+
+  /**
+   * Asks page.isInternalFromContent, and DOES NOTHING WITH THE ANSWER.
+   *
+   * page.isInternal is asked during sitemap discovery, where only a URL
+   * exists, and its threshold comment records exactly where that runs out: a
+   * path cannot separate an internal department area from a public department
+   * microsite. This asks the same question here, after the page has actually
+   * been fetched, so the shadow log can show whether the page's own title,
+   * description and headings separate the two where the path did not.
+   *
+   * THAT IS ALL IT DOES. The answer is not returned, not stored on the
+   * detection result, and not assigned to anything — no page is skipped,
+   * dropped, flagged or altered because of it, and there is deliberately no
+   * variable here for a later change to start branching on. The question is
+   * evidence-gathering; what to do about the evidence is a separate decision
+   * that comes after there is some. See the `effect: 'record-only'` note on the
+   * question itself before wiring this to any behaviour.
+   *
+   * It never throws: ask() swallows its own failures by contract.
+   */
+  private async recordIsInternalFromContent(
+    url: string,
+    pageMetadata: PageMetadata,
+    components: DetectedComponent[],
+    websiteId?: string
+  ): Promise<void> {
+    // The decisions module is off by default, so this is the normal path. It
+    // returns before any evidence is assembled, any state string is built, any
+    // request is made and any log row is written: the cost added to an import
+    // that has not opted in is one environment-variable read.
+    //
+    // isDecisionModelEnabledFor is the same gate ask() applies internally — the
+    // check is hoisted, not invented, so being disabled means the same thing
+    // here as everywhere else.
+    if (!isDecisionModelEnabledFor(websiteId)) return
+
+    // Real page content, from the fetched page: the head's title and
+    // description (preFlightFetch.headMeta, via pageMetadata) and the headings
+    // recovered from the fetched sections. Not the URL — the URL arrives
+    // separately, as the question's 'url' facet.
+    const MAX_EVIDENCE_HEADINGS = 40
+    const headings = [
+      ...new Set(
+        components
+          .flatMap(component => [
+            component.content?.heading,
+            component.content?.title,
+            component.content?.subheading
+          ])
+          .map(value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''))
+          .filter(Boolean)
+      )
+    ].slice(0, MAX_EVIDENCE_HEADINGS)
+
+    const nodes = [
+      ...(pageMetadata.title ? [{ tag: 'h1', text: pageMetadata.title }] : []),
+      ...(pageMetadata.description ? [{ tag: 'p', text: pageMetadata.description }] : []),
+      ...headings.map(text => ({ tag: 'h2', text }))
+    ]
+    // No content means no content-based evidence. Asking anyway would log a row
+    // that looks like a content answer and is really a URL answer, which is the
+    // one thing this question must not contribute to the log.
+    if (nodes.length === 0) return
+
+    await ask<boolean>('page.isInternalFromContent', { url, nodes }, { url, websiteId })
   }
 
   private selectPageTemplate(
@@ -784,9 +994,11 @@ export class DetectionService {
 
     return {
       templateKey,
+      // Not a model and not a measurement — a keyword score over the URL path,
+      // now reported as what it is.
       confidence: 0.8,
-      source: 'model',
-      reason: 'Selected deterministically by section detection harness from URL route hints and registered page templates.'
+      source: 'url-scorer',
+      reason: 'Selected deterministically from URL route hints and registered page templates.'
     }
   }
 
@@ -857,11 +1069,11 @@ export class DetectionService {
       globalSectionCache
     } = options
 
-    const tasks = buildDetectionSectionPlan({
+    const tasks = DetectionConfig.detectionHarness === 'blocks' ? [] : buildDetectionSectionPlan({
       pageUrl: url,
       sections: preFlightFetch.sections ?? []
     })
-    if (tasks.length === 0) {
+    if (DetectionConfig.detectionHarness !== 'blocks' && tasks.length === 0) {
       throw new DetectionFailureError('Detection outline returned no sections to extract', {
         model: endpointModel,
         stage: 'validation',
@@ -870,7 +1082,7 @@ export class DetectionService {
     }
 
     const maxSectionTasks = Math.max(1, DetectionConfig.maxSectionTasks)
-    if (tasks.length > maxSectionTasks) {
+    if (DetectionConfig.detectionHarness !== 'blocks' && tasks.length > maxSectionTasks) {
       throw new DetectionFailureError(
         `Detection outline returned ${tasks.length} sections, exceeding the per-page limit of ${maxSectionTasks}`,
         {
@@ -883,7 +1095,7 @@ export class DetectionService {
       )
     }
 
-    if (checkpointSession && checkpointService) {
+    if (DetectionConfig.detectionHarness !== 'blocks' && checkpointSession && checkpointService) {
       await checkpointService.savePagePlan(checkpointSession, url, {
         url,
         generatedAt: new Date().toISOString(),
@@ -902,6 +1114,12 @@ export class DetectionService {
       cacheMisses: 0
     }
     const artifacts: SectionExtractionArtifact[] = []
+    const failedSections: Array<{ task: DetectionSectionTask; error: unknown }> = []
+    // Sections whose reply was cut off and salvaged. Keyed by sectionKey so a
+    // later attempt on the same section overwrites an earlier one, and so a
+    // salvage belonging to a section that ultimately failed can be discarded at
+    // assembly rather than reported against a page it never reached.
+    const salvagedSections = new Map<string, TruncatedSectionSalvage>()
     let pageSummaryForAssembly: DetectionPromptPayload['pageSummary'] | undefined
 
     const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
@@ -946,14 +1164,6 @@ export class DetectionService {
           completionTokens: response?.usage?.completion_tokens ?? 0
         })
       )
-    }
-
-    type SectionProcessingResult = {
-      artifact: SectionExtractionArtifact
-      pageSummary?: DetectionPromptPayload['pageSummary']
-      usage: TokenUsage
-      requestCount: number
-      reuse: typeof sectionReuseStats
     }
 
     const processSectionTask = async (task: DetectionSectionTask): Promise<SectionProcessingResult> => {
@@ -1080,6 +1290,25 @@ export class DetectionService {
           sectionSummaryReductionRatio: summarizedSection.reductionRatio
         }
 
+        // The salvaged document is a prefix of the reply, so its sectionKey may
+        // have been cut away; the components that survived still belong to this
+        // section. Invalid ones are isolated rather than failing the salvage.
+        const trySalvagedSectionParse = (salvagedJson: string) => {
+          try {
+            return parseSectionDetectionResponse({
+              rawResponse: salvagedJson,
+              sectionKey: task.sectionKey,
+              availableComponents: components,
+              url,
+              confidenceThreshold,
+              allowMissingSectionKey: true,
+              isolateInvalidComponents: true
+            })
+          } catch {
+            return null
+          }
+        }
+
         const parseOutcome = (
           response: ChatCompletion,
           rawResult: string,
@@ -1089,6 +1318,41 @@ export class DetectionService {
           const completionStatus = detectIncompleteJson(rawResult)
           const finishReason = response.choices[0]?.finish_reason || ''
           if (!completionStatus.isComplete || finishReason === 'length') {
+            // A cut-off reply still carries every component the model finished
+            // before it stopped, and re-asking produces the same reply: the
+            // footer on one site is a 6,486-byte section whose request ran under
+            // a 90,000-token cap with a ~26,000-token prompt, so the cap was
+            // never the constraint and the provider simply reported the cut-off
+            // as finish_reason=stop. Keeping the finished components is the only
+            // thing that helps. Anything not recoverable still throws below.
+            // salvageTruncatedJson only keeps components the model finished, so
+            // it returns null rather than a component re-closed around whatever
+            // fraction of its content arrived. Nothing here needs to bound the
+            // discarded tail: its size says nothing about how much was lost,
+            // because the lost part never arrived to be measured.
+            const salvage = salvageTruncatedJson(rawResult)
+            const salvaged = salvage ? trySalvagedSectionParse(salvage.text) : null
+            if (salvage && salvaged && salvaged.components.length > 0) {
+              const isolatedInvalidComponents = salvaged.invalidComponents?.length ?? 0
+              console.warn(
+                `[DetectionService] Section ${task.sectionKey} reply was cut off ` +
+                `(${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'}); ` +
+                `kept ${salvaged.components.length} complete component(s) after dropping ${salvage.droppedChars} trailing chars ` +
+                `of ${rawResult.length}.` +
+                (isolatedInvalidComponents > 0
+                  ? ` ${isolatedInvalidComponents} salvaged component(s) failed validation and were dropped without a repair attempt.`
+                  : '')
+              )
+              salvagedSections.set(task.sectionKey, {
+                sectionKey: task.sectionKey,
+                role: task.role,
+                keptComponents: salvaged.components.length,
+                isolatedInvalidComponents,
+                droppedChars: salvage.droppedChars,
+                rawResponseChars: rawResult.length
+              })
+              return salvaged
+            }
             throw new DetectionFailureError(
               `Section ${task.sectionKey} exceeded output limit or returned incomplete JSON (${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'})`,
               {
@@ -1543,7 +1807,20 @@ export class DetectionService {
     }
 
     const sectionConcurrency = Math.max(1, DetectionConfig.sectionConcurrency)
-    const sectionResults = DetectionConfig.detectionHarness === 'page-map'
+    const sectionResults = DetectionConfig.detectionHarness === 'blocks'
+      ? await (await import('./detection/blocks/block-harness')).runBlockHarness({
+          url,
+          options,
+          endpointModel,
+          effectiveMaxTokens,
+          telemetry,
+          webTools,
+          preFlightFetch,
+          client,
+          tasks,
+          failedSections
+        })
+      : DetectionConfig.detectionHarness === 'page-map'
       ? await (async (): Promise<SectionProcessingResult[]> => {
           const globalTasks = tasks.filter(task => task.role === 'header' || task.role === 'footer')
           const fillTasks = tasks.filter(task => task.role !== 'header' && task.role !== 'footer')
@@ -2168,7 +2445,41 @@ export class DetectionService {
 
           return results.sort((a, b) => a.artifact.sectionOrder - b.artifact.sectionOrder)
         })()
-      : await mapWithConcurrency(tasks, sectionConcurrency, processSectionTask)
+      : await (async (): Promise<SectionProcessingResult[]> => {
+          // One dead section must not take the page with it. Sections are
+          // independent requests, and rejecting the whole batch threw away
+          // one site's nine healthy sections twice over: once when the footer
+          // reply came back cut off, once when the 1,258-byte header request hit
+          // the 300s per-request timeout. A page that renders without its footer
+          // beats a page that does not import; a page where every section died
+          // still fails below, with that section's own error.
+          const outcomes = await mapWithConcurrency(tasks, sectionConcurrency, async task => {
+            try {
+              return { ok: true as const, value: await processSectionTask(task) }
+            } catch (error) {
+              return { ok: false as const, task, error }
+            }
+          })
+          return outcomes.map(outcome => {
+            if (outcome.ok) return outcome.value
+            failedSections.push({ task: outcome.task, error: outcome.error })
+            console.warn(
+              `[DetectionService] Section ${outcome.task.sectionKey} (${outcome.task.role}) failed and was dropped: ` +
+              `${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`
+            )
+            return {
+              artifact: {
+                sectionKey: outcome.task.sectionKey,
+                sectionOrder: outcome.task.sectionOrder,
+                components: [],
+                extractionFailed: true
+              },
+              usage: {},
+              requestCount: 0,
+              reuse: { freshSections: 0, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
+            }
+          })
+        })()
     for (const result of sectionResults) {
       artifacts.push(result.artifact)
       if (!pageSummaryForAssembly && result.pageSummary) {
@@ -2222,6 +2533,11 @@ export class DetectionService {
       }
     }
     if (components.length === 0) {
+      // Nothing survived. Surface the first section's own error rather than the
+      // generic message, so dropping sections never hides why they dropped.
+      if (failedSections.length > 0) {
+        throw failedSections[0].error
+      }
       const invalidComponents = artifacts.flatMap(artifact => artifact.invalidComponents ?? [])
       const invalidSummary = invalidComponents.length
         ? `; ${invalidComponents.length} invalid component${invalidComponents.length === 1 ? '' : 's'} isolated`
@@ -2240,8 +2556,16 @@ export class DetectionService {
         }
       )
     }
-    const pageTemplate = this.selectPageTemplate(pageSummary, url, components)
     const pageMetadata = this.mergePageMetadata(this.buildPageMetadataFromHead(preFlightFetch.headMeta), artifacts)
+    // Shadow evidence only — nothing below reads this and nothing may. It sits
+    // here because this is the first point after the preflight fetch where the
+    // page's own title and description (preFlightFetch.headMeta) and the
+    // headings recovered from the fetched sections both exist, which is the
+    // evidence the question is about. It is on the path every successfully
+    // fetched page takes, and beside the only other decision-model call in this
+    // file, so both stay visible to the same reader.
+    await this.recordIsInternalFromContent(url, pageMetadata, components, options.websiteId)
+    const pageTemplate = await this.selectPageTemplateWithModel(pageSummary, url, components, pageMetadata, options.websiteId)
     const accuracy = components.length === 0
       ? 0
       : Math.min(1, components.filter(component => component.confidence >= ConfidenceConfig.highConfidence).length / Math.min(components.length, 10))
@@ -2250,8 +2574,20 @@ export class DetectionService {
     const reasoningTokens = usageTotals.reasoning_tokens || 0
     const tokenUsage = usageTotals.total_tokens || 0
     const cost = usageTotals.total_cost || (await calculateCost(displayModel, promptTokens, completionTokens, reasoningTokens))
-    const diagnostics = buildFooterQualityDiagnostics(components, preFlightFetch)
+    // Only report a salvage for a section that actually reached the page; one
+    // that salvaged and then failed downstream is already covered by
+    // SECTION_EXTRACTION_DROPPED.
+    const shippedSalvages = artifacts
+      .filter(artifact => artifact.components.length > 0)
+      .map(artifact => salvagedSections.get(artifact.sectionKey))
+      .filter((salvage): salvage is TruncatedSectionSalvage => Boolean(salvage))
+    const diagnostics = [
+      ...(buildDroppedSectionDiagnostics(failedSections) ?? []),
+      ...(buildTruncatedSectionDiagnostics(shippedSalvages) ?? []),
+      ...(buildFooterQualityDiagnostics(components, preFlightFetch) ?? [])
+    ]
     const detectionResult: ImportDetectionResult = {
+      detectionHarness: DetectionConfig.detectionHarness,
       components: includeContent
         ? components
         : components.map(({ content, ...rest }) => ({ ...rest, content: {} })),
@@ -2307,6 +2643,10 @@ export class DetectionService {
     url: string,
     options: ImportDetectionOptions = {}
   ): Promise<ImportDetectionResult> {
+    if (DetectionConfig.detectionHarness === 'blocks' &&
+      (!isDecisionModelEnabledFor(options.websiteId) || getDecisionConfig().shadow)) {
+      throw new Error('The blocks harness requires DECISION_MODEL_ENABLED=true and DECISION_MODEL_SHADOW=false.')
+    }
     return performanceMonitor.measure('web.detect', async () => {
       const startTime = Date.now()
       traceMemory('detect:start', { url })
@@ -2338,7 +2678,7 @@ export class DetectionService {
           apiKey: providedApiKey,
           baseUrl = OpenRouterConfig.baseUrl  // TKT-065: Use config (supports xAI direct)
         } = options
-        const model = providedModel || ModelConfig.primary
+        const model = DetectionConfig.detectionHarness === 'blocks' ? DetectionConfig.blockFillModel : providedModel || ModelConfig.primary
         const telemetry = createDetectionTelemetry({ url, model })
 
         // Early redirect detection: Check for redirects before expensive LLM detection
