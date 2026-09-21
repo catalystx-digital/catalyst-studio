@@ -1,0 +1,43 @@
+{
+  "note": "A PROPOSAL used only by the import lab to test how much accuracy a simpler component list would give. It changes nothing in the product. Set A keeps banner, media-beside-text and call-to-action apart; set B merges them into one section type with layout options.",
+  "sets": {
+    "A": {
+      "navigation": { "description": "Site or section navigation: top menu bar, side menu, breadcrumb trail.", "types": ["navbar", "sidemenu", "breadcrumbs"] },
+      "footer": { "description": "Page footer with link columns, contact details, legal line.", "types": ["footer"] },
+      "hero": { "description": "Large opening banner: heading and text over or with a big image, video or slides.", "types": ["hero-banner", "hero-simple", "hero-minimal", "hero-with-image", "hero-video", "hero-carousel"] },
+      "split": { "description": "Media beside text: an image or video on one side, heading, text and buttons on the other.", "types": ["hero-split", "two-column", "about-section", "feature-showcase"] },
+      "cta": { "description": "Call to action: a short prompt with one or more buttons.", "types": ["cta-banner", "cta-simple", "cta-button-group"] },
+      "form": { "description": "A form the visitor fills in: sign-up, contact, enquiry.", "types": ["cta-with-form", "contact-form", "simple-form"] },
+      "cards": { "description": "A repeated set of similar items, each with an icon, image or video plus title, text and link, shown as a grid or a list.", "types": ["card-grid", "feature-grid", "feature-list", "team-grid"] },
+      "feed": { "description": "A list of dated posts, news or articles.", "types": ["blog-list", "content-feed", "related-posts"] },
+      "text": { "description": "Plain running text or raw HTML content.", "types": ["text-block", "html-block"] },
+      "testimonials": { "description": "Quotes from people: testimonials, reviews, a single pull quote.", "types": ["testimonials", "reviews", "quote-block"] },
+      "statistics": { "description": "Headline numbers or a chart.", "types": ["statistics", "chart"] },
+      "logos": { "description": "A row or grid of partner or client logos.", "types": ["logo-cloud"] },
+      "media": { "description": "Stand-alone media: an image gallery or a video.", "types": ["image-gallery", "video-player", "video-embed"] },
+      "disclosure": { "description": "Content revealed on demand: accordion or tabs.", "types": ["accordion", "tabs"] },
+      "tables": { "description": "Tabular comparison: data table, pricing table or card, feature comparison.", "types": ["data-table", "pricing-table", "pricing-card", "feature-comparison"] },
+      "article": { "description": "Parts of an article page: article header, article body, author box.", "types": ["article-header", "blog-post", "author-bio"] },
+      "contact": { "description": "Contact details or a location map.", "types": ["contact-info", "location-map"] },
+      "timeline": { "description": "A sequence of dated or ordered events.", "types": ["timeline"] }
+    },
+    "B": {
+      "navigation": { "description": "Site or section navigation: top menu bar, side menu, breadcrumb trail.", "types": ["navbar", "sidemenu", "breadcrumbs"] },
+      "footer": { "description": "Page footer with link columns, contact details, legal line.", "types": ["footer"] },
+      "section": { "description": "One message: a heading with optional text, optional image or video (behind, above or beside the text, or as slides) and optional buttons. Covers opening banners, media-beside-text and call-to-action strips.", "types": ["hero-banner", "hero-simple", "hero-minimal", "hero-with-image", "hero-video", "hero-carousel", "hero-split", "two-column", "about-section", "feature-showcase", "cta-banner", "cta-simple", "cta-button-group"] },
+      "form": { "description": "A form the visitor fills in: sign-up, contact, enquiry.", "types": ["cta-with-form", "contact-form", "simple-form"] },
+      "cards": { "description": "A repeated set of similar items, each with an icon, image or video plus title, text and link, shown as a grid or a list.", "types": ["card-grid", "feature-grid", "feature-list", "team-grid"] },
+      "feed": { "description": "A list of dated posts, news or articles.", "types": ["blog-list", "content-feed", "related-posts"] },
+      "text": { "description": "Plain running text or raw HTML content.", "types": ["text-block", "html-block"] },
+      "testimonials": { "description": "Quotes from people: testimonials, reviews, a single pull quote.", "types": ["testimonials", "reviews", "quote-block"] },
+      "statistics": { "description": "Headline numbers or a chart.", "types": ["statistics", "chart"] },
+      "logos": { "description": "A row or grid of partner or client logos.", "types": ["logo-cloud"] },
+      "media": { "description": "Stand-alone media: an image gallery or a video.", "types": ["image-gallery", "video-player", "video-embed"] },
+      "disclosure": { "description": "Content revealed on demand: accordion or tabs.", "types": ["accordion", "tabs"] },
+      "tables": { "description": "Tabular comparison: data table, pricing table or card, feature comparison.", "types": ["data-table", "pricing-table", "pricing-card", "feature-comparison"] },
+      "article": { "description": "Parts of an article page: article header, article body, author box.", "types": ["article-header", "blog-post", "author-bio"] },
+      "contact": { "description": "Contact details or a location map.", "types": ["contact-info", "location-map"] },
+      "timeline": { "description": "A sequence of dated or ordered events.", "types": ["timeline"] }
+    }
+  }
+}

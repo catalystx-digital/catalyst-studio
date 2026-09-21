@@ -1,0 +1,22 @@
+# Task: measure what a simpler component list would give ("families")
+
+You are a coder with one bounded task. Not an orchestrator. Do not commit, stage, push or branch. No internet, no paid calls from anything you run (new paid modes need `--dry-run`; verify with fake clients and invented fixtures), never read `.env*`. Work only in `scripts/experiments/import-lab/`; no production code changes. Real data under `.import-lab/` may be READ; never copy real site names, URLs or page text into code, tests, fixtures, README or briefs. Saved runs, labels and TYPE-level scores must not be rewritten.
+
+## Why
+The owner finds the component list (50 page-level types) far too long and overlapping. Measured on the answer sheets: on average 2.4 types are equally acceptable per block; the same near-twins keep being interchangeable (image banner / split banner, card grid / feature grid / feature list, split banner / two-column, banner / call-to-action banner, post list / content feed). Most decision-model misses are these near-twins. Before anyone touches the product, the lab should say how much accuracy comes from simplification alone.
+
+`component-families.json` (already in this folder, written by the orchestrator) holds two proposals: set `A` (18 families) and set `B` (16 families; banner, media-beside-text and call-to-action merged into one "section"). Validate the file on load: every page-level catalogue type appears in exactly one family per set; unknown or missing types are an error that names them.
+
+## Build
+1. **Family-level scoring (free).** `score.ts` and `eval.ts score` accept `--families <file> --family-set <A|B>`. A produced component matches a block when its family is among the families of the block's acceptable types; "wrong component" means a different family. Content checks unchanged. Write results to a SEPARATE place (`scores-family-<set>/`), never over the type-level scores. `eval.ts score --families ... --family-set ...` re-scores every saved run and arm on every page.
+2. **Decision-model picking at family level.**
+   - Free, post-hoc: map every saved type-level pick (`jev-pick` runs) to its family and score top choice / any of top three against the answer sheet's acceptable families. Summing type probabilities within a family gives the family probability; rank families by that sum.
+   - Paid, new mode: `jev-pick.ts --families <file> --family-set <A|B>` asks ONE choice question per block whose options are the families (option text = the family description from the file), same evidence as today, same second question about multiple components. Saves under an arm name that includes the set (`jev-pick@families-A`). `--dry-run` saves requests and makes no call. `eval.ts arms` passes the flags through.
+   - Score both the same way: top family acceptable, any of top three acceptable, the table by stated probability band, the most frequent confusions (at family level), calls, cost, latency.
+3. **Summary.** `summary.ts` gains a "Simpler component list" section: for each family set, the arm table at family level next to the type-level table (same arms, same blocks), how many blocks changed verdict from wrong component to right, the picking tables (type level vs post-hoc family vs asked-at-family-level), and how many acceptable FAMILIES a block has on average compared with acceptable types (the ambiguity measure). Plain words; counts beside every share; held-out split as elsewhere.
+4. Tests: family file validation (duplicate, missing, unknown type), family matching in the scorer (near-twin becomes right; different family stays wrong; ignored blocks unchanged), post-hoc probability summing and ranking, the family-mode request shape with a fake client, summary maths. `SKIP_DB_SETUP=true npx jest scripts/experiments/import-lab --runInBand` passes; `npm run typecheck` 0 errors.
+5. Then run OFFLINE on the real saved data: family-level re-scoring for sets A and B over every saved run, and the post-hoc family picking. Put the resulting summary section (first 40 lines) in your final message. Do not run the paid family-mode picking.
+6. Docs: README / RUNBOOK (the flags, that family scoring is free, the one paid command). `briefs/README.md`: add this brief (number 12).
+
+## Final message
+Plain English: what was built; the real-data family tables; the exact PAID commands for family-mode picking on sets A and B; anything in `component-families.json` that failed validation or looks wrong to you, with evidence.
