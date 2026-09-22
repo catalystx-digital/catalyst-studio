@@ -21,7 +21,7 @@ async function verify() {
     globalThis.fetch = async () => new Response(snapshot.html, { headers: { 'content-type': 'text/html' } })
     const web = new WebFetchTools()
     snapshot.outline = await web.fetchOutline({ url: snapshot.manifest.url })
-    snapshot.sections = Object.fromEntries(await Promise.all(snapshot.outline.sections!.map(async section => [section.key, await web.getSection({ handle: snapshot.outline.handle, key: section.key })])))
+    snapshot.sections = {}
     snapshot.manifest.sectionKeys = Object.keys(snapshot.sections)
   } finally { globalThis.fetch = nativeFetch }
   await saveSnapshot(path.join(root, 'pages', page), snapshot)

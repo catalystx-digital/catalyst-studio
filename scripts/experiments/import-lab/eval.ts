@@ -10,12 +10,12 @@ import { selectDraftEntries } from './draft-labels'
 import { loadPages, type PageManifest } from './pages'
 import { readSavedResults, callTotals, median, type SavedResult } from './summary'
 
-interface EvalOptions extends FamilyOptions { command:string; runs:number; run:string; arms:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean; ignoreItemCount?:boolean }
+interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean; ignoreItemCount?:boolean }
 interface Task {page:string;stage:string;script:string;args:string[];existing:boolean;paid:boolean;internet:boolean;calls:number|null;cost:number|null;reason?:string}
 export function parseEval(argv:string[]): EvalOptions {
   const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed','--ignore-item-count']
-  const allowed=[...flags,'--families','--family-set','--runs','--run','--arms','--concurrency','--model']
-  if(!['today','blocks','arms','score','summary','snapshot','repair','measure','draft','review'].includes(command))throw new Error('Use eval.ts today|blocks|arms|score|summary|snapshot|repair|measure|draft|review')
+  const allowed=[...flags,'--families','--family-set','--run','--arms','--concurrency','--model']
+  if(!['blocks','arms','score','summary','snapshot','draft','review'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|review')
   for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||key in values)throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);values[key]=args[++i]} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
   validateFamilyOptions({families:values['--families'],familySet:values['--family-set']})
@@ -26,7 +26,7 @@ export function parseEval(argv:string[]): EvalOptions {
   if(values['--families']&&command==='arms'&&(arms.some(arm=>arm!=='jev-pick')))throw new Error('Family picking applies only to jev-pick')
   if(arms.some(arm=>![...ARMS,'jev-pick'].includes(arm)))throw new Error('Unknown arm')
   if(new Set(arms).size!==arms.length)throw new Error('Duplicate arm')
-  return {families:values['--families'],familySet:values['--family-set'],command,runs:positive('--runs',2),run:identifier(values['--run']||'r1'),arms,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed'],ignoreItemCount:!!values['--ignore-item-count']}
+  return {families:values['--families'],familySet:values['--family-set'],command,run:identifier(values['--run']||'r1'),arms,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed'],ignoreItemCount:!!values['--ignore-item-count']}
 }
 export function estimate(history:SavedResult[], arm:string) {
   const rows=history.filter(r=>r.arm===arm&&r.calls.length)
@@ -45,7 +45,6 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     if(paid) {
       const proposal=await optionalJson(path.join(label,'blocks.json')),sheet=await optionalJson(path.join(label,'answer-sheet.json'))
       let initial:number|null=null
-      if(stage==='today') { const outline=await optionalJson(path.join(root,'pages',page,'outline.json'));initial=outline?.sections?.length??null }
       if(stage==='draft'&&proposal) {
         const previous=await optionalJson(path.join(label,'draft.json'))
         const kept=options.onlyFailed?selectDraftEntries(proposal,previous,sheet,true):[]
@@ -71,17 +70,10 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
       if(pageSlug(entry.url)!==page)throw new Error('Snapshot slug must match pageSlug(url): '+page)
       await add(page,'snapshot','snapshot.ts',[entry.url],path.join(root,'pages',page),false,true)
     }
-    if(options.command==='today')for(let i=1;i<=options.runs;i++)await add(page,'today','detect.ts',['--page',page,'--run','run-'+i],path.join(runs,'run-'+i),true,true,'today-off')
     if(options.command==='blocks')await add(page,'blocks','propose-blocks.ts',['--page',page,...(!entry.renderWithJavaScript?['--no-js']:[])],path.join(label,'blocks.json'),false,true)
     if(options.command==='draft') {
       if(!options.model)throw new Error('Draft needs --model with a vision-capable model')
       await add(page,'draft','draft-labels.ts',['--page',page,'--model',options.model,...(options.onlyFailed?['--only-failed']:[])],options.onlyFailed?null:path.join(label,'draft.json'),true,true,'draft')
-    }
-    if(['repair','measure'].includes(options.command)) for(const run of await directories(runs)) {
-      const record=await optionalJson(path.join(runs,run,'run.json'))
-      if(record?.status!=='complete')continue
-      const repair=options.command==='repair'
-      await add(page,options.command,repair?'repair-arms.ts':'measure.ts',['--page',page,'--run',run],path.join(runs,run,repair?'arms.json':'measurement.json'))
     }
     if(options.command==='arms') {
       for(const arm of options.arms) {

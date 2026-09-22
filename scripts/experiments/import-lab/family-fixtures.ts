@@ -16,10 +16,10 @@ async function verify(){
   const root=path.join(dataRoot(),'fixture-'+Date.now()+'-'+process.pid);process.env.IMPORT_LAB_ROOT=root;delete process.env.IMPORT_LAB_OUTPUT_ROOT
   process.env.DECISION_MODEL_ENABLED='true';process.env.DECISION_MODEL_SHADOW='false';process.env.DECISION_MODEL_API_KEY='offline-fixture';process.env.DECISION_MODEL_LOG_DIR=path.join(root,'decisions')
   const snapshot=comparisonSnapshot(),proposal=comparisonProposal(),sheet=comparisonSheet(),file=path.join(__dirname,'component-families.json')
-  const {WebFetchTools}=runtimeRequire('@/lib/studio/import/services/web-tools'),{WebToolsConfig}=runtimeRequire('@/lib/studio/import/config')
-  const previous=globalThis.fetch,bytes=WebToolsConfig.sectionMaxBytes
-  try{globalThis.fetch=async()=>new Response(snapshot.html,{headers:{'content-type':'text/html'}});WebToolsConfig.sectionMaxBytes=10000000;const web=new WebFetchTools();snapshot.outline=await web.fetchOutline({url:snapshot.manifest.url});const section=await web.getSection({handle:snapshot.outline.handle,key:snapshot.outline.sections![0].key});snapshot.sections={[section.key]:section};snapshot.manifest.sectionKeys=[section.key]}
-  finally{globalThis.fetch=previous;WebToolsConfig.sectionMaxBytes=bytes}
+  const {WebFetchTools}=runtimeRequire('@/lib/studio/import/services/web-tools')
+  const previous=globalThis.fetch
+  try{globalThis.fetch=async()=>new Response(snapshot.html,{headers:{'content-type':'text/html'}});const web=new WebFetchTools();snapshot.outline=await web.fetchOutline({url:snapshot.manifest.url});snapshot.sections={};snapshot.manifest.sectionKeys=[]}
+  finally{globalThis.fetch=previous}
   await saveSnapshot(path.join(root,'pages',proposal.page),snapshot)
   const labels=path.join(root,'labels',proposal.page)
   await writeJson(path.join(labels,'blocks.json'),proposal);await writeJson(path.join(labels,'answer-sheet.json'),sheet)

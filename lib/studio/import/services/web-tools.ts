@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { performanceMonitor } from '@/lib/studio/components/cms/_import/performance'
-import { DetectionConfig, WebToolsConfig } from '../config'
+import { WebToolsConfig } from '../config'
 
 type Dict<T = any> = Record<string, T>
 
@@ -75,7 +75,6 @@ export interface FetchOutlineResult {
   headMeta?: HeadMeta
   sections?: SectionInfo[]
   resourcesSummary?: ResourcesSummary
-  limits?: { maxSectionBytes: number }
   nonHtml?: boolean
   notes?: string[]
   error?: boolean
@@ -87,18 +86,6 @@ export interface FetchOutlineResult {
   contentType?: string
   /** Redirect information if this page redirects to another URL */
   redirectInfo?: RedirectInfo
-}
-
-export interface GetSectionArgs {
-  handle: string
-  key: string
-}
-
-export interface GetSectionResult {
-  handle: string
-  key: string
-  slice: Array<DomNode>
-  stats: { nodeCount: number; approxBytes: number; truncated?: boolean }
 }
 
 export interface DomNode {
@@ -116,14 +103,6 @@ export interface DomNode {
   bgColor?: string
 }
 
-// Internal representation
-const MIN_SECTION_MAX_BYTES = 1024
-
-function resolveSectionMaxBytes(): number {
-  const configured = WebToolsConfig.sectionMaxBytes
-  return configured >= MIN_SECTION_MAX_BYTES ? configured : MIN_SECTION_MAX_BYTES
-}
-
 export interface Stylesheet {
   url: string
   text: string
@@ -137,17 +116,12 @@ interface CachedPage {
   bgImageMap?: BackgroundImageMap
   stylesheets?: Stylesheet[]
   headMeta: HeadMeta
-  sections: Map<string, DomNode[]>
   resources: ResourcesSummary
-  limits: { maxSectionBytes: number }
 }
 
 export interface WebToolsCacheStats {
   entries: number
   totalRawBytes: number
-  totalSectionCount: number
-  totalSectionBytes: number
-  totalApproxNodes: number
   resources: {
     anchors: number
     images: number
@@ -162,11 +136,6 @@ function uuid(): string {
   return ([1e7] as any+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, (c: any) =>
     (c ^ (crypto.randomBytes(1)[0] & (15 >> (c / 4)))).toString(16)
   )
-}
-
-// Byte length helper
-function byteLength(str: string): number {
-  return Buffer.byteLength(str, 'utf8')
 }
 
 // Collapse whitespace in text
@@ -658,53 +627,6 @@ function findFirstHeaderLikeNode(bodyNode: any): any | undefined {
 
 function computeSha256(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex')
-}
-
-function sliceByApproxBytes(nodes: DomNode[], maxBytes: number): { slices: DomNode[][]; sections: SectionInfo[] } {
-  const slices: DomNode[][] = []
-  const sections: SectionInfo[] = []
-  let start = 0
-  let cursor = 0
-  let accBytes = 0
-  let byteOffset = 0
-
-  const pushSlice = (part: DomNode[]): void => {
-    if (!part.length) return
-    const json = JSON.stringify(part)
-    const approx = byteLength(json)
-    if (approx > maxBytes && part.length > 1) {
-      const mid = Math.ceil(part.length / 2)
-      pushSlice(part.slice(0, mid))
-      pushSlice(part.slice(mid))
-      return
-    }
-    const hash = computeSha256(json)
-    const startByte = byteOffset
-    const endByte = startByte + Math.max(approx, 1) - 1
-    slices.push(part)
-    sections.push({ key: `main:${startByte}-${endByte}`, approxBytes: approx, hash, nodeCount: part.length })
-    byteOffset = endByte + 1
-  }
-
-  while (cursor < nodes.length) {
-    const n = nodes[cursor]
-    const approx = byteLength(JSON.stringify(n))
-    if (accBytes + approx > maxBytes && cursor > start) {
-      const part = nodes.slice(start, cursor)
-      pushSlice(part)
-      start = cursor
-      accBytes = 0
-    } else {
-      accBytes += approx
-      cursor += 1
-    }
-  }
-
-  if (start < nodes.length) {
-    pushSlice(nodes.slice(start))
-  }
-
-  return { slices, sections }
 }
 
 export function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesSummary {
@@ -1471,9 +1393,6 @@ export class WebFetchTools {
 
   getCacheStats(): WebToolsCacheStats {
     let totalRawBytes = 0
-    let totalSectionBytes = 0
-    let totalSectionCount = 0
-    let totalApproxNodes = 0
     let anchors = 0
     let images = 0
     let videos = 0
@@ -1482,13 +1401,6 @@ export class WebFetchTools {
 
     for (const cached of this.cache.values()) {
       totalRawBytes += Buffer.byteLength(cached.rawHtml || '', 'utf8')
-      totalSectionCount += cached.sections.size
-      for (const slice of cached.sections.values()) {
-        const serialized = JSON.stringify(slice)
-        totalSectionBytes += Buffer.byteLength(serialized, 'utf8')
-        totalApproxNodes += slice.length
-      }
-
       anchors += cached.resources.anchors.length
       images += cached.resources.images.length
       videos += cached.resources.videos.length
@@ -1499,9 +1411,6 @@ export class WebFetchTools {
     return {
       entries: this.cache.size,
       totalRawBytes,
-      totalSectionCount,
-      totalSectionBytes,
-      totalApproxNodes,
       resources: { anchors, images, videos, forms, links }
     }
   }
@@ -1554,19 +1463,6 @@ export class WebFetchTools {
           { tag: 'p', pathId: makeId(), text: '© 2025 Example Co.' }
         ]
 
-        const sectionMap = new Map<string, DomNode[]>()
-        sectionMap.set('header', headerSlice)
-        // single main slice to minimize further tool calls
-        const mainKey = 'main:0-1023'
-        sectionMap.set(mainKey, mainSlice)
-        sectionMap.set('footer', footerSlice)
-
-        const sectionInfos: SectionInfo[] = [
-          { key: 'header', approxBytes: byteLength(JSON.stringify(headerSlice)), hash: computeSha256(JSON.stringify(headerSlice)), nodeCount: headerSlice.length },
-          { key: mainKey, approxBytes: byteLength(JSON.stringify(mainSlice)), hash: computeSha256(JSON.stringify(mainSlice)), nodeCount: mainSlice.length },
-          { key: 'footer', approxBytes: byteLength(JSON.stringify(footerSlice)), hash: computeSha256(JSON.stringify(footerSlice)), nodeCount: footerSlice.length }
-        ]
-
         const headMeta: HeadMeta = {
           title: 'Mock Page',
           canonical: url,
@@ -1588,9 +1484,7 @@ export class WebFetchTools {
           status: 200,
           rawHtml: '<!doctype html><html><head><title>Mock Page</title></head><body><header>…</header><main>…</main><footer>…</footer></body></html>',
           headMeta,
-          sections: sectionMap,
-          resources,
-          limits: { maxSectionBytes: 32768 }
+          resources
         })
 
         return {
@@ -1600,9 +1494,7 @@ export class WebFetchTools {
           contentLength: 256,
           hash: computeSha256('mock'),
           headMeta,
-          sections: sectionInfos,
           resourcesSummary: resources,
-          limits: { maxSectionBytes: 32768 },
           notes: ['simple-mode']
         }
       }
@@ -1639,9 +1531,7 @@ export class WebFetchTools {
           status,
           rawHtml: '',
           headMeta: {},
-          sections: new Map(),
-          resources: { anchors: [], images: [], videos: [], forms: [], links: [] },
-          limits: { maxSectionBytes: 32768 }
+          resources: { anchors: [], images: [], videos: [], forms: [], links: [] }
         })
         return { handle, finalUrl, status, contentLength: data.length, contentType, nonHtml: true, notes: ['non-html content'] }
       }
@@ -1728,30 +1618,9 @@ export class WebFetchTools {
       const mainSkipTags = actualMainNode ? undefined : new Set(['header', 'footer', 'nav'])
       const mainSkipNode = actualMainNode ? undefined : shouldSkipBodyFallbackMainNode
 
-      const maxSectionBytes = resolveSectionMaxBytes()
       const headerSlice = headerNode ? traverseToNodes(headerNode, { maxTextPerNode: 1500, bgImageMap, preserveClassHiddenRoot: true }) : []
       const mainNodes = mainNode ? traverseToNodes(mainNode, { maxTextPerNode: 1500, bgImageMap, skipTags: mainSkipTags, skipNode: mainSkipNode }) : []
       const footerSlice = footerNode ? traverseToNodes(footerNode, { maxTextPerNode: 1500, bgImageMap }) : []
-
-      const { slices: mainSlices, sections } = sliceByApproxBytes(mainNodes, maxSectionBytes)
-
-      // Build sections map
-      const sectionMap = new Map<string, DomNode[]>()
-      const sectionInfos: SectionInfo[] = []
-      if (headerSlice.length) {
-        const h = computeSha256(JSON.stringify(headerSlice))
-        sectionMap.set('header', headerSlice)
-        sectionInfos.push({ key: 'header', approxBytes: byteLength(JSON.stringify(headerSlice)), hash: h, nodeCount: headerSlice.length })
-      }
-      for (let i = 0; i < mainSlices.length; i++) {
-        sectionMap.set(sections[i].key, mainSlices[i])
-        sectionInfos.push(sections[i])
-      }
-      if (footerSlice.length) {
-        const f = computeSha256(JSON.stringify(footerSlice))
-        sectionMap.set('footer', footerSlice)
-        sectionInfos.push({ key: 'footer', approxBytes: byteLength(JSON.stringify(footerSlice)), hash: f, nodeCount: footerSlice.length })
-      }
 
       // Collect resources
       const headNodes = headNode ? traverseToNodes(headNode, { maxTextPerNode: 0 }) : []
@@ -1771,11 +1640,9 @@ export class WebFetchTools {
         status,
         rawHtml: raw,
         bgImageMap,
-        stylesheets: DetectionConfig.detectionHarness === 'blocks' ? externalCssStats.stylesheets : [],
+        stylesheets: externalCssStats.stylesheets,
         headMeta,
-        sections: sectionMap,
-        resources,
-        limits: { maxSectionBytes }
+        resources
       })
 
       return {
@@ -1785,9 +1652,7 @@ export class WebFetchTools {
         contentLength,
         hash,
         headMeta,
-        sections: sectionInfos,
         resourcesSummary: resources,
-        limits: { maxSectionBytes },
         notes,
         redirectInfo: redirectInfo || undefined
       }
@@ -1809,27 +1674,6 @@ export class WebFetchTools {
     return { bgImageMap: cached.bgImageMap, stylesheets: cached.stylesheets || [] }
   }
 
-  async getSection(args: GetSectionArgs): Promise<GetSectionResult> {
-    return await performanceMonitor.measure('webtools.get_section', async () => {
-      const { handle, key } = args
-      const cached = this.cache.get(handle)
-      if (!cached) throw new Error('Invalid handle')
-      const slice = cached.sections.get(key) || []
-      const approxBytes = byteLength(JSON.stringify(slice))
-      const limit = cached.limits?.maxSectionBytes ?? resolveSectionMaxBytes()
-      const truncated = approxBytes > limit
-      if (truncated) {
-        console.warn(`[WebTools] Section ${key} returned ${approxBytes} bytes (limit ${limit}); consider reducing section size.`)
-      }
-      return {
-        handle,
-        key,
-        slice,
-        stats: { nodeCount: slice.length, approxBytes, truncated }
-      }
-    })
-  }
-
   /**
    * Get the last fetch outline result from cache
    * Used by design system extractor to get base URL for relative CSS URLs
@@ -1849,14 +1693,7 @@ export class WebFetchTools {
       contentLength: Buffer.byteLength(cachedPage.rawHtml || '', 'utf8'),
       hash: crypto.createHash('sha256').update(cachedPage.rawHtml || '').digest('hex'),
       headMeta: cachedPage.headMeta,
-      sections: Array.from(cachedPage.sections.entries()).map(([key, nodes]) => ({
-        key,
-        approxBytes: Buffer.byteLength(JSON.stringify(nodes), 'utf8'),
-        hash: crypto.createHash('sha256').update(JSON.stringify(nodes)).digest('hex'),
-        nodeCount: nodes.length
-      })),
-      resourcesSummary: cachedPage.resources,
-      limits: cachedPage.limits
+      resourcesSummary: cachedPage.resources
     }
   }
 }

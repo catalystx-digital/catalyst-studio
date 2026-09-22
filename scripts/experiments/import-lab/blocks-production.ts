@@ -40,16 +40,13 @@ export async function runProductionBlocks(page: string, directory: string, dryRu
     record.snapshotSha256 = snapshot.manifest.sha256
     record.snapshotInputsSha256 = digest(JSON.stringify(snapshot))
     record.pageUrl = snapshot.manifest.url
-    record.configuration = { detection: { ...config.DetectionConfig, detectionHarness: 'blocks' }, model: config.ModelConfig, token: config.TokenConfig, confidence: config.ConfidenceConfig, timeout: config.TimeoutConfig }
+    record.configuration = { detection: config.DetectionConfig, model: config.ModelConfig, token: config.TokenConfig, confidence: config.ConfidenceConfig, timeout: config.TimeoutConfig }
     record.configurationSha256 = digest(JSON.stringify(record.configuration))
     record.models = { extraction: config.DetectionConfig.blockFillModel, decision: decisionConfig.modelId }
     record.rules = { harness: 'blocks', fillModel: config.DetectionConfig.blockFillModel, concurrency: config.DetectionConfig.blockConcurrency, stallTimeoutMs: STALL_TIMEOUT_MS, infrastructureRetries: INFRASTRUCTURE_RETRIES, validationRetries: 1, postExtractionRepair: false, decisionModel: decisionConfig.modelId, decisionTimeoutMs: decisionConfig.timeoutMs, decisionEnabled: decisionConfig.enabled, decisionShadow: decisionConfig.shadow }
-    const previousHarness = config.DetectionConfig.detectionHarness
-    Object.assign(config.DetectionConfig, { detectionHarness: 'blocks' })
-    restore.push(() => Object.assign(config.DetectionConfig, { detectionHarness: previousHarness }))
     restore.push(replayTransport(snapshot, recorder, [config.OpenRouterConfig.baseUrl.replace(/\/$/, '') + '/chat/completions', decisionConfig.baseUrl.replace(/\/$/, '') + '/alpha/decisions']))
     const web = runtimeRequire('@/lib/studio/import/services/web-tools').getWebFetchTools()
-    const replay = createReplayTools(snapshot, undefined, web)
+    const replay = createReplayTools(snapshot, web)
     record.stylingReplay = replay.styling
     restore.push(() => replay.release(snapshot.outline.handle))
     if (dryRun) {
@@ -69,7 +66,7 @@ export async function runProductionBlocks(page: string, directory: string, dryRu
       record.status = 'dry-run'
       return
     }
-    for (const key of ['fetchOutline', 'getSection', 'release', 'getLastFetchOutline'] as const) {
+    for (const key of ['fetchOutline', 'release', 'getLastFetchOutline'] as const) {
       const original = web[key]
       web[key] = replay[key]
       restore.push(() => { web[key] = original })

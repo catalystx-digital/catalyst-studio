@@ -33,8 +33,8 @@ test('cached external stylesheet map filters hidden nodes and preserves backgrou
     expect(bgImageMap.hiddenByClass.has('hidden-panel')).toBe(true)
     expect(bgImageMap.hiddenById.has('hidden-note')).toBe(true)
     const input = buildBlockInput({ html, bgImageMap, block: block(0, { anchor: { path: [0], tag: 'main', id: '', classes: [] } }) })
-    const saved = await web.getSection({ handle: outline.handle, key: outline.sections![0].key })
-    expect(input.nodes).toEqual(saved.slice)
+    const tree = (parse5.parseFragment(html).childNodes.find((node: any) => node.tagName === 'main') as any)
+    expect(input.nodes).toEqual(traverseToNodes(tree, { maxTextPerNode: 1500, bgImageMap }))
     expect(input.nodes.map(node => node.tag)).toEqual(['main', 'section', 'a'])
     expect(input.nodes[1]).toMatchObject({ bgImage: 'https://example.com/hero.png', bgColor: '#123456' })
     expect(input.resourcesSummary.anchors).toHaveLength(1)
@@ -90,7 +90,7 @@ test('split refuses lost parent text, overlapping children, and outside anchors'
   expect(() => splitBlockInput({ ...args, block: { ...args.block, children: [block(2), block(3)] } }, () => false)).toThrow('outside parent')
 })
 
-test.each([false, true])('main traversal uses production body-fallback filters only without main: %s', async hasMain => {
+test.each([false, true])('block input applies body-fallback filters only without main: %s', async hasMain => {
   const section = '<section><h1>Example heading</h1><nav><a href="/nav">Navigation</a></nav><div class="main-navigation"><a href="/menu">Menu</a></div><div role="navigation">Other menu</div><header>Header</header><footer>Footer</footer><p>Example content</p></section>'
   const html = '<html><body>' + (hasMain ? '<main>' + section + '</main>' : section) + '</body></html>'
   const previousFetch = globalThis.fetch
@@ -100,9 +100,10 @@ test.each([false, true])('main traversal uses production body-fallback filters o
     const outline = await web.fetchOutline({ url: 'https://example.com/page' })
     const { bgImageMap } = web.getPageStyling(outline.handle)
     const input = buildBlockInput({ html, bgImageMap, block: block(0, { anchor: { path: hasMain ? [0, 0] : [0], tag: 'section', id: '', classes: [] } }) })
-    const mainSections = await Promise.all(outline.sections!.filter(section => section.key.startsWith('main:')).map(section => web.getSection({ handle: outline.handle, key: section.key })))
-    const identity = ({ pathId, ...node }: (typeof input.nodes)[number]) => node
-    expect(input.nodes.map(identity)).toEqual(mainSections.flatMap(section => section.slice).slice(1).map(identity))
+    // The production-traversal cross-check went with the section path; this verifies block input's body-fallback filtering and retained content.
+    expect(input.nodes.some(node => node.tag === 'header')).toBe(hasMain)
+    expect(input.nodes.some(node => node.tag === 'footer')).toBe(hasMain)
+    expect(input.nodes.some(node => node.text === 'Example content')).toBe(true)
     expect(input.nodes.some(node => node.tag === 'nav')).toBe(hasMain)
   } finally { globalThis.fetch = previousFetch }
 })

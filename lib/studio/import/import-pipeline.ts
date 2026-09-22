@@ -22,7 +22,6 @@ import {
   shouldRunDomProbeEvaluation
 } from './utils/dom-probe-flags'
 import { importDesignSystemFromUrl } from '@/lib/studio/design-system/import-design-system'
-import { adjustDetectedComponents } from './services/detection-post-processor'
 import { validateTemplateCanonicalRequirements } from './detection/canonicalization'
 import { GlobalSectionArtifactCache } from './detection/global-section-cache'
 import { getPageCatalogSummary } from '@/lib/studio/ai/page-catalog'
@@ -169,22 +168,6 @@ export class ImportPipeline {
 
       const pageSummary = await getPageCatalogSummary()
 
-      // Post-process and validate both fresh and checkpoint-resumed detections.
-      detectionResults = detectionResults.map(result => {
-        if (result.postProcessed || result.detectionHarness === 'blocks') {
-          return result
-        }
-        return {
-          ...result,
-          postProcessed: true,
-          components: adjustDetectedComponents(result.components, {
-            pageUrl: result.pageUrl,
-            resourcesSummary: result.resourcesSummary,
-            pageMetadata: result.pageMetadata,
-            pageTemplate: result.pageTemplate
-          })
-        }
-      })
       detectionResults = detectionResults.map(result => {
         if (result.isRedirectPage || result.detectionError) {
           return result
@@ -682,10 +665,9 @@ export class ImportPipeline {
         details: buildDetails(url),
       })
 
-      const runDetectionWithModel = async (model: string): Promise<ImportDetectionResult> => {
+      const runDetection = async (): Promise<ImportDetectionResult> => {
         return performanceMonitor.measure('web.detect', async () =>
           this.detectionService.detectComponentsFromUrl(url, {
-            model,
             apiKey: options.apiKey,
             includeContent: true,
             onProgress: options.progressCallback,
@@ -700,18 +682,13 @@ export class ImportPipeline {
       const attempt = async (): Promise<ImportDetectionResult> => {
         let lastError: unknown
         for (let idx = 0; idx < detectionModels.length; idx++) {
-          const candidateModel = detectionModels[idx]
           try {
-            if (idx > 0) {
-              console.warn(`[ImportPipeline] Switching to detection model ${candidateModel} for ${url}`)
-            }
-            return await runDetectionWithModel(candidateModel)
+            return await runDetection()
           } catch (err) {
             lastError = err
-            const nextModel = detectionModels[idx + 1]
             const message = err instanceof Error ? err.message : String(err ?? 'Unknown error')
-            if (nextModel) {
-              console.warn(`[ImportPipeline] Detection model ${candidateModel} failed for ${url}: ${message}. Trying ${nextModel}.`)
+            if (idx + 1 < detectionModels.length) {
+              console.warn(`[ImportPipeline] Detection failed for ${url}: ${message}. Retrying.`)
               continue
             }
             throw err instanceof Error ? err : new Error(message)

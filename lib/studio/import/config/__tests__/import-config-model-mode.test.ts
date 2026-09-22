@@ -79,25 +79,4 @@ describe('import model mode config', () => {
     await expect(loadConfig()).rejects.toThrow('IMPORT_CHEAP_MODEL_CHAIN must be a pipe-separated list of non-empty model ids')
   })
 
-  it('uses the section detection harness by default', async () => {
-    delete process.env.IMPORT_DETECTION_HARNESS
-
-    const { DetectionConfig } = await loadConfig()
-
-    expect(DetectionConfig.detectionHarness).toBe('section')
-  })
-
-  it.each(['section', 'blocks'])('accepts the %s detection harness', async harness => {
-    process.env.IMPORT_DETECTION_HARNESS = harness
-
-    const { DetectionConfig } = await loadConfig()
-
-    expect(DetectionConfig.detectionHarness).toBe(harness)
-  })
-
-  it.each(['page-map', 'unknown'])('rejects the unsupported %s harness at startup', async harness => {
-    process.env.IMPORT_DETECTION_HARNESS = harness
-
-    await expect(loadConfig()).rejects.toThrow('IMPORT_DETECTION_HARNESS must be one of: section, blocks')
-  })
 })

@@ -1,13 +1,10 @@
 /** @jest-environment node */
 import { WebFetchTools } from '../web-tools'
-import { DetectionConfig } from '../../config'
 
 const originalFetch = global.fetch
-const originalHarness = DetectionConfig.detectionHarness
-afterEach(() => { global.fetch = originalFetch; DetectionConfig.detectionHarness = originalHarness })
+afterEach(() => { global.fetch = originalFetch })
 
-test.each(['blocks', 'section'] as const)('cached styling retains stylesheet texts only for blocks: %s', async harness => {
-  DetectionConfig.detectionHarness = harness
+test('cached styling retains stylesheet texts for blocks', async () => {
   const html = '<head><link rel="stylesheet" href="/site.css"><link rel="stylesheet" href="/missing.css"><link rel="stylesheet" href="https://other.example.com/site.css"></head><body><main><p>Example</p></main></body>'
   const css = '.hero{background-color:#123456}'
   global.fetch = jest.fn(async input => {
@@ -21,7 +18,7 @@ test.each(['blocks', 'section'] as const)('cached styling retains stylesheet tex
   const outline = await web.fetchOutline({ url: 'https://example.com/page' })
   expect(outline.error).not.toBe(true)
   expect(web.getPageStyling(outline.handle)).toMatchObject({
-    stylesheets: harness === 'blocks' ? [{ url: 'https://example.com/site.css', text: css }] : []
+    stylesheets: [{ url: 'https://example.com/site.css', text: css }]
   })
   expect(web.getPageStyling(outline.handle).bgImageMap.bgColorByClass.get('hero')).toBe('#123456')
   expect(global.fetch).toHaveBeenCalledTimes(3)

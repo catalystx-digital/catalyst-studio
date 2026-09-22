@@ -30,7 +30,6 @@ Use production defaults: Mercury 2.5 fills, eight blocks concurrently, a fixed 1
 ~~~powershell
 $env:CHROMIUM_EXECUTABLE_PATH = 'C:/Users/Admin/AppData/Local/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-win64/chrome-headless-shell.exe'
 $env:IMPORT_MODEL_CHAIN = 'inception/mercury-2.5'
-$env:IMPORT_DETECTION_HARNESS = 'blocks'
 $env:IMPORT_BLOCK_FILL_MODEL = 'inception/mercury-2.5'
 $env:IMPORT_BLOCK_CONCURRENCY = '8'
 $env:DECISION_MODEL_ENABLED = 'true'
@@ -78,18 +77,9 @@ node --import tsx scripts/experiments/import-lab/eval.ts arms --arms jev-pick --
 
 Picking uses production's block input, evidence, registered questions and choice handling. It needs the live decision settings above; replace --dry-run with --yes-spend for **INTERNET + PAID** decisions. Family mode substitutes family options and type/family wording in the production question. Repeat with B. jev-pick.ts --page PAGE --run RUN accepts the same family flags directly. Family scoring groups saved probabilities for **FREE**; it does not make new choices.
 
-## 4. Historical section path
+## 4. Historical results
 
-Keep section replay and repair until M6. Run with IMPORT_DETECTION_HARNESS=section and DECISION_MODEL_ENABLED=false:
-
-~~~powershell
-node --import tsx scripts/experiments/import-lab/eval.ts today --runs 2 --dry-run
-node --import tsx scripts/experiments/import-lab/eval.ts today --runs 2 --yes-spend
-node --import tsx scripts/experiments/import-lab/eval.ts repair
-node --import tsx scripts/experiments/import-lab/eval.ts measure
-~~~
-
-Section detection is **INTERNET + PAID**. Repair and measurement are **FREE**. detect.ts --page PAGE --run RUN provides fresh historical IDs; --max-sections N explicitly limits a run. Removed experimental arms cannot run, but their saved scores remain in summaries and are labelled removed.
+Section replay and repair commands have been removed. Saved results remain readable for measurement, scoring and summaries.
 
 ## 5. Offline scoring and summaries
 

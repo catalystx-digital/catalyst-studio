@@ -1,6 +1,6 @@
 import type { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
-import type { ResourcesSummary, SectionInfo, RedirectInfo } from '../services/web-tools'
+import type { ResourcesSummary, RedirectInfo } from '../services/web-tools'
 import type { ProgressCallback } from '../types/progress.types'
 import type { CheckpointSession, IImportCheckpointService } from '../types/checkpoint.types'
 import type { GlobalSectionArtifactCache } from './global-section-cache'
@@ -112,7 +112,7 @@ export interface PageMetadata {
 }
 
 export interface ImportDetectionResult {
-  detectionHarness?: 'section' | 'blocks'
+  detectionHarness?: 'blocks'
   components: DetectedComponent[]
   pageTemplate?: DetectedPageTemplate
   pageMetadata?: PageMetadata
@@ -125,7 +125,6 @@ export interface ImportDetectionResult {
   pageUrl: string
   accuracy?: number
   resourcesSummary?: ResourcesSummary
-  outlineSections?: SectionInfo[]
   timingBreakdown?: ImportDetectionTimingBreakdown
   /** HTTP status returned by the source fetch, when known */
   sourceHttpStatus?: number
@@ -135,8 +134,6 @@ export interface ImportDetectionResult {
   redirectInfo?: RedirectInfo
   /** Whether this result represents a redirect page (skip content storage) */
   isRedirectPage?: boolean
-  /** Internal marker: components have already passed post-processing/canonical validation before checkpoint save */
-  postProcessed?: boolean
   /** Explicit detection failure details for pages that could not be imported */
   detectionError?: {
     stage: 'detection'

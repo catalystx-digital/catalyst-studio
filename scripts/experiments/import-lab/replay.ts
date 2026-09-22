@@ -1,17 +1,14 @@
-import type { WebFetchTools, FetchOutlineArgs, GetSectionArgs } from '@/lib/studio/import/services/web-tools'
+import type { WebFetchTools, FetchOutlineArgs } from '@/lib/studio/import/services/web-tools'
 import type { Snapshot } from './storage'
 
-export function createReplayTools(snapshot: Snapshot, maxSections?: number, web?: WebFetchTools) {
+export function createReplayTools(snapshot: Snapshot, web?: WebFetchTools) {
   // Fixture runners set their environment before replay loads production configuration.
   const { WebFetchTools, extractBackgroundImages, extractExternalStylesheetUrls, parseCssForBackgroundImages, parseCssForBackgroundColors, parseCssForHiddenSelectors } = require('@/lib/studio/import/services/web-tools') as typeof import('@/lib/studio/import/services/web-tools')
   const cacheTools = web ?? new WebFetchTools()
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value))
   const outline = copy(snapshot.outline)
-  if (maxSections !== undefined) outline.sections = outline.sections?.slice(0, maxSections)
-  const omitted = snapshot.manifest.sectionKeys.filter(key => !outline.sections?.some(section => section.key === key))
   const styling = { rebuilt: false, stylesheetsSaved: snapshot.stylesheets.length, stylesheetsPaired: 0, baseUsed: 'page-url', stylesheetIssues: [] as string[], hiddenSelectors: 0, backgroundImages: 0 }
   return {
-    omitted,
     styling,
     getRawHtml: cacheTools.getRawHtml.bind(cacheTools),
     getPageStyling: cacheTools.getPageStyling.bind(cacheTools),
@@ -37,9 +34,7 @@ export function createReplayTools(snapshot: Snapshot, maxSections?: number, web?
       cacheTools['cache'].set(outline.handle, {
         url: snapshot.manifest.url, finalUrl: baseUrl, status: outline.status,
         rawHtml: snapshot.html, bgImageMap, stylesheets: paired ? snapshot.stylesheets.map((text, index) => ({ url: urls[index], text })) : [], headMeta: copy(outline.headMeta || {}),
-        sections: new Map((outline.sections || []).map(section => [section.key, copy(snapshot.sections[section.key].slice)])),
         resources: copy(outline.resourcesSummary || { anchors: [], images: [], videos: [], forms: [], links: [] }),
-        limits: { maxSectionBytes: outline.limits?.maxSectionBytes || 0 }
       })
       Object.assign(styling, {
         rebuilt: true, stylesheetsPaired: paired ? urls.length : 0,
@@ -49,11 +44,6 @@ export function createReplayTools(snapshot: Snapshot, maxSections?: number, web?
         backgroundImages: bgImageMap.byClass.size + bgImageMap.byId.size
       })
       return copy(outline)
-    },
-    async getSection(args: GetSectionArgs) {
-      if (args.handle !== outline.handle) throw new Error('Unknown replay handle')
-      if (!Object.prototype.hasOwnProperty.call(snapshot.sections, args.key) || omitted.includes(args.key)) throw new Error('Unknown replay section: ' + args.key)
-      return copy(snapshot.sections[args.key])
     },
     release(handle: string) {
       if (handle !== outline.handle) throw new Error('Unknown replay release handle')

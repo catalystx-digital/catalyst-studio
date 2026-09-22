@@ -1,5 +1,5 @@
 import { GlobalSectionArtifactCache } from '../detection/global-section-cache'
-import { isCheckpointSectionCacheUsable, loadReusableSectionFromCheckpoint } from '../web-detection'
+import { loadReusableSectionFromCheckpoint } from '../web-detection'
 import type { CheckpointSession, IImportCheckpointService } from '../types/checkpoint.types'
 
 const session = {
@@ -112,20 +112,5 @@ describe('loadReusableSectionFromCheckpoint', () => {
       role: 'header',
       currentUrl: 'https://example.com/'
     })).resolves.toBeNull()
-  })
-})
-
-describe('isCheckpointSectionCacheUsable', () => {
-  it('rejects bare empty global section cache entries', () => {
-    expect(isCheckpointSectionCacheUsable('header', [], {
-      requiredSectionEmpty: true
-    })).toBe(false)
-  })
-
-  it('keeps previously satisfied empty required global sections usable', () => {
-    expect(isCheckpointSectionCacheUsable('header', [], {
-      requiredSectionEmpty: true,
-      satisfiedBySectionKey: 'main:0-100'
-    })).toBe(true)
   })
 })

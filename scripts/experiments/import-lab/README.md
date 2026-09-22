@@ -8,19 +8,18 @@ Measure production detection against saved snapshots and reviewed blocks. Start 
 | --- | --- |
 | blocks-production | Production DetectionService with the blocks harness: production cutting, decisions, fills, retries and assembly. No post-detection repair. |
 | jev-pick | Production block input, questions, evidence and selection against reviewed labels, including family mode. |
-| today-off / today-on-own-page | Historical section detection and repair comparisons, retained until M6. |
 
-Removed arms remain visible in summaries as “arm removed from the tool”; their saved runs and scores stay readable. The new runner is separate from detect.ts so historical section replay stays unchanged. Production helpers are imported normally; no source text is rewritten.
+Removed arms remain visible in summaries as “arm removed from the tool”; their saved runs and scores stay readable. Production helpers are imported normally; no source text is rewritten.
 
 The labelling renderer remains only for screenshots, content evidence and child candidates used by label drafting and the review page. Production's cutter does not return that review contract. Detection never consumes the labelling proposal. Dry production plans apply the production cutter to saved geometry; the paid run renders the saved HTML again, so live resource changes can change the block count.
 
 Replay rebuilds the production styling map from saved HTML and stylesheet text. New snapshots save stylesheet URLs in the manifest; older snapshots pair texts with eligible HTML links in document order, using the page’s final URL when counts differ. Run records report the base choice and counts. Existing reviewed snapshots and answer sheets stay unchanged.
 
-Snapshot, replay, historical repair, labels, review, scoring, family scoring, evaluation, summaries and the page manifest remain. Family picking changes only the production component question's options and its type/family wording; it uses the same production evidence and selection.
+Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries and the page manifest remain. Family picking changes only the production component question's options and its type/family wording; it uses the same production evidence and selection.
 
 ## Data and cost
 
-- **FREE:** dry plans, saved-data reads, historical repair, scoring, summaries, local review and offline tests.
+- **FREE:** dry plans, saved-data reads, scoring, summaries, local review and offline tests.
 - **INTERNET:** snapshots and labelling renders.
 - **INTERNET + PAID:** production block runs and model calls. The production cutter loads stylesheets, images and other render resources from the network, exactly as production does; web-tool inputs and the model catalogue replay from disk.
 

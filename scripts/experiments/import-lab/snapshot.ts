@@ -49,7 +49,6 @@ async function snapshotPages() {
       const outline = await tools.fetchOutline({ url, stripScriptsStyles: true, collapseWhitespace: true })
       if (outline.error || outline.nonHtml || html === undefined) throw new Error(outline.message || 'No fetched HTML; simple mode and non-HTML pages are unsupported')
       const sections: Snapshot['sections'] = {}
-      for (const section of outline.sections || []) sections[section.key] = await tools.getSection({ handle: outline.handle, key: section.key })
       const bytes = { html: Buffer.byteLength(html), outline: Buffer.byteLength(JSON.stringify(outline)), sections: Buffer.byteLength(JSON.stringify(sections)), stylesheets: Buffer.byteLength(JSON.stringify(stylesheets)), models: Buffer.byteLength(JSON.stringify(models)) }
       await saveSnapshot(directory, { html, outline, sections, models, stylesheets, manifest: {
         version: 1, url, stylesheetUrls, finalUrl: outline.finalUrl || url, fetchedAt: new Date().toISOString(), sha256: digest(html), sectionKeys: (outline.sections || []).map(section => section.key), bytes

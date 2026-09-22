@@ -11,33 +11,26 @@ import { performanceMonitor } from '@/lib/studio/components/cms/_import/performa
 import { detectionAPI, type DetectionRegistryStats } from '@/lib/studio/components/cms/_import/detection-api'
 import { initializeCMSComponents } from '@/lib/studio/components/cms/_factory/initialize'
 import type {
-  ChatCompletion,
   ChatCompletionMessageParam
 } from 'openai/resources/chat/completions'
 import { getWebFetchTools, type HeadMeta, type ResourcesSummary } from './services/web-tools'
 import { isAssetUrl } from './services/sitemap-discovery.service'
 import { isTemplateRouteEligible } from './services/page-builder/template-resolver'
 import { buildDetectionPromptFromCatalog } from './detection/prompt-builder'
-import { filterPageContentCandidateTypes } from './detection/candidate-types'
-import { parseSectionDetectionResponse } from './detection/response-parser'
-import { buildDetectionSectionPlan, type DetectionSectionTask } from './detection/section-plan'
+import type { DetectionSectionTask } from './detection/section-plan'
 import { aggregateSectionArtifacts, type SectionExtractionArtifact } from './detection/section-aggregation'
 import type { GlobalSectionReuseKey, GlobalSectionReuseProvenance } from './detection/global-section-cache'
-import { summarizeSectionNodes } from './detection/section-summarizer'
-import { enrichNavbarRowStylesFromEvidence } from './detection/navbar-row-style-enrichment'
-import { classifySectionIntent } from './detection/section-taxonomy'
 import type { DetectedComponent, DetectedPageTemplate, DetectionPromptPayload, ImportDetectionOptions, ImportDetectionResult, InvalidDetectedComponent, PageMetadata, ParserRepairNote } from './detection/types'
 import { ask, getDecisionConfig, isDecisionModelEnabledFor } from '@/lib/studio/decisions'
 import { traceMemory } from './utils/memory-trace'
-import { parseFirstJsonValue, salvageTruncatedJson } from './utils/json-parsing'
+import { parseFirstJsonValue } from './utils/json-parsing'
 import { createDetectionTelemetry } from './telemetry/detection-telemetry'
 import type { DetectionPhaseRecord, DetectionTelemetry } from './telemetry/detection-telemetry'
-import { applyAllowedProviders, createLLMClient, validateLLMApiKey } from './services/llm-client'
-import { getReasoningConfig, calculateCost, getModelMaxCompletionTokens } from './openrouter-models'
+import { createLLMClient, validateLLMApiKey } from './services/llm-client'
+import { calculateCost, getModelMaxCompletionTokens } from './openrouter-models'
 import {
   ModelConfig,
   TokenConfig,
-  TimeoutConfig,
   ConfidenceConfig,
   LoggingConfig,
   OpenRouterConfig,
@@ -45,13 +38,9 @@ import {
 } from './config'
 
 // Use centralized configuration
-const CONFIDENCE_THRESHOLD = ConfidenceConfig.detection
-const TEMPERATURE = ModelConfig.temperature.detection
-const DEFAULT_DETECTION_MODEL = ModelConfig.primary
 const CONTEXT_BUDGET = TokenConfig.contextBudget
 const MIN_COMPLETION_BUDGET = TokenConfig.minCompletionBudget
 const USER_MAX_TOKENS = TokenConfig.maxCompletionTokens // User's requested max (from env)
-const REQUEST_TIMEOUT_MS = TimeoutConfig.perRequestMs
 const REPAIR_PREVIOUS_JSON_CHAR_LIMIT = 6_000
 
 export async function mapWithConcurrency<T, R>(
@@ -131,21 +120,6 @@ export async function loadReusableSectionFromCheckpoint(
   return null
 }
 
-export function isCheckpointSectionCacheUsable(
-  role: DetectionSectionTask['role'],
-  components: Array<{ type?: string }>,
-  debug?: { requiredSectionEmpty?: boolean; satisfiedBySectionKey?: string }
-): boolean {
-  const expectedType = role === 'header' ? 'navbar' : role === 'footer' ? 'footer' : null
-  if (!expectedType) {
-    return true
-  }
-  if (components.some(component => component.type === expectedType)) {
-    return true
-  }
-  return Boolean(debug?.requiredSectionEmpty && debug.satisfiedBySectionKey)
-}
-
 let registryInitialization: Promise<void> | null = null
 
 function summarizeRegistry(stats: {
@@ -171,19 +145,6 @@ function summarizeRegistry(stats: {
     skipped: Boolean(stats.skipped),
     untracked: Boolean(stats.untracked)
   }
-}
-
-/**
- * LLM chat completion request payload.
- */
-interface LLMRequestPayload {
-  model: string
-  messages: ChatCompletionMessageParam[]
-  temperature: number
-  max_tokens: number
-  response_format?: { type: 'json_object' }
-  reasoning?: Record<string, unknown>
-  [key: string]: unknown
 }
 
 /**
@@ -228,10 +189,6 @@ export interface DetectionFailureDebug {
   sectionKey?: string
   sectionOrder?: number
   sectionApproxBytes?: number
-  sectionSummaryEnabled?: boolean
-  sectionOriginalBytes?: number
-  sectionSummarizedBytes?: number
-  sectionSummaryReductionRatio?: number
   parserRepair?: 'missing_section_key_injected' | ParserRepairNote['action']
   parserRepairs?: ParserRepairNote[]
   missingSectionKey?: boolean
@@ -293,19 +250,6 @@ function estimateMessageTokens(messages: ChatCompletionMessageParam[]): number {
     }
   }
   return Math.max(1, Math.ceil(totalChars / CHAR_PER_TOKEN))
-}
-
-function hasOwnProperty(value: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key)
-}
-
-function responseMissingSectionKey(rawResult: string): boolean {
-  try {
-    const parsed = JSON.parse(rawResult)
-    return Boolean(parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !hasOwnProperty(parsed as Record<string, unknown>, 'sectionKey'))
-  } catch {
-    return false
-  }
 }
 
 export function capRepairPreviousJson(rawResult: string): { text: string; capped: boolean; chars: number } {
@@ -372,18 +316,16 @@ function buildTimingBreakdown(records: DetectionPhaseRecord[], totalDurationMs: 
 
 function buildFooterQualityDiagnostics(
   components: DetectedComponent[],
-  preFlightFetch: { sections?: Array<{ key: string }>; resourcesSummary?: { anchors?: Array<{ href?: string; textPreview?: string }> } }
+  resourcesSummary: { anchors?: Array<{ href?: string; textPreview?: string }> } | undefined
 ): ImportDetectionResult['diagnostics'] {
   if (components.some(component => component.type === 'footer')) {
     return undefined
   }
 
   const evidence: string[] = []
-  if (preFlightFetch.sections?.some(section => /\bfooter\b/i.test(section.key))) {
-    evidence.push('outline-section:footer')
-  }
+  // Source-footer evidence came from the deleted section outline; this diagnostic is now link-based only.
 
-  const footerAnchors = (preFlightFetch.resourcesSummary?.anchors ?? [])
+  const footerAnchors = (resourcesSummary?.anchors ?? [])
     .filter(anchor => {
       const text = `${anchor.textPreview ?? ''} ${anchor.href ?? ''}`
       return /\b(footer|copyright|privacy|terms|legal|accessibility|instagram|facebook|linkedin|youtube|twitter|x\.com)\b/i.test(text)
@@ -428,60 +370,6 @@ function buildDroppedSectionDiagnostics(
         role: failure.task.role,
         required: failure.task.required,
         reason: failure.error instanceof Error ? failure.error.message : String(failure.error)
-      }))
-    }
-  }]
-}
-
-/** One section whose reply was cut off mid-JSON and salvaged. */
-interface TruncatedSectionSalvage {
-  sectionKey: string
-  role?: string
-  /** Components the model had finished before it stopped */
-  keptComponents: number
-  /**
-   * Finished components the salvage parse isolated for failing schema
-   * validation. A salvaged section returns before the repair round, so these
-   * are dropped without a retry; recording them keeps that from being silent.
-   */
-  isolatedInvalidComponents: number
-  /** Characters of the received reply discarded as the half-written tail */
-  droppedChars: number
-  /** Length of the received reply */
-  rawResponseChars: number
-}
-
-/**
- * Records the sections that arrived cut off, so a page assembled from partial
- * replies is never silently partial. A FAILED section already reports itself as
- * SECTION_EXTRACTION_DROPPED; a SALVAGED one publishes components and needs the
- * same visibility, because the components the model never got to write are
- * indistinguishable, in the finished page, from content the source did not have.
- */
-function buildTruncatedSectionDiagnostics(
-  salvaged: TruncatedSectionSalvage[]
-): ImportDetectionResult['diagnostics'] {
-  if (salvaged.length === 0) {
-    return undefined
-  }
-  const isolated = salvaged.reduce((total, section) => total + section.isolatedInvalidComponents, 0)
-  return [{
-    code: 'SECTION_REPLY_TRUNCATED',
-    severity: 'warning',
-    message:
-      `${salvaged.length} section${salvaged.length === 1 ? '' : 's'} replied with cut-off JSON; ` +
-      `only the components the model finished were kept, so ${salvaged.length === 1 ? 'that section' : 'those sections'} may be incomplete.` +
-      (isolated > 0
-        ? ` ${isolated} salvaged component${isolated === 1 ? ' was' : 's were'} dropped for failing validation without a repair attempt.`
-        : ''),
-    context: {
-      sections: salvaged.map(section => ({
-        sectionKey: section.sectionKey,
-        role: section.role,
-        keptComponents: section.keptComponents,
-        isolatedInvalidComponents: section.isolatedInvalidComponents,
-        droppedChars: section.droppedChars,
-        rawResponseChars: section.rawResponseChars
       }))
     }
   }]
@@ -624,48 +512,6 @@ export function expandCandidatesFromSectionEvidence(candidateTypes: Set<string>,
   }
   if (/\b(video|youtube|youtu\.be|vimeo|wistia|loom|iframe|embed)\b/.test(sectionText)) {
     candidateTypes.add('video-embed')
-  }
-}
-
-function collectSectionPathIds(sectionSlice: unknown): Set<string> {
-  const pathIds = new Set<string>()
-  const visit = (value: unknown): void => {
-    if (!value || typeof value !== 'object') return
-    if (Array.isArray(value)) {
-      value.forEach(visit)
-      return
-    }
-    const record = value as Record<string, unknown>
-    if (typeof record.pathId === 'string') {
-      pathIds.add(record.pathId)
-    }
-    Object.values(record).forEach(visit)
-  }
-  visit(sectionSlice)
-  return pathIds
-}
-
-function filterResourcesForSection(resources: ResourcesSummary | undefined, sectionSlice: unknown): ResourcesSummary | undefined {
-  if (!resources) return undefined
-  const pathIds = collectSectionPathIds(sectionSlice)
-  if (pathIds.size === 0) {
-    return {
-      anchors: resources.anchors.slice(0, 12),
-      images: resources.images.slice(0, 12),
-      videos: resources.videos.slice(0, 4),
-      forms: resources.forms.slice(0, 4),
-      links: resources.links.slice(0, 12)
-    }
-  }
-  const belongsToSection = (item: { pathId: string }) =>
-    Array.from(pathIds).some(pathId => item.pathId === pathId || item.pathId.startsWith(`${pathId}.`))
-
-  return {
-    anchors: resources.anchors.filter(belongsToSection).slice(0, 20),
-    images: resources.images.filter(belongsToSection).slice(0, 20),
-    videos: resources.videos.filter(belongsToSection).slice(0, 6),
-    forms: resources.forms.filter(belongsToSection).slice(0, 6),
-    links: resources.links.slice(0, 12)
   }
 }
 
@@ -972,11 +818,9 @@ export class DetectionService {
     endpointModel: string
     displayModel: string
     effectiveMaxTokens: number
-    modelMaxTokens: number
     telemetry: DetectionTelemetry
     webTools: ReturnType<typeof getWebFetchTools>
     preFlightFetch: Awaited<ReturnType<ReturnType<typeof getWebFetchTools>['fetchOutline']>>
-    handlesUsed: Set<string>
     startTime: number
     client: ReturnType<typeof createLLMClient>
   }): Promise<ImportDetectionResult> {
@@ -994,48 +838,11 @@ export class DetectionService {
     } = params
     const {
       includeContent = true,
-      confidenceThreshold = CONFIDENCE_THRESHOLD,
       checkpointSession,
-      checkpointService,
-      globalSectionCache
+      checkpointService
     } = options
 
-    const tasks = DetectionConfig.detectionHarness === 'blocks' ? [] : buildDetectionSectionPlan({
-      pageUrl: url,
-      sections: preFlightFetch.sections ?? []
-    })
-    if (DetectionConfig.detectionHarness !== 'blocks' && tasks.length === 0) {
-      throw new DetectionFailureError('Detection outline returned no sections to extract', {
-        model: endpointModel,
-        stage: 'validation',
-        validationPath: 'outline.sections'
-      })
-    }
-
-    const maxSectionTasks = Math.max(1, DetectionConfig.maxSectionTasks)
-    if (DetectionConfig.detectionHarness !== 'blocks' && tasks.length > maxSectionTasks) {
-      throw new DetectionFailureError(
-        `Detection outline returned ${tasks.length} sections, exceeding the per-page limit of ${maxSectionTasks}`,
-        {
-          model: endpointModel,
-          stage: 'budget',
-          validationPath: 'outline.sections',
-          requestCount: 0,
-          skippedSectionsDueToBudget: tasks.slice(maxSectionTasks).map(task => task.sectionKey)
-        }
-      )
-    }
-
-    if (DetectionConfig.detectionHarness !== 'blocks' && checkpointSession && checkpointService) {
-      await checkpointService.savePagePlan(checkpointSession, url, {
-        url,
-        generatedAt: new Date().toISOString(),
-        sections: tasks
-      }).catch(error => {
-        console.warn('[Checkpoint] Failed to save page plan:', error)
-      })
-    }
-
+    const tasks: DetectionSectionTask[] = []
     const usageTotals: TokenUsage = {}
     let requestCount = 0
     const sectionReuseStats = {
@@ -1046,746 +853,20 @@ export class DetectionService {
     }
     const artifacts: SectionExtractionArtifact[] = []
     const failedSections: Array<{ task: DetectionSectionTask; error: unknown }> = []
-    // Sections whose reply was cut off and salvaged. Keyed by sectionKey so a
-    // later attempt on the same section overwrites an earlier one, and so a
-    // salvage belonging to a section that ultimately failed can be discarded at
-    // assembly rather than reported against a page it never reached.
-    const salvagedSections = new Map<string, TruncatedSectionSalvage>()
     let pageSummaryForAssembly: DetectionPromptPayload['pageSummary'] | undefined
 
-    const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
-      let timeout: ReturnType<typeof setTimeout> | null = null
-      try {
-        return await Promise.race([
-          promise,
-          new Promise<T>((_, reject) => {
-            timeout = setTimeout(() => reject(new Error(`web detection timeout after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS)
-          })
-        ])
-      } finally {
-        if (timeout) clearTimeout(timeout)
-      }
-    }
-
-    const runJsonRequest = async (
-      messages: ChatCompletionMessageParam[],
-      metadata: Record<string, unknown> = {}
-    ): Promise<ChatCompletion> => {
-      const maxTokens = clampCompletionTokens(endpointModel, messages, effectiveMaxTokens)
-      const payload: LLMRequestPayload = {
-        model: endpointModel,
-        messages,
-        temperature: TEMPERATURE,
-        max_tokens: maxTokens,
-        response_format: { type: 'json_object' }
-      }
-      applyAllowedProviders(payload)
-      const reasoningConfig = await getReasoningConfig(endpointModel)
-      if (reasoningConfig) {
-        payload.reasoning = reasoningConfig as Record<string, unknown>
-      }
-      return await telemetry.timePhase(
-        'llm_call',
-        async () => await withTimeout(client.chat.completions.create(payload)),
-        response => ({
-          ...metadata,
-          maxTokens,
-          totalTokens: response?.usage?.total_tokens ?? 0,
-          promptTokens: response?.usage?.prompt_tokens ?? 0,
-          completionTokens: response?.usage?.completion_tokens ?? 0
-        })
-      )
-    }
-
-    const processSectionTask = async (task: DetectionSectionTask): Promise<SectionProcessingResult> => {
-      const sectionStart = Date.now()
-      let localRequestCount = 0
-      const sectionUsage: TokenUsage = {}
-      const cached = checkpointSession && checkpointService
-        ? await checkpointService.loadSectionResult(checkpointSession, url, task.sectionKey)
-        : null
-      const cachedIsUsable = cached && isCheckpointSectionCacheUsable(task.role, cached.components, cached.llmDebug)
-      if (cachedIsUsable) {
-        return {
-          artifact: {
-            sectionKey: cached.sectionKey,
-            sectionOrder: cached.sectionOrder,
-            durationMs: cached.durationMs,
-            components: cached.components,
-            pageMetadata: cached.pageMetadata,
-            parserRepairs: cached.llmDebug?.parserRepairs,
-            requiredSectionEmpty: cached.llmDebug?.requiredSectionEmpty,
-            satisfiedBySectionKey: cached.llmDebug?.satisfiedBySectionKey
-          },
-          usage: {},
-          requestCount: 0,
-          reuse: {
-            freshSections: 0,
-            reusedSections: 0,
-            cacheHits: 0,
-            cacheMisses: 0
-          }
-        }
-      }
-
-      try {
-        const section = await webTools.getSection({ handle: preFlightFetch.handle, key: task.sectionKey })
-        const sectionTaxonomy = classifySectionIntent({
-          componentType: task.role,
-          content: { section: section.slice },
-          pageUrl: url
-        })
-        const candidateTypes = new Set(task.candidateTypes)
-        sectionTaxonomy.allowedTypes.forEach(type => candidateTypes.add(type))
-        expandCandidatesFromSectionEvidence(candidateTypes, section.slice)
-        if (task.role === 'header') {
-          candidateTypes.clear()
-          candidateTypes.add('navbar')
-        }
-        if (task.role === 'footer') {
-          candidateTypes.clear()
-          candidateTypes.add('footer')
-        }
-
-        const filteredCandidateTypes = filterPageContentCandidateTypes(candidateTypes)
-
-        const { prompt: catalogPrompt, components, pageSummary } = await buildDetectionPromptFromCatalog({
-          telemetry,
-          pageUrl: url,
-          candidateTypes: filteredCandidateTypes,
-          mode: DetectionConfig.sectionPromptMode,
-          model: endpointModel,
-          provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
-        })
-        const allowedComponentTypes = components.map(component => component.type).sort()
-        const summarizedSection = summarizeSectionNodes(section.slice, DetectionConfig.sectionSummaryEnabled)
-        const sectionPayload = {
-          url,
-          finalUrl: preFlightFetch.finalUrl,
-          sectionKey: task.sectionKey,
-          sectionOrder: task.sectionOrder,
-          role: task.role,
-          intent: sectionTaxonomy.intent,
-          intentEvidence: sectionTaxonomy.evidence,
-          stats: section.stats,
-          resourcesSummary: filterResourcesForSection(preFlightFetch.resourcesSummary, section.slice),
-          nodes: summarizedSection.nodes
-        }
-        const messages: ChatCompletionMessageParam[] = [
-          {
-            role: 'system',
-            content: [
-              'You are a section extraction engine.',
-              'Return only valid JSON with fields "sectionKey", "components", and optional "pageMetadata".',
-              'Do not call tools. Do not include markdown, commentary, analysis, or trailing text.',
-              'Extract only the provided section JSON. Keep components in visible DOM order.'
-            ].join('\n')
-          },
-          {
-            role: 'system',
-            content: [
-              catalogPrompt,
-              '=== SECTION HARNESS RULES ===',
-              `The sectionKey field must be exactly: ${task.sectionKey}`,
-              `Allowed component types: ${allowedComponentTypes.join(', ')}`,
-              'The component field must be exactly one allowed component type.',
-              'Never emit generic wrappers such as section, container, wrapper, block, group, layout, or raw DOM/tag names.',
-              'Do not invent copy, URLs, images, dates, categories, or placeholder content.',
-              'If this section contains project/case-study/client-work/latest-project tiles, use card-grid, not content-feed.',
-              'One carousel, slider, tab panel, or responsive listing surface must become one component with nested items; never emit one top-level component per slide/card variant.',
-              'Hidden or inactive slides/items marked by aria-hidden, hidden, data-active/current/index, carousel/slider classes, or responsive duplicate wrappers must not become separate top-level components.',
-              'When desktop/mobile/list variants contain the same item titles or links, represent the source surface once using the richest visible variant.',
-              'Every image.src MediaReference object must include mediaId, mediaType: "image", and url.',
-              'card-grid.cards[] links must use href, never link or url.',
-              isDedicatedEditorialListingUrl(url)
-                ? 'This URL is a dedicated editorial listing/archive page. Use blog-list for article/news teaser lists; content-feed and card-grid must not represent the primary article list.'
-                : 'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings; never use card-grid for those editorial feeds.',
-              'When nodes include bgColor evidence for a visible component surface, preserve that source CSS color in the component style fields supported by its schema; do not infer colors from brand palette.',
-              'If no registered component can truthfully represent the section, return components: [].'
-            ].join('\n\n')
-          },
-          {
-            role: 'user',
-            content: `Extract this single section:\n${JSON.stringify(sectionPayload)}`
-          }
-        ]
-        const sectionPromptTokensEstimate = estimateMessageTokens(messages)
-        const sectionApproxBytes =
-          typeof section.stats?.approxBytes === 'number'
-            ? section.stats.approxBytes
-            : JSON.stringify(section.slice).length
-        const sectionPayloadDebug = {
-          sectionSummaryEnabled: summarizedSection.enabled,
-          sectionOriginalBytes: summarizedSection.originalBytes,
-          sectionSummarizedBytes: summarizedSection.summarizedBytes,
-          sectionSummaryReductionRatio: summarizedSection.reductionRatio
-        }
-
-        // The salvaged document is a prefix of the reply, so its sectionKey may
-        // have been cut away; the components that survived still belong to this
-        // section. Invalid ones are isolated rather than failing the salvage.
-        const trySalvagedSectionParse = (salvagedJson: string) => {
-          try {
-            return parseSectionDetectionResponse({
-              rawResponse: salvagedJson,
-              sectionKey: task.sectionKey,
-              availableComponents: components,
-              url,
-              confidenceThreshold,
-              allowMissingSectionKey: true,
-              isolateInvalidComponents: true
-            })
-          } catch {
-            return null
-          }
-        }
-
-        const parseOutcome = (
-          response: ChatCompletion,
-          rawResult: string,
-          extraDebug: Partial<DetectionFailureDebug> = {},
-          isolateInvalidComponents = false
-        ) => {
-          const completionStatus = detectIncompleteJson(rawResult)
-          const finishReason = response.choices[0]?.finish_reason || ''
-          if (!completionStatus.isComplete || finishReason === 'length') {
-            // A cut-off reply still carries every component the model finished
-            // before it stopped, and re-asking produces the same reply: the
-            // footer on one site is a 6,486-byte section whose request ran under
-            // a 90,000-token cap with a ~26,000-token prompt, so the cap was
-            // never the constraint and the provider simply reported the cut-off
-            // as finish_reason=stop. Keeping the finished components is the only
-            // thing that helps. Anything not recoverable still throws below.
-            // salvageTruncatedJson only keeps components the model finished, so
-            // it returns null rather than a component re-closed around whatever
-            // fraction of its content arrived. Nothing here needs to bound the
-            // discarded tail: its size says nothing about how much was lost,
-            // because the lost part never arrived to be measured.
-            const salvage = salvageTruncatedJson(rawResult)
-            const salvaged = salvage ? trySalvagedSectionParse(salvage.text) : null
-            if (salvage && salvaged && salvaged.components.length > 0) {
-              const isolatedInvalidComponents = salvaged.invalidComponents?.length ?? 0
-              console.warn(
-                `[DetectionService] Section ${task.sectionKey} reply was cut off ` +
-                `(${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'}); ` +
-                `kept ${salvaged.components.length} complete component(s) after dropping ${salvage.droppedChars} trailing chars ` +
-                `of ${rawResult.length}.` +
-                (isolatedInvalidComponents > 0
-                  ? ` ${isolatedInvalidComponents} salvaged component(s) failed validation and were dropped without a repair attempt.`
-                  : '')
-              )
-              salvagedSections.set(task.sectionKey, {
-                sectionKey: task.sectionKey,
-                role: task.role,
-                keptComponents: salvaged.components.length,
-                isolatedInvalidComponents,
-                droppedChars: salvage.droppedChars,
-                rawResponseChars: rawResult.length
-              })
-              return salvaged
-            }
-            throw new DetectionFailureError(
-              `Section ${task.sectionKey} exceeded output limit or returned incomplete JSON (${completionStatus.reason || 'finish_reason_length'}; finish_reason=${finishReason || 'unknown'})`,
-              {
-                model: endpointModel,
-                stage: 'output_limit',
-                rawResponse: rawResult,
-                rawResponseLength: rawResult.length,
-                finishReason,
-                usage: response.usage ? { ...response.usage } : {},
-                validationPath: completionStatus.reason,
-                requestCount: localRequestCount + 1,
-                toolCallCount: 0,
-                promptTokensEstimate: sectionPromptTokensEstimate,
-                effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
-                sectionKey: task.sectionKey,
-                sectionOrder: task.sectionOrder,
-                sectionApproxBytes,
-                ...sectionPayloadDebug,
-                ...extraDebug
-              }
-            )
-          }
-          try {
-            return parseSectionDetectionResponse({
-              rawResponse: rawResult,
-              sectionKey: task.sectionKey,
-              availableComponents: components,
-              url,
-              confidenceThreshold,
-              allowMissingSectionKey: false,
-              isolateInvalidComponents
-            })
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error)
-            throw new DetectionFailureError(message, {
-              model: endpointModel,
-              stage: message.includes('content is invalid') ? 'validation' : 'parsing',
-              rawResponse: rawResult,
-              rawResponseLength: rawResult.length,
-              finishReason,
-              usage: response.usage ? { ...response.usage } : {},
-              validationPath: extractValidationPath(message),
-              requestCount: localRequestCount + 1,
-              toolCallCount: 0,
-              promptTokensEstimate: sectionPromptTokensEstimate,
-              effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
-              sectionKey: task.sectionKey,
-              sectionOrder: task.sectionOrder,
-              sectionApproxBytes,
-              ...sectionPayloadDebug,
-              ...(responseMissingSectionKey(rawResult) ? { missingSectionKey: true } : {}),
-              ...extraDebug
-            })
-          }
-        }
-
-        type FreshSectionRun = {
-          artifact: SectionExtractionArtifact
-          rawResult: string
-          responseUsage: TokenUsage
-          finishReason: string
-          repairDebug: Partial<DetectionFailureDebug>
-          parserDebug: Partial<DetectionFailureDebug>
-        }
-        let freshRun: FreshSectionRun | null = null
-        const extractFreshSection = async (): Promise<SectionExtractionArtifact> => {
-          let response = await runJsonRequest(messages, {
-            sectionKey: task.sectionKey,
-            sectionOrder: task.sectionOrder,
-            role: task.role,
-            attempt: 1,
-            promptTokensEstimate: sectionPromptTokensEstimate,
-            sectionApproxBytes,
-            summarizerEnabled: summarizedSection.enabled,
-            originalBytes: summarizedSection.originalBytes,
-            summarizedBytes: summarizedSection.summarizedBytes
-          })
-          localRequestCount++
-          let rawResult = response.choices[0]?.message?.content || ''
-          let parsedSection
-          let repairDebug: Partial<DetectionFailureDebug> = {}
-          let parserDebug: Partial<DetectionFailureDebug> = responseMissingSectionKey(rawResult)
-            ? { missingSectionKey: true }
-            : {}
-          try {
-            parsedSection = parseOutcome(response, rawResult)
-          } catch (firstError) {
-            if (!(firstError instanceof DetectionFailureError) || firstError.debug.stage === 'output_limit') {
-              throw firstError
-            }
-            if (firstError.message.includes(`sectionKey must be "${task.sectionKey}"`)) {
-              throw firstError
-            }
-            const cappedPreviousJson = capRepairPreviousJson(rawResult)
-            repairDebug = {
-              repairPromptCapped: cappedPreviousJson.capped,
-              repairPromptPreviousJsonChars: cappedPreviousJson.chars
-            }
-            messages.push({
-              role: 'user',
-              content: [
-                'Your previous JSON failed strict validation.',
-                `Validation error: ${firstError.message}`,
-                `Validation path: ${firstError.debug.validationPath || 'unknown'}`,
-                `The sectionKey must remain exactly ${task.sectionKey}.`,
-                `Allowed component types: ${allowedComponentTypes.join(', ')}`,
-                'Repair schema shape and component names only. Do not invent content. Return only JSON.',
-                cappedPreviousJson.capped
-                  ? `Previous JSON excerpt (capped to ${cappedPreviousJson.chars} chars):`
-                  : 'Previous JSON:',
-                cappedPreviousJson.text
-              ].join('\n')
-            })
-            response = await runJsonRequest(messages, {
-              sectionKey: task.sectionKey,
-              sectionOrder: task.sectionOrder,
-              role: task.role,
-              attempt: 2,
-              repair: true,
-              promptTokensEstimate: estimateMessageTokens(messages),
-              sectionApproxBytes,
-              summarizerEnabled: summarizedSection.enabled,
-              originalBytes: summarizedSection.originalBytes,
-              summarizedBytes: summarizedSection.summarizedBytes
-            })
-            localRequestCount++
-            rawResult = response.choices[0]?.message?.content || ''
-            parsedSection = parseOutcome(response, rawResult, repairDebug, true)
-            if (parsedSection.parserRepairs?.length) {
-              parserDebug = {
-                ...parserDebug,
-                parserRepair: parsedSection.parserRepairs[0]?.action,
-                parserRepairs: parsedSection.parserRepairs
-              }
-            }
-            if (parsedSection.invalidComponents?.length && parsedSection.components.length > 0) {
-              const invalidSummary = summarizeInvalidComponents(parsedSection.invalidComponents)?.join('\n') ?? 'unknown'
-              messages.push({
-                role: 'user',
-                content: [
-                  'Your repaired JSON still contains invalid components.',
-                  'Keep every valid component exactly as-is unless it must be reordered to remain valid JSON.',
-                  'For each invalid component, either populate required fields from real visible content in the previous JSON/section evidence, or remove that invalid component from the components array.',
-                  'Do not return empty required arrays such as card-grid.cards: [].',
-                  'Do not invent placeholder cards, logos, posts, buttons, or images.',
-                  'Return only JSON with the same sectionKey.',
-                  'Invalid component reasons:',
-                  invalidSummary,
-                  'Previous repaired JSON:',
-                  rawResult
-                ].join('\n')
-              })
-              response = await runJsonRequest(messages, {
-                sectionKey: task.sectionKey,
-                sectionOrder: task.sectionOrder,
-                role: task.role,
-                attempt: 3,
-                repair: true,
-                promptTokensEstimate: estimateMessageTokens(messages),
-                sectionApproxBytes,
-                summarizerEnabled: summarizedSection.enabled,
-                originalBytes: summarizedSection.originalBytes,
-                summarizedBytes: summarizedSection.summarizedBytes
-              })
-              localRequestCount++
-              rawResult = response.choices[0]?.message?.content || ''
-              parsedSection = parseOutcome(response, rawResult, repairDebug, true)
-              if (parsedSection.parserRepairs?.length) {
-                parserDebug = {
-                  ...parserDebug,
-                  parserRepair: parsedSection.parserRepairs[0]?.action,
-                  parserRepairs: parsedSection.parserRepairs
-                }
-              }
-            }
-            if (parsedSection.invalidComponents?.length) {
-              throw new DetectionFailureError(
-                `Section ${task.sectionKey} produced ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} after repair`,
-                {
-                  model: endpointModel,
-                  stage: 'validation',
-                  rawResponse: rawResult,
-                  rawResponseLength: rawResult.length,
-                  finishReason: response.choices[0]?.finish_reason || 'unknown',
-                  usage: response.usage ? { ...response.usage } : {},
-                  validationPath: `sections.${task.sectionKey}.components`,
-                  requestCount: localRequestCount,
-                  toolCallCount: 0,
-                  promptTokensEstimate: sectionPromptTokensEstimate,
-                  effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
-                  sectionKey: task.sectionKey,
-                  sectionOrder: task.sectionOrder,
-                  sectionApproxBytes,
-                  ...sectionPayloadDebug,
-                  invalidComponents: parsedSection.invalidComponents,
-                  invalidComponentReasons: summarizeInvalidComponents(parsedSection.invalidComponents),
-                  invalidComponentCount: parsedSection.invalidComponents.length,
-                  ...repairDebug
-                }
-              )
-            }
-          }
-
-          const requiredSectionEmpty = task.required && section.stats.nodeCount > 0 && parsedSection.components.length === 0
-          if (requiredSectionEmpty && parsedSection.invalidComponents?.length) {
-            const invalidSummary = parsedSection.invalidComponents?.length
-              ? `; ${parsedSection.invalidComponents.length} invalid component${parsedSection.invalidComponents.length === 1 ? '' : 's'} isolated`
-              : ''
-            throw new DetectionFailureError(
-              `Required section ${task.sectionKey} produced no components${invalidSummary}`,
-              {
-                model: endpointModel,
-                stage: 'validation',
-                rawResponse: rawResult,
-                rawResponseLength: rawResult.length,
-                finishReason: response.choices[0]?.finish_reason || 'unknown',
-                usage: response.usage ? { ...response.usage } : {},
-                validationPath: `sections.${task.sectionKey}.components`,
-                requestCount: localRequestCount,
-                toolCallCount: 0,
-                promptTokensEstimate: sectionPromptTokensEstimate,
-                effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
-                sectionKey: task.sectionKey,
-                sectionOrder: task.sectionOrder,
-                sectionApproxBytes,
-                ...sectionPayloadDebug,
-                invalidComponents: parsedSection.invalidComponents,
-                invalidComponentReasons: summarizeInvalidComponents(parsedSection.invalidComponents),
-                invalidComponentCount: parsedSection.invalidComponents?.length,
-                requiredSectionEmpty,
-                ...parserDebug,
-                ...repairDebug
-              }
-            )
-          }
-
-          const responseUsage: TokenUsage = response.usage ? { ...response.usage } : {}
-          freshRun = {
-            artifact: {
-              sectionKey: task.sectionKey,
-              sectionOrder: task.sectionOrder,
-              durationMs: Date.now() - sectionStart,
-              components: parsedSection.components,
-              pageMetadata: parsedSection.pageMetadata,
-              invalidComponents: parsedSection.invalidComponents,
-              parserRepairs: parsedSection.parserRepairs,
-              requiredSectionEmpty
-            },
-            rawResult,
-            responseUsage,
-            finishReason: response.choices[0]?.finish_reason || 'unknown',
-            repairDebug,
-            parserDebug
-          }
-          return freshRun.artifact
-        }
-
-        const origin = (() => {
-          try {
-            return new URL(preFlightFetch.finalUrl || url).origin
-          } catch {
-            return 'unknown'
-          }
-        })()
-        const reuseKey = DetectionConfig.globalSectionReuse && globalSectionCache
-          ? globalSectionCache.createKey({
-              role: task.role,
-              origin,
-              sectionSlice: section.slice,
-              candidateTypes,
-              model: endpointModel
-            })
-          : null
-        const checkpointReuseResult = DetectionConfig.globalSectionReuse
-          ? await loadReusableSectionFromCheckpoint({
-              checkpointSession,
-              checkpointService,
-              reuseKey,
-              role: task.role,
-              currentUrl: url
-            })
-          : null
-        const cacheResult = await (checkpointReuseResult
-          ? Promise.resolve(checkpointReuseResult)
-          : DetectionConfig.globalSectionReuse && globalSectionCache
-            ? globalSectionCache.getOrCreate(
-                reuseKey,
-                { url, sectionKey: task.sectionKey },
-                extractFreshSection
-              )
-          : Promise.resolve({
-              artifact: await extractFreshSection(),
-              provenance: {
-                extractionMode: 'fresh' as const,
-                cacheHit: false,
-                cacheMissReason: DetectionConfig.globalSectionReuse ? 'cache_unavailable' : 'reuse_disabled'
-              }
-            }))
-
-        const provenance: GlobalSectionReuseProvenance = cacheResult.provenance
-        const reuseStats = {
-          freshSections: provenance.extractionMode === 'reused' ? 0 : 1,
-          reusedSections: provenance.extractionMode === 'reused' ? 1 : 0,
-          cacheHits: provenance.cacheHit ? 1 : 0,
-          cacheMisses: provenance.cacheHit ? 0 : 1
-        }
-        const completedFreshRun = freshRun as FreshSectionRun | null
-        const artifact: SectionExtractionArtifact = {
-          ...cacheResult.artifact,
-          sectionKey: task.sectionKey,
-          sectionOrder: task.sectionOrder,
-          durationMs: Date.now() - sectionStart,
-          pageMetadata: provenance.extractionMode === 'reused' ? undefined : cacheResult.artifact.pageMetadata
-        }
-        enrichNavbarRowStylesFromEvidence(artifact.components, section.slice)
-        if (completedFreshRun && provenance.extractionMode === 'fresh') {
-          const responseUsage = completedFreshRun.responseUsage
-          sectionUsage.total_tokens = responseUsage.total_tokens ?? 0
-          sectionUsage.prompt_tokens = responseUsage.prompt_tokens ?? 0
-          sectionUsage.completion_tokens = responseUsage.completion_tokens ?? 0
-          sectionUsage.reasoning_tokens = (responseUsage as TokenUsage).reasoning_tokens ?? 0
-          sectionUsage.total_cost = (responseUsage as TokenUsage).total_cost ?? 0
-        }
-
-        if (checkpointSession && checkpointService) {
-          await checkpointService.saveSectionResult(
-            checkpointSession,
-            url,
-            task.sectionKey,
-            task.sectionOrder,
-            artifact.components,
-            Date.now() - sectionStart,
-            artifact.pageMetadata,
-            {
-              model: endpointModel,
-              stage: 'llm_call',
-              rawResponseLength: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.rawResult.length : 0,
-              rawResponse: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.rawResult : undefined,
-              finishReason: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.finishReason : 'cache_reuse',
-              usage: completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.responseUsage : {},
-              requestCount: localRequestCount,
-              toolCallCount: 0,
-              promptTokensEstimate: sectionPromptTokensEstimate,
-              effectiveCompletionTokens: Math.max(0, CONTEXT_BUDGET - sectionPromptTokensEstimate),
-              sectionKey: task.sectionKey,
-              sectionOrder: task.sectionOrder,
-              sectionApproxBytes,
-              sectionSummaryEnabled: summarizedSection.enabled,
-              sectionOriginalBytes: summarizedSection.originalBytes,
-              sectionSummarizedBytes: summarizedSection.summarizedBytes,
-              sectionSummaryReductionRatio: summarizedSection.reductionRatio,
-              invalidComponents: artifact.invalidComponents,
-              invalidComponentReasons: summarizeInvalidComponents(artifact.invalidComponents),
-              invalidComponentCount: artifact.invalidComponents?.length,
-              requiredSectionEmpty: artifact.requiredSectionEmpty,
-              extractionMode: provenance.extractionMode,
-              reusedFromUrl: provenance.reusedFromUrl,
-              reusedFromSectionKey: provenance.reusedFromSectionKey,
-              sectionContentHash: provenance.sectionContentHash,
-              reuseKey: provenance.reuseKey,
-              reuseVersion: provenance.reuseVersion,
-              cacheHit: provenance.cacheHit,
-              cacheMissReason: provenance.cacheMissReason,
-              ...(completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.parserDebug : {}),
-              ...(completedFreshRun && provenance.extractionMode === 'fresh' ? completedFreshRun.repairDebug : {})
-            }
-          )
-        }
-
-        // Build once per first uncached section to keep template catalog available for assembly.
-        telemetry.recordPhase('section_extract', Date.now() - sectionStart, {
-          sectionKey: task.sectionKey,
-          sectionOrder: task.sectionOrder,
-          role: task.role,
-          extractionMode: provenance.extractionMode,
-          cacheHit: provenance.cacheHit,
-          requestCount: localRequestCount,
-          promptTokensEstimate: sectionPromptTokensEstimate,
-          sectionApproxBytes,
-          summarizerEnabled: summarizedSection.enabled,
-          originalBytes: summarizedSection.originalBytes,
-          summarizedBytes: summarizedSection.summarizedBytes,
-          summaryReductionRatio: summarizedSection.reductionRatio,
-          componentCount: artifact.components.length,
-          parserRepairCount: artifact.parserRepairs?.length ?? 0
-        })
-
-        return {
-          artifact,
-          pageSummary,
-          usage: sectionUsage,
-          requestCount: localRequestCount,
-          reuse: reuseStats
-        }
-      } catch (error) {
-        const previousError = checkpointSession && checkpointService
-          ? await checkpointService.loadSectionError(checkpointSession, url, task.sectionKey)
-          : null
-        if (checkpointSession && checkpointService) {
-          await checkpointService.saveSectionError(
-            checkpointSession,
-            url,
-            task.sectionKey,
-            task.sectionOrder,
-            error instanceof Error ? error : new Error(String(error)),
-            (previousError?.attemptCount ?? 0) + 1,
-            error instanceof DetectionFailureError
-              ? (error.debug.stage === 'output_limit' ? 'output_limit' : error.debug.stage === 'llm_call' ? 'llm_call' : error.debug.stage === 'budget' ? 'budget' : 'parsing')
-              : undefined,
-            error instanceof DetectionFailureError ? {
-              model: error.debug.model,
-              stage: error.debug.stage,
-              rawResponseLength: error.debug.rawResponseLength ?? error.debug.rawResponse?.length ?? 0,
-              rawResponse: error.debug.rawResponse,
-              finishReason: error.debug.finishReason,
-              usage: error.debug.usage,
-              validationPath: error.debug.validationPath,
-              requestCount: error.debug.requestCount,
-              toolCallCount: error.debug.toolCallCount,
-              contextBudget: error.debug.contextBudget,
-              minCompletionBudget: error.debug.minCompletionBudget,
-              promptTokensEstimate: error.debug.promptTokensEstimate,
-              effectiveCompletionTokens: error.debug.effectiveCompletionTokens,
-              sectionKey: error.debug.sectionKey,
-              sectionOrder: error.debug.sectionOrder,
-              sectionApproxBytes: error.debug.sectionApproxBytes,
-              sectionSummaryEnabled: error.debug.sectionSummaryEnabled,
-              sectionOriginalBytes: error.debug.sectionOriginalBytes,
-              sectionSummarizedBytes: error.debug.sectionSummarizedBytes,
-              sectionSummaryReductionRatio: error.debug.sectionSummaryReductionRatio,
-              invalidComponents: error.debug.invalidComponents,
-              invalidComponentReasons: error.debug.invalidComponentReasons,
-              invalidComponentCount: error.debug.invalidComponentCount,
-              requiredSectionEmpty: error.debug.requiredSectionEmpty,
-              parserRepair: error.debug.parserRepair,
-              missingSectionKey: error.debug.missingSectionKey,
-              repairPromptCapped: error.debug.repairPromptCapped,
-              repairPromptPreviousJsonChars: error.debug.repairPromptPreviousJsonChars,
-              extractionMode: error.debug.extractionMode,
-              reusedFromUrl: error.debug.reusedFromUrl,
-              reusedFromSectionKey: error.debug.reusedFromSectionKey,
-              sectionContentHash: error.debug.sectionContentHash,
-              reuseKey: error.debug.reuseKey,
-              reuseVersion: error.debug.reuseVersion,
-              cacheHit: error.debug.cacheHit,
-              cacheMissReason: error.debug.cacheMissReason
-            } : undefined
-          )
-        }
-        throw error
-      }
-    }
-
-    const sectionConcurrency = Math.max(1, DetectionConfig.sectionConcurrency)
-    const sectionResults = DetectionConfig.detectionHarness === 'blocks'
-      ? await (await import('./detection/blocks/block-harness')).runBlockHarness({
-          url,
-          options,
-          endpointModel,
-          effectiveMaxTokens,
-          telemetry,
-          webTools,
-          preFlightFetch,
-          client,
-          tasks,
-          failedSections
-        })
-      : await (async (): Promise<SectionProcessingResult[]> => {
-          // One dead section must not take the page with it. Sections are
-          // independent requests, and rejecting the whole batch threw away
-          // one site's nine healthy sections twice over: once when the footer
-          // reply came back cut off, once when the 1,258-byte header request hit
-          // the 300s per-request timeout. A page that renders without its footer
-          // beats a page that does not import; a page where every section died
-          // still fails below, with that section's own error.
-          const outcomes = await mapWithConcurrency(tasks, sectionConcurrency, async task => {
-            try {
-              return { ok: true as const, value: await processSectionTask(task) }
-            } catch (error) {
-              return { ok: false as const, task, error }
-            }
-          })
-          return outcomes.map(outcome => {
-            if (outcome.ok) return outcome.value
-            failedSections.push({ task: outcome.task, error: outcome.error })
-            console.warn(
-              `[DetectionService] Section ${outcome.task.sectionKey} (${outcome.task.role}) failed and was dropped: ` +
-              `${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`
-            )
-            return {
-              artifact: {
-                sectionKey: outcome.task.sectionKey,
-                sectionOrder: outcome.task.sectionOrder,
-                components: [],
-                extractionFailed: true
-              },
-              usage: {},
-              requestCount: 0,
-              reuse: { freshSections: 0, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
-            }
-          })
-        })()
+    const sectionResults = await (await import('./detection/blocks/block-harness')).runBlockHarness({
+      url,
+      options,
+      endpointModel,
+      effectiveMaxTokens,
+      telemetry,
+      webTools,
+      preFlightFetch,
+      client,
+      tasks,
+      failedSections
+    })
     for (const result of sectionResults) {
       artifacts.push(result.artifact)
       if (!pageSummaryForAssembly && result.pageSummary) {
@@ -1880,20 +961,12 @@ export class DetectionService {
     const reasoningTokens = usageTotals.reasoning_tokens || 0
     const tokenUsage = usageTotals.total_tokens || 0
     const cost = usageTotals.total_cost || (await calculateCost(displayModel, promptTokens, completionTokens, reasoningTokens))
-    // Only report a salvage for a section that actually reached the page; one
-    // that salvaged and then failed downstream is already covered by
-    // SECTION_EXTRACTION_DROPPED.
-    const shippedSalvages = artifacts
-      .filter(artifact => artifact.components.length > 0)
-      .map(artifact => salvagedSections.get(artifact.sectionKey))
-      .filter((salvage): salvage is TruncatedSectionSalvage => Boolean(salvage))
     const diagnostics = [
       ...(buildDroppedSectionDiagnostics(failedSections) ?? []),
-      ...(buildTruncatedSectionDiagnostics(shippedSalvages) ?? []),
-      ...(buildFooterQualityDiagnostics(components, preFlightFetch) ?? [])
+      ...(buildFooterQualityDiagnostics(components, preFlightFetch.resourcesSummary) ?? [])
     ]
     const detectionResult: ImportDetectionResult = {
-      detectionHarness: DetectionConfig.detectionHarness,
+      detectionHarness: 'blocks',
       components: includeContent
         ? components
         : components.map(({ content, ...rest }) => ({ ...rest, content: {} })),
@@ -1908,7 +981,6 @@ export class DetectionService {
       pageUrl: url,
       accuracy,
       resourcesSummary: preFlightFetch.resourcesSummary,
-      outlineSections: preFlightFetch.sections,
       timingBreakdown: buildTimingBreakdown(telemetry.getPhaseRecords(), Date.now() - startTime),
       sourceHttpStatus: preFlightFetch.status,
       sourceFinalUrl: preFlightFetch.finalUrl,
@@ -1949,8 +1021,7 @@ export class DetectionService {
     url: string,
     options: ImportDetectionOptions = {}
   ): Promise<ImportDetectionResult> {
-    if (DetectionConfig.detectionHarness === 'blocks' &&
-      (!isDecisionModelEnabledFor(options.websiteId) || getDecisionConfig().shadow)) {
+    if (!isDecisionModelEnabledFor(options.websiteId) || getDecisionConfig().shadow) {
       throw new Error('The blocks harness requires DECISION_MODEL_ENABLED=true and DECISION_MODEL_SHADOW=false.')
     }
     return performanceMonitor.measure('web.detect', async () => {
@@ -1980,11 +1051,10 @@ export class DetectionService {
         }
 
         const {
-          model: providedModel,
           apiKey: providedApiKey,
           baseUrl = OpenRouterConfig.baseUrl  // TKT-065: Use config (supports xAI direct)
         } = options
-        const model = DetectionConfig.detectionHarness === 'blocks' ? DetectionConfig.blockFillModel : providedModel || ModelConfig.primary
+        const model = DetectionConfig.blockFillModel
         const telemetry = createDetectionTelemetry({ url, model })
 
         // Early redirect detection: Check for redirects before expensive LLM detection
@@ -1996,7 +1066,6 @@ export class DetectionService {
           result => ({
             status: result?.status,
             finalUrl: result?.finalUrl,
-            sectionCount: result?.sections?.length ?? 0,
             handle: result?.handle
           })
         )
@@ -2152,11 +1221,9 @@ export class DetectionService {
           endpointModel,
           displayModel: model,
           effectiveMaxTokens,
-          modelMaxTokens,
           telemetry,
           webTools,
           preFlightFetch,
-          handlesUsed,
           startTime,
           client: sectionHarnessClient
         })

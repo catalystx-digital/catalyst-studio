@@ -6,7 +6,6 @@
 import { DetectionService } from '../web-detection'
 import { DetectionAPI } from '@/lib/studio/components/cms/_import/detection-api'
 import { DetectionConfig, ModelConfig } from '../config'
-import { GlobalSectionArtifactCache } from '../detection/global-section-cache'
 import OpenAI from 'openai'
 import type { ComponentPattern } from '@/lib/studio/components/cms/_import/types'
 import { createFakeDecisionClient, setDecisionClient } from '@/lib/studio/decisions'
@@ -106,17 +105,6 @@ const mockOutline = {
 
 const mockWebTools = {
   fetchOutline: jest.fn(async () => mockOutline),
-  getSection: jest.fn(async () => ({
-    handle: 'handle-1',
-    key: 'main:0-99',
-    slice: [
-      { tag: 'nav', pathId: 'n000001', text: 'Home' },
-      { tag: 'h1', pathId: 'n000002', text: 'Welcome to Our Site' },
-      { tag: 'img', pathId: 'n000003', attrs: { src: '/images/hero-bg.jpg', alt: 'Hero background' } },
-      { tag: 'h2', pathId: 'n000004', text: 'Features' }
-    ],
-    stats: { nodeCount: 4, approxBytes: 500 }
-  })),
   release: jest.fn(),
   getCacheStats: jest.fn(() => ({ entries: 1 })),
   getLastFetchOutline: jest.fn(() => mockOutline)
@@ -307,6 +295,19 @@ const { __mock: performanceMonitorMocks } = jest.requireMock('@/lib/studio/compo
     endTimer: jest.Mock
   }
 }
+jest.mock('../detection/blocks/block-harness', () => ({
+  runBlockHarness: jest.fn(async ({ client, tasks }: any) => {
+    const response = await client.chat.completions.create({})
+    const parsed = JSON.parse(response.choices[0].message.content)
+    tasks.push({ sectionKey: 'block:0', sectionOrder: 0, role: 'main', required: false, candidateTypes: [] })
+    return [{
+      artifact: { sectionKey: 'block:0', sectionOrder: 0, components: parsed.components.map((component: any) => ({ ...component, type: component.component, metadata: {} })), pageMetadata: parsed.pageMetadata },
+      usage: response.usage, requestCount: 1,
+      reuse: { freshSections: 1, reusedSections: 0, cacheHits: 0, cacheMisses: 0 }
+    }]
+  })
+}))
+
 jest.mock('openai')
 jest.mock('@/lib/studio/design-system/dom-probe/launch-headless-chromium', () => ({ launchHeadlessChromium: jest.fn() }))
 
@@ -357,28 +358,17 @@ const mockBlogIndexResponse = JSON.stringify({
 })
 
 describe('DetectionService (web-based)', () => {
+  const originalEnv = process.env
+  beforeEach(() => { process.env = { ...originalEnv } })
+  afterEach(() => { process.env = originalEnv; setDecisionClient(null) })
   let service: DetectionService
   let mockDetectionAPI: jest.Mocked<DetectionAPI>
   let mockOpenAI: jest.Mocked<OpenAI>
 
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(DetectionConfig as any).detectionHarness = 'section'
-    ;(DetectionConfig as any).maxSectionTasks = 40
     mockWebTools.fetchOutline.mockResolvedValue(mockOutline)
     mockWebTools.getLastFetchOutline.mockReturnValue(mockOutline)
-    mockWebTools.getSection.mockResolvedValue({
-      handle: 'handle-1',
-      key: 'main:0-99',
-      slice: [
-        { tag: 'nav', pathId: 'n000001', text: 'Home' },
-        { tag: 'h1', pathId: 'n000002', text: 'Welcome to Our Site' },
-        { tag: 'img', pathId: 'n000003', attrs: { src: '/images/hero-bg.jpg', alt: 'Hero background' } },
-        { tag: 'h2', pathId: 'n000004', text: 'Features' }
-      ],
-      stats: { nodeCount: 4, approxBytes: 500 }
-    })
-
     mockDetectionAPI = detectionApiMockInstance as jest.Mocked<DetectionAPI>
     mockDetectionAPI.detectComponentPatterns.mockReturnValue(mockComponents)
     mockDetectionAPI.detectComponentPatternsAsync.mockResolvedValue(mockComponents)
@@ -412,9 +402,12 @@ describe('DetectionService (web-based)', () => {
     } as any
     ;(OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(() => mockOpenAI)
 
+    process.env.DECISION_MODEL_ENABLED = 'true'
+    process.env.DECISION_MODEL_SHADOW = 'false'
+    process.env.DECISION_MODEL_WEBSITE_ALLOWLIST = ''
+    setDecisionClient(createFakeDecisionClient({}))
     service = new DetectionService()
   })
-
 
   describe('model template route eligibility', () => {
     const originalEnv = process.env
@@ -464,23 +457,6 @@ describe('DetectionService (web-based)', () => {
   describe('detectComponentsFromUrl', () => {
     const mockPageUrl = 'https://example.com'
 
-    it('defaults to section without loading block modules or launching a browser', async () => {
-      const previous = process.env.IMPORT_DETECTION_HARNESS
-      delete process.env.IMPORT_DETECTION_HARNESS
-      try {
-        jest.isolateModules(() => {
-          expect(require('../config/import-config').DetectionConfig.detectionHarness).toBe('section')
-        })
-        const result = await service.detectComponentsFromUrl(mockPageUrl)
-        expect(result.detectionHarness).toBe('section')
-        expect(Object.keys(require.cache).filter(file => /detection[/\\]blocks[/\\]/.test(file))).toEqual([])
-        expect(require('@/lib/studio/design-system/dom-probe/launch-headless-chromium').launchHeadlessChromium).not.toHaveBeenCalled()
-      } finally {
-        if (previous === undefined) delete process.env.IMPORT_DETECTION_HARNESS
-        else process.env.IMPORT_DETECTION_HARNESS = previous
-      }
-    })
-
     it('detects components from URL successfully', async () => {
       const result = await service.detectComponentsFromUrl(mockPageUrl)
       expect(result).toBeDefined()
@@ -490,21 +466,8 @@ describe('DetectionService (web-based)', () => {
       expect(result.modelUsed).toBeDefined()
       expect(result.tokenUsage).toBe(1500)
       expect(result.cost).toBe(0.02)
-      expect(result.timingBreakdown).toEqual(expect.objectContaining({
-        totalDurationMs: expect.any(Number),
-        phaseTotals: expect.arrayContaining([
-          expect.objectContaining({ phase: 'fetch', count: 1 }),
-          expect.objectContaining({ phase: 'section_extract', count: 1 })
-        ]),
-        sectionTimings: [
-          expect.objectContaining({
-            sectionKey: 'main:0-99',
-            sectionOrder: 0,
-            requestCount: 1,
-            componentCount: 3
-          })
-        ]
-      }))
+      expect(result.detectionHarness).toBe('blocks')
+      expect(require('../detection/blocks/block-harness').runBlockHarness).toHaveBeenCalledTimes(1)
     })
 
     it('loads catalog summary for detection', async () => {
@@ -512,502 +475,6 @@ describe('DetectionService (web-based)', () => {
       summaryMock.mockClear()
       await service.detectComponentsFromUrl(mockPageUrl)
       expect(summaryMock).toHaveBeenCalledTimes(1)
-    })
-
-    it('rejects outlines that exceed the per-page section task budget before LLM extraction', async () => {
-      ;(DetectionConfig as any).maxSectionTasks = 2
-      mockWebTools.fetchOutline.mockResolvedValueOnce({
-        ...mockOutline,
-        sections: [
-          { key: 'main:0-99', approxBytes: 500, hash: 'a', nodeCount: 6 },
-          { key: 'main:100-199', approxBytes: 500, hash: 'b', nodeCount: 6 },
-          { key: 'main:200-299', approxBytes: 500, hash: 'c', nodeCount: 6 }
-        ]
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
-        'exceeding the per-page limit of 2'
-      )
-      expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled()
-    })
-
-    it('reuses validated same-origin global header sections across pages', async () => {
-      const globalSectionCache = new GlobalSectionArtifactCache()
-      const headerOutline = {
-        ...mockOutline,
-        sections: [{ key: 'header:0-10', approxBytes: 300, hash: 'header-hash', nodeCount: 2 }]
-      }
-      mockWebTools.fetchOutline
-        .mockResolvedValueOnce({ ...headerOutline, finalUrl: 'https://example.com/' })
-        .mockResolvedValueOnce({ ...headerOutline, finalUrl: 'https://example.com/about' })
-      mockWebTools.getSection.mockResolvedValue({
-        handle: 'handle-1',
-        key: 'header:0-10',
-        slice: [
-          { tag: 'nav', className: 'site-nav active', text: 'Home About' },
-          { tag: 'a', attrs: { href: '/', 'aria-current': 'page' }, text: 'Home' },
-          { tag: 'a', attrs: { href: '/about' }, text: 'About' }
-        ],
-        stats: { nodeCount: 3, approxBytes: 300 }
-      })
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'header:0-10',
-              components: [
-                { component: 'navbar', confidence: 0.95, content: { menuItems: [{ label: 'Home', href: { type: 'internal', pageId: 'home', path: '/' } }] } }
-              ]
-            })
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { total_tokens: 800, prompt_tokens: 500, completion_tokens: 300, total_cost: 0.01 }
-      })
-
-      const first = await service.detectComponentsFromUrl('https://example.com/', { globalSectionCache })
-      const second = await service.detectComponentsFromUrl('https://example.com/about', { globalSectionCache })
-
-      expect(first.components).toHaveLength(1)
-      expect(second.components).toHaveLength(1)
-      expect(second.components[0]?.type).toBe('navbar')
-      expect(second.timingBreakdown?.sectionTimings).toEqual([
-        expect.objectContaining({
-          sectionKey: 'header:0-10',
-          extractionMode: 'reused',
-          cacheHit: true,
-          requestCount: 0
-        })
-      ])
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
-    })
-
-    it('processes sections concurrently while preserving component order', async () => {
-      const originalConcurrency = DetectionConfig.sectionConcurrency
-      ;(DetectionConfig as any).sectionConcurrency = 2
-      mockWebTools.fetchOutline.mockResolvedValue({
-        ...mockOutline,
-        sections: [
-          { key: 'main:0-50', approxBytes: 300, hash: 'one', nodeCount: 2 },
-          { key: 'main:51-99', approxBytes: 300, hash: 'two', nodeCount: 2 }
-        ]
-      })
-      mockWebTools.getSection.mockImplementation(async ({ key }: { key: string }) => ({
-        handle: 'handle-1',
-        key,
-        slice: [{ tag: 'section', text: key }],
-        stats: { nodeCount: 1, approxBytes: 300 }
-      }))
-
-      let inFlight = 0
-      let maxInFlight = 0
-      mockOpenAI.chat.completions.create = jest.fn(async (payload: any) => {
-        inFlight++
-        maxInFlight = Math.max(maxInFlight, inFlight)
-        const content = payload.messages[payload.messages.length - 1].content as string
-        const sectionKey = content.includes('main:0-50') ? 'main:0-50' : 'main:51-99'
-        await new Promise(resolve => setTimeout(resolve, sectionKey === 'main:0-50' ? 20 : 1))
-        inFlight--
-        return {
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                sectionKey,
-                components: [
-                  {
-                    component: sectionKey === 'main:0-50' ? 'hero-with-image' : 'card-grid',
-                    confidence: 0.9,
-                    content: sectionKey === 'main:0-50'
-                      ? { heading: 'First' }
-                      : { cards: [{ type: 'card-item', title: 'Second' }] }
-                  }
-                ]
-              })
-            },
-            finish_reason: 'stop'
-          }],
-          usage: { total_tokens: 10, prompt_tokens: 6, completion_tokens: 4 }
-        } as any
-      })
-
-      try {
-        const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-        expect(maxInFlight).toBe(2)
-        expect(result.components.map(component => component.type)).toEqual(['hero-with-image', 'card-grid'])
-        expect(result.timingBreakdown?.sectionTimings.map(section => section.sectionKey)).toEqual(['main:0-50', 'main:51-99'])
-        expect(result.tokenUsage).toBe(20)
-        expect(result.promptTokens).toBe(12)
-        expect(result.completionTokens).toBe(8)
-      } finally {
-        ;(DetectionConfig as any).sectionConcurrency = originalConcurrency
-      }
-    })
-
-    it('keeps the sections that succeeded when another section fails outright', async () => {
-      // On one site, the 1,258-byte header request hit the 300s per-request
-      // timeout while the nine other sections had already produced components.
-      // The whole page used to be discarded with it.
-      mockWebTools.fetchOutline.mockResolvedValue({
-        ...mockOutline,
-        sections: [
-          { key: 'header', approxBytes: 300, hash: 'one', nodeCount: 2 },
-          { key: 'main:0-99', approxBytes: 500, hash: 'two', nodeCount: 4 }
-        ]
-      })
-      mockOpenAI.chat.completions.create = jest.fn(async (payload: any) => {
-        const content = payload.messages[payload.messages.length - 1].content as string
-        if (content.includes('"sectionKey":"header"')) {
-          throw new Error('web detection timeout after 300000ms')
-        }
-        return {
-          choices: [{ message: { content: mockWebResponse }, finish_reason: 'stop' }],
-          usage: { total_tokens: 1500, total_cost: 0.02 }
-        } as any
-      })
-
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components.map(component => component.type)).toEqual([
-        'navbar',
-        'hero-with-image',
-        'card-grid'
-      ])
-      expect(result.diagnostics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            code: 'SECTION_EXTRACTION_DROPPED',
-            context: expect.objectContaining({
-              sections: [
-                expect.objectContaining({
-                  sectionKey: 'header',
-                  role: 'header',
-                  required: true,
-                  reason: 'web detection timeout after 300000ms'
-                })
-              ]
-            })
-          })
-        ])
-      )
-    })
-
-    it('keeps the components a cut-off reply finished instead of losing the section', async () => {
-      // finish_reason is "stop", not "length": the provider reported a normal
-      // stop on a reply that ends mid-object. Retrying returns the same reply,
-      // so the components already written are all there is to keep.
-      const truncated =
-        '{"sectionKey":"main:0-99","components":[' +
-        '{"component":"navbar","confidence":0.95,"content":{"menuItems":[{"label":"Home","href":{"type":"internal","pageId":"home","path":"/"}}]}},' +
-        '{"component":"card-grid","confidence":0.85,"content":{"cards":[{"type":"card-item","title":"Feature 1","description":"Feature description"}]}},' +
-        '{"component":"hero-with-image","confidence":0.9,"content":{"headi'
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{ message: { content: truncated }, finish_reason: 'stop' }],
-        usage: { total_tokens: 1500, total_cost: 0.02 }
-      })
-
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components.map(component => component.type)).toEqual(['navbar', 'card-grid'])
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
-    })
-
-    it('reports a salvaged section so a partial page is not silently partial', async () => {
-      const truncated =
-        '{"sectionKey":"main:0-99","components":[' +
-        '{"component":"navbar","confidence":0.95,"content":{"menuItems":[{"label":"Home","href":{"type":"internal","pageId":"home","path":"/"}}]}},' +
-        '{"component":"hero-with-image","confidence":0.9,"content":{"headi'
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{ message: { content: truncated }, finish_reason: 'stop' }],
-        usage: { total_tokens: 1500, total_cost: 0.02 }
-      })
-
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.diagnostics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            code: 'SECTION_REPLY_TRUNCATED',
-            severity: 'warning',
-            context: expect.objectContaining({
-              sections: expect.arrayContaining([
-                expect.objectContaining({
-                  sectionKey: 'main:0-99',
-                  keptComponents: 1,
-                  isolatedInvalidComponents: 0
-                })
-              ])
-            })
-          })
-        ])
-      )
-    })
-
-    it('still fails the page when the only section is cut off before any component finished', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{ message: { content: '{"sectionKey":"main:0-99","components":[{"compo' } }],
-        usage: { total_tokens: 1500, total_cost: 0.02 }
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
-        /exceeded output limit or returned incomplete JSON/
-      )
-    })
-
-    it('attaches provider filter when IMPORT_MODEL_ALLOWED_PROVIDER is set', async () => {
-      const original = process.env.IMPORT_MODEL_ALLOWED_PROVIDER
-      const originalModelConfigProvider = ModelConfig.allowedProvider
-      process.env.IMPORT_MODEL_ALLOWED_PROVIDER = 'azure,blah'
-      ModelConfig.allowedProvider = 'azure,blah'
-      try {
-        await service.detectComponentsFromUrl(mockPageUrl)
-        expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            provider: { only: ['azure', 'blah'] }
-          })
-        )
-      } finally {
-        if (original === undefined) {
-          delete process.env.IMPORT_MODEL_ALLOWED_PROVIDER
-        } else {
-          process.env.IMPORT_MODEL_ALLOWED_PROVIDER = original
-        }
-        ModelConfig.allowedProvider = originalModelConfigProvider
-      }
-    })
-
-    it('filters by confidence threshold', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'main:0-99',
-              components: [
-                { component: 'navbar', confidence: 0.8, content: { menuItems: [] } },
-                { component: 'hero-with-image', confidence: 0.2, content: { heading: 'Low confidence' } }
-              ]
-            })
-          }
-        }],
-        usage: { total_tokens: 1000 }
-      })
-      const result = await service.detectComponentsFromUrl(mockPageUrl, { confidenceThreshold: 0.25 })
-      expect(result.components.some(component => component.confidence < 0.25)).toBe(false)
-      const hero = result.components.find(component => component.component === 'hero-with-image')
-      expect(hero).toBeUndefined()
-      const nav = result.components.find(component => component.component === 'navbar' || component.type === 'navbar')
-      expect(nav).toBeDefined()
-    })
-
-    it('rejects missing sectionKey in section harness without parser injection', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              components: [
-                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
-              ]
-            })
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { total_tokens: 1000 }
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('sectionKey must be "main:0-99"')
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
-    })
-
-    it('still rejects explicitly wrong section keys in section harness', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'footer',
-              components: [
-                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
-              ]
-            })
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { total_tokens: 1000 }
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('sectionKey must be "main:0-99"')
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1)
-    })
-
-    it('rejects invalid component content after repair without dropping it silently', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'main:0-99',
-              components: [
-                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } },
-                { component: 'logo-cloud', confidence: 0.95, content: null }
-              ]
-            })
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { total_tokens: 1000 }
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
-        'Section main:0-99 produced 1 invalid component after repair'
-      )
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(3)
-    })
-
-    it('uses a surgical repair pass to remove invalid empty components while preserving valid siblings', async () => {
-      mockOpenAI.chat.completions.create = jest.fn()
-        .mockResolvedValueOnce({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                sectionKey: 'main:0-99',
-                components: [
-                  { component: 'navbar', confidence: 0.95, content: { menuItems: [] } },
-                  { component: 'logo-cloud', confidence: 0.95, content: null }
-                ]
-              })
-            },
-            finish_reason: 'stop'
-          }],
-          usage: { total_tokens: 1000 }
-        })
-        .mockResolvedValueOnce({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                sectionKey: 'main:0-99',
-                components: [
-                  { component: 'navbar', confidence: 0.95, content: { menuItems: [] } },
-                  { component: 'logo-cloud', confidence: 0.95, content: null }
-                ]
-              })
-            },
-            finish_reason: 'stop'
-          }],
-          usage: { total_tokens: 1000 }
-        })
-        .mockResolvedValueOnce({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                sectionKey: 'main:0-99',
-                components: [
-                  { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
-                ]
-              })
-            },
-            finish_reason: 'stop'
-          }],
-          usage: { total_tokens: 1000 }
-        })
-
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components.map(component => component.type)).toEqual(['navbar'])
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(3)
-      expect(mockOpenAI.chat.completions.create.mock.calls[2][0].messages.at(-1).content).toContain(
-        'Do not return empty required arrays such as card-grid.cards: [].'
-      )
-    })
-
-    it('adds a footer quality diagnostic when source footer evidence is not imported', async () => {
-      mockWebTools.fetchOutline.mockResolvedValue({
-        ...mockOutline,
-        resourcesSummary: {
-          ...mockOutline.resourcesSummary,
-          anchors: [
-            { href: '/privacy', textPreview: 'Privacy', pathId: 'a1' },
-            { href: '/terms', textPreview: 'Terms', pathId: 'a2' },
-            { href: '/accessibility', textPreview: 'Accessibility', pathId: 'a3' }
-          ]
-        }
-      })
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'main:0-99',
-              components: [
-                { component: 'navbar', confidence: 0.95, content: { menuItems: [] } }
-              ]
-            })
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { total_tokens: 1000 }
-      })
-
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components.map(component => component.type)).toEqual(['navbar'])
-      expect(result.diagnostics).toEqual([
-        expect.objectContaining({
-          code: 'SOURCE_FOOTER_NOT_IMPORTED',
-          severity: 'warning',
-          message: expect.stringContaining('Source footer evidence was detected')
-        })
-      ])
-    })
-
-    it('fails required nonempty sections when all repaired components are invalid', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'main:0-99',
-              components: [
-                { component: 'logo-cloud', confidence: 0.95, content: null }
-              ]
-            })
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { total_tokens: 1000 }
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow(
-        'Section main:0-99 produced 1 invalid component after repair'
-      )
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2)
-    })
-
-    it('handles API errors gracefully', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockRejectedValue(new Error('API error'))
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Web detection failed: API error')
-    })
-
-    it('rejects malformed JSON', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{ message: { content: 'Invalid JSON' } }],
-        usage: { total_tokens: 100 }
-      })
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Web detection failed')
-    })
-
-    it('rejects unknown component keys', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'main:0-99',
-              components: [
-                { component: 'unknown-component', confidence: 0.95, content: {} }
-              ],
-              pageMetadata: {}
-            })
-          }
-        }],
-        usage: { total_tokens: 900 }
-      })
-
-      await expect(service.detectComponentsFromUrl('https://example.com/blog/how-to-scale')).rejects.toThrow('is not registered')
     })
 
     it('fails non-success source responses before LLM detection', async () => {
@@ -1042,57 +509,6 @@ describe('DetectionService (web-based)', () => {
       })
 
       expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled()
-    })
-
-    it('adds video-embed when section evidence contains an embedded video', async () => {
-      mockWebTools.getSection.mockResolvedValue({
-        handle: 'handle-1',
-        key: 'main:0-99',
-        slice: [
-          { tag: 'section', pathId: 'n000001', class: 'video-section' },
-          {
-            tag: 'iframe',
-            pathId: 'n000002',
-            attrs: { src: 'https://www.youtube.com/embed/wGxC3_9GZJ4', title: 'YouTube video player' }
-          }
-        ],
-        stats: { nodeCount: 2, approxBytes: 300 }
-      })
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              sectionKey: 'main:0-99',
-              components: [
-                {
-                  component: 'video-embed',
-                  confidence: 0.95,
-                  content: {
-                    provider: 'youtube',
-                    url: 'https://www.youtube.com/embed/wGxC3_9GZJ4',
-                    title: 'YouTube video player'
-                  }
-                }
-              ]
-            })
-          }
-        }],
-        usage: { total_tokens: 1000 }
-      })
-
-      const result = await service.detectComponentsFromUrl(mockPageUrl)
-
-      expect(result.components).toHaveLength(1)
-      expect(result.components[0].type).toBe('video-embed')
-    })
-
-    it('fails pages when all optional content sections return no components', async () => {
-      mockOpenAI.chat.completions.create = jest.fn().mockResolvedValue({
-        choices: [{ message: { content: JSON.stringify({ sectionKey: 'main:0-99', components: [] }) } }],
-        usage: { total_tokens: 100 }
-      })
-
-      await expect(service.detectComponentsFromUrl(mockPageUrl)).rejects.toThrow('Section harness produced no components')
     })
 
     it('selects a route-matched template for non-home pages', async () => {
@@ -1173,23 +589,6 @@ describe('DetectionService (web-based)', () => {
       }
     })
 
-    it('warns when a phase exceeds its threshold', async () => {
-      performanceMonitorMocks.endTimer.mockImplementation((operation: string) =>
-        operation.endsWith('llm_call') ? 9000 : 12
-      )
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
-      try {
-        await service.detectComponentsFromUrl(mockPageUrl)
-        const warnCalls = warnSpy.mock.calls.filter(call => call[0] === '[DETECTION][PhaseThreshold]')
-        expect(warnCalls.length).toBeGreaterThan(0)
-        expect(warnCalls[warnCalls.length - 1][1]).toEqual(
-          expect.objectContaining({ phase: 'llm_call', durationMs: 9000 })
-        )
-      } finally {
-        warnSpy.mockRestore()
-        performanceMonitorMocks.endTimer.mockImplementation(() => 12)
-      }
-    })
   })
 
   describe('component mapping', () => {

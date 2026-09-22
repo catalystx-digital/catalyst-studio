@@ -354,9 +354,6 @@ export const SitemapConfig = {
  * Web tools settings for content extraction.
  */
 export const WebToolsConfig = {
-  /** Maximum bytes per section */
-  sectionMaxBytes: parseEnvInt('IMPORT_SECTION_MAX_BYTES', 12000),
-
   /** Maximum missed DOM sections to force-fetch after tool use */
   maxForceFetchSections: parseEnvInt('IMPORT_MAX_FORCE_FETCH_SECTIONS', 10),
 
@@ -408,32 +405,14 @@ export const DetectionConfig = {
   /** Enable same-import reuse of validated global header/footer section artifacts */
   globalSectionReuse: parseEnvBool('IMPORT_GLOBAL_SECTION_REUSE', true),
 
-  /** Detection harness: section extraction or rendered block picking and filling. */
-  detectionHarness: (() => {
-    const harness = parseEnvString('IMPORT_DETECTION_HARNESS', 'section')
-    if (harness !== 'section' && harness !== 'blocks') {
-      throw new Error('IMPORT_DETECTION_HARNESS must be one of: section, blocks')
-    }
-    return harness
-  })(),
-
   /** Model used to fill each picked block */
   blockFillModel: parseEnvString('IMPORT_BLOCK_FILL_MODEL', 'inception/mercury-2.5'),
 
   /** Maximum concurrent block picks and extractions within a page */
   blockConcurrency: parseEnvInt('IMPORT_BLOCK_CONCURRENCY', 8),
 
-  /** Maximum source sections to extract with LLMs for a single page import */
-  maxSectionTasks: parseEnvInt('IMPORT_MAX_SECTION_TASKS', 40),
-
-  /** Maximum LLM section extraction requests to run concurrently within a page */
-  sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 2),
-
   /** Use the shorter section extraction prompt that omits full-page template instructions */
-  sectionPromptMode: parseEnvString('IMPORT_SECTION_PROMPT_MODE', 'section') as 'section' | 'full',
-
-  /** Enable deterministic source payload summarization before section extraction */
-  sectionSummaryEnabled: parseEnvBool('IMPORT_SECTION_SUMMARY_ENABLED', false)
+  sectionPromptMode: parseEnvString('IMPORT_SECTION_PROMPT_MODE', 'section') as 'section' | 'full'
 } as const
 
 // =============================================================================

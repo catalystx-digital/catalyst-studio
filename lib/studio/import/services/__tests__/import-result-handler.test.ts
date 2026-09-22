@@ -21,7 +21,6 @@ describe('ImportResultHandler approval threshold', () => {
 })
 
 
-jest.mock('../detection-post-processor', () => ({ adjustDetectedComponents: jest.fn(components => components) }))
 jest.mock('@/lib/studio/media/storage/media-storage-factory', () => ({ getMediaStorageProvider: () => ({ backend: 'local', provider: {} }) }))
 jest.mock('@/lib/studio/media/media-repository', () => ({ MediaRepository: jest.fn() }))
 jest.mock('../media-ingest-service', () => ({ MediaIngestService: jest.fn() }))
@@ -31,12 +30,10 @@ jest.mock('../design-profile-service', () => ({ buildImportDesignProfile: jest.f
 jest.mock('../page-builder/presentation-skeleton', () => ({ selectPresentationSkeleton: jest.fn() }))
 jest.mock('@/lib/studio/components/cms/_factory/initialize', () => ({ initializeCMSComponents: jest.fn() }))
 
-import { adjustDetectedComponents } from '../detection-post-processor'
 import { selectPresentationSkeleton } from '../page-builder/presentation-skeleton'
-import { DetectionConfig } from '../../config'
 import { PageBuilderService } from '../page-builder-service'
 
-describe('ImportResultHandler repair selection', () => {
+describe('ImportResultHandler provenance', () => {
   test.each(['blocks', 'section'] as const)('preserves %s provenance through page-builder preflight', async detectionHarness => {
     const preflightReached = new Error('Reached page-builder preflight')
     const preflight = jest.spyOn(PageBuilderService.prototype, 'validatePagesInBatch').mockRejectedValue(preflightReached)
@@ -64,33 +61,4 @@ describe('ImportResultHandler repair selection', () => {
     }
   })
 
-  test.each(['blocks', 'section', undefined] as const)('uses the result harness field for %s', async detectionHarness => {
-    jest.mocked(adjustDetectedComponents).mockClear()
-    const auditReached = new Error('Reached design-fit audit after repair selection')
-    jest.mocked(selectPresentationSkeleton).mockReturnValue({
-      key: 'unknown',
-      get diagnostics() { throw auditReached }
-    } as any)
-    const handler = new ImportResultHandler({
-      repository: { findById: async () => ({ id: 'job', websiteId: 'website', url: 'https://example.com/' }) },
-      prisma: {},
-      progressManager: {},
-      orchestrator: {}
-    } as any)
-    const previous = DetectionConfig.detectionHarness
-    DetectionConfig.detectionHarness = detectionHarness === 'blocks' ? 'section' : 'blocks'
-    const detection = {
-      detectionHarness,
-      pageUrl: 'https://example.com/',
-      components: [{ component: 'text-block', type: 'text-block', confidence: 0.9, content: { text: 'Fixture' } }]
-    }
-    try {
-      await expect(handler.persist('job', { data: { detectedComponents: [detection] } }, {
-        sitemapMetaByUrl: new Map(), skipDesignSystemProcessing: true, skipMediaIngestion: true
-      })).rejects.toBe(auditReached)
-      expect(adjustDetectedComponents).toHaveBeenCalledTimes(detectionHarness === 'blocks' ? 0 : 1)
-    } finally {
-      DetectionConfig.detectionHarness = previous
-    }
-  })
 })

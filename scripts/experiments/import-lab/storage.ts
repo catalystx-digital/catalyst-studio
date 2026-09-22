@@ -1,13 +1,13 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import type { FetchOutlineResult, GetSectionResult } from '@/lib/studio/import/services/web-tools'
+import type { FetchOutlineResult, DomNode } from '@/lib/studio/import/services/web-tools'
 
 export interface Snapshot {
   manifest: { version: 1; url: string; finalUrl: string; fetchedAt: string; sha256: string; sectionKeys: string[]; bytes: Record<string, number>; stylesheetUrls?: string[] }
   html: string
   outline: FetchOutlineResult
-  sections: Record<string, GetSectionResult>
+  sections: Record<string, { handle: string; key: string; slice: DomNode[]; stats: { nodeCount: number; approxBytes: number; truncated?: boolean } }>
   models: { data: Array<Record<string, unknown>> }
   stylesheets: string[]
 }
@@ -53,7 +53,7 @@ export async function loadSnapshot(page: string): Promise<Snapshot> {
   return { manifest, html, outline, sections, models, stylesheets }
 }
 export function argumentsForRun(argv = process.argv.slice(2)) {
-  const allowed = new Set(['--page', '--run', '--max-sections', '--dry-run'])
+  const allowed = new Set(['--page', '--run', '--dry-run'])
   const values: Record<string, string> = {}
   for (let i=0; i<argv.length; i++) {
     const key = argv[i]
@@ -62,9 +62,7 @@ export function argumentsForRun(argv = process.argv.slice(2)) {
     else { if (!argv[i+1] || argv[i+1].startsWith('--')) throw new Error('Missing value: ' + key); values[key] = argv[++i] }
   }
   const page = identifier(values['--page'] || ''), run = identifier(values['--run'] || '')
-  const maxSections = values['--max-sections'] === undefined ? undefined : Number(values['--max-sections'])
-  if (maxSections !== undefined && (!Number.isSafeInteger(maxSections) || maxSections < 1)) throw new Error('--max-sections must be a positive integer')
-  return { page, run, maxSections, dryRun: values['--dry-run'] === 'true' }
+  return { page, run, dryRun: values['--dry-run'] === 'true' }
 }
 export function errorRecord(error: unknown) {
   return error instanceof Error ? { name: error.name, message: error.message, ...('debug' in error ? {debug: error.debug} : {}) } : { message: String(error) }

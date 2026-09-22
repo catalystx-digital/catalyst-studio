@@ -45,13 +45,13 @@ test('manifest validates settings and initialization never replaces an existing 
   await expect(initializePages()).rejects.toMatchObject({code:'EEXIST'})
 })
 test('dry evaluation plans preserve run IDs, skip existing folders, and require explicit spending',async()=>{
-  await fs.mkdir(path.join(process.env.IMPORT_LAB_ROOT!,'runs','garden','run-1'),{recursive:true})
-  const options=parseEval(['today','--runs','2','--dry-run']), tasks=await planEvaluation(options,manifest())
-  expect(tasks).toHaveLength(4);expect(tasks.filter(t=>t.existing)).toHaveLength(1)
+  await fs.mkdir(path.join(process.env.IMPORT_LAB_ROOT!,'arms','garden','blocks-production','run-1'),{recursive:true})
+  const options=parseEval(['arms','--arms','blocks-production','--run','run-1','--dry-run']), tasks=await planEvaluation(options,manifest())
+  expect(tasks).toHaveLength(2);expect(tasks.filter(t=>t.existing)).toHaveLength(1)
   expect(()=>authorizePlan(tasks,options)).not.toThrow();expect(()=>authorizePlan(tasks,{...options,dryRun:false})).toThrow('--yes-spend')
   expect(()=>authorizePlan(tasks,{...options,dryRun:false,yesSpend:true})).not.toThrow()
   expect(estimate([], 'new-arm')).toEqual({calls:null,cost:null})
-  expect(await fs.readdir(path.join(process.env.IMPORT_LAB_ROOT!,'runs','garden'))).toEqual(['run-1'])
+  expect(await fs.readdir(path.join(process.env.IMPORT_LAB_ROOT!,'arms','garden','blocks-production'))).toEqual(['run-1'])
 })
 test('only-failed keeps successful drafts and reviewed corrections, rejects changed proposals',()=>{
   const proposal=comparisonProposal(), previous=comparisonSheet();previous.entries.forEach(e=>{e.status='draft';e.draftStatus='complete'});previous.entries[1].draftStatus='failed';previous.entries[2].draftStatus='failed'

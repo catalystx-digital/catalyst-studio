@@ -12,11 +12,8 @@ describe('saved web tools',()=>{
     const snapshot=fixtureSnapshot(), tools=createReplayTools(snapshot)
     const outline=await tools.fetchOutline({url:snapshot.manifest.url})
     expect(outline).toEqual(snapshot.outline)
-    for(const key of snapshot.manifest.sectionKeys) expect(await tools.getSection({handle:outline.handle,key})).toEqual(snapshot.sections[key])
     outline.sections!.pop()
-    const section=await tools.getSection({handle:outline.handle,key:'header'});section.slice[0].tag='changed'
     expect((await tools.fetchOutline({url:snapshot.manifest.url})).sections).toHaveLength(3)
-    expect((await tools.getSection({handle:outline.handle,key:'header'})).slice[0].tag).toBe('header')
     tools.release(outline.handle)
     expect(tools.getLastFetchOutline()).toEqual(snapshot.outline)
   })
@@ -24,16 +21,7 @@ describe('saved web tools',()=>{
     const snapshot=fixtureSnapshot(), tools=createReplayTools(snapshot)
     await expect(tools.fetchOutline({url:'https://example.com/other'})).rejects.toThrow('outside')
     await expect(tools.fetchOutline({url:snapshot.manifest.url,stripScriptsStyles:false})).rejects.toThrow('settings')
-    await expect(tools.getSection({handle:'other',key:'header'})).rejects.toThrow('handle')
-    await expect(tools.getSection({handle:snapshot.outline.handle,key:'__proto__'})).rejects.toThrow('section')
     expect(()=>tools.release('other')).toThrow('handle')
-  })
-  test('caps sections explicitly without changing saved data',async()=>{
-    const snapshot=fixtureSnapshot(), tools=createReplayTools(snapshot,1)
-    expect(tools.omitted).toEqual(['main:0-1023','footer'])
-    expect((await tools.fetchOutline({url:snapshot.manifest.url})).sections).toHaveLength(1)
-    await expect(tools.getSection({handle:snapshot.outline.handle,key:'footer'})).rejects.toThrow('section')
-    expect(snapshot.outline.sections).toHaveLength(3)
   })
   test('safe identifiers and slugs omit credentials, query and fragments',()=>{
     expect(()=>identifier('../outside')).toThrow()
@@ -53,7 +41,7 @@ function styledSnapshot() {
 
 test('legacy replay uses the guessed stylesheet URL for the map only', async () => {
   const snapshot = styledSnapshot(), web = new WebFetchTools()
-  const tools = createReplayTools(snapshot, undefined, web)
+  const tools = createReplayTools(snapshot, web)
   await tools.fetchOutline({ url: snapshot.manifest.url })
   const { bgImageMap: map, stylesheets } = web.getPageStyling(snapshot.outline.handle)
   expect(stylesheets).toEqual([])

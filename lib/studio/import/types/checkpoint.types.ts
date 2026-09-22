@@ -216,8 +216,6 @@ export interface LLMDebugInfo {
   sectionOrder?: number
   /** Approximate serialized section size */
   sectionApproxBytes?: number
-  /** Whether deterministic section source summarization was enabled */
-  sectionSummaryEnabled?: boolean
   /** Original serialized section byte estimate before summarization */
   sectionOriginalBytes?: number
   /** Serialized section byte estimate after summarization */

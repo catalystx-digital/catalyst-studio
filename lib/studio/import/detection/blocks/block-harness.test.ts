@@ -94,7 +94,6 @@ beforeEach(() => {
   process.env.DECISION_MODEL_SHADOW = 'false'
   process.env.DECISION_MODEL_API_KEY = 'fake'
   delete process.env.DECISION_MODEL_WEBSITE_ALLOWLIST
-  DetectionConfig.detectionHarness = 'blocks'
   DetectionConfig.blockConcurrency = 2
   failureMode = 'none'
   attempts = new Map()
@@ -304,7 +303,6 @@ test('finishes picking before filling and limits concurrent block extractions', 
 
 
 test.each([149, 150, 151])('enforces the independent per-page block cap for %i blocks', async count => {
-  DetectionConfig.maxSectionTasks = 40
   const renderAndCut = blockCutter.renderAndCut
   jest.spyOn(blockCutter, 'renderAndCut').mockImplementationOnce(async args => {
     const cut = await renderAndCut(args)

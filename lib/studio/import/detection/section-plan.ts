@@ -1,4 +1,3 @@
-import type { SectionInfo } from '../services/web-tools'
 import { filterPageContentCandidateTypes } from './candidate-types'
 import { classifyRouteIntent } from './section-taxonomy'
 
@@ -83,23 +82,4 @@ export function candidatesForRole(role: DetectionSectionRole, pageUrl: string): 
     candidates.delete('card-grid')
   }
   return filterPageContentCandidateTypes(candidates)
-}
-
-export function buildDetectionSectionPlan({
-  pageUrl,
-  sections
-}: {
-  pageUrl: string
-  sections: SectionInfo[]
-}): DetectionSectionTask[] {
-  return sections.map((section, index) => {
-    const role = roleForSection(section.key, index)
-    return {
-      sectionKey: section.key,
-      sectionOrder: index,
-      role,
-      required: role === 'header' || role === 'footer',
-      candidateTypes: candidatesForRole(role, pageUrl)
-    }
-  })
 }
