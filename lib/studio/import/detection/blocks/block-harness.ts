@@ -12,7 +12,6 @@ import { buildBlockInput } from './block-input'
 import { pickBlockTypes, selectBlockCandidates } from './block-pick'
 import { extractBlock } from './block-extract'
 import { inferLocationFromType } from '../response-parser'
-import { applyRegion } from '../../services/detection-post-processor/region-processor'
 
 // Blocks cost far less than section slices; allow long pages while bounding runaway fragmentation.
 const MAX_BLOCKS_PER_PAGE = 150
@@ -66,10 +65,9 @@ export async function runBlockHarness({
       }
     )
   }
-  const assignRegions = (artifact: SectionExtractionArtifact, region: typeof blocks[number]['region']) => {
+  const assignLocations = (artifact: SectionExtractionArtifact) => {
     for (const component of artifact.components) {
-      const inferred = inferLocationFromType(component.type)
-      applyRegion(component, inferred && inferred !== 'main' ? inferred : region)
+      component.location = inferLocationFromType(component.type)
     }
   }
   tasks.push(...blocks.map(block => ({
@@ -146,7 +144,7 @@ export async function runBlockHarness({
           pageMetadata: saved.pageMetadata,
           parserRepairs: saved.llmDebug?.parserRepairs
         }
-        assignRegions(result.artifact, blocks[index].region)
+        assignLocations(result.artifact)
         return result
       }
       if (!input || !pick) throw pickError || new Error('Block input unavailable')
@@ -202,7 +200,7 @@ export async function runBlockHarness({
         durationMs: Date.now() - started,
         pageMetadata: provenance.extractionMode === 'reused' ? undefined : cachedResult.artifact.pageMetadata
       }
-      assignRegions(result.artifact, blocks[index].region)
+      assignLocations(result.artifact)
       result.usage = fresh?.usage ?? {}
       result.requestCount = fresh?.requestCount ?? 0
       result.pageSummary = fresh?.pageSummary

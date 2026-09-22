@@ -1,10 +1,14 @@
-import { detectionParserInternals, parseDetectionResponse, parseSectionDetectionResponse } from '../response-parser'
+import { detectionParserInternals, inferLocationFromType, parseDetectionResponse, parseSectionDetectionResponse } from '../response-parser'
 import { PageTemplateCategory } from '@/lib/studio/pages/_core/types'
 import { canonicalizeComponentType } from '@/lib/studio/components/cms/_core/canonicalization'
 import type { PageCatalogSummary, PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
 import type { ComponentPattern } from '../types'
 import { initializeCMSComponents } from '@/lib/studio/components/cms/_factory/initialize'
 import { refreshComponentContracts } from '@/lib/studio/components/catalog/component-contracts'
+import { getDefinedTypes, getHeroComponentTypes, getSubComponentTypes } from '@/lib/studio/components/cms/_core/definition-loader'
+import { pageTemplateFactory } from '@/lib/studio/pages/_factory/page-factory'
+import { GENERIC_PAGE_TEMPLATE_KEY } from '@/lib/studio/pages/_core/constants'
+import { registerTemplate } from '@/lib/studio/pages/core/generic/register'
 
 const buildTemplate = (
   templateKey: string,
@@ -69,6 +73,40 @@ const patterns: ComponentPattern[] = [
 beforeAll(async () => {
   await initializeCMSComponents()
   refreshComponentContracts()
+})
+
+describe('inferLocationFromType', () => {
+  it.each([
+    ['article-header', 'main'],
+    ...Array.from(getHeroComponentTypes(), type => [type, 'hero']),
+    ['navbar', 'header'],
+    ['sidemenu', 'header'],
+    ['breadcrumbs', 'header'],
+    ['breadcrumb', 'header'],
+    ['footer', 'footer'],
+    ['card-grid', 'main'],
+    ['nav-menu-item', 'main'],
+    ['sidebar-nav', 'main'],
+    ['unknown-header', 'main'],
+    ['unknown-hero', 'main'],
+    ['unknown-footer', 'main']
+  ])('maps %s to %s', (type, region) => {
+    expect(inferLocationFromType(type)).toBe(region)
+  })
+
+  it('infers a generic-template-compatible region for every registered page-level type', () => {
+    registerTemplate()
+    const template = pageTemplateFactory.getTemplate(GENERIC_PAGE_TEMPLATE_KEY)!
+    const regions = [...template.requiredRegions, ...(template.optionalRegions ?? [])]
+    const subComponentTypes = getSubComponentTypes()
+    const pageLevelTypes = getDefinedTypes().filter(type => !subComponentTypes.has(type))
+
+    expect(pageLevelTypes.length).toBeGreaterThan(0)
+    for (const type of pageLevelTypes) {
+      const region = regions.find(region => region.region === inferLocationFromType(type))
+      expect(region?.allowedComponents).toContain(type)
+    }
+  })
 })
 
 describe('resolvePageTemplate strict contract', () => {

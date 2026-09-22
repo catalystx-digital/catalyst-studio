@@ -9,6 +9,8 @@ import { DetectionConfig, ModelConfig } from '../config'
 import { GlobalSectionArtifactCache } from '../detection/global-section-cache'
 import OpenAI from 'openai'
 import type { ComponentPattern } from '@/lib/studio/components/cms/_import/types'
+import { createFakeDecisionClient, setDecisionClient } from '@/lib/studio/decisions'
+import { getPageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 
 import { getComponentCatalogSummary } from '@/lib/studio/ai/component-catalog'
 
@@ -414,6 +416,51 @@ describe('DetectionService (web-based)', () => {
     service = new DetectionService()
   })
 
+
+  describe('model template route eligibility', () => {
+    const originalEnv = process.env
+
+    beforeEach(() => {
+      process.env = {
+        ...originalEnv,
+        DECISION_MODEL_ENABLED: 'true',
+        DECISION_MODEL_SHADOW: 'false',
+        DECISION_MODEL_API_KEY: 'fake',
+        DECISION_MODEL_WEBSITE_ALLOWLIST: '',
+        DECISION_MODEL_LOG_DIR: ''
+      }
+    })
+
+    afterEach(() => {
+      setDecisionClient(null)
+      process.env = originalEnv
+    })
+
+    it.each([
+      ['/about', 'marketing/home-default', false],
+      ['/', 'marketing/home-default', true],
+      ['/about', 'blog/post-standard', true]
+    ] as const)('checks %s eligibility for model template %s', async (path, templateKey, accepted) => {
+      const summary = await getPageCatalogSummary()
+      // Keep the root's deterministic choice distinct so model acceptance is exercised.
+      summary.homeEligibleTemplates = []
+      const url = `https://example.com${path}`
+      const deterministic = service['selectPageTemplate'](summary, url, [])
+      expect(deterministic.templateKey).toBe('core/generic-default')
+      const client = createFakeDecisionClient({ 'page.type': { value: templateKey, probability: 0.9 } })
+      const askSpy = jest.spyOn(client, 'askRaw')
+      setDecisionClient(client)
+
+      const result = await service['selectPageTemplateWithModel'](summary, url, [], { title: 'Example' })
+
+      expect(askSpy).toHaveBeenCalledTimes(1)
+      if (accepted) {
+        expect(result).toMatchObject({ templateKey, source: 'model', confidence: 0.9 })
+      } else {
+        expect(result).toEqual(deterministic)
+      }
+    })
+  })
 
   describe('detectComponentsFromUrl', () => {
     const mockPageUrl = 'https://example.com'

@@ -15,6 +15,7 @@ import { normalizeComponentContent } from '../services/page-builder/component-he
 import { isFatalNormalizationWarning } from '../services/page-builder/normalization-telemetry'
 import { getComponentContractByCanonicalType } from '@/lib/studio/components/catalog/component-contracts'
 import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
+import { getHeroComponentTypes } from '@/lib/studio/components/cms/_core/definition-loader'
 import { classifySectionIntent } from './section-taxonomy'
 
 // Use centralized confidence threshold
@@ -574,10 +575,9 @@ function isDroppedLogoCloudItemWarning(warning: { field?: string; issue: string;
 }
 
 export function inferLocationFromType(type: string): DetectedComponent['location'] {
-  const typeLower = type.toLowerCase()
-  if (typeLower.includes('nav') || typeLower.includes('header')) return 'header'
-  if (typeLower.includes('hero')) return 'hero'
-  if (typeLower.includes('footer')) return 'footer'
+  if (getHeroComponentTypes().has(type)) return 'hero'
+  if (['navbar', 'sidemenu', 'breadcrumbs', 'breadcrumb'].includes(type)) return 'header'
+  if (type === 'footer') return 'footer'
   return 'main'
 }
 

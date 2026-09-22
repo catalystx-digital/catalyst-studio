@@ -78,6 +78,14 @@ The repository is public. The two local work branches carry, in earlier commits,
 | Twenty pages is still a small sample | M5's real imports are the second proof; the lab stays available to re-measure at any time. |
 | The branch this work sits on has 37 unpushed commits and is behind the remote main | Before M2: fetch, decide with the owner whether to rebase, and take the customer-naming benchmark folder out (M6 deletes it anyway). |
 
+## 5a. Found by real imports (22 September 2026) - open decisions
+
+Running complete imports (detection, page building, database) found defects the lab and the tests could not, because they stop at detection. Fixed on this branch: the page builder rejected the new page-template provenance values; the old path's per-page cap was applied to blocks; region-bound components from blocks reached the page builder in the wrong region; the block cutter's geometric region was stamped on components; the substring rule that infers a region from a type name sent article headers to the header region; the decision model's page-template choice was accepted without the route check the deterministic scorer applies.
+
+Two things need the owner:
+- `IMPORT_DETECTION_HARNESS=blocks` requires `DECISION_MODEL_ENABLED=true`, and that also activates the older questions registered in `lib/studio/decisions` (`page.type`, `page.isInternal`). `page.isInternal` can exclude pages from an import. On tonight's imports it was asked 62 times and excluded none, but it is live. Recommendation: the blocks harness enables only its own two questions (per-question gating) - a small change, not made without a decision.
+- The pull request's CI fails at the production dependency audit (`npm audit --omit=dev --audit-level=high`) on packages this branch did not change (an AI SDK helper, an XML library); the advisories are newer than main's last CI run. Dependency updates are outside this plan.
+
 ## 6. Results so far (21 September 2026)
 
 | Milestone | Outcome |

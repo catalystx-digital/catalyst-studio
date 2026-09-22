@@ -30,7 +30,7 @@ jest.mock('../prompt-builder', () => ({
     prompt: 'Fixture contracts: ' + (candidateTypes || []).join(', '),
     components: (candidateTypes || ['text-block']).map(type => ({ type, confidence: 0.9 })),
     pageSummary: {
-      templates: [{ templateKey: 'core/generic-default', name: 'Generic', category: 'core', requiredRegions: [{ region: 'main', allowedComponents: ['text-block'] }], optionalRegions: [{ region: 'header', allowedComponents: ['navbar', 'text-block'] }, { region: 'footer', allowedComponents: ['footer'] }] }],
+      templates: [{ templateKey: 'core/generic-default', name: 'Generic', category: 'core', requiredRegions: [{ region: 'main', allowedComponents: ['text-block', 'card-grid'] }], optionalRegions: [{ region: 'header', allowedComponents: ['navbar', 'text-block'] }, { region: 'footer', allowedComponents: ['footer'] }] }],
       homeEligibleTemplates: []
     }
   }))
@@ -171,7 +171,7 @@ test('fixture imports in block order with regional header roles and head metadat
   const onProgress = jest.fn()
   const result = await detect({ onProgress })
   expect(result.detectionHarness).toBe('blocks')
-  expect(result.components.map(component => component.location)).toEqual(['header', 'header', 'main', 'main', 'footer'])
+  expect(result.components.map(component => component.location)).toEqual(['header', 'main', 'main', 'main', 'footer'])
   expect(result.components.map(component => component.type)).toEqual(['navbar', 'text-block', 'text-block', 'text-block', 'footer'])
   expect(result.pageMetadata).toMatchObject({ title: 'Fixture page', description: 'Fixture description' })
   expect(result.pageTemplate?.templateKey).toBe('core/generic-default')
@@ -332,14 +332,19 @@ test.each([149, 150, 151])('enforces the independent per-page block cap for %i b
   expect(checkpointService.saveSectionResult).not.toHaveBeenCalled()
 })
 
-test('a header-only type in a main block is assigned header on fresh extraction and checkpoint resume', async () => {
+test.each([
+  { order: 2, role: 'header', type: 'card-grid', location: 'main', content: { cards: [{ title: 'Article', description: 'Article summary' }] } },
+  { order: 3, role: 'main', type: 'navbar', location: 'header', content: { menuItems: [{ label: 'Section', href: '/section' }] } },
+  { order: 3, role: 'main', type: 'footer', location: 'footer', content: { copyright: 'Copyright Example' } }
+])('$type in a $role block uses $location on fresh extraction and checkpoint resume', async ({ order, role, type, location, content }) => {
+  const key = 'block:' + order
   const originalDecision = decision.getMockImplementation()!
   decision.mockImplementation(async (state, questions) => {
     const result = await originalDecision(state, questions)
-    if (state.startsWith('Block 3;')) {
-      result.answers['import.block.component'].value = 'navbar'
+    if (state.startsWith('Block ' + order + ';')) {
+      result.answers['import.block.component'].value = type
       result.answers['import.block.component'].distribution = Object.fromEntries(
-        Object.keys(questions[0].criteria).map(type => [type, type === 'navbar' ? 1 : 0])
+        Object.keys(questions[0].criteria).map(candidate => [candidate, candidate === type ? 1 : 0])
       )
     }
     return result
@@ -347,16 +352,19 @@ test('a header-only type in a main block is assigned header on fresh extraction 
   const originalFill = fill.getMockImplementation()!
   fill.mockImplementation(async payload => {
     const user = payload.messages.find((message: any) => message.role === 'user').content
-    if (user.includes('"sectionKey":"block:3"')) {
-      return response('block:3', 'navbar', { menuItems: [{ label: 'Section', href: '/section' }] })
+    if (user.includes('"sectionKey":"' + key + '"')) {
+      return response(key, type, content)
     }
     return originalFill(payload)
   })
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await detect()
-    expect(result.components[2]).toMatchObject({ type: 'navbar', location: 'header', metadata: { region: 'header' } })
+    expect(result.components[order - 1]).toMatchObject({ type, location })
+    expect(result.components[order - 1].metadata?.region).toBeUndefined()
     expect(result.components[3]).toMatchObject({ type: 'text-block', location: 'main' })
-    expect(checkpoints.get('block:3').components[0].location).toBe('header')
+    expect(checkpoints.get(key).components[0].location).toBe(location)
+    expect(result.pageTemplate?.templateKey).toBe('core/generic-default')
+    expect(checkpointService.savePagePlan.mock.calls[attempt][2].sections[order - 1].role).toBe(role)
   }
   expect(fill).toHaveBeenCalledTimes(5)
 })

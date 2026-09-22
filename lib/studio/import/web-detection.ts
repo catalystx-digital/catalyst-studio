@@ -16,6 +16,7 @@ import type {
 } from 'openai/resources/chat/completions'
 import { getWebFetchTools, type HeadMeta, type ResourcesSummary } from './services/web-tools'
 import { isAssetUrl } from './services/sitemap-discovery.service'
+import { isTemplateRouteEligible } from './services/page-builder/template-resolver'
 import { buildDetectionPromptFromCatalog, buildFillPromptFromCatalog } from './detection/prompt-builder'
 import { filterPageContentCandidateTypes } from './detection/candidate-types'
 import { parseDetectionResponse, parseSectionDetectionResponse } from './detection/response-parser'
@@ -791,7 +792,7 @@ export class DetectionService {
    *
    * The scorer's own answer is handed in via context.input so the shadow log
    * compares like with like, and the model's answer is only accepted if it
-   * names a registered template that allows the components actually detected.
+   * names a route-eligible registered template that allows the components actually detected.
    */
   private async selectPageTemplateWithModel(
     pageSummary: DetectionPromptPayload['pageSummary'],
@@ -821,7 +822,7 @@ export class DetectionService {
     }
 
     const accepted = pageSummary.templates.find(template => template.templateKey === answer.value)
-    if (!accepted || !this.templateAllowsDetectedComponents(accepted, components)) {
+    if (!accepted || !isTemplateRouteEligible(accepted, url) || !this.templateAllowsDetectedComponents(accepted, components)) {
       return deterministic
     }
 
