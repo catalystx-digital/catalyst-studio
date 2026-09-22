@@ -134,3 +134,4 @@ LOCAL_*_CHECKLIST.md
 *_USER_COMMANDS.ps1
 changed.txt
 .import-lab/
+/.swc
