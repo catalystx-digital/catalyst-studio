@@ -135,7 +135,7 @@ export const TwoColumnDef = defineComponent({
     '       "type": "two-column",',
     '       "columnRatio": "50-50",',
     '       "leftColumn": [{ "type": "text-block", "heading": "...", "body": "..." }],',
-    '       "rightColumn": [{ "type": "image", "src": "...", "alt": "..." }]',
+    '       "rightColumn": [{ "type": "image-gallery", "images": [{ "src": "...", "alt": "..." }] }]',
     "     }",
     "",
     "**CRITICAL**: When a page has a sidebar/sidemenu alongside main content, you MUST wrap them in two-column. Do NOT emit sidemenu and html-block as separate top-level components - they belong together in a two-column layout.",
