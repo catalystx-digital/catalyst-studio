@@ -33,11 +33,25 @@ export function isAssetUrl(url: string): boolean {
     const { pathname } = new URL(url);
     // Get extension from pathname, handling query strings
     const pathWithoutQuery = pathname.split('?')[0];
-    const lastSegment = pathWithoutQuery.split('/').pop() || '';
+    const lastSegment = pathWithoutQuery.replace(/\/+$/, '').split('/').pop() || '';
     const dotIndex = lastSegment.lastIndexOf('.');
     if (dotIndex === -1) return false;
     const ext = lastSegment.slice(dotIndex + 1).toLowerCase();
     return ASSET_EXTENSIONS.has(ext);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Heuristic for publishing-system image attachment pages.
+ * A legitimate page ending in -jpg would be rejected; this is accepted because
+ * such addresses are overwhelmingly attachment pages.
+ */
+export function isLikelyAttachmentPageUrl(url: string): boolean {
+  try {
+    const lastSegment = new URL(url).pathname.replace(/\/+$/, '').split('/').pop() || '';
+    return /-(jpg|jpeg|png|gif|webp|svg|avif|bmp|tif|tiff)$/i.test(lastSegment);
   } catch {
     return false;
   }
@@ -173,6 +187,10 @@ export class SitemapDiscoveryService {
                   skipped.push({ url: fullUrl, reason: 'asset-url' });
                   continue;
                 }
+                if (isLikelyAttachmentPageUrl(fullUrl)) {
+                  skipped.push({ url: fullUrl, reason: 'likely-attachment-page' });
+                  continue;
+                }
                 const key = `${u.host}${u.pathname}`.toLowerCase();
                 const candidate = {
                   url: u.toString(),
@@ -230,7 +248,7 @@ export class SitemapDiscoveryService {
       const entries = Array.from(discoveredMap.values());
       const homeUrl = this.selectHomeUrl(entries, origin);
 
-      const sorted = entries.sort((a, b) => this.compareEntries(a.url, b.url, homeUrl));
+      const sorted = entries.sort((a, b) => this.compareEntries(a, b, homeUrl));
       const ordered = [homeUrl, ...sorted.map((entry) => entry.url).filter((entryUrl) => entryUrl !== homeUrl)];
       const normalizedUrls = this.normalizeAndDedupeUrls(ordered);
       const { reachable, skipped: skippedUrls } = await this.filterReachableUrls(normalizedUrls, maxUrls, websiteId);
@@ -332,12 +350,17 @@ export class SitemapDiscoveryService {
     return (candIsHttps && prevIsHttp) || candidatePriority > prevPriority || candidateLastmod > prevLastmod;
   }
 
-  private compareEntries(aUrl: string, bUrl: string, homeUrl: string): number {
+  private compareEntries(a: { url: string; priority?: number }, b: { url: string; priority?: number }, homeUrl: string): number {
+    const aUrl = a.url;
+    const bUrl = b.url;
     if (aUrl === homeUrl) {
       return -1;
     }
     if (bUrl === homeUrl) {
       return 1;
+    }
+    if (a.priority !== undefined && b.priority !== undefined && a.priority !== b.priority) {
+      return b.priority - a.priority;
     }
     const depth = (value: string) => {
       try {
@@ -393,6 +416,10 @@ export class SitemapDiscoveryService {
         // Even in fast mode, skip asset URLs to avoid wasting LLM tokens
         if (isAssetUrl(url)) {
           skipped.push({ url, reason: 'asset-url' });
+          continue;
+        }
+        if (isLikelyAttachmentPageUrl(url)) {
+          skipped.push({ url, reason: 'likely-attachment-page' });
           continue;
         }
         reachable.push(url);
@@ -545,6 +572,9 @@ export class SitemapDiscoveryService {
       // Fast check: Skip asset URLs by extension before making network request
       if (isAssetUrl(url)) {
         return { ok: false, reason: 'asset-url' };
+      }
+      if (isLikelyAttachmentPageUrl(url)) {
+        return { ok: false, reason: 'likely-attachment-page' };
       }
 
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
@@ -820,6 +850,10 @@ export class SitemapDiscoveryService {
             if (isAssetUrl(normalizedUrl)) {
               continue;
             }
+            if (isLikelyAttachmentPageUrl(normalizedUrl)) {
+              skipped.push({ url: normalizedUrl, reason: 'likely-attachment-page' });
+              continue;
+            }
             if (!discovered.has(normalizedUrl)) {
               discovered.add(normalizedUrl);
               queue.push(normalizedUrl);
@@ -846,6 +880,10 @@ export class SitemapDiscoveryService {
               const normalizedUrl = `${linkUrl.protocol}//${linkUrl.host}${linkUrl.pathname}`;
               // Skip asset URLs (images, PDFs, etc.)
               if (isAssetUrl(normalizedUrl)) {
+                continue;
+              }
+              if (isLikelyAttachmentPageUrl(normalizedUrl)) {
+                skipped.push({ url: normalizedUrl, reason: 'likely-attachment-page' });
                 continue;
               }
               if (!discovered.has(normalizedUrl)) {
@@ -897,6 +935,10 @@ export class SitemapDiscoveryService {
                   if (isAssetUrl(normalizedUrl)) {
                     continue;
                   }
+                  if (isLikelyAttachmentPageUrl(normalizedUrl)) {
+                    skipped.push({ url: normalizedUrl, reason: 'likely-attachment-page' });
+                    continue;
+                  }
                   if (!discovered.has(normalizedUrl) && !visited.has(normalizedUrl)) {
                     discovered.add(normalizedUrl);
                     queue.push(normalizedUrl);
@@ -919,7 +961,7 @@ export class SitemapDiscoveryService {
       const sorted = reachable.sort((a, b) => {
         if (a === inputUrl) return -1;
         if (b === inputUrl) return 1;
-        return this.compareEntries(a, b, inputUrl);
+        return this.compareEntries({ url: a }, { url: b }, inputUrl);
       });
 
       const urls = sorted.slice(0, maxUrls);
@@ -992,6 +1034,10 @@ export class SitemapDiscoveryService {
           skipped.push({ url, reason: 'asset-url' });
           continue;
         }
+        if (isLikelyAttachmentPageUrl(url)) {
+          skipped.push({ url, reason: 'likely-attachment-page' });
+          continue;
+        }
         discovered.set(normalized, url);
         queue.push(url);
       }
@@ -1045,6 +1091,10 @@ export class SitemapDiscoveryService {
 
           // Skip asset URLs
           if (isAssetUrl(linkUrl)) {
+            continue;
+          }
+          if (isLikelyAttachmentPageUrl(linkUrl)) {
+            skipped.push({ url: linkUrl, reason: 'likely-attachment-page' });
             continue;
           }
 

@@ -1,4 +1,4 @@
-import { SitemapDiscoveryService } from '../sitemap-discovery.service';
+import { SitemapDiscoveryService, isAssetUrl, isLikelyAttachmentPageUrl } from '../sitemap-discovery.service';
 
 /**
  * Put an environment variable back exactly as it was.
@@ -95,6 +95,64 @@ describe('SitemapDiscoveryService', () => {
     } else {
       delete (global as any).fetch;
     }
+  });
+
+  it.each(['https://x.com/photo.jpg/', 'https://x.com/doc.pdf/', 'https://x.com/photo.jpg'])(
+    'recognises asset URL %s', (url) => expect(isAssetUrl(url)).toBe(true),
+  );
+
+  it.each(['01-jpg/', '01-03_x1-jpg/', ...['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'bmp', 'tif', 'tiff'].map(ext => `photo-${ext}`)])(
+    'recognises likely attachment %s', (path) => expect(isLikelyAttachmentPageUrl(`https://example.com/${path}`)).toBe(true),
+  );
+
+  it.each(['/blog/', '/about', '/jpg-compression-guide', '/photography'])(
+    'keeps ordinary page %s', (path) => expect(isLikelyAttachmentPageUrl(`https://example.com${path}`)).toBe(false),
+  );
+
+  it('filters attachments before a six-page sitemap cap and records reasons', async () => {
+    const paths = ['/01-jpg/', '/01-03_x1-jpg/', '/blog/', '/about', '/jpg-compression-guide', '/photography', '/stories/'];
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, `<urlset>${paths.map(path => `<url><loc>https://example.com${path}</loc></url>`).join('')}</urlset>`);
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+    const result = await service.expandUrlsForImport('https://example.com/', 6);
+    expect(result.urls).toEqual(['/', '/about', '/blog/', '/jpg-compression-guide', '/photography', '/stories/'].map(path => `https://example.com${path}`));
+    expect(result.skipped).toEqual(paths.slice(0, 2).map(path => ({ url: `https://example.com${path}`, reason: 'likely-attachment-page' })));
+  });
+
+  it.each([
+    ['published', [0.1, 0.2, 0.9, 0.9], ['/', '/z/', '/deep/article/', '/a/']],
+    ['absent', [undefined, undefined, undefined, undefined], ['/', '/a/', '/z/', '/deep/article/']],
+    ['uniform', [0.9, 0.9, 0.9, 0.9], ['/', '/a/', '/z/', '/deep/article/']],
+    ['one missing', [0.1, undefined, 0.9, undefined], ['/', '/a/', '/z/', '/deep/article/']],
+  ] as Array<[string, Array<number | undefined>, string[]]>)(
+    'orders sitemap entries with %s priorities', async (_label, priorities, expected) => {
+      const paths = ['/', '/a/', '/z/', '/deep/article/'];
+      (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+        if (input === 'https://example.com/sitemap.xml') {
+          return makeResponse(200, `<urlset>${[3, 2, 1, 0].map(index => `<url><loc>https://example.com${paths[index]}</loc>${priorities[index] === undefined ? '' : `<priority>${priorities[index]}</priority>`}</url>`).join('')}</urlset>`);
+        }
+        return makeResponse(200, '<html>ok</html>', 'text/html');
+      });
+      const result = await service.expandUrlsForImport('https://example.com/', 4);
+      expect(result.urls).toEqual(expected.map(path => `https://example.com${path}`));
+    },
+  );
+
+  it.each([false, true])('records attachment skips in reachability filtering (fast=%s)', async (fast) => {
+    process.env.IMPORT_SKIP_REACHABILITY = fast ? '1' : '0';
+    const result = await (service as any).filterReachableUrls(['https://example.com/01-jpg/'], 50);
+    expect(result).toEqual({ reachable: [], skipped: [{ url: 'https://example.com/01-jpg/', reason: 'likely-attachment-page' }] });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('records attachment skips for crawl seeds and extracted links', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(makeResponse(200, '<html><a href="/01-03_x1-jpg/">attachment</a><a href="/about">About</a></html>', 'text/html'));
+    const result = await service.expandUrlsFromCrawl(['https://example.com/01-jpg/', 'https://example.com/'], { maxUrls: 6, followLinks: true, linkScope: 'same_domain' });
+    expect(result.urls).toEqual(['https://example.com/', 'https://example.com/about']);
+    expect(result.skipped).toEqual(expect.arrayContaining(['01-jpg/', '01-03_x1-jpg/'].map(path => ({ url: `https://example.com/${path}`, reason: 'likely-attachment-page' }))));
   });
 
   it('always includes the site root first and filters unreachable entries', async () => {
