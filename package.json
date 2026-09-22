@@ -77,8 +77,8 @@
     "eval:detection:component-atlas": "tsx scripts/eval/detection-runner.ts run --dataset component-atlas --report --fail-on-importer-fix"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.0",
-    "@ai-sdk/react": "~2.0.50",
+    "@ai-sdk/openai": "^4.0.72",
+    "@ai-sdk/react": "~2.0.265",
     "@aws-sdk/client-s3": "3.1075.0",
     "@aws-sdk/s3-request-presigner": "3.1075.0",
     "@graphql-tools/schema": "^10.0.33",
@@ -119,7 +119,7 @@
     "@types/react-window": "^1.8.8",
     "@vercel/blob": "2.5.0",
     "@vercel/sandbox": "1.10.2",
-    "ai": "^5.0.52",
+    "ai": "^5.0.262",
     "chalk": "^5.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
