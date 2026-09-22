@@ -68,11 +68,7 @@ export function buildPackageJson(options: BuildPackageJsonOptions): Record<strin
     react: resolveVersion('react'),
     'react-hook-form': resolveVersion('react-hook-form'),
     'react-dom': resolveVersion('react-dom'),
-    'react-error-boundary': resolveVersion('react-error-boundary'),
-    'react-virtualized-auto-sizer': resolveVersion('react-virtualized-auto-sizer'),
-    'react-window': resolveVersion('react-window'),
-    'react-window-infinite-loader': resolveVersion('react-window-infinite-loader'),
-    'tailwind-merge': resolveVersion('tailwind-merge'),
+    'react-error-boundary': resolveVersion('react-error-boundary'),    'tailwind-merge': resolveVersion('tailwind-merge'),
     'tailwindcss-animate': resolveVersion('tailwindcss-animate'),
     zod: resolveVersion('zod')
   }
