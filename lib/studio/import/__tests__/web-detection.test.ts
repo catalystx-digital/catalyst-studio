@@ -404,6 +404,10 @@ describe('DetectionService (web-based)', () => {
 
     process.env.DECISION_MODEL_ENABLED = 'true'
     process.env.DECISION_MODEL_SHADOW = 'false'
+    // isDecisionModelEnabledFor also requires a key. Without this the suite
+    // passes only on a machine that happens to have a real OPENROUTER_API_KEY
+    // in its environment, and fails everywhere else.
+    process.env.DECISION_MODEL_API_KEY = 'fake'
     process.env.DECISION_MODEL_WEBSITE_ALLOWLIST = ''
     setDecisionClient(createFakeDecisionClient({}))
     service = new DetectionService()

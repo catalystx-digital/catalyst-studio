@@ -46,6 +46,13 @@ jobs:
       - name: Unit tests
         run: npm run test:ci
 
+      # The importer's own suites. They were not covered by test:ci, which names
+      # its files one by one, so a dependency bump silently stopped them loading
+      # and nothing noticed. Suites that already fail on main are excluded by
+      # path inside the script; shorten that list as they get fixed.
+      - name: Importer tests
+        run: npm run test:import
+
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 
