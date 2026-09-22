@@ -20,7 +20,7 @@ async function detect() {
     identity = { snapshotSha256: snapshot.manifest.sha256, snapshotInputsSha256: digest(JSON.stringify(snapshot)), pageUrl: snapshot.manifest.url }
     // Read configuration only after the caller has supplied its process environment.
     const { ModelConfig, DetectionConfig, OpenRouterConfig, ConfidenceConfig, TokenConfig, TimeoutConfig } = await import('@/lib/studio/import/config')
-    if (DetectionConfig.detectionHarness !== 'section') throw new Error('Phase 1 requires IMPORT_DETECTION_HARNESS=section; page-map prompts depend on model replies')
+    if (DetectionConfig.detectionHarness !== 'section') throw new Error('Phase 1 requires IMPORT_DETECTION_HARNESS=section')
     const decisions = await import('@/lib/studio/decisions')
     if (decisions.getDecisionConfig().enabled) throw new Error('Phase 1 does not support DECISION_MODEL_ENABLED=true; extra decision calls require separate capture')
     if (!snapshot.models.data.length) throw new Error('Saved model catalogue is empty')

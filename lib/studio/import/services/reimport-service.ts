@@ -672,8 +672,6 @@ export class ReImportService implements IReImportService {
         urls: [url],
         apiKey,
         enablePerformanceMonitoring: false,
-        generateTemplates: false,
-        saveToDatabase: false,
         skipDesignSystem,
       })
 

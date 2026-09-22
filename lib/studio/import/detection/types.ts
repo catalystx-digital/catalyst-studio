@@ -112,7 +112,7 @@ export interface PageMetadata {
 }
 
 export interface ImportDetectionResult {
-  detectionHarness?: 'section' | 'page-map' | 'blocks'
+  detectionHarness?: 'section' | 'blocks'
   components: DetectedComponent[]
   pageTemplate?: DetectedPageTemplate
   pageMetadata?: PageMetadata
