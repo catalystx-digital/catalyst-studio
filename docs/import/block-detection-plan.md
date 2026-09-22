@@ -53,6 +53,8 @@ Files (all under `lib/studio/import/detection/blocks/`): `block-cutter.ts` (brow
 - Acceptance: the owner says the new imports are better on all three.
 
 ### M6 - Delete the old path (2-3 days) - the cleanup this plan exists for
+Split in two, because the owner still needs the old path for the M5 comparison. **M6a (done, commit `53fbaad`):** the parts nothing reaches - the `page-map` branch and its settings, the template-generation and review cluster, the template import API route, the pipeline's template step. 10,952 lines removed, 39 added. **M6b (waiting on the owner's M5 verdict):** the rest of the list below.
+
 Delete, in one change: the `section` and `page-map` branches and everything only they use (byte slicing in `web-tools.ts`, the page-map harness, the multi-type prompt assembly, candidate regex expansion if unused); the repair code `lib/studio/import/services/detection-post-processor/` and its caller path (about 10,600 lines) including the DOM-snapshot hand-off that exists only to feed it; the template-generation and review cluster the earlier audit found unused (about 4,900 lines plus about 2,400 lines of tests); the `IMPORT_DETECTION_HARNESS` setting itself; the old benchmark folder `scripts/eval/jev/`; the lab's replay of the old path (its saved results stay as history in the git-ignored data).
 - Acceptance: typecheck 0 errors; test suites pass with the deleted tests removed; an import works end to end; a search for each deleted symbol returns nothing; the change reports lines removed against lines added.
 
@@ -94,6 +96,8 @@ Two things need the owner:
 | M2 | The `blocks` harness is in the importer behind `IMPORT_DETECTION_HARNESS=blocks`, off by default. With the setting unset nothing new is loaded and the two existing paths are unchanged. |
 | M3 | The experiment lab now measures the production code; its own copy of the logic is deleted. Running real pages found and fixed: browser functions breaking under esbuild-based runtimes, a page with no loaded stylesheets being cut as if styled, internal links rejected for a missing `pageId`, a crash on a provider reply without choices, and complete answers discarded for trailing text. |
 | M4 | Evaluation set widened from 10 to 20 pages (articles, listings, contact and form pages, pricing, a restaurant; half held out). |
+| M5 | Three complete imports on the blocks harness, 6 pages each, 55-149 seconds per site, all written to the database. The old path was tried on two of the same sites and aborted after 40 and 48 minutes (a header or footer produced no components, and one failed page aborts the whole import), so the comparison is new-path pages against nothing. Six defects in the hand-over to page building were found and fixed (section 5a). The owner's look at the pages is outstanding. |
+| M6a | 10,952 lines deleted, 39 added: the never-default `page-map` path and its settings, the template-generation and review cluster, the template import API route, the pipeline's template step. Independently reviewed: no surviving reference, the two remaining paths byte-identical, no weakened tests. |
 
 Measured with the final code, two runs on all twenty saved pages, about 14 cents a run, labels drafted by a labelling model and accepted by the owner without block-by-block review:
 
