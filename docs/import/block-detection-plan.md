@@ -115,6 +115,17 @@ A practical obstacle for anyone repeating this: the application will not run in 
 
 A measurement note for anyone repeating this: navigation bars and footers store `content: {}` on the page and point at a shared component. Counting page content alone makes every page look stripped of links (it reports 5% instead of 58%).
 
+## 5c. Dependencies and what fixing them exposed (22 September 2026)
+
+The production dependency audit that had been failing CI is fixed: 41 advisories (1 critical, 24 high) down to 23 (6 low, 17 moderate), and `npm audit --omit=dev --audit-level=high` now exits 0, so CI reaches the build step again. Every change is a forward move on the same major line - `next` 15.5.19 to 15.5.25 (the only critical), `nodemailer`, `fast-xml-parser`, `sharp`, `postcss`, plus version-scoped overrides for the transitive ones. npm's own `audit fix` was not used: several of its suggestions were downgrades, including Prisma 6.19 back to 6.12 and workflow 4.5 back to 2.0, which trades a vulnerability for a regression.
+
+The root cause was not new packages. The `overrides` block already pinned `undici` and `@xmldom/xmldom`, presumably against an earlier advisory, and both pinned versions had since become the vulnerable ones. A pin is a decision to stop receiving fixes, so each one needs revisiting when the audit runs.
+
+Two things this uncovered, neither of them caused by the importer work:
+
+1. **The test suite was green only because `node_modules` was stale.** Installing the lockfile as CI does breaks nine suites, all of them the block detection ones: `parse5` 8 (bumped on main by an automated dependency update) ships ES modules only, and Jest here cannot load it. `parse5` is pinned back to `^7.3.0` - the version this work was written and measured against, and one with no advisory. Three attempts to make Jest transform it failed because `next/jest` replaces `transformIgnorePatterns`, so the pin is the honest fix for now. **If an automated update bumps `parse5` again, the importer's tests will stop running.**
+2. **CI does not run the importer's tests at all.** The `test:ci` script names 19 test files by path, and none of them are the detection, block or page-building suites. Everything this plan built is covered only by tests someone runs locally. That is the more important of the two.
+
 ## 6. Results so far (21 September 2026)
 
 | Milestone | Outcome |
