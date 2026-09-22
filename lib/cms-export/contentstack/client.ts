@@ -1,4 +1,4 @@
-import fetch, { type RequestInit, type Response } from 'node-fetch';
+
 import {
   CONTENTSTACK_DEFAULT_BASE_URL,
   CONTENTSTACK_DEFAULT_BRANCH,

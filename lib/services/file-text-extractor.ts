@@ -7,7 +7,10 @@ let mammothLib: typeof import('mammoth') | null = null
 async function getPdfjs() {
   if (!pdfjsLib && typeof window !== 'undefined') {
     pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    // The worker ships as an ES module: pdf.worker.min.mjs, not .js. Asking for
+    // the .js name gets a 404 and PDF text extraction fails at runtime with
+    // nothing to see at build time.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
   }
   return pdfjsLib
 }

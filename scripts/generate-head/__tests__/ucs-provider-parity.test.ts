@@ -1,6 +1,5 @@
 import http from 'node:http'
 import { graphql } from 'graphql'
-import nodeFetch from 'node-fetch'
 import type { GenerationResult, GeneratorDiagnostic, SiteSnapshot, SlugSegments } from '../core/types'
 import { generateHeadProject } from '../core/generator'
 import sampleSite from '@/mock-data/ucs/sample-site.json'
@@ -378,9 +377,13 @@ function createContext(overrides: Partial<GraphqlContext> = {}): GraphqlContext 
 describe('UCS provider parity between Prisma and GraphQL', () => {
   beforeAll(() => {
     process.env.SKIP_DB_SETUP = 'true'
-    // Ensure fetch is available for the GraphQL client in Node test environments
-    // @ts-ignore
-    globalThis.fetch = nodeFetch as unknown as typeof fetch
+    // The jsdom test environment does not provide fetch, so the GraphQL client
+    // needs one. Node has supplied a global fetch since 18; this reaches past
+    // jsdom to it rather than pulling in a fetch library for one test.
+    if (typeof globalThis.fetch !== 'function') {
+      globalThis.fetch = require('node:module')
+        .createRequire(__filename)('undici').fetch as typeof fetch
+    }
   })
 
   beforeEach(() => {
