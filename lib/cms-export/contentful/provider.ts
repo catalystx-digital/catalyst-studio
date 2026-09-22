@@ -1,6 +1,5 @@
 import { ICMSProvider, UniversalContentType, UniversalContentItem } from '../types';
 import { UnifiedContent } from '@/lib/services/export/content-orchestrator';
-import fetch from 'node-fetch';
 import type {
   ContentTypeExport,
   UnifiedExportBundle,

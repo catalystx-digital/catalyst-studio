@@ -1,5 +1,4 @@
 import { ICMSProvider, UniversalContentType, UniversalContentItem, ProviderConnectionError } from '../types'
-import fetch from 'node-fetch'
 import type {
   ContentTypeExport,
   UnifiedExportBundle,

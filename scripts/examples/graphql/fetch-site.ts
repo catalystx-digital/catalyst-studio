@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 
 // Run a full export with:
 // SKIP_DB_SETUP=true pnpm tsx scripts/generate-head/index.ts \
