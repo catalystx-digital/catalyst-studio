@@ -133,7 +133,7 @@
     "graphql-validation-complexity": "^0.4.2",
     "html2canvas": "^1.4.1",
     "immer": "^11.1.18",
-    "isomorphic-dompurify": "^2.26.0",
+    "isomorphic-dompurify": "^3.19.0",
     "jspdf": "4.2.1",
     "lucide-react": "^0.536.0",
     "mammoth": "1.12.3",
