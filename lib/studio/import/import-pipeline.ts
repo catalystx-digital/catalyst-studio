@@ -7,9 +7,6 @@
 import { DetectionFailureError, getDetectionService, DetectionService, ImportDetectionResult } from './web-detection'
 import { performanceMonitor } from '@/lib/studio/components/cms/_import/performance'
 import { NavigationHierarchy, Template, DesignTokens } from './types'
-import { TemplateGenerator, CMSTemplate } from './template-generator'
-import { TemplateLibrary } from './template-library'
-import { PrismaClient } from '@/lib/generated/prisma'
 import { traceMemory } from './utils/memory-trace'
 import { getWebFetchTools } from './services/web-tools'
 import { CapturedDesignSystem } from './types/design-system.types'
@@ -25,13 +22,11 @@ import {
   shouldRunDomProbeEvaluation
 } from './utils/dom-probe-flags'
 import { importDesignSystemFromUrl } from '@/lib/studio/design-system/import-design-system'
-import { adjustDetectedComponents } from './services/detection-post-processor'
 import { validateTemplateCanonicalRequirements } from './detection/canonicalization'
 import { GlobalSectionArtifactCache } from './detection/global-section-cache'
 import { getPageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import {
   ModelConfig,
-  ConfidenceConfig,
   ConcurrencyConfig,
   RetryConfig,
   CircuitBreakerConfig,
@@ -58,9 +53,7 @@ export interface ImportPipelineOptions {
   enablePerformanceMonitoring?: boolean
   model?: string
   apiKey?: string
-  generateTemplates?: boolean
   websiteId?: string
-  saveToDatabase?: boolean
   /** Skip design token extraction and DOM probe capture */
   skipDesignSystem?: boolean
   /** Checkpoint session for resumable imports */
@@ -81,8 +74,6 @@ export interface ImportPipelineResult {
     templates: Template[]
     designTokens: DesignTokens
     designSystem?: CapturedDesignSystem
-    cmsTemplates?: CMSTemplate[]
-    savedTemplateIds?: string[]
   }
   errors: string[]
   performance?: PerformanceMetrics
@@ -93,19 +84,12 @@ const DEFAULT_MODEL_CHAIN = ModelConfig.chain
 
 export class ImportPipeline {
   private detectionService: DetectionService
-  private templateGenerator: TemplateGenerator
-  private templateLibrary: TemplateLibrary | null = null
   private domProbeService: DomProbeService
   private lastDomProbeCapture: CaptureDesignSystemResult | null = null
   private errors: string[] = []
 
   constructor() {
     this.detectionService = getDetectionService()
-    this.templateGenerator = new TemplateGenerator({
-      generatePlaceholders: true,
-      minConfidence: ConfidenceConfig.templateGeneration,
-      templatePrefix: 'imported'
-    })
     this.domProbeService = new DomProbeService()
   }
 
@@ -174,7 +158,8 @@ export class ImportPipeline {
             model: options.model,
             apiKey: options.apiKey,
             progressCallback: options.progressCallback,
-            checkpointSession: options.checkpointSession
+            checkpointSession: options.checkpointSession,
+            websiteId: options.websiteId
           },
           options.onProgress
         )
@@ -183,22 +168,6 @@ export class ImportPipeline {
 
       const pageSummary = await getPageCatalogSummary()
 
-      // Post-process and validate both fresh and checkpoint-resumed detections.
-      detectionResults = detectionResults.map(result => {
-        if (result.postProcessed) {
-          return result
-        }
-        return {
-          ...result,
-          postProcessed: true,
-          components: adjustDetectedComponents(result.components, {
-            pageUrl: result.pageUrl,
-            resourcesSummary: result.resourcesSummary,
-            pageMetadata: result.pageMetadata,
-            pageTemplate: result.pageTemplate
-          })
-        }
-      })
       detectionResults = detectionResults.map(result => {
         if (result.isRedirectPage || result.detectionError) {
           return result
@@ -433,61 +402,6 @@ export class ImportPipeline {
         throw new Error('DOM probe capture returned an empty design system payload')
       }
 
-      // =========================================================================
-      // STAGE 6: CMS Template Generation
-      // =========================================================================
-      let cmsTemplates: CMSTemplate[] | undefined
-      let savedTemplateIds: string[] | undefined
-
-      if (options.generateTemplates) {
-        if (shouldSkipStage('templates_generated')) {
-          this.reportProgress(options.onProgress, { message: 'Loading CMS templates from checkpoint...', progress: 90 })
-          cmsTemplates = await checkpointService!.loadAggregated<CMSTemplate[]>(session!, 'cmsTemplates') ?? undefined
-        } else {
-          this.reportProgress(options.onProgress, { message: 'Generating CMS templates from patterns...', progress: 88 })
-          const cmsStart = Date.now()
-
-          try {
-            const pipelineResult: ImportPipelineResult = {
-              success: true,
-              data: { detectedComponents: detectionResults, navigation, templates, designTokens, designSystem },
-              errors: []
-            }
-            cmsTemplates = await performanceMonitor.measure('templateGeneration', async () =>
-              this.templateGenerator.generateFromPatterns(pipelineResult)
-            )
-
-            await completeStage('templates_generated', Date.now() - cmsStart, 'cmsTemplates', cmsTemplates)
-            this.reportProgress(options.onProgress, { message: 'Generated ' + cmsTemplates.length + ' CMS templates', progress: 92 })
-          } catch (error) {
-            const message = `Template generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            this.errors.push(message)
-            console.error(message)
-          }
-        }
-
-        // Save templates to database if requested (not checkpointed - idempotent)
-        if (cmsTemplates && options.saveToDatabase && options.websiteId) {
-          this.reportProgress(options.onProgress, { message: 'Saving templates to database...', progress: 94 })
-          if (!this.templateLibrary) {
-            const prisma = new PrismaClient()
-            this.templateLibrary = new TemplateLibrary(prisma)
-          }
-          savedTemplateIds = []
-          for (const template of cmsTemplates) {
-            try {
-              const id = await this.templateLibrary.storeTemplate(template, options.websiteId)
-              savedTemplateIds.push(id)
-            } catch (error) {
-              const message = `Failed to save template ${template.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
-              this.errors.push(message)
-              console.error(message)
-            }
-          }
-          this.reportProgress(options.onProgress, { message: 'Saved ' + savedTemplateIds.length + ' templates to database', progress: 96 })
-        }
-      }
-
       // Mark aggregation complete
       if (session && checkpointService) {
         await checkpointService.completeStage(session, 'aggregation_done', Date.now() - processingStart)
@@ -522,7 +436,7 @@ export class ImportPipeline {
 
       return {
         success,
-        data: { detectedComponents: detectionResults, navigation, templates, designTokens, designSystem, cmsTemplates, savedTemplateIds },
+        data: { detectedComponents: detectionResults, navigation, templates, designTokens, designSystem },
         errors: this.errors,
         performance: performanceMetrics
       }
@@ -536,7 +450,7 @@ export class ImportPipeline {
 
   private async detectComponents(
     urls: string[],
-    options: { model?: string; apiKey?: string; progressCallback?: ProgressCallback; checkpointSession?: CheckpointSession },
+    options: { model?: string; apiKey?: string; progressCallback?: ProgressCallback; checkpointSession?: CheckpointSession; websiteId?: string },
     onProgress?: (payload: ImportPipelineProgressPayload) => void
   ): Promise<ImportDetectionResult[]> {
     traceMemory('pipeline:detectComponents:start', { urls: urls.length })
@@ -751,16 +665,16 @@ export class ImportPipeline {
         details: buildDetails(url),
       })
 
-      const runDetectionWithModel = async (model: string): Promise<ImportDetectionResult> => {
+      const runDetection = async (): Promise<ImportDetectionResult> => {
         return performanceMonitor.measure('web.detect', async () =>
           this.detectionService.detectComponentsFromUrl(url, {
-            model,
             apiKey: options.apiKey,
             includeContent: true,
             onProgress: options.progressCallback,
             checkpointSession: session ?? undefined,
             checkpointService: checkpointService ?? undefined,
             globalSectionCache,
+            websiteId: options.websiteId,
           })
         )
       }
@@ -768,18 +682,13 @@ export class ImportPipeline {
       const attempt = async (): Promise<ImportDetectionResult> => {
         let lastError: unknown
         for (let idx = 0; idx < detectionModels.length; idx++) {
-          const candidateModel = detectionModels[idx]
           try {
-            if (idx > 0) {
-              console.warn(`[ImportPipeline] Switching to detection model ${candidateModel} for ${url}`)
-            }
-            return await runDetectionWithModel(candidateModel)
+            return await runDetection()
           } catch (err) {
             lastError = err
-            const nextModel = detectionModels[idx + 1]
             const message = err instanceof Error ? err.message : String(err ?? 'Unknown error')
-            if (nextModel) {
-              console.warn(`[ImportPipeline] Detection model ${candidateModel} failed for ${url}: ${message}. Trying ${nextModel}.`)
+            if (idx + 1 < detectionModels.length) {
+              console.warn(`[ImportPipeline] Detection failed for ${url}: ${message}. Retrying.`)
               continue
             }
             throw err instanceof Error ? err : new Error(message)

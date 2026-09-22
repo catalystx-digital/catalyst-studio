@@ -78,4 +78,5 @@ describe('import model mode config', () => {
 
     await expect(loadConfig()).rejects.toThrow('IMPORT_CHEAP_MODEL_CHAIN must be a pipe-separated list of non-empty model ids')
   })
+
 })

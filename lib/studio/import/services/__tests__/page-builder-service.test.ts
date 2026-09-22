@@ -3,15 +3,18 @@ import { PrismaClient, WebsitePage, WebsiteSharedComponent } from '@/lib/generat
 import { PageContentNormalizationError } from '@/lib/studio/page-content'
 import { getPageCatalogSummary } from '@/lib/studio/pages/catalog'
 import { TemplateValidationError } from '@/lib/studio/pages/validation/template-validation'
+import { DETECTED_PAGE_TEMPLATE_SOURCES } from '@/lib/studio/import/detection/types'
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended'
 import {
   ComponentType,
   DetectionResult,
   PageData,
   ComponentInstance,
-  ComponentTree
+  ComponentTree,
+  PAGE_TEMPLATE_SOURCES
 } from '../interfaces'
 import { CanonicalSignatureSharedComponentDetector } from '../shared-component-detectors/canonical-signature-detector'
+import { consumeNormalizationWarnings, isFatalNormalizationWarning } from '../page-builder/normalization-telemetry'
 
 jest.mock('@/lib/studio/pages/catalog', () => ({
   getPageCatalogSummary: jest.fn()
@@ -263,6 +266,49 @@ describe('PageBuilderService', () => {
       const serializedContent = JSON.stringify(createArgs.data.content)
       expect(serializedContent).not.toContain('default-config-sentinel')
       expect(serializedContent).not.toContain('placeholder-sentinel')
+    })
+
+    it.each([
+      ['sidemenu', 'main', 'header'],
+      ['text-block', 'main', 'main'],
+      ['hero-carousel', 'hero', undefined],
+    ])('builds a blocks blog page with %s from %s, retaining only allowed components', async (type, region, expectedRegion) => {
+      const catalog = await jest.requireActual('@/lib/studio/pages/catalog').getPageCatalogSummary()
+      ;(getPageCatalogSummary as jest.Mock).mockResolvedValue(catalog)
+      const detectedComponents = [
+        { ...mockPageData.detectedComponents[0], id: 'nav', type: 'navbar', content: undefined, metadata: { region: 'header', detectionHarness: 'blocks' } },
+        { ...mockPageData.detectedComponents[0], id: 'list', type: 'blog-list', content: undefined, metadata: { region: 'main', detectionHarness: 'blocks' } },
+        { ...mockPageData.detectedComponents[0], id: 'candidate', type: type!, content: type === 'sidemenu' ? { items: [{ label: 'Resources', href: '/resources' }] } : undefined, metadata: { region, detectionHarness: 'blocks' } },
+      ]
+      const types = detectedComponents.map(component => ({ ...mockComponentTypes[0], id: component.type, type: component.type }))
+      consumeNormalizationWarnings()
+      await expect(service.createPage({
+        ...mockPageData,
+        url: 'https://example.com/blog',
+        pageTemplate: { templateKey: 'blog/index-standard' },
+        detectedComponents,
+      }, types, 'website-1', 'content-type-1')).resolves.toEqual(mockWebsitePage)
+      const content = prisma.websitePage.create.mock.calls[0][0].data.content as any
+      expect(content.components).toHaveLength(expectedRegion ? 3 : 2)
+      const candidate = content.components.find((component: any) => component.type === type)
+      if (expectedRegion) {
+        expect(candidate.props.region).toBe(expectedRegion)
+        expect(candidate.props.metadata.region).toBe(expectedRegion)
+        if (expectedRegion === 'header') expect(candidate.props.placementBucket).toBe('top')
+        expect(consumeNormalizationWarnings()).toEqual([])
+      } else {
+        expect(candidate).toBeUndefined()
+        const warnings = consumeNormalizationWarnings()
+        expect(warnings).toEqual([expect.objectContaining({
+          issue: 'component-region-dropped',
+          pageUrl: 'https://example.com/blog',
+          parentType: type,
+          message: expect.stringContaining('disallowed region "hero"'),
+          details: expect.objectContaining({ templateKey: 'blog/index-standard', region: 'hero' }),
+        })])
+        expect(warnings.some(isFatalNormalizationWarning)).toBe(false)
+        expect(content.metadata.totalComponents).toBe(2)
+      }
     })
 
     it('uses mapped content type when template key is configured', async () => {
@@ -1608,7 +1654,7 @@ describe('PageBuilderService', () => {
       prisma.websitePage.create.mockResolvedValue(mockWebsitePage)
     })
 
-    it('enforces home-eligible template for root pages and records selection metadata', async () => {
+    it.each(DETECTED_PAGE_TEMPLATE_SOURCES)('enforces home-eligible template for root pages with %s source', async (source) => {
       ;(getPageCatalogSummary as jest.Mock).mockResolvedValue(buildCatalogSummary())
 
       const detection: DetectionResult = {
@@ -1657,7 +1703,7 @@ describe('PageBuilderService', () => {
             pageTemplate: {
               templateKey: 'blog/index-standard',
               confidence: 0.42,
-              source: 'model',
+              source,
               reason: 'LLM guessed blog structure'
             }
           },
@@ -1680,7 +1726,7 @@ describe('PageBuilderService', () => {
       expect(templateMeta.confidence).toBeCloseTo(0.42)
     })
 
-    it('preserves model-selected template for non-home paths', async () => {
+    it.each(PAGE_TEMPLATE_SOURCES)('accepts and preserves %s template source for non-home paths', async (source) => {
       ;(getPageCatalogSummary as jest.Mock).mockResolvedValue(buildCatalogSummary())
 
       const detection: DetectionResult = {
@@ -1728,7 +1774,7 @@ describe('PageBuilderService', () => {
             pageTemplate: {
               templateKey: 'blog/index-standard',
               confidence: 0.81,
-              source: 'model',
+              source,
               reason: 'URL indicates blog index'
             }
           },
@@ -1744,7 +1790,7 @@ describe('PageBuilderService', () => {
       const templateMeta = createArgs.data.metadata.template
       expect(templateMeta).toBeDefined()
       expect(templateMeta.key).toBe('blog/index-standard')
-      expect(templateMeta.source).toBe('model')
+      expect(templateMeta.source).toBe(source)
       expect(templateMeta.enforcedHome).toBe(false)
       expect(templateMeta.requestedKey).toBe('blog/index-standard')
     })

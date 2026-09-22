@@ -5,7 +5,8 @@ import {
   PageData,
   ComponentTree,
   ComponentType,
-  DetectionResult
+  DetectionResult,
+  PAGE_TEMPLATE_SOURCES
 } from './interfaces'
 import { z } from 'zod'
 import {
@@ -45,7 +46,7 @@ const PageDataSchema = z.object({
     templateKey: z.string().min(1, 'Template key is required'),
     confidence: z.number().min(0).max(1).optional(),
     reason: z.string().max(500).optional(),
-    source: z.enum(['model', 'fallback', 'home-enforced']).optional(),
+    source: z.enum(PAGE_TEMPLATE_SOURCES).optional(),
     requestedKey: z.string().optional(),
     props: z.record(z.unknown()).optional()
   }).optional()

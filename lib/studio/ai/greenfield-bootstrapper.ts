@@ -27,7 +27,7 @@ import { checkAndRecordUsage } from '@/lib/usage/limits'
 import { resolveReferencesStage } from '@/lib/studio/import/services/orchestrator/reference-resolution-stage'
 import { buildIAGenerationPrompt, type IAPage, type BusinessInfo } from './prompts/ia-generation-prompt'
 import { buildPageContentPrompt, type SiteContext } from './prompts/page-content-prompt'
-import { ComponentCategory } from '@/lib/studio/components/cms/_core/types'
+import { inferComponentCategoryFromTypeName } from '@/lib/studio/components/cms/_core/utils'
 import { getComponentCatalogSummary, buildChatPrompt } from '@/lib/studio/ai/component-catalog'
 
 // Type definitions
@@ -751,7 +751,7 @@ export class GreenfieldBootstrapper {
           existing.occurrences += 1
         } else {
           componentTypeMap.set(type, {
-            category: this.inferComponentCategory(type),
+            category: inferComponentCategoryFromTypeName(type),
             occurrences: 1
           })
         }
@@ -792,20 +792,6 @@ export class GreenfieldBootstrapper {
       })),
       skipDuplicates: true
     })
-  }
-
-  private inferComponentCategory(type: string): string {
-    const t = type.toLowerCase()
-    if (t.includes('nav') || t.includes('menu') || t.includes('header') || t.includes('footer')) return ComponentCategory.Navigation
-    if (t.includes('hero') || t.includes('banner')) return ComponentCategory.Heroes
-    if (t.includes('form') || t.includes('contact')) return ComponentCategory.Contact
-    if (t.includes('cta')) return ComponentCategory.CTA
-    if (t.includes('feature')) return ComponentCategory.Features
-    if (t.includes('testimonial') || t.includes('review')) return ComponentCategory.SocialProof
-    if (t.includes('about') || t.includes('team')) return ComponentCategory.About
-    if (t.includes('blog') || t.includes('article')) return ComponentCategory.Blog
-    if (t.includes('pricing')) return ComponentCategory.Pricing
-    return ComponentCategory.Content
   }
 
   private async createDefaultDesignSystem(

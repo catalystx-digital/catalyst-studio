@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import {
-  chromium,
   errors,
   type Browser,
   type BrowserContext,
@@ -11,7 +10,7 @@ import {
   type Response
 } from 'playwright-core'
 
-import { getServerlessLaunchOptions, isServerless } from './serverless-config'
+import { DEFAULT_TIMEOUT_MS, launchHeadlessChromium } from './launch-headless-chromium'
 
 // Playwright's LoadState type for page.waitForLoadState()
 type LoadState = 'load' | 'domcontentloaded' | 'networkidle'
@@ -88,7 +87,6 @@ export interface DomProbeNavigationOptions {
   retryWithLighterWait?: boolean
 }
 
-const DEFAULT_TIMEOUT_MS = 60000
 const DEFAULT_NAVIGATION_WAIT_UNTIL: LoadState = 'domcontentloaded'
 const DEFAULT_NETWORK_IDLE_TIMEOUT_MS = 12000
 
@@ -141,15 +139,7 @@ export class DomProbeService {
         flags: config.flags
       })
 
-      // Get serverless-optimized launch options if in serverless environment
-      const serverlessOptions = await getServerlessLaunchOptions()
-
-      browser = await chromium.launch({
-        headless: true,
-        timeout: DEFAULT_TIMEOUT_MS,
-        ...serverlessOptions,
-        ...(this.options.playwright?.launch ?? {})
-      })
+      browser = await launchHeadlessChromium(this.options.playwright?.launch)
 
       // Progress: browser launched (step 1 of 5)
       onProgress?.({

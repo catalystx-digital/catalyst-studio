@@ -41,6 +41,8 @@ export function resolvePreviewPathInput(input: {
     return normalizePreviewPath(input.path)
   }
 
+  // Deliberately narrower than isHomeLike: a site may have a real page
+  // slugged 'homepage', and routing that to '/' would preview the wrong page.
   const page = input.page?.trim()
   if (!page || page === 'home' || page === 'index') {
     return '/'

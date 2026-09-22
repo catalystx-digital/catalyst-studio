@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 
 import { PrismaClient, Prisma } from '@/lib/generated/prisma';
 
@@ -31,7 +30,6 @@ import {
   type NormalizationWarning as ContentNormalizationWarning
 } from './page-builder/normalization-telemetry';
 import type { CaptureDesignSystemResult } from '@/lib/studio/design-system/dom-probe/service';
-import { adjustDetectedComponents } from './detection-post-processor';
 import { buildImportDesignProfile } from './design-profile-service';
 import { selectPresentationSkeleton } from './page-builder/presentation-skeleton';
 import type { DesignFitPageAudit, ImportDesignProfile, PresentationSkeletonSelection } from '../types/design-profile.types';
@@ -309,19 +307,6 @@ export class ImportResultHandler {
       return 'Untitled Page';
     };
 
-    const domSnapshotPath = options.domProbeCapture?.capture?.rawDomSnapshotPath;
-    let domSnapshotHtml: string | null = null;
-    if (typeof domSnapshotPath === 'string' && domSnapshotPath.trim().length > 0) {
-      try {
-        domSnapshotHtml = await readFile(domSnapshotPath, 'utf-8');
-      } catch (error) {
-        console.warn('[ImportResultHandler] Unable to read DOM snapshot for post-processing', {
-          path: domSnapshotPath,
-          error: error instanceof Error ? error.message : error
-        });
-      }
-    }
-
     const createTextPreview = (content: unknown): string | undefined => {
       if (!content) {
         return undefined;
@@ -545,15 +530,6 @@ export class ImportResultHandler {
       skeletonByUrl.set(pageUrl, presentationSkeleton);
 
       if (Array.isArray(detection.components)) {
-        detection.components = adjustDetectedComponents(detection.components, {
-          domSnapshot: domSnapshotHtml,
-          pageUrl,
-          resourcesSummary: detection.resourcesSummary,
-          pageMetadata: detection.pageMetadata,
-          pageTemplate: detection.pageTemplate,
-          designProfile: importDesignProfile,
-          presentationSkeleton,
-        });
         designFitAuditByUrl.set(
           pageUrl,
           collectDesignFitAudit(detection.components, importDesignProfile, presentationSkeleton)
@@ -575,6 +551,7 @@ export class ImportResultHandler {
             pageUrl,
             metadata: {
               ...(component.metadata || {}),
+              ...(detection.detectionHarness === 'blocks' ? { detectionHarness: 'blocks' } : {}),
               region:
                 component.location || (component.metadata && (component.metadata.region || component.metadata.region_hint)) ||
                 undefined,

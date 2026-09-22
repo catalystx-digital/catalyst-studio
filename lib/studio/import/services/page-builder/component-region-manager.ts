@@ -17,6 +17,7 @@ import {
 import { ComponentType as CmsComponentType } from '@/lib/studio/components/cms/_core/types'
 import { PageTemplateRegionConfig } from '@/lib/studio/pages/_core/types'
 import { type PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
+import { recordNormalizationWarning } from './normalization-telemetry'
 
 function normalizeRegionValue(value: unknown): string | undefined {
   if (typeof value !== 'string') {
@@ -36,6 +37,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 interface RegionSanitizeResult {
   components: ComponentInstance[]
   modified: boolean
+  droppedComponents: string[]
 }
 
 export class RequiredRegionCoverageError extends Error {
@@ -52,7 +54,8 @@ export class RequiredRegionCoverageError extends Error {
     region,
     currentCount,
     minRequired,
-    allowedComponents
+    allowedComponents,
+    droppedComponents = []
   }: {
     pageUrl: string
     templateKey: string
@@ -60,9 +63,11 @@ export class RequiredRegionCoverageError extends Error {
     currentCount: number
     minRequired: number
     allowedComponents?: unknown[]
+    droppedComponents?: string[]
   }) {
     super(
-      `[ComponentRegionManager] Required region "${region}" for template "${templateKey}" has ${currentCount} component(s), expected at least ${minRequired}. Allowed components: ${JSON.stringify(allowedComponents ?? [])}. Page: ${pageUrl}`
+      `[ComponentRegionManager] Required region "${region}" for template "${templateKey}" has ${currentCount} component(s), expected at least ${minRequired}. Allowed components: ${JSON.stringify(allowedComponents ?? [])}. Page: ${pageUrl}` +
+        (droppedComponents.length > 0 ? ` Components dropped for placement: ${droppedComponents.join(', ')}.` : '')
     )
     this.name = 'RequiredRegionCoverageError'
     this.pageUrl = pageUrl
@@ -78,6 +83,13 @@ export class ComponentRegionValidationError extends Error {
   constructor(message: string) {
     super(`[ComponentRegionManager] ${message}`)
     this.name = 'ComponentRegionValidationError'
+  }
+}
+
+export class ComponentRegionPlacementError extends ComponentRegionValidationError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ComponentRegionPlacementError'
   }
 }
 
@@ -122,7 +134,8 @@ export class ComponentRegionManager {
           region: regionConfig.region,
           currentCount,
           minRequired,
-          allowedComponents: regionConfig.allowedComponents
+          allowedComponents: regionConfig.allowedComponents,
+          droppedComponents: sanitized.droppedComponents
         })
       }
     }
@@ -171,93 +184,142 @@ export class ComponentRegionManager {
       }
     }
 
-    const validateNodes = (nodes: ComponentInstance[]): RegionSanitizeResult => {
-      for (const node of nodes) {
-        if (node.children) {
-          validateNodes(node.children)
-        }
+    const validateRegionAssignments = (node: ComponentInstance): void => {
+      const regionAssignment = this.getComponentRegionAssignment(node)
 
-        const canonicalType = this.resolveComponentCanonicalType(node, typeIndex)
-        const regionAssignment = this.getComponentRegionAssignment(node)
-        const currentRegion = regionAssignment.region
+      const content = isRecord(node.content) ? node.content : undefined
+      const contentRegion =
+        typeof content?.region === 'string'
+          ? normalizeRegionValue(content.region)
+          : undefined
+      const contentMetadata = isRecord(content?.metadata) ? content.metadata : undefined
+      const contentMetadataRegion =
+        typeof contentMetadata?.region === 'string'
+          ? normalizeRegionValue(contentMetadata.region)
+          : undefined
+      if (contentRegion && regionAssignment.rootRegion && contentRegion !== regionAssignment.rootRegion) {
+        throw new ComponentRegionValidationError(
+          `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
+        )
+      }
+      if (contentRegion && regionAssignment.metadataRegion && contentRegion !== regionAssignment.metadataRegion) {
+        throw new ComponentRegionValidationError(
+          `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+        )
+      }
+      if (contentRegion && contentMetadataRegion && contentRegion !== contentMetadataRegion) {
+        throw new ComponentRegionValidationError(
+          `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with component.content.metadata.region "${contentMetadataRegion}". Page: ${pageUrl}`
+        )
+      }
+      if (
+        contentMetadataRegion &&
+        regionAssignment.rootRegion &&
+        contentMetadataRegion !== regionAssignment.rootRegion
+      ) {
+        throw new ComponentRegionValidationError(
+          `Component "${node.id}" has conflicting region assignments: component.content.metadata.region "${contentMetadataRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
+        )
+      }
+      if (
+        contentMetadataRegion &&
+        regionAssignment.metadataRegion &&
+        contentMetadataRegion !== regionAssignment.metadataRegion
+      ) {
+        throw new ComponentRegionValidationError(
+          `Component "${node.id}" has conflicting region assignments: component.content.metadata.region "${contentMetadataRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+        )
+      }
+      if (
+        regionAssignment.rootRegion &&
+        regionAssignment.metadataRegion &&
+        regionAssignment.rootRegion !== regionAssignment.metadataRegion
+      ) {
+        throw new ComponentRegionValidationError(
+          `Component "${node.id}" has conflicting region assignments: props.region "${regionAssignment.rootRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
+        )
+      }
+    }
 
-        const content = isRecord(node.content) ? node.content : undefined
-        const contentRegion =
-          typeof content?.region === 'string'
-            ? normalizeRegionValue(content.region)
-            : undefined
-        const contentMetadata = isRecord(content?.metadata) ? content.metadata : undefined
-        const contentMetadataRegion =
-          typeof contentMetadata?.region === 'string'
-            ? normalizeRegionValue(contentMetadata.region)
-            : undefined
-        if (contentRegion && regionAssignment.rootRegion && contentRegion !== regionAssignment.rootRegion) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
-          )
-        }
-        if (contentRegion && regionAssignment.metadataRegion && contentRegion !== regionAssignment.metadataRegion) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
-          )
-        }
-        if (contentRegion && contentMetadataRegion && contentRegion !== contentMetadataRegion) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: component.content.region "${contentRegion}" conflicts with component.content.metadata.region "${contentMetadataRegion}". Page: ${pageUrl}`
-          )
-        }
-        if (
-          contentMetadataRegion &&
-          regionAssignment.rootRegion &&
-          contentMetadataRegion !== regionAssignment.rootRegion
-        ) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: component.content.metadata.region "${contentMetadataRegion}" conflicts with props.region "${regionAssignment.rootRegion}". Page: ${pageUrl}`
-          )
-        }
-        if (
-          contentMetadataRegion &&
-          regionAssignment.metadataRegion &&
-          contentMetadataRegion !== regionAssignment.metadataRegion
-        ) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: component.content.metadata.region "${contentMetadataRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
-          )
-        }
-        if (
-          regionAssignment.rootRegion &&
-          regionAssignment.metadataRegion &&
-          regionAssignment.rootRegion !== regionAssignment.metadataRegion
-        ) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" has conflicting region assignments: props.region "${regionAssignment.rootRegion}" conflicts with metadata.region "${regionAssignment.metadataRegion}". Page: ${pageUrl}`
-          )
-        }
-
-        if (currentRegion) {
-          const allowed = allowedMap.get(currentRegion)
-          const constrainedRegions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
-          const constrainedToOtherRegions = constrainedRegions && !constrainedRegions.has(currentRegion)
-          if (
-            canonicalType &&
-            ((allowed !== undefined && allowed !== null && !allowed.has(canonicalType)) ||
-              (allowed === undefined && constrainedToOtherRegions))
-          ) {
-            throw new ComponentRegionValidationError(
-              `Component "${node.id}" of canonical type "${canonicalType}" is assigned to disallowed region "${currentRegion}" for template "${template.templateKey}". Allowed regions: ${JSON.stringify(Array.from(constrainedRegions ?? []))}. Page: ${pageUrl}`
-            )
-          }
-        }
-
+    const validatePlacement = (node: ComponentInstance): void => {
+      const canonicalType = this.resolveComponentCanonicalType(node, typeIndex)
+      const currentRegion = this.getComponentRegion(node)
+      if (currentRegion) {
+        const allowed = allowedMap.get(currentRegion)
         const constrainedRegions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
-        if (!currentRegion && constrainedRegions && constrainedRegions.size > 0) {
-          throw new ComponentRegionValidationError(
-            `Component "${node.id}" of canonical type "${canonicalType}" has no valid assigned region for template "${template.templateKey}". Required/allowed regions: ${JSON.stringify(Array.from(constrainedRegions))}. Page: ${pageUrl}`
+        const constrainedToOtherRegions = constrainedRegions && !constrainedRegions.has(currentRegion)
+        if (
+          canonicalType &&
+          ((allowed !== undefined && allowed !== null && !allowed.has(canonicalType)) ||
+            (allowed === undefined && constrainedToOtherRegions))
+        ) {
+          throw new ComponentRegionPlacementError(
+            `Component "${node.id}" of canonical type "${canonicalType}" is assigned to disallowed region "${currentRegion}" for template "${template.templateKey}". Allowed regions: ${JSON.stringify(Array.from(constrainedRegions ?? []))}. Page: ${pageUrl}`
           )
         }
       }
 
-      return { components: nodes, modified: false }
+      const constrainedRegions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
+      if (!currentRegion && constrainedRegions && constrainedRegions.size > 0) {
+        throw new ComponentRegionPlacementError(
+          `Component "${node.id}" of canonical type "${canonicalType}" has no valid assigned region for template "${template.templateKey}". Required/allowed regions: ${JSON.stringify(Array.from(constrainedRegions))}. Page: ${pageUrl}`
+        )
+      }
+    }
+
+    const validateNodes = (nodes: ComponentInstance[]): RegionSanitizeResult => {
+      const retained: ComponentInstance[] = []
+      const droppedComponents: string[] = []
+      let modified = false
+      for (let node of nodes) {
+        validateRegionAssignments(node)
+        const isBlock = node.props?.metadata?.detectionHarness === 'blocks'
+        const canonicalType = this.resolveComponentCanonicalType(node, typeIndex)
+        const regions = canonicalType ? typeRegionIndex.get(canonicalType) : undefined
+        const boundRegion = regions?.size === 1 ? Array.from(regions)[0] : undefined
+        if (isBlock && boundRegion && boundRegion !== 'main' && this.getComponentRegion(node) !== boundRegion) {
+          node = {
+            ...node,
+            props: {
+              ...node.props,
+              region: boundRegion,
+              metadata: { ...node.props.metadata, region: boundRegion },
+              ...(boundRegion === 'header' ? { placementBucket: 'top' } :
+                boundRegion === 'footer' ? { placementBucket: 'bottom' } : {})
+            }
+          }
+          validateRegionAssignments(node)
+          modified = true
+        }
+        try {
+          validatePlacement(node)
+        } catch (error) {
+          if (!isBlock || !(error instanceof ComponentRegionPlacementError)) throw error
+          droppedComponents.push(`"${node.id}" (${canonicalType ?? node.type})`)
+          console.warn('[ComponentRegionManager] Component ' + node.id + ' (' + (canonicalType ?? node.type) +
+            ') failed placement and was dropped: ' + error.message)
+          recordNormalizationWarning({
+            pageUrl,
+            parentType: canonicalType ?? node.type,
+            field: 'region',
+            issue: 'component-region-dropped',
+            message: error.message,
+            details: { componentId: node.id, templateKey: template.templateKey, region: this.getComponentRegion(node) }
+          })
+          modified = true
+          continue
+        }
+        if (node.children) {
+          const children = validateNodes(node.children)
+          droppedComponents.push(...children.droppedComponents)
+          if (children.modified) {
+            node = { ...node, children: children.components }
+            modified = true
+          }
+        }
+        retained.push(node)
+      }
+      return { components: retained, modified, droppedComponents }
     }
 
     return validateNodes(components)

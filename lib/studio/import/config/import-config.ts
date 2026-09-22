@@ -203,6 +203,18 @@ export const TimeoutConfig = {
  * - veryHigh (0.85): For clustering/grouping to avoid false positives
  */
 export const ConfidenceConfig = {
+  /**
+   * Minimum presentation-skeleton confidence before a page may be restructured.
+   *
+   * One value, read by both consumers. They previously disagreed — design-fit
+   * accepted >= 0.55 while the institutional composer required >= 0.65 — and
+   * presentation-skeleton emits a literal 0.6 for an institutional homepage
+   * with no hero detected. That value passed one gate and failed the other, so
+   * the page got design-fit's mutations without the composer's layout: a
+   * half-restructured page, silently, in the most common institutional case.
+   */
+  presentationSkeleton: parseEnvFloat('IMPORT_CONFIDENCE_SKELETON', 0.65),
+
   /** Minimum confidence to keep a detected component (maximizes recall) */
   detection: parseEnvFloat('IMPORT_CONFIDENCE_DETECTION', 0.25),
 
@@ -215,14 +227,6 @@ export const ConfidenceConfig = {
   /** Very high confidence (clustering, grouping) */
   veryHigh: 0.85,
 
-  /** Synthetic component confidence by type */
-  synthetic: {
-    hero: 0.88,
-    blog: 0.93,
-    commerce: 0.84,
-    common: 0.90
-  },
-
   // Legacy aliases for backward compatibility
   /** @deprecated Use highConfidence instead */
   get autoApproval() { return this.highConfidence },
@@ -232,8 +236,6 @@ export const ConfidenceConfig = {
   get patternClustering() { return this.veryHigh },
   /** @deprecated Use medium instead */
   get canonicalSeeding() { return this.medium },
-  /** @deprecated Use medium instead */
-  get templateGeneration() { return this.medium }
 } as const
 
 // =============================================================================
@@ -352,9 +354,6 @@ export const SitemapConfig = {
  * Web tools settings for content extraction.
  */
 export const WebToolsConfig = {
-  /** Maximum bytes per section */
-  sectionMaxBytes: parseEnvInt('IMPORT_SECTION_MAX_BYTES', 12000),
-
   /** Maximum missed DOM sections to force-fetch after tool use */
   maxForceFetchSections: parseEnvInt('IMPORT_MAX_FORCE_FETCH_SECTIONS', 10),
 
@@ -406,41 +405,14 @@ export const DetectionConfig = {
   /** Enable same-import reuse of validated global header/footer section artifacts */
   globalSectionReuse: parseEnvBool('IMPORT_GLOBAL_SECTION_REUSE', true),
 
-  /** Detection harness implementation. "page-map" uses plan/fill batches; "section" uses one extraction per section. */
-  detectionHarness: parseEnvString('IMPORT_DETECTION_HARNESS', 'section') as 'page-map' | 'section',
+  /** Model used to fill each picked block */
+  blockFillModel: parseEnvString('IMPORT_BLOCK_FILL_MODEL', 'inception/mercury-2.5'),
 
-  /** Maximum source sections to extract with LLMs for a single page import */
-  maxSectionTasks: parseEnvInt('IMPORT_MAX_SECTION_TASKS', 40),
-
-  /** Maximum LLM section extraction requests to run concurrently within a page */
-  sectionConcurrency: parseEnvInt('IMPORT_SECTION_CONCURRENCY', 2),
+  /** Maximum concurrent block picks and extractions within a page */
+  blockConcurrency: parseEnvInt('IMPORT_BLOCK_CONCURRENCY', 8),
 
   /** Use the shorter section extraction prompt that omits full-page template instructions */
-  sectionPromptMode: parseEnvString('IMPORT_SECTION_PROMPT_MODE', 'section') as 'section' | 'full',
-
-  /** Enable deterministic source payload summarization before section extraction */
-  sectionSummaryEnabled: parseEnvBool('IMPORT_SECTION_SUMMARY_ENABLED', false),
-
-  /** Maximum estimated prompt tokens for each page-map fill batch */
-  fillBatchMaxPromptTokens: parseEnvInt('IMPORT_FILL_BATCH_MAX_PROMPT_TOKENS', 45000),
-
-  /** Maximum original source sections in a single page-map fill batch */
-  fillBatchMaxSections: parseEnvInt('IMPORT_FILL_BATCH_MAX_SECTIONS', 1),
-
-  /** Maximum planned components in a single page-map fill batch */
-  fillBatchMaxComponents: parseEnvInt('IMPORT_FILL_BATCH_MAX_COMPONENTS', 6),
-
-  /** Maximum page-map fill batches to run concurrently */
-  fillBatchConcurrency: parseEnvInt('IMPORT_FILL_BATCH_CONCURRENCY', 2),
-
-  /** Number of sibling packets to include before/after referenced fill evidence */
-  fillEvidenceSiblingWindow: parseEnvInt('IMPORT_FILL_EVIDENCE_SIBLING_WINDOW', 1),
-
-  /** Schema/prompt versions for checkpoint invalidation and diagnostics */
-  pageMapVersion: parseEnvString('IMPORT_PAGE_MAP_VERSION', 'page-map-v1'),
-  planSchemaVersion: parseEnvString('IMPORT_PLAN_SCHEMA_VERSION', 'component-plan-v1'),
-  fillSchemaVersion: parseEnvString('IMPORT_FILL_SCHEMA_VERSION', 'component-fill-v1'),
-  stagedPromptVersion: parseEnvString('IMPORT_STAGED_PROMPT_VERSION', 'staged-harness-v1')
+  sectionPromptMode: parseEnvString('IMPORT_SECTION_PROMPT_MODE', 'section') as 'section' | 'full'
 } as const
 
 // =============================================================================

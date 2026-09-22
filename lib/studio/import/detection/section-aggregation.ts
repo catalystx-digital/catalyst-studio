@@ -11,6 +11,8 @@ export interface SectionExtractionArtifact {
   parserRepairs?: ParserRepairNote[]
   requiredSectionEmpty?: boolean
   satisfiedBySectionKey?: string
+  /** Extraction threw for this section; its components were never produced. */
+  extractionFailed?: boolean
 }
 
 function satisfiesRequiredRole(task: DetectionSectionTask, artifact: SectionExtractionArtifact): boolean {
@@ -45,13 +47,30 @@ export function aggregateSectionArtifacts(
       continue
     }
     const artifact = byKey.get(task.sectionKey)
-    if (!artifact || artifact.components.length > 0) {
+    const isBlock = task.sectionKey.startsWith('block:')
+    const regionArtifacts = isBlock
+      ? artifacts.filter(candidate => tasks.some(regionTask => regionTask.role === task.role && regionTask.sectionKey === candidate.sectionKey))
+      : artifacts
+    if (!artifact || (artifact.components.length > 0 &&
+      (!isBlock || satisfiesRequiredRole(task, artifact)))) {
       continue
     }
-    const satisfiedBy = findRequiredRoleSatisfaction(task, artifacts)
+    if (artifact.extractionFailed) {
+      // An empty required section means the model looked and found nothing,
+      // which is a detection bug worth failing on. A section whose extraction
+      // threw is a different thing: the rest of the page is still good, and the
+      // caller already has the section's own error. Drop the region, keep the page.
+      continue
+    }
+    const satisfiedBy = findRequiredRoleSatisfaction(task, regionArtifacts)
     if (satisfiedBy) {
-      artifact.requiredSectionEmpty = true
+      if (!isBlock || artifact.components.length === 0) {
+        artifact.requiredSectionEmpty = true
+      }
       artifact.satisfiedBySectionKey = satisfiedBy.sectionKey
+      continue
+    }
+    if (isBlock && regionArtifacts.some(candidate => candidate.extractionFailed)) {
       continue
     }
     const invalidSummary = artifact.invalidComponents?.length

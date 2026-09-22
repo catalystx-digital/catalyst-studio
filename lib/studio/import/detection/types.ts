@@ -1,6 +1,6 @@
 import type { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
-import type { ResourcesSummary, SectionInfo, RedirectInfo } from '../services/web-tools'
+import type { ResourcesSummary, RedirectInfo } from '../services/web-tools'
 import type { ProgressCallback } from '../types/progress.types'
 import type { CheckpointSession, IImportCheckpointService } from '../types/checkpoint.types'
 import type { GlobalSectionArtifactCache } from './global-section-cache'
@@ -29,6 +29,7 @@ export interface ComponentPattern {
 }
 
 export interface AIComponentMetadata {
+  detectionHarness?: 'blocks'
   confidence?: number
   detectedPatterns?: string[]
   suggestedCategory?: string
@@ -62,7 +63,7 @@ export interface ParserRepairNote {
   index: number
   component: string
   type: string
-  action: 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero'
+  action: 'drop_trailing_characters' | 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero'
   reason: string
 }
 
@@ -73,11 +74,13 @@ export interface ImportDetectionDiagnostic {
   context?: Record<string, unknown>
 }
 
+export const DETECTED_PAGE_TEMPLATE_SOURCES = ['model', 'fallback', 'redirect-detection', 'url-scorer'] as const
+
 export interface DetectedPageTemplate {
   templateKey: string
   confidence?: number
   reason?: string
-  source?: 'model' | 'fallback' | 'redirect-detection'
+  source?: (typeof DETECTED_PAGE_TEMPLATE_SOURCES)[number]
 }
 
 export interface PageMetadata {
@@ -109,6 +112,7 @@ export interface PageMetadata {
 }
 
 export interface ImportDetectionResult {
+  detectionHarness?: 'blocks'
   components: DetectedComponent[]
   pageTemplate?: DetectedPageTemplate
   pageMetadata?: PageMetadata
@@ -121,7 +125,6 @@ export interface ImportDetectionResult {
   pageUrl: string
   accuracy?: number
   resourcesSummary?: ResourcesSummary
-  outlineSections?: SectionInfo[]
   timingBreakdown?: ImportDetectionTimingBreakdown
   /** HTTP status returned by the source fetch, when known */
   sourceHttpStatus?: number
@@ -131,8 +134,6 @@ export interface ImportDetectionResult {
   redirectInfo?: RedirectInfo
   /** Whether this result represents a redirect page (skip content storage) */
   isRedirectPage?: boolean
-  /** Internal marker: components have already passed post-processing/canonical validation before checkpoint save */
-  postProcessed?: boolean
   /** Explicit detection failure details for pages that could not be imported */
   detectionError?: {
     stage: 'detection'
@@ -180,6 +181,8 @@ export interface ImportDetectionOptions {
   checkpointService?: IImportCheckpointService
   /** Optional same-import cache for validated global header/footer section artifacts */
   globalSectionCache?: GlobalSectionArtifactCache
+  /** Owning website, for the decision-model per-tenant allowlist. */
+  websiteId?: string
 }
 
 export interface DetectionPromptPayload {

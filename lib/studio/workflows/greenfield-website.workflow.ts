@@ -535,8 +535,10 @@ async function postProcessStep(
   try {
     // NOTE: This calls registerComponentTypesFromPages logic from bootstrapper
     const { prisma } = await import('@/lib/prisma');
-    const { ComponentCategory } = await import(
-      '@/lib/studio/components/cms/_core/types'
+    // Imported lazily for the same reason as prisma above: workflow step code
+    // is bundled separately and static imports of app modules are avoided here.
+    const { inferComponentCategoryFromTypeName } = await import(
+      '@/lib/studio/components/cms/_core/utils'
     );
 
     const pages = await prisma.websitePage.findMany({
@@ -563,7 +565,7 @@ async function postProcessStep(
           existing.occurrences += 1;
         } else {
           componentTypeMap.set(type, {
-            category: inferComponentCategory(type, ComponentCategory),
+            category: inferComponentCategoryFromTypeName(type),
             occurrences: 1,
           });
         }
@@ -722,45 +724,7 @@ function collectExternalImageUrls(
   }
 }
 
-/**
- * Infer component category from type name.
- */
-function inferComponentCategory(
-  type: string,
-  ComponentCategory: Record<string, string>
-): string {
-  const t = type.toLowerCase();
-
-  if (t.includes('nav') || t.includes('menu') || t.includes('header') || t.includes('footer')) {
-    return ComponentCategory.Navigation;
-  }
-  if (t.includes('hero') || t.includes('banner') || t.includes('carousel') || t.includes('slider')) {
-    return ComponentCategory.Heroes;
-  }
-  if (t.includes('form') || t.includes('contact')) {
-    return ComponentCategory.Contact;
-  }
-  if (t.includes('cta') || t.includes('call-to-action')) {
-    return ComponentCategory.CTA;
-  }
-  if (t.includes('feature')) {
-    return ComponentCategory.Features;
-  }
-  if (t.includes('testimonial') || t.includes('review') || t.includes('quote')) {
-    return ComponentCategory.SocialProof;
-  }
-  if (t.includes('about') || t.includes('team') || t.includes('bio')) {
-    return ComponentCategory.About;
-  }
-  if (t.includes('blog') || t.includes('article') || t.includes('post')) {
-    return ComponentCategory.Blog;
-  }
-  if (t.includes('pricing') || t.includes('price')) {
-    return ComponentCategory.Pricing;
-  }
-  if (t.includes('data') || t.includes('chart') || t.includes('graph')) {
-    return ComponentCategory.Data;
-  }
-
-  return ComponentCategory.Content;
-}
+// Component category inference now lives in
+// `@/lib/studio/components/cms/_core/utils` as
+// `inferComponentCategoryFromTypeName`, shared with the greenfield
+// bootstrapper. It is imported lazily inside the step above.

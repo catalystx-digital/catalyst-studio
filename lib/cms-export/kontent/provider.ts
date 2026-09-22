@@ -15,6 +15,7 @@ import { formatUnifiedBundleSyncResult } from '@/lib/cms-export/helpers/unified-
 import { KONTENT_PROVIDER_ID, MAX_CODENAME_LENGTH } from './constants';
 import { sanitizeCodename } from './utils';
 import { buildUniversalContentType } from '@/lib/services/export/helpers/content-type-builder';
+import { isPage } from '@/lib/utils/content-type-utils';
 
 const DEFAULT_MAX_CONCURRENCY = 5;
 const PROGRESS_INTERVAL = 25;
@@ -402,9 +403,9 @@ export class KontentProvider implements ICMSProvider {
       id: type.id ?? type.key ?? sanitizeCodename(type.name),
       name: type.name ?? type.key ?? type.id ?? 'Content Type',
       version: '1.0.0',
-      type: type.category === 'page' ? 'page' : 'component',
+      type: isPage(type) ? 'page' : 'component',
       description: type.metadata?.description as string | undefined,
-      isRoutable: type.category === 'page',
+      isRoutable: isPage(type),
       fields: normalisedFields,
       metadata: {
         createdAt: now,

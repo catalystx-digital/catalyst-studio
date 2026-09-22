@@ -4,6 +4,7 @@ import {
   DetectionResult
 } from './component-type-extractor.interface'
 import { ComponentType as CmsComponentType } from '@/lib/studio/components/cms/_core/types'
+import { DETECTED_PAGE_TEMPLATE_SOURCES } from '@/lib/studio/import/detection/types'
 
 export interface ComponentInstance {
   id: string
@@ -18,11 +19,13 @@ export interface ComponentInstance {
   children?: ComponentInstance[]
 }
 
+export const PAGE_TEMPLATE_SOURCES = [...DETECTED_PAGE_TEMPLATE_SOURCES, 'home-enforced'] as const
+
 export interface PageTemplateSelection {
   templateKey: string
   confidence?: number
   reason?: string
-  source?: 'model' | 'fallback' | 'home-enforced'
+  source?: (typeof PAGE_TEMPLATE_SOURCES)[number]
   requestedKey?: string
   props?: Record<string, unknown>
 }

@@ -1,4 +1,3 @@
-import type { SectionInfo } from '../services/web-tools'
 import { filterPageContentCandidateTypes } from './candidate-types'
 import { classifyRouteIntent } from './section-taxonomy'
 
@@ -51,14 +50,14 @@ function isDedicatedEditorialListingUrl(pageUrl: string): boolean {
   }
 }
 
-function roleForSection(sectionKey: string, index: number): DetectionSectionRole {
+export function roleForSection(sectionKey: string, index: number): DetectionSectionRole {
   const key = sectionKey.toLowerCase()
   if (key.includes('header')) return 'header'
   if (key.includes('footer')) return 'footer'
   return index === 0 ? 'hero' : 'main'
 }
 
-function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[] {
+export function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[] {
   const routeIntent = classifyRouteIntent(pageUrl)
   const dedicatedEditorialListing = isDedicatedEditorialListingUrl(pageUrl)
   const candidates = new Set<string>(
@@ -83,23 +82,4 @@ function candidatesForRole(role: DetectionSectionRole, pageUrl: string): string[
     candidates.delete('card-grid')
   }
   return filterPageContentCandidateTypes(candidates)
-}
-
-export function buildDetectionSectionPlan({
-  pageUrl,
-  sections
-}: {
-  pageUrl: string
-  sections: SectionInfo[]
-}): DetectionSectionTask[] {
-  return sections.map((section, index) => {
-    const role = roleForSection(section.key, index)
-    return {
-      sectionKey: section.key,
-      sectionOrder: index,
-      role,
-      required: role === 'header' || role === 'footer',
-      candidateTypes: candidatesForRole(role, pageUrl)
-    }
-  })
 }

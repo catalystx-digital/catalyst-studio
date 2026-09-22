@@ -10,7 +10,6 @@ The active implementation uses direct LLM analysis of webpages (no screenshots):
 - **`web-detection.ts`** - Component detection via LLMs with DetectionAPI patterns
 - **`import-pipeline.ts`** - Main orchestration layer for the detection pipeline
 - **`types.ts`** - Shared type definitions
-- **`index.ts`** - Entry point exporting the pipeline
 
 ### Key Notes
 - Faster and lower memory usage than screenshot-based approach
@@ -26,7 +25,7 @@ The active implementation uses direct LLM analysis of webpages (no screenshots):
 ## Usage
 
 ```typescript
-import { importPipeline } from '@/lib/studio/import'
+import { importPipeline } from '@/lib/studio/import/import-pipeline'
 
 const result = await importPipeline.execute({
   urls: ['https://example.com'],

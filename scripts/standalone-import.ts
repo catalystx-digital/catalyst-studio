@@ -587,9 +587,6 @@ async function main(args: ScriptArgs) {
       if (completedStages.includes('dom_probe_done')) {
         console.log('  ✓ DOM probe complete - will load from checkpoint');
       }
-      if (completedStages.includes('templates_generated')) {
-        console.log('  ✓ Templates generated - will load from checkpoint');
-      }
 
     } else {
       // ========== NEW IMPORT MODE ==========
@@ -705,8 +702,6 @@ async function main(args: ScriptArgs) {
       apiKey,
       websiteId: website.id,
       enablePerformanceMonitoring: true,
-      generateTemplates: true,
-      saveToDatabase: false,
       checkpointSession,
       onProgress: async ({ message, progress }) => {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

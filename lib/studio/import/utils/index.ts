@@ -60,7 +60,9 @@ export {
   safeStringify,
   deepClone,
   isValidJson,
-  type JsonExtractionResult
+  salvageTruncatedJson,
+  type JsonExtractionResult,
+  type TruncatedJsonSalvage
 } from './json-parsing'
 
 // Progress utilities

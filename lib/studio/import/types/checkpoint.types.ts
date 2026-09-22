@@ -175,6 +175,13 @@ export interface CheckpointSitemap {
  * LLM debug information for a page
  */
 export interface LLMDebugInfo {
+  /** Block decision evidence and the candidates actually offered to extraction. */
+  blockPick?: {
+    allowedTypes: string[]
+    topChoices: { component: string | null; multiple: boolean | null }
+    source: import('@/lib/studio/decisions/types').DecisionSource
+    issues: string[]
+  }
   /** Number of API requests made */
   requestCount?: number
   /** Number of tool calls */
@@ -209,8 +216,6 @@ export interface LLMDebugInfo {
   sectionOrder?: number
   /** Approximate serialized section size */
   sectionApproxBytes?: number
-  /** Whether deterministic section source summarization was enabled */
-  sectionSummaryEnabled?: boolean
   /** Original serialized section byte estimate before summarization */
   sectionOriginalBytes?: number
   /** Serialized section byte estimate after summarization */

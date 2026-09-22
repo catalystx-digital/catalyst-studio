@@ -75,7 +75,6 @@ export interface FetchOutlineResult {
   headMeta?: HeadMeta
   sections?: SectionInfo[]
   resourcesSummary?: ResourcesSummary
-  limits?: { maxSectionBytes: number }
   nonHtml?: boolean
   notes?: string[]
   error?: boolean
@@ -87,18 +86,6 @@ export interface FetchOutlineResult {
   contentType?: string
   /** Redirect information if this page redirects to another URL */
   redirectInfo?: RedirectInfo
-}
-
-export interface GetSectionArgs {
-  handle: string
-  key: string
-}
-
-export interface GetSectionResult {
-  handle: string
-  key: string
-  slice: Array<DomNode>
-  stats: { nodeCount: number; approxBytes: number; truncated?: boolean }
 }
 
 export interface DomNode {
@@ -116,12 +103,9 @@ export interface DomNode {
   bgColor?: string
 }
 
-// Internal representation
-const MIN_SECTION_MAX_BYTES = 1024
-
-function resolveSectionMaxBytes(): number {
-  const configured = WebToolsConfig.sectionMaxBytes
-  return configured >= MIN_SECTION_MAX_BYTES ? configured : MIN_SECTION_MAX_BYTES
+export interface Stylesheet {
+  url: string
+  text: string
 }
 
 interface CachedPage {
@@ -129,18 +113,15 @@ interface CachedPage {
   finalUrl?: string
   status?: number
   rawHtml: string
+  bgImageMap?: BackgroundImageMap
+  stylesheets?: Stylesheet[]
   headMeta: HeadMeta
-  sections: Map<string, DomNode[]>
   resources: ResourcesSummary
-  limits: { maxSectionBytes: number }
 }
 
 export interface WebToolsCacheStats {
   entries: number
   totalRawBytes: number
-  totalSectionCount: number
-  totalSectionBytes: number
-  totalApproxNodes: number
   resources: {
     anchors: number
     images: number
@@ -155,11 +136,6 @@ function uuid(): string {
   return ([1e7] as any+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, (c: any) =>
     (c ^ (crypto.randomBytes(1)[0] & (15 >> (c / 4)))).toString(16)
   )
-}
-
-// Byte length helper
-function byteLength(str: string): number {
-  return Buffer.byteLength(str, 'utf8')
 }
 
 // Collapse whitespace in text
@@ -208,7 +184,7 @@ function classListContainsHiddenSelector(className: string | undefined, hiddenBy
   return false
 }
 
-function isExplicitlyHiddenDomNode(params: {
+export function isExplicitlyHiddenDomNode(params: {
   tag: string
   attrs: Dict<string>
   id?: string
@@ -242,7 +218,7 @@ async function parseHtml(html: string): Promise<any> {
 }
 
 // Traverse parse5 AST and build DomNode[] for a given root element
-function traverseToNodes(
+export function traverseToNodes(
   root: any,
   opts: {
     maxTextPerNode: number
@@ -250,6 +226,21 @@ function traverseToNodes(
     skipTags?: Set<string>
     skipNode?: (node: { tag: string; id?: string; className?: string; role?: string }) => boolean
     preserveClassHiddenRoot?: boolean
+    onNode?: (source: any, node: DomNode) => void
+    /**
+     * Attribute names to keep IN ADDITION to the shared allowlist below.
+     *
+     * Scoped rather than added to that allowlist because the body traversals
+     * feed the model, and every attribute kept there is extra payload on every
+     * node of every page. Only the head needs `content` and `property`.
+     */
+    extraAttrKeys?: Set<string>
+    /**
+     * Cap for non-URL attribute values. Defaults to 160, which suits the body
+     * (class lists, labels) and is far too short for a meta description or an
+     * og:image address.
+     */
+    attrValueMaxChars?: number
   }
 ): DomNode[] {
   const nodes: DomNode[] = []
@@ -351,11 +342,16 @@ function traverseToNodes(
       if (lower.startsWith('aria-')) {
         continue
       }
-      if (!allowedAttrKeys.has(lower) && !lower.startsWith('data-cms') && !lower.startsWith('data-import')) {
+      if (
+        !allowedAttrKeys.has(lower) &&
+        !opts.extraAttrKeys?.has(lower) &&
+        !lower.startsWith('data-cms') &&
+        !lower.startsWith('data-import')
+      ) {
         continue
       }
       if (typeof value === "string") {
-        filteredAttrs[key] = serializeAttrValue(lower, value, urlAttrKeys)
+        filteredAttrs[key] = serializeAttrValue(lower, value, urlAttrKeys, opts.attrValueMaxChars)
       } else {
         filteredAttrs[key] = String(value)
       }
@@ -463,6 +459,7 @@ function traverseToNodes(
       bgColor
     }
     nodes.push(nodeOut)
+    opts.onNode?.(node, nodeOut)
 
     if (Array.isArray(node.childNodes)) {
       node.childNodes.forEach((c: any, idx: number) => walk(c, path + '/' + idx))
@@ -473,9 +470,14 @@ function traverseToNodes(
   return nodes
 }
 
-function serializeAttrValue(lowerKey: string, value: string, urlAttrKeys: Set<string>): string {
+function serializeAttrValue(
+  lowerKey: string,
+  value: string,
+  urlAttrKeys: Set<string>,
+  maxChars: number = 160
+): string {
   if (!urlAttrKeys.has(lowerKey)) {
-    return value.length > 160 ? value.slice(0, 160) : value
+    return value.length > maxChars ? value.slice(0, maxChars) : value
   }
 
   if (lowerKey === 'srcset') {
@@ -513,7 +515,7 @@ function sanitizeResourceSrcset(value: string | undefined): string | undefined {
   return srcset.length > 2048 ? srcset.slice(0, 2048) : srcset
 }
 
-function shouldSkipBodyFallbackMainNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
+export function shouldSkipBodyFallbackMainNode(node: { tag: string; id?: string; className?: string; role?: string }): boolean {
   if (node.role === 'navigation') {
     return true
   }
@@ -627,54 +629,7 @@ function computeSha256(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex')
 }
 
-function sliceByApproxBytes(nodes: DomNode[], maxBytes: number): { slices: DomNode[][]; sections: SectionInfo[] } {
-  const slices: DomNode[][] = []
-  const sections: SectionInfo[] = []
-  let start = 0
-  let cursor = 0
-  let accBytes = 0
-  let byteOffset = 0
-
-  const pushSlice = (part: DomNode[]): void => {
-    if (!part.length) return
-    const json = JSON.stringify(part)
-    const approx = byteLength(json)
-    if (approx > maxBytes && part.length > 1) {
-      const mid = Math.ceil(part.length / 2)
-      pushSlice(part.slice(0, mid))
-      pushSlice(part.slice(mid))
-      return
-    }
-    const hash = computeSha256(json)
-    const startByte = byteOffset
-    const endByte = startByte + Math.max(approx, 1) - 1
-    slices.push(part)
-    sections.push({ key: `main:${startByte}-${endByte}`, approxBytes: approx, hash, nodeCount: part.length })
-    byteOffset = endByte + 1
-  }
-
-  while (cursor < nodes.length) {
-    const n = nodes[cursor]
-    const approx = byteLength(JSON.stringify(n))
-    if (accBytes + approx > maxBytes && cursor > start) {
-      const part = nodes.slice(start, cursor)
-      pushSlice(part)
-      start = cursor
-      accBytes = 0
-    } else {
-      accBytes += approx
-      cursor += 1
-    }
-  }
-
-  if (start < nodes.length) {
-    pushSlice(nodes.slice(start))
-  }
-
-  return { slices, sections }
-}
-
-function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesSummary {
+export function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesSummary {
   const anchors: ResourcesSummary['anchors'] = []
   const images: ResourcesSummary['images'] = []
   const videos: ResourcesSummary['videos'] = []
@@ -728,6 +683,35 @@ function collectResources(allNodes: DomNode[], headNodes: DomNode[]): ResourcesS
   return { anchors, images, videos, forms, links }
 }
 
+/**
+ * Head text budget. Only <title> is read as text, and a title longer than this
+ * is already past anything a page renders; 1500 matches the per-node limit the
+ * body traversals use, so the head is not a special case with its own number.
+ */
+const HEAD_TITLE_MAX_CHARS = 1500
+
+/**
+ * `content` and `property` are not in the shared attribute allowlist, so every
+ * <meta> node used to arrive carrying its name and no value. Nothing downstream
+ * could see one: buildPageMetadataFromHead reads `entry.content` for the
+ * description and matches og:/twitter: keys through `entry.property`, so every
+ * imported page got an empty SEO description, no social preview, and no robots
+ * or viewport setting. They are allowed for the HEAD only — the body
+ * traversals feed the model, and widening the shared list would put these on
+ * every node of every page.
+ */
+const HEAD_META_ATTR_KEYS = new Set<string>(['content', 'property'])
+
+/**
+ * The default cap on an attribute value is 160 characters, which is tuned for
+ * body attributes. A meta description sits right at that length by SEO
+ * convention and an og:image is a full URL, so 160 would silently clip both.
+ */
+const HEAD_ATTR_MAX_CHARS = 1024
+
+/** Head tags whose text is never read, skipped with their subtrees. */
+const HEAD_NON_TEXT_TAGS = new Set<string>(['script', 'style', 'noscript'])
+
 async function buildHeadMeta(document: any, htmlNode: any): Promise<HeadMeta> {
   // parse5 AST nodes: document.childNodes -> html -> head/body
   const headMeta: HeadMeta = { meta: [], links: [], openGraph: {}, twitter: {} }
@@ -741,7 +725,22 @@ async function buildHeadMeta(document: any, htmlNode: any): Promise<HeadMeta> {
     if (htmlAttrs.lang) headMeta.language = htmlAttrs.lang
 
     if (head) {
-      const headNodes = traverseToNodes(head, { maxTextPerNode: 0 })
+      // maxTextPerNode must be non-zero: the loop below reads n.text to pick up
+      // <title>, and traverseToNodes slices every node's text to this length.
+      // It was 0, which sliced all head text to '' and made the title check on
+      // the next line unreachable — so headMeta.title was null on every page
+      // ever imported, and page-metadata fell back to a heading or the URL
+      // slug. Meta and link tags were unaffected because they read attributes.
+      //
+      // script/style/noscript are skipped rather than truncated: with
+      // stripScriptsStyles off they are still in the head at this point, and
+      // there is no reason to carry inline JS around just to find a title.
+      const headNodes = traverseToNodes(head, {
+        maxTextPerNode: HEAD_TITLE_MAX_CHARS,
+        skipTags: HEAD_NON_TEXT_TAGS,
+        extraAttrKeys: HEAD_META_ATTR_KEYS,
+        attrValueMaxChars: HEAD_ATTR_MAX_CHARS
+      })
       for (const n of headNodes) {
         const a = n.attrs || {}
         if (n.tag === 'title' && n.text) headMeta.title = n.text
@@ -764,7 +763,7 @@ async function buildHeadMeta(document: any, htmlNode: any): Promise<HeadMeta> {
   return headMeta
 }
 
-function removeScriptsStylesAndComments(html: string): string {
+export function removeScriptsStylesAndComments(html: string): string {
   // Remove comments first
   let s = html.replace(/<!--([\s\S]*?)-->/g, '')
   // Remove <script>...</script> and <style>...</style>
@@ -800,7 +799,7 @@ export interface BackgroundImageMap {
  * @param html - Raw HTML string
  * @returns BackgroundImageMap for selector-based lookup
  */
-function extractBackgroundImages(html: string): BackgroundImageMap {
+export function extractBackgroundImages(html: string): BackgroundImageMap {
   const byClass = new Map<string, string>()
   const byId = new Map<string, string>()
   const bgColorByClass = new Map<string, string>()
@@ -870,7 +869,7 @@ function extractBackgroundImages(html: string): BackgroundImageMap {
 /**
  * Parses CSS content for background-color rules.
  */
-function parseCssForBackgroundColors(
+export function parseCssForBackgroundColors(
   cssContent: string,
   bgColorByClass: Map<string, string>,
   bgColorById: Map<string, string>
@@ -925,7 +924,7 @@ function parseCssForBackgroundColors(
   }
 }
 
-function parseCssForHiddenSelectors(
+export function parseCssForHiddenSelectors(
   cssContent: string,
   hiddenByClass: Set<string>,
   hiddenById: Set<string>
@@ -962,7 +961,7 @@ function parseCssForHiddenSelectors(
  * Parses CSS content for background-image rules.
  * Helper function used by both inline styles and external CSS.
  */
-function parseCssForBackgroundImages(
+export function parseCssForBackgroundImages(
   cssContent: string,
   byClass: Map<string, string>,
   byId: Map<string, string>,
@@ -1049,7 +1048,7 @@ function parseCssForBackgroundImages(
 /**
  * Extracts external stylesheet URLs from HTML.
  */
-function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] {
+export function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] {
   const urls: string[] = []
   const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*>/gi
   let linkMatch: RegExpExecArray | null
@@ -1080,7 +1079,7 @@ function extractExternalStylesheetUrls(html: string, baseUrl: string): string[] 
   return urls
 }
 
-function isPrintOnlyStylesheetMedia(media: string | undefined): boolean {
+export function isPrintOnlyStylesheetMedia(media: string | undefined): boolean {
   if (!media) return false
   const normalized = media.trim().toLowerCase()
   if (!normalized) return false
@@ -1325,9 +1324,9 @@ async function fetchExternalCssBackgroundImages(
   html: string,
   baseUrl: string,
   bgImageMap: BackgroundImageMap
-): Promise<{ cssFilesFetched: number; imagesFound: number }> {
+): Promise<{ cssFilesFetched: number; imagesFound: number; stylesheets: Stylesheet[] }> {
   const cssUrls = extractExternalStylesheetUrls(html, baseUrl)
-  const stats = { cssFilesFetched: 0, imagesFound: 0 }
+  const stats = { cssFilesFetched: 0, imagesFound: 0, stylesheets: [] as Stylesheet[] }
 
   // Only fetch CSS from same origin to avoid CORS/cross-domain issues
   const baseOrigin = new URL(baseUrl).origin
@@ -1357,6 +1356,7 @@ async function fetchExternalCssBackgroundImages(
       if (!res.ok) return
 
       const cssContent = await res.text()
+      stats.stylesheets.push({ url: cssUrl, text: cssContent })
       const beforeCount = bgImageMap.byClass.size + bgImageMap.byId.size
       parseCssForBackgroundImages(cssContent, bgImageMap.byClass, bgImageMap.byId, cssUrl)
       // Also extract background-colors from external CSS
@@ -1393,9 +1393,6 @@ export class WebFetchTools {
 
   getCacheStats(): WebToolsCacheStats {
     let totalRawBytes = 0
-    let totalSectionBytes = 0
-    let totalSectionCount = 0
-    let totalApproxNodes = 0
     let anchors = 0
     let images = 0
     let videos = 0
@@ -1404,13 +1401,6 @@ export class WebFetchTools {
 
     for (const cached of this.cache.values()) {
       totalRawBytes += Buffer.byteLength(cached.rawHtml || '', 'utf8')
-      totalSectionCount += cached.sections.size
-      for (const slice of cached.sections.values()) {
-        const serialized = JSON.stringify(slice)
-        totalSectionBytes += Buffer.byteLength(serialized, 'utf8')
-        totalApproxNodes += slice.length
-      }
-
       anchors += cached.resources.anchors.length
       images += cached.resources.images.length
       videos += cached.resources.videos.length
@@ -1421,9 +1411,6 @@ export class WebFetchTools {
     return {
       entries: this.cache.size,
       totalRawBytes,
-      totalSectionCount,
-      totalSectionBytes,
-      totalApproxNodes,
       resources: { anchors, images, videos, forms, links }
     }
   }
@@ -1476,19 +1463,6 @@ export class WebFetchTools {
           { tag: 'p', pathId: makeId(), text: '© 2025 Example Co.' }
         ]
 
-        const sectionMap = new Map<string, DomNode[]>()
-        sectionMap.set('header', headerSlice)
-        // single main slice to minimize further tool calls
-        const mainKey = 'main:0-1023'
-        sectionMap.set(mainKey, mainSlice)
-        sectionMap.set('footer', footerSlice)
-
-        const sectionInfos: SectionInfo[] = [
-          { key: 'header', approxBytes: byteLength(JSON.stringify(headerSlice)), hash: computeSha256(JSON.stringify(headerSlice)), nodeCount: headerSlice.length },
-          { key: mainKey, approxBytes: byteLength(JSON.stringify(mainSlice)), hash: computeSha256(JSON.stringify(mainSlice)), nodeCount: mainSlice.length },
-          { key: 'footer', approxBytes: byteLength(JSON.stringify(footerSlice)), hash: computeSha256(JSON.stringify(footerSlice)), nodeCount: footerSlice.length }
-        ]
-
         const headMeta: HeadMeta = {
           title: 'Mock Page',
           canonical: url,
@@ -1510,9 +1484,7 @@ export class WebFetchTools {
           status: 200,
           rawHtml: '<!doctype html><html><head><title>Mock Page</title></head><body><header>…</header><main>…</main><footer>…</footer></body></html>',
           headMeta,
-          sections: sectionMap,
-          resources,
-          limits: { maxSectionBytes: 32768 }
+          resources
         })
 
         return {
@@ -1522,9 +1494,7 @@ export class WebFetchTools {
           contentLength: 256,
           hash: computeSha256('mock'),
           headMeta,
-          sections: sectionInfos,
           resourcesSummary: resources,
-          limits: { maxSectionBytes: 32768 },
           notes: ['simple-mode']
         }
       }
@@ -1561,9 +1531,7 @@ export class WebFetchTools {
           status,
           rawHtml: '',
           headMeta: {},
-          sections: new Map(),
-          resources: { anchors: [], images: [], videos: [], forms: [], links: [] },
-          limits: { maxSectionBytes: 32768 }
+          resources: { anchors: [], images: [], videos: [], forms: [], links: [] }
         })
         return { handle, finalUrl, status, contentLength: data.length, contentType, nonHtml: true, notes: ['non-html content'] }
       }
@@ -1650,30 +1618,9 @@ export class WebFetchTools {
       const mainSkipTags = actualMainNode ? undefined : new Set(['header', 'footer', 'nav'])
       const mainSkipNode = actualMainNode ? undefined : shouldSkipBodyFallbackMainNode
 
-      const maxSectionBytes = resolveSectionMaxBytes()
       const headerSlice = headerNode ? traverseToNodes(headerNode, { maxTextPerNode: 1500, bgImageMap, preserveClassHiddenRoot: true }) : []
       const mainNodes = mainNode ? traverseToNodes(mainNode, { maxTextPerNode: 1500, bgImageMap, skipTags: mainSkipTags, skipNode: mainSkipNode }) : []
       const footerSlice = footerNode ? traverseToNodes(footerNode, { maxTextPerNode: 1500, bgImageMap }) : []
-
-      const { slices: mainSlices, sections } = sliceByApproxBytes(mainNodes, maxSectionBytes)
-
-      // Build sections map
-      const sectionMap = new Map<string, DomNode[]>()
-      const sectionInfos: SectionInfo[] = []
-      if (headerSlice.length) {
-        const h = computeSha256(JSON.stringify(headerSlice))
-        sectionMap.set('header', headerSlice)
-        sectionInfos.push({ key: 'header', approxBytes: byteLength(JSON.stringify(headerSlice)), hash: h, nodeCount: headerSlice.length })
-      }
-      for (let i = 0; i < mainSlices.length; i++) {
-        sectionMap.set(sections[i].key, mainSlices[i])
-        sectionInfos.push(sections[i])
-      }
-      if (footerSlice.length) {
-        const f = computeSha256(JSON.stringify(footerSlice))
-        sectionMap.set('footer', footerSlice)
-        sectionInfos.push({ key: 'footer', approxBytes: byteLength(JSON.stringify(footerSlice)), hash: f, nodeCount: footerSlice.length })
-      }
 
       // Collect resources
       const headNodes = headNode ? traverseToNodes(headNode, { maxTextPerNode: 0 }) : []
@@ -1692,10 +1639,10 @@ export class WebFetchTools {
         finalUrl,
         status,
         rawHtml: raw,
+        bgImageMap,
+        stylesheets: externalCssStats.stylesheets,
         headMeta,
-        sections: sectionMap,
-        resources,
-        limits: { maxSectionBytes }
+        resources
       })
 
       return {
@@ -1705,34 +1652,26 @@ export class WebFetchTools {
         contentLength,
         hash,
         headMeta,
-        sections: sectionInfos,
         resourcesSummary: resources,
-        limits: { maxSectionBytes },
         notes,
         redirectInfo: redirectInfo || undefined
       }
     })
   }
 
-  async getSection(args: GetSectionArgs): Promise<GetSectionResult> {
-    return await performanceMonitor.measure('webtools.get_section', async () => {
-      const { handle, key } = args
-      const cached = this.cache.get(handle)
-      if (!cached) throw new Error('Invalid handle')
-      const slice = cached.sections.get(key) || []
-      const approxBytes = byteLength(JSON.stringify(slice))
-      const limit = cached.limits?.maxSectionBytes ?? resolveSectionMaxBytes()
-      const truncated = approxBytes > limit
-      if (truncated) {
-        console.warn(`[WebTools] Section ${key} returned ${approxBytes} bytes (limit ${limit}); consider reducing section size.`)
-      }
-      return {
-        handle,
-        key,
-        slice,
-        stats: { nodeCount: slice.length, approxBytes, truncated }
-      }
-    })
+  getRawHtml(handle: string): string {
+    const cached = this.cache.get(handle)
+    if (!cached) {
+      throw new Error('Invalid handle')
+    }
+    return cached.rawHtml
+  }
+
+  getPageStyling(handle: string): { bgImageMap: BackgroundImageMap; stylesheets: Stylesheet[] } {
+    const cached = this.cache.get(handle)
+    if (!cached) throw new Error('Invalid handle')
+    if (!cached.bgImageMap) throw new Error('No styling map for this page')
+    return { bgImageMap: cached.bgImageMap, stylesheets: cached.stylesheets || [] }
   }
 
   /**
@@ -1754,14 +1693,7 @@ export class WebFetchTools {
       contentLength: Buffer.byteLength(cachedPage.rawHtml || '', 'utf8'),
       hash: crypto.createHash('sha256').update(cachedPage.rawHtml || '').digest('hex'),
       headMeta: cachedPage.headMeta,
-      sections: Array.from(cachedPage.sections.entries()).map(([key, nodes]) => ({
-        key,
-        approxBytes: Buffer.byteLength(JSON.stringify(nodes), 'utf8'),
-        hash: crypto.createHash('sha256').update(JSON.stringify(nodes)).digest('hex'),
-        nodeCount: nodes.length
-      })),
-      resourcesSummary: cachedPage.resources,
-      limits: cachedPage.limits
+      resourcesSummary: cachedPage.resources
     }
   }
 }

@@ -355,7 +355,6 @@ export interface DeduplicationRules {
 
 /**
  * Component processing rules (declarative metadata for post-processors).
- * Replaces hardcoded logic in detection-post-processor modules.
  */
 export interface ComponentProcessingRules {
   /** Multi-row navigation detection rules */

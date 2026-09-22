@@ -3,6 +3,8 @@ import type { ComponentPattern, DetectedComponent, DetectedPageTemplate, Invalid
 import type { PageCatalogSummary } from '@/lib/studio/ai/page-catalog'
 import { ConfidenceConfig } from '../config'
 import { normalizePath } from '../utils/path-utils'
+import { parseFirstJsonValue } from '../utils/json-parsing'
+import { pageIdFromPath } from '../services/page-builder/component-helpers/normalizers/nav-normalizers'
 import {
   clampConfidence,
   sanitizeReason,
@@ -13,6 +15,7 @@ import { normalizeComponentContent } from '../services/page-builder/component-he
 import { isFatalNormalizationWarning } from '../services/page-builder/normalization-telemetry'
 import { getComponentContractByCanonicalType } from '@/lib/studio/components/catalog/component-contracts'
 import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
+import { getHeroComponentTypes } from '@/lib/studio/components/cms/_core/definition-loader'
 import { classifySectionIntent } from './section-taxonomy'
 
 // Use centralized confidence threshold
@@ -132,7 +135,11 @@ export function parseSectionDetectionResponse({
   allowMissingSectionKey = false,
   isolateInvalidComponents = false
 }: ParseSectionDetectionInput): ParseSectionDetectionOutput {
-  const raw = JSON.parse(rawResponse)
+  const parserRepairs: ParserRepairNote[] = []
+  const raw = parseFirstJsonValue(rawResponse, count => parserRepairs.push({
+    index: -1, component: 'response', type: 'response', action: 'drop_trailing_characters',
+    reason: `Dropped ${count} trailing characters after the first complete JSON value`
+  }))
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('Section detection response must be a JSON object')
   }
@@ -159,12 +166,13 @@ export function parseSectionDetectionResponse({
     { isolateInvalidContent: isolateInvalidComponents }
   )
 
+  parserRepairs.push(...parsedComponents.parserRepairs)
   return {
     sectionKey,
     components: parsedComponents.components,
     pageMetadata,
     ...(parsedComponents.invalidComponents.length > 0 ? { invalidComponents: parsedComponents.invalidComponents } : {}),
-    ...(parsedComponents.parserRepairs.length > 0 ? { parserRepairs: parsedComponents.parserRepairs } : {})
+    ...(parserRepairs.length > 0 ? { parserRepairs } : {})
   }
 }
 
@@ -181,7 +189,7 @@ function parseCombinedDetectionResponse(
     contentByField.set(field, value as RawParsedItem[])
   }
 
-  const raw = JSON.parse(response)
+  const raw = parseFirstJsonValue(response)
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('Detection response must be a JSON object')
   }
@@ -227,6 +235,19 @@ function parseComponentsArray(
   return parseComponentsArrayDetailed(parsed, availableComponents, confidenceThreshold, pageUrl).components
 }
 
+function normalizeInternalLinkPageIds(value: unknown): void {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    value.forEach(normalizeInternalLinkPageIds)
+    return
+  }
+  const object = value as Record<string, unknown>
+  if (object.type === 'internal' && typeof object.path === 'string' && (object.pageId == null || object.pageId === '')) {
+    object.pageId = pageIdFromPath(object.path)
+  }
+  Object.values(object).forEach(normalizeInternalLinkPageIds)
+}
+
 function parseComponentsArrayDetailed(
   parsed: RawParsedItem[],
   availableComponents: ComponentPattern[],
@@ -234,6 +255,7 @@ function parseComponentsArrayDetailed(
   pageUrl?: string,
   options: { isolateInvalidContent?: boolean } = {}
 ): { components: DetectedComponent[]; invalidComponents: InvalidDetectedComponent[]; parserRepairs: ParserRepairNote[] } {
+  normalizeInternalLinkPageIds(parsed)
   const validComponents: DetectedComponent[] = []
   const invalidComponents: InvalidDetectedComponent[] = []
   const parserRepairs: ParserRepairNote[] = []
@@ -552,11 +574,10 @@ function isDroppedLogoCloudItemWarning(warning: { field?: string; issue: string;
   )
 }
 
-function inferLocationFromType(type: string): DetectedComponent['location'] {
-  const typeLower = type.toLowerCase()
-  if (typeLower.includes('nav') || typeLower.includes('header')) return 'header'
-  if (typeLower.includes('hero')) return 'hero'
-  if (typeLower.includes('footer')) return 'footer'
+export function inferLocationFromType(type: string): DetectedComponent['location'] {
+  if (getHeroComponentTypes().has(type)) return 'hero'
+  if (['navbar', 'sidemenu', 'breadcrumbs', 'breadcrumb'].includes(type)) return 'header'
+  if (type === 'footer') return 'footer'
   return 'main'
 }
 
