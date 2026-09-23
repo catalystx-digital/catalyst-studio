@@ -43,6 +43,73 @@ test('cached external stylesheet map filters hidden nodes and preserves backgrou
   } finally { globalThis.fetch = previousFetch }
 })
 
+test('slick carousel keeps each real slide once and filters hidden content', () => {
+  const html = `
+    <style>.slick-slide{display:none}.slick-initialized .slick-slide{display:block}.hidden-panel{display:none}</style>
+    <section><div class="slick-slider slick-initialized"><div class="slick-list"><div class="slick-track">
+      <div class="slick-slide slick-cloned" aria-hidden="true"><img src="/first.png"><h4>First</h4></div>
+      <div class="slick-slide slick-active" aria-hidden="false" tabindex="-1"><img src="/first.png"><h4>First</h4></div>
+      <div class="slick-slide" aria-hidden="true" tabindex="-1"><img src="/second.png"><h4>Second</h4></div>
+      <div class="slick-slide slick-cloned" aria-hidden="true"><img src="/second.png"><h4>Second</h4></div>
+      <div class="slick-slide" hidden><img src="/hidden-attribute.png"><h4>Hidden attribute</h4></div>
+      <div class="slick-slide" style="display:none"><img src="/hidden-style.png"><h4>Hidden style</h4></div>
+      <div class="slick-slide hidden-panel"><img src="/hidden-class.png"><h4>Hidden class</h4></div>
+    </div></div></div><div class="slick-slide"><img src="/uninitialized.png"></div></section>`
+  const input = buildBlockInput({ html, block: block(), bgImageMap: extractBackgroundImages(html) })
+  const realSlides = input.nodes.filter(node => node.class?.split(/\s+/).includes('slick-slide') && !node.class?.split(/\s+/).includes('slick-cloned'))
+  expect(realSlides).toHaveLength(3)
+  expect(realSlides.map(node => node.aria?.['aria-hidden'])).toEqual(['false', 'true', undefined])
+  expect(input.nodes.filter(node => node.tag === 'img').map(node => node.attrs?.src)).toEqual(['/first.png', '/second.png', '/uninitialized.png'])
+  expect(input.nodes.filter(node => node.tag === 'h4').map(node => node.text)).toEqual(['First', 'Second'])
+  expect(input.nodes.some(node => node.attrs?.src === '/hidden-attribute.png' || node.attrs?.src === '/hidden-style.png' || node.attrs?.src === '/hidden-class.png')).toBe(false)
+})
+
+test('carousel items and tab panels survive class hiding while other hidden content stays excluded', () => {
+  const html = `<style>
+    .carousel-item{display:none}.carousel-item.active{display:block}
+    .tab-pane{display:none}.tab-pane.active{display:block}
+    .modal{display:none}.modal.show{display:block}
+    .cookie-banner{display:none}.cookie-banner.show{display:block}
+    .mobile-nav{display:none}.is-open .mobile-nav{display:block}
+    .is-hidden{display:none}
+  </style><section>
+    <div class="carousel-item active"><img src="/active.png"></div>
+    <div class="carousel-item"><img src="/inactive.png"></div>
+    <div class="tab-pane active"><img src="/active-tab.png"></div>
+    <div class="tab-pane"><img src="/inactive-tab.png"></div>
+    <div class="modal show"><img src="/modal.png"></div>
+    <div class="cookie-banner show"><img src="/cookie.png"></div>
+    <div class="is-open"><div class="mobile-nav"><img src="/mobile-nav.png"></div></div>
+    <div class="is-hidden"><img src="/hidden-class.png"></div>
+    <div class="carousel-item" style="display:none"><img src="/hidden-style.png"></div>
+    <div class="carousel-item" hidden><img src="/hidden-attribute.png"></div>
+  </section>`
+  const input = buildBlockInput({ html, block: block(), bgImageMap: extractBackgroundImages(html) })
+  expect(input.nodes.filter(node => node.tag === 'img').map(node => node.attrs?.src)).toEqual(['/active.png', '/inactive.png', '/active-tab.png', '/inactive-tab.png'])
+})
+
+test.each(['slick-slide', 'swiper-slide', 'carousel-item', 'splide__slide', 'glide__slide', 'flickity-cell', 'owl-item', 'tab-pane'])('%s stays in block input when CSS hides its base class', className => {
+  const html = `<style>.${className}{display:none}</style><section><div class="${className}"><img src="/real.png"></div><div class="${className} is-hidden"><img src="/hidden.png"></div></section>`
+  const bgImageMap = extractBackgroundImages(html + '<style>.is-hidden{display:none}</style>')
+  expect(buildBlockInput({ html, block: block(), bgImageMap }).nodes.filter(node => node.tag === 'img').map(node => node.attrs?.src)).toEqual(['/real.png'])
+})
+
+test.each([
+  'slick-slide slick-cloned',
+  'swiper-slide swiper-slide-duplicate',
+  'splide__slide splide__slide--clone',
+  'owl-item cloned'
+])('%s clone is omitted while its real slide remains', className => {
+  const baseClass = className.split(' ')[0]
+  const html = `<section><div class="${className}"><img src="/clone.png"></div><div class="${baseClass}"><img src="/real.png"></div></section>`
+  expect(buildBlockInput({ html, block: block(), bgImageMap: extractBackgroundImages('') }).nodes.filter(node => node.tag === 'img').map(node => node.attrs?.src)).toEqual(['/real.png'])
+})
+
+test('a non-Owl cloned class is retained', () => {
+  const html = '<section><div class="cloned"><img src="/real.png"></div></section>'
+  expect(buildBlockInput({ html, block: block(), bgImageMap: extractBackgroundImages('') }).nodes.filter(node => node.tag === 'img').map(node => node.attrs?.src)).toEqual(['/real.png'])
+})
+
 test('only a header block preserves its class-hidden navigation root', () => {
   const html = '<nav class="desktop-header"><a href="/">Example</a><nav class="hidden-panel"><a href="/hidden">Hidden</a></nav></nav>'
   const bgImageMap = extractBackgroundImages('<style>.desktop-header{display:none}.hidden-panel{display:none}</style>')
