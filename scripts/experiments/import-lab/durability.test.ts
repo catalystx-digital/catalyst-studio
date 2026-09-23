@@ -125,9 +125,17 @@ test('many future arms stay below 150 lines without losing their tables',()=>{
 test('summary reads saved scores for removed arms without their implementation',async()=>{
   const directory=process.env.IMPORT_LAB_ROOT!,answer=comparisonSheet()
   await atomicJson(path.join(directory,'labels',answer.page,'answer-sheet.json'),answer)
-  await atomicJson(path.join(directory,'labels',answer.page,'scores-stick','retired-fixture--r1-v5.json'),{name:'retired-fixture--r1-v5',version:5,status:'complete',rows:[row('notice','correct')]})
+  await atomicJson(path.join(directory,'labels',answer.page,'scores-stick','retired-fixture--r1--stick1.json'),{name:'retired-fixture--r1--stick1',version:5,status:'complete',rows:[row('notice','correct')]})
   await atomicJson(path.join(directory,'arms',answer.page,'retired-fixture','r1','run.json'),{status:'complete'})
   const saved=await readSavedResults(),report=buildSummary(saved,{})
   expect(report.json.byArm[0]).toMatchObject({arm:'retired-fixture',correct:1,blocks:1})
   expect(report.markdown).toContain('retired-fixture (arm removed from the tool)')
+})
+test('summary does not assign an extended run score to a shorter run',async()=>{
+  const root=process.env.IMPORT_LAB_ROOT!,page='garden',arm='blocks-production'
+  await atomicJson(path.join(root,'labels',page,'scores-stick',`${arm}--r1-extra-v5.json`),{name:`${arm}--r1-extra-v5`,status:'complete',rows:[row('only-extra','correct')]})
+  for(const run of ['r1','r1-extra'])await atomicJson(path.join(root,'arms',page,arm,run,'run.json'),{status:'complete'})
+  const saved=(await readSavedResults()).filter(result=>result.page===page&&result.arm===arm)
+  expect(saved.find(result=>result.run==='r1')).toMatchObject({rows:[],issues:['No saved score']})
+  expect(saved.find(result=>result.run==='r1-extra')?.rows).toEqual([row('only-extra','correct')])
 })

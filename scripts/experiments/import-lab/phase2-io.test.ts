@@ -9,6 +9,7 @@ import { draftLabels } from './draft-labels'
 import { validateLabel, atomicJson, catalogue, labelDirectory, sha, type Proposal } from './labels'
 import { block, label, entry, sheet, component, fixtureHtml } from './phase2-fixtures'
 import { digest, readJson } from './storage'
+import { stickScoreName } from './stick-version'
 const originalRoot=process.env.IMPORT_LAB_ROOT,originalExit=process.exitCode
 let directory:string
 beforeEach(async()=>{
@@ -29,8 +30,8 @@ test('bulk scoring retains completed sections from a failed run',async()=>{
   await atomicJson(path.join(failed,'run.json'),{snapshotSha256:digest(fixtureHtml),status:'failed',failures:[{stage:'run'}]})
   await atomicJson(path.join(failed,'components.json'),[component])
   await scorePage('_fixture',{allRuns:true})
-  expect((await readJson(path.join(directory,'scores-stick','run-1-v5.json'))).counts.missed).toBe(0)
-  expect((await readJson(path.join(directory,'scores-stick','run-stage-v5.json'))).counts.missed).toBe(1)
+  expect((await readJson(path.join(directory,'scores-stick',stickScoreName('blocks-production','run-1')+'.json'))).counts.missed).toBe(0)
+  expect((await readJson(path.join(directory,'scores-stick',stickScoreName('blocks-production','run-stage')+'.json'))).counts.missed).toBe(1)
 })
 test('missing manual components mark every block missed',async()=>{
   await scorePage('_fixture',{components:path.join(directory,'missing.json'),name:'broken'})

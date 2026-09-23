@@ -96,4 +96,18 @@ These commands are **FREE**. Summary regeneration writes reports/SUMMARY.md and 
 
 ## Accuracy stick
 
-Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs` with `IMPORT_LAB_ROOT` set to saved data. C1 checks family, C2 text, C3 headings, C4 links, C5 content images, C6 item count and C7 invented text. Add `--families scripts/experiments/import-lab/component-families.json --family-set C` for family mode. New immutable version-5 files are saved in `labels/<page>/scores-stick/`.
+Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs` with `IMPORT_LAB_ROOT` set to saved data. C1 checks family, C2 text, C3 headings, C4 links, C5 content images, C6 item count and C7 invented text. Add `--families scripts/experiments/import-lab/component-families.json --family-set C` for family mode. Immutable files are saved in `labels/<page>/scores-stick/` using the shared stick version.
+
+## Accuracy report
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs m4-r1,m4-r2
+node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs m4-r1,m4-r2 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs m4-r1,m4-r2 --family-set C
+~~~
+
+These saved-data commands are **FREE**. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
+
+## Site-name leak check
+
+Run `node --import tsx scripts/experiments/import-lab/eval.ts leak-check` before sharing changes. Add repeated `--root PATH` options to check names from more data roots. A hit prints its file, line and matched name part.

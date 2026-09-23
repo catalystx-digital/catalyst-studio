@@ -9,23 +9,33 @@ import { directories, optionalJson } from './labels'
 import { selectDraftEntries } from './draft-labels'
 import { loadPages, type PageManifest } from './pages'
 import { readSavedResults, callTotals, median, type SavedResult } from './summary'
+import { stickScoreName } from './stick-version'
+import { generateAccuracy } from './accuracy'
+import { checkLeaks } from './leak-check'
 
-interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean }
+interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean }
 interface Task {page:string;stage:string;script:string;args:string[];existing:boolean;paid:boolean;internet:boolean;calls:number|null;cost:number|null;reason?:string}
 export function parseEval(argv:string[]): EvalOptions {
   const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed']
-  const allowed=[...flags,'--families','--family-set','--run','--arms','--concurrency','--model']
-  if(!['blocks','arms','score','summary','snapshot','draft','review'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|review')
-  for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||key in values)throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);values[key]=args[++i]} }
+  const allowed=[...flags,'--families','--family-set','--run','--arms','--arm','--runs','--root','--concurrency','--model'],roots:string[]=[]
+  if(!['blocks','arms','score','summary','snapshot','draft','review','accuracy','leak-check'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|review|accuracy|leak-check')
+  for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||(key in values&&key!=='--root'))throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);const value=args[++i];if(key==='--root')roots.push(value);else values[key]=value} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
-  validateFamilyOptions({families:values['--families'],familySet:values['--family-set']})
+  const families=values['--families']||(command==='score'&&values['--family-set']?path.join(__dirname,'component-families.json'):undefined)
+  if(command!=='accuracy')validateFamilyOptions({families,familySet:values['--family-set']})
+  if(command==='accuracy'&&values['--families'])throw new Error('Accuracy uses --family-set without --families')
   if(values['--families']&&!['score','arms','summary'].includes(command))throw new Error('Family flags apply to score, arms or summary')
+  if(roots.length&&command!=='leak-check')throw new Error('--root applies to leak-check')
+  const runs=values['--runs']?.split(',').map(identifier)||[]
+  if(new Set(runs).size!==runs.length)throw new Error('Duplicate run')
+  if(command==='accuracy'&&(!values['--arm']||![1,2,4].includes(runs.length)))throw new Error('Accuracy needs --arm and one, two or four --runs')
+  if(command==='score'&&values['--runs']&&(!values['--arm']||!runs.length))throw new Error('Score needs --arm with --runs')
   const arms=values['--arms']?.split(',').map(identifier)||[]
   if(command==='arms'&&(!arms.length||!values['--run']))throw new Error('Arms need --arms a,b,c --run r1')
   if(values['--families']&&command==='arms'&&(arms.some(arm=>arm!=='jev-pick')))throw new Error('Family picking applies only to jev-pick')
   if(arms.some(arm=>![...ARMS,'jev-pick'].includes(arm)))throw new Error('Unknown arm')
   if(new Set(arms).size!==arms.length)throw new Error('Duplicate arm')
-  return {families:values['--families'],familySet:values['--family-set'],command,run:identifier(values['--run']||'r1'),arms,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed']}
+  return {families,familySet:values['--family-set'],command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed']}
 }
 export function estimate(history:SavedResult[], arm:string) {
   const rows=history.filter(r=>r.arm===arm&&r.calls.length)
@@ -82,11 +92,13 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     }
     if(options.command==='score') {
       const scoreRoot=path.join(label,'scores-stick'), extra=familyArgs
-      if(options.families)await add(page,'score','family-pick-score.ts',['--page',page,...familyArgs],null)
+      if(options.families&&!options.arm)await add(page,'score','family-pick-score.ts',['--page',page,...familyArgs],null)
       for(const arm of await directories(arms))for(const run of await directories(path.join(arms,arm))) {
+        if(options.arm&&arm!==options.arm||options.runs.length&&!options.runs.includes(run))continue
         const folder=path.join(arms,arm,run),record=await optionalJson(path.join(folder,'run.json'))
         if(!record||record.status==='dry-run'||arm==='jev-pick'||arm.startsWith('jev-pick@families-'))continue
-        await add(page,'score','score.ts',['--page',page,'--components',path.join(folder,'components.json'),'--name',arm+'--'+run+'-v5',...extra],path.join(scoreRoot,arm+'--'+run+'-v5'+(options.families?'-family-'+options.familySet:'')+'.json'))
+        const name=stickScoreName(arm,run)
+        await add(page,'score','score.ts',['--page',page,'--components',path.join(folder,'components.json'),'--name',name,...extra],path.join(scoreRoot,stickScoreName(arm,run,options.familySet)+'.json'))
       }
     }
   }
@@ -122,6 +134,8 @@ async function draftHistory():Promise<SavedResult[]> {
   return history
 }
 export async function evaluate(options:EvalOptions) {
+  if(options.command==='accuracy'){await generateAccuracy(dataRoot(),{arm:options.arm!,runs:options.runs,familySet:options.familySet});return []}
+  if(options.command==='leak-check'){process.exitCode=await checkLeaks([dataRoot(),...options.roots]);return []}
   if(options.families)await loadFamilies(options.families,options.familySet!)
   const pages=await loadPages()
   if(options.command==='score')for(const page of [...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'arms'))])if(!pages[page])pages[page]={url:'https://example.invalid/',kind:'other',heldOut:false,renderWithJavaScript:false,notes:'Discovered for scoring; not saved to manifest'}

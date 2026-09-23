@@ -6,6 +6,7 @@ import { dataRoot, readJson, main } from './storage'
 import { directories, optionalJson, sha, type Sheet } from './labels'
 import { loadPages, type PageManifest } from './pages'
 import { scoreSheet } from './scoring'
+import { stickScoreName } from './stick-version'
 import { probabilityBand } from './pick-score'
 
 export function callTotals(calls:any[]) {
@@ -62,7 +63,7 @@ export async function readSavedResults(families?:FamilySet,comparisonBaseline=fa
     const sheet=await optionalJson<Sheet>(path.join(dataRoot(),'labels',page,'answer-sheet.json')), sheetHash=sheet?sha(sheet):undefined
     const scores:any[]=[],scoreRoot=path.join(dataRoot(),'labels',page,'scores-stick')
     for (const file of await jsonFiles(scoreRoot)) {const score=await readJson(path.join(scoreRoot,file));if(score.familySet===families?.set)scores.push(score)}
-    const stickScore=(...prefixes:string[])=>scores.filter(score=>prefixes.some(prefix=>score.name===prefix||score.name?.startsWith(prefix+'-v'))).sort((a,b)=>(a.version||0)-(b.version||0)).at(-1)
+    const stickScore=(arm:string,run:string,...legacyPrefixes:string[])=>scores.find(score=>score.name===stickScoreName(arm,run,families?.set))||scores.filter(score=>legacyPrefixes.some(prefix=>[prefix,`${prefix}-v5`,`${prefix}-v6`].includes(score.name))).sort((a,b)=>(a.version||0)-(b.version||0)).at(-1)
     const add = async (arm: string, run: string, directory: string, score: any, record: any, old=false) => {
       if (record?.fixture || record?.status === 'dry-run') return
       let computedTypeBaseline=false
@@ -100,12 +101,12 @@ export async function readSavedResults(families?:FamilySet,comparisonBaseline=fa
       if (!names.size) names.add('off')
       for (const name of names) {
         if (name==='on-as-production') continue
-        await add(name==='off'||name==='pre-repair'?'today-off':name==='on-own-page'?'today-on-own-page':'today-'+name,run,directory,stickScore(run+'--'+name),record,true)
+        await add(name==='off'||name==='pre-repair'?'today-off':name==='on-own-page'?'today-on-own-page':'today-'+name,run,directory,stickScore(name,run,run+'--'+name),record,true)
       }
     }
     for (const arm of await directories(path.join(dataRoot(),'arms',page))) for (const run of await directories(path.join(dataRoot(),'arms',page,arm))) {
       const directory=path.join(dataRoot(),'arms',page,arm,run)
-      await add(arm,run,directory,stickScore(arm+'--'+run,...(arm==='blocks-production'?[run]:[])),await optionalJson(path.join(directory,'run.json')))
+      await add(arm,run,directory,stickScore(arm,run,arm+'--'+run,...(arm==='blocks-production'?[run]:[])),await optionalJson(path.join(directory,'run.json')))
     }
   }
   return results

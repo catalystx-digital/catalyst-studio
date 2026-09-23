@@ -55,7 +55,7 @@ test('asked-family pick arms never appear as unscored extraction arms',()=>{
   expect(result.json.all).toEqual([]);expect(result.markdown).toContain('0 unscored page runs')
 })
 test('CLI validates paired flags and passes them to family arm plans and isolated score paths',async()=>{
-  expect(()=>parseEval(['score','--family-set','A'])).toThrow('together');expect(parseEval(['score','--families','families.json','--family-set','C']).familySet).toBe('C')
+  expect(parseEval(['score','--family-set','A']).familySet).toBe('A');expect(parseEval(['score','--families','families.json','--family-set','C']).familySet).toBe('C')
   expect(()=>parseEval(['arms','--arms','blocks-production','--run','r1','--families','families.json','--family-set','A'])).toThrow('only to jev-pick')
   expect(()=>parseEval(['score','--obsolete'])).toThrow('Unknown')
   const options=parseEval(['arms','--arms','jev-pick','--run','family-test','--families','families.json','--family-set','A','--dry-run'])

@@ -6,6 +6,7 @@ import { labelDirectory, slug, argumentsForPhase2, directories, optionalJson, sh
 import { dataRoot, digest, readJson, main } from './storage'
 import { extractPageEvidence, type Component } from './metrics'
 import { blockEvidence } from './source-evidence'
+import { stickScoreName } from './stick-version'
 export function runIsMissed(record:{failures?:Array<{stage?:string}>}|null,components:Component[]|null) {
   return !record||!components||record.failures?.some(f=>f.stage==='run')===true
 }
@@ -34,7 +35,7 @@ async function performScorePage(page:string,options:ScoreOptions,families?:Famil
     const folder=path.join(dataRoot(),'arms',page,'blocks-production')
     for(const run of await directories(folder)){
       const runFolder=path.join(folder,run)
-      await save(run+'-v5'+(families?'-family-'+families.set:''),path.join(runFolder,'components.json'))
+      await save(stickScoreName('blocks-production',run,families?.set),path.join(runFolder,'components.json'))
     }
   }else{
     if(!options.components||!options.name)throw new Error('Provide --components and --name, or --all-runs')
