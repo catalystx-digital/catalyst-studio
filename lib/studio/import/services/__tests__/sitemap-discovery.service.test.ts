@@ -1,4 +1,4 @@
-import { SitemapDiscoveryService, isAssetUrl, isLikelyAttachmentPageUrl } from '../sitemap-discovery.service';
+import { SitemapDiscoveryService, extractNavigationUrls, spreadEntries, isAssetUrl, isLikelyAttachmentPageUrl } from '../sitemap-discovery.service';
 
 /**
  * Put an environment variable back exactly as it was.
@@ -97,17 +97,243 @@ describe('SitemapDiscoveryService', () => {
     }
   });
 
-  it.each(['https://x.com/photo.jpg/', 'https://x.com/doc.pdf/', 'https://x.com/photo.jpg'])(
+  it.each(['https://x.com/photo.jpg/', 'https://x.com/doc.pdf/', 'https://x.com/photo.jpg', 'https://x.com/app.js', 'https://x.com/style.css'])(
     'recognises asset URL %s', (url) => expect(isAssetUrl(url)).toBe(true),
   );
 
-  it.each(['01-jpg/', '01-03_x1-jpg/', ...['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'bmp', 'tif', 'tiff'].map(ext => `photo-${ext}`)])(
+  it.each(['01-jpg/', '01-03_x1-jpg/', 'fig2-jpg-4/', 'photo-png-12/', 'fig-15-osx-fullscreen-696px-mp4/', 'annual-report-pdf/', ...['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'bmp', 'tiff'].map(ext => `photo-${ext}`)])(
     'recognises likely attachment %s', (path) => expect(isLikelyAttachmentPageUrl(`https://example.com/${path}`)).toBe(true),
   );
 
-  it.each(['/blog/', '/about', '/jpg-compression-guide', '/photography'])(
+  it.each(['/blog/', '/about', '/about-us/', '/mp4-guide/', '/jpg-compression-guide', '/photography', '/photo-tif/', '/site-map/', '/top-10/', '/site-map-2/', '/web-design-2024/', '/road-map/', '/learn-node-js/', '/intro-to-sql/'])(
     'keeps ordinary page %s', (path) => expect(isLikelyAttachmentPageUrl(`https://example.com${path}`)).toBe(false),
   );
+
+  it('extracts same-host header and navigation links with top-level links before dropdowns', () => {
+    const html = `<header><a href="/header/">Header</a><nav><ul>
+      <li><a href="/first/">First</a><ul><li><a href="/nested/">Nested</a></li></ul></li>
+      <li><a href="/second/">Second</a></li>
+    </ul></nav></header><div role="navigation"><a href="/role/">Role</a>
+      <a href="/first/">Duplicate</a><a href="https://other.example/page">External</a>
+      <a href="mailto:team@example.com">Mail</a><a href="tel:123">Phone</a>
+      <a href="#section">Fragment</a><a href="javascript:void(0)">Script</a>
+    </div><main><a href="/content/">Content</a></main>`;
+
+    expect(extractNavigationUrls(html, 'https://example.com')).toEqual([
+      'https://example.com/header/',
+      'https://example.com/first/',
+      'https://example.com/second/',
+      'https://example.com/role/',
+      'https://example.com/nested/',
+    ]);
+  });
+
+  it('keeps distinct query strings when deduplicating menu and import URLs', async () => {
+    const html = '<nav><a href="/page?id=one">One</a><a href="/page?id=two">Two</a></nav>';
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/') return makeResponse(200, html, 'text/html');
+      if (input === 'https://example.com/sitemap.xml') return makeResponse(200, '<urlset></urlset>');
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    expect(extractNavigationUrls(html, 'https://example.com')).toEqual([
+      'https://example.com/page?id=one',
+      'https://example.com/page?id=two',
+    ]);
+    const result = await service.expandUrlsForImport('https://example.com/', 3);
+    expect(result.urls).toEqual([
+      'https://example.com/',
+      'https://example.com/page?id=one',
+      'https://example.com/page?id=two',
+    ]);
+  });
+
+  it('keeps ordinary two-letter sections unless the link has hreflang', () => {
+    const html = '<nav><a href="/us/">About us</a><a href="/it/">IT services</a><a href="/fr/" hreflang="fr">French</a></nav>';
+
+    expect(extractNavigationUrls(html, 'https://example.com')).toEqual([
+      'https://example.com/us/',
+      'https://example.com/it/',
+    ]);
+  });
+
+  it('excludes exact utility paths but keeps their descendants', () => {
+    const html = '<nav><a href="/register/">Register</a><a href="/register/heritage-buildings/">Heritage buildings</a><a href="/SEARCH">Search</a><a href="/search/guides/">Guides</a></nav>';
+
+    expect(extractNavigationUrls(html, 'https://example.com')).toEqual([
+      'https://example.com/register/heritage-buildings/',
+      'https://example.com/search/guides/',
+    ]);
+  });
+
+  it('ignores content headers but keeps nav and navigation roles outside footers', () => {
+    const html = '<article><header><a href="/author/">Author</a></header></article>'
+      + '<section><header><a href="/section-author/">Section author</a></header></section>'
+      + '<aside><header><a href="/aside-author/">Aside author</a></header></aside>'
+      + '<main><header><a href="/main-author/">Main author</a></header></main>'
+      + '<main><nav><a href="/main-nav/">Main nav</a></nav><div role="navigation"><a href="/main-role/">Main role</a></div></main>'
+      + '<header><a href="/site/">Site</a></header>';
+
+    expect(extractNavigationUrls(html, 'https://example.com')).toEqual([
+      'https://example.com/main-nav/',
+      'https://example.com/main-role/',
+      'https://example.com/site/',
+    ]);
+  });
+
+  it('ignores navigation inside a footer so it cannot fill the page cap', async () => {
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/') {
+        return makeResponse(200, '<footer><nav><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="/contact/">Contact</a><a href="/cookies/">Cookies</a></nav></footer><main><a href="/story/">Story</a></main>', 'text/html');
+      }
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/story/</loc></url><url><loc>https://example.com/guide/</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    expect(extractNavigationUrls('<footer><nav><a href="/privacy/">Privacy</a></nav></footer>', 'https://example.com')).toEqual([]);
+    const result = await service.expandUrlsForImport('https://example.com/', 3);
+    expect(result.urls).toEqual(['/', '/guide/', '/story/'].map(path => `https://example.com${path}`));
+  });
+
+  it('uses sitemap URL spelling for a matching menu path', async () => {
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/') {
+        return makeResponse(200, '<header><nav><a href="/About/">About</a><a href="/about">About again</a></nav></header>', 'text/html');
+      }
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/about/</loc></url><url><loc>https://example.com/story/</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    expect(extractNavigationUrls('<nav><a href="/About/">About</a><a href="/about">Duplicate</a></nav>', 'https://example.com')).toEqual(['https://example.com/About/']);
+    const result = await service.expandUrlsForImport('https://example.com/', 4);
+    expect(result.urls).toEqual(['/', '/about/', '/story/'].map(path => `https://example.com${path}`));
+  });
+
+  it('prefers content over header utility and language links', async () => {
+    const utilityPaths = [
+      'login', 'log-in', 'signin', 'sign-in', 'logout', 'register', 'signup', 'sign-up',
+      'account', 'my-account', 'cart', 'basket', 'checkout', 'search', 'wp-login.php', 'wp-admin',
+    ];
+    const html = `<header><nav>
+      ${utilityPaths.map(path => `<a href="/${path}/">${path}</a>`).join('')}
+      <a href="/fr/" hreflang="fr">French</a><a href="/article/">Article</a><a href="/guide/">Guide</a>
+      <a href="/en-au/" hreflang="en-AU">English</a><a href="/translated/" hreflang="fr">Translated</a>
+    </nav></header>`;
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/') return makeResponse(200, html, 'text/html');
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/login/</loc></url><url><loc>https://example.com/article/</loc></url><url><loc>https://example.com/guide/</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    expect(extractNavigationUrls(html, 'https://example.com')).toEqual(['https://example.com/article/', 'https://example.com/guide/']);
+    const result = await service.expandUrlsForImport('https://example.com/', 4);
+    expect(result.urls).toEqual(['/', '/article/', '/guide/', '/login/'].map(path => `https://example.com${path}`));
+  });
+
+  it('spreads the first capped entries across a full permutation', () => {
+    const entries = Array.from({ length: 20 }, (_, index) => index);
+    const spread = spreadEntries(entries, 5);
+
+    expect(spread.slice(0, 5)).toEqual([0, 4, 8, 12, 16]);
+    expect(spread).toHaveLength(entries.length);
+    expect(new Set(spread).size).toBe(entries.length);
+    expect(spreadEntries([0, 1, 2], 3)).toEqual([0, 1, 2]);
+    expect(spreadEntries([0, 1, 2], 5)).toEqual([0, 1, 2]);
+  });
+
+  it('puts menu articles before spread sitemap pages under a six-page cap', async () => {
+    const machinePaths = Array.from({ length: 100 }, (_, index) => `/08-${String(index + 1).padStart(2, '0')}/`);
+    const articles = ['/article-a/', '/article-b/', '/article-c/', '/article-d/', '/article-e/'];
+    const paths = [...machinePaths, ...articles];
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/') {
+        return makeResponse(200, '<header><nav><a href="/article-c/">C</a><a href="/article-a/">A</a><a href="/article-e/">E</a></nav></header>', 'text/html');
+      }
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, `<urlset>${paths.map(path => `<url><loc>https://example.com${path}</loc></url>`).join('')}</urlset>`);
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    const result = await service.expandUrlsForImport('https://example.com/', 6);
+
+    expect(result.urls).toEqual(['/', '/article-c/', '/article-a/', '/article-e/', '/08-01/', '/08-17/'].map(path => `https://example.com${path}`));
+  });
+
+  it('spreads sitemap pages when the home HTML has no navigation', async () => {
+    const paths = Array.from({ length: 18 }, (_, index) => `/08-${String(index + 1).padStart(2, '0')}/`);
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, `<urlset>${paths.map(path => `<url><loc>https://example.com${path}</loc></url>`).join('')}</urlset>`);
+      }
+      return makeResponse(200, '<html><main>No menu</main></html>', 'text/html');
+    });
+
+    const result = await service.expandUrlsForImport('https://example.com/', 6);
+
+    expect(result.urls).toEqual(['/', '/08-01/', '/08-04/', '/08-07/', '/08-10/', '/08-13/'].map(path => `https://example.com${path}`));
+  });
+
+  it('skips media and attachment child sitemaps without using the five-child limit', async () => {
+    const mediaSitemaps = ['image-sitemap-index-1.xml', 'video-sitemap-1.xml', 'attachment-sitemap.xml'];
+    const pageSitemaps = Array.from({ length: 5 }, (_, index) => `sitemap-${index + 1}.xml`);
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, `<sitemapindex>${[...mediaSitemaps, ...pageSitemaps]
+          .map(name => `<sitemap><loc>https://example.com/${name}</loc></sitemap>`).join('')}</sitemapindex>`);
+      }
+      if (input === 'https://example.com/image-sitemap-index-1.xml') {
+        return makeResponse(200, '<sitemapindex><sitemap><loc>https://example.com/image-sitemap-1.xml</loc></sitemap></sitemapindex>');
+      }
+      if (mediaSitemaps.some(name => input.endsWith(name)) || input === 'https://example.com/image-sitemap-1.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/image3/</loc></url></urlset>');
+      }
+      const pageNumber = input.match(/\/sitemap-(\d+)\.xml$/)?.[1];
+      if (pageNumber) {
+        return makeResponse(200, `<urlset><url><loc>https://example.com/article-${pageNumber}/</loc></url></urlset>`);
+      }
+      if (input === 'https://example.com/' || /\/article-\d+\/$/.test(input) || input === 'https://example.com/image3/') {
+        return makeResponse(200, '<html>ok</html>', 'text/html');
+      }
+      return makeResponse(404, 'not found', 'text/html');
+    });
+
+    const result = await service.expandUrlsForImport('https://example.com/', 6);
+    const fetched = (global.fetch as jest.Mock).mock.calls.map(([input]) => input);
+
+    expect(result.urls).toEqual(['/', ...Array.from({ length: 5 }, (_, index) => `/article-${index + 1}/`)]
+      .map(path => `https://example.com${path}`));
+    expect(fetched).toContain('https://example.com/sitemap-5.xml');
+    for (const name of [...mediaSitemaps, 'image-sitemap-1.xml']) {
+      expect(fetched).not.toContain(`https://example.com/${name}`);
+    }
+  });
+
+  it('rejects asset and attachment links from the menu before filling the cap', async () => {
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/') {
+        return makeResponse(200, '<nav><a href="/photo.jpg">Asset</a><a href="/photo-jpg/">Attachment</a><a href="/story/">Story</a></nav>', 'text/html');
+      }
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/a/</loc></url><url><loc>https://example.com/b/</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    const result = await service.expandUrlsForImport('https://example.com/', 4);
+
+    expect(result.urls).toEqual(['/', '/story/', '/a/', '/b/'].map(path => `https://example.com${path}`));
+    expect(result.skipped).toEqual(expect.arrayContaining([
+      { url: 'https://example.com/photo.jpg', reason: 'asset-url' },
+      { url: 'https://example.com/photo-jpg/', reason: 'likely-attachment-page' },
+    ]));
+  });
 
   it('filters attachments before a six-page sitemap cap and records reasons', async () => {
     const paths = ['/01-jpg/', '/01-03_x1-jpg/', '/blog/', '/about', '/jpg-compression-guide', '/photography', '/stories/'];
