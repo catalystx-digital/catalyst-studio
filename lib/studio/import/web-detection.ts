@@ -644,7 +644,7 @@ export class DetectionService {
     // isDecisionModelEnabledFor is the same gate ask() applies internally — the
     // check is hoisted, not invented, so being disabled means the same thing
     // here as everywhere else.
-    if (!isDecisionModelEnabledFor(websiteId)) return
+    if (!isDecisionModelEnabledFor(['page.isInternalFromContent'], websiteId)) return
 
     // Real page content, from the fetched page: the head's title and
     // description (preFlightFetch.headMeta, via pageMetadata) and the headings
@@ -1021,8 +1021,9 @@ export class DetectionService {
     url: string,
     options: ImportDetectionOptions = {}
   ): Promise<ImportDetectionResult> {
-    if (!isDecisionModelEnabledFor(options.websiteId) || getDecisionConfig().shadow) {
-      throw new Error('The blocks harness requires DECISION_MODEL_ENABLED=true and DECISION_MODEL_SHADOW=false.')
+    // Shadow off is safe globally because unlisted questions never reach the model.
+    if (!isDecisionModelEnabledFor(['import.block.component', 'import.block.multiple'], options.websiteId) || getDecisionConfig().shadow) {
+      throw new Error('The blocks harness requires DECISION_MODEL_ENABLED=true and DECISION_MODEL_SHADOW=false. Both import.block.component and import.block.multiple must be enabled through DECISION_MODEL_QUESTIONS (empty or unset enables both by default).')
     }
     return performanceMonitor.measure('web.detect', async () => {
       const startTime = Date.now()

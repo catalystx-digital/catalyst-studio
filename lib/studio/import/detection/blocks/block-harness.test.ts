@@ -235,7 +235,7 @@ test('decision failure offers production candidates and persists its source', as
 test.each([['false', 'false'], ['true', 'true']])('disabled/shadow decisions fail before work: %s / %s', async (enabled, shadow) => {
   process.env.DECISION_MODEL_ENABLED = enabled
   process.env.DECISION_MODEL_SHADOW = shadow
-  await expect(detect()).rejects.toThrow('DECISION_MODEL_ENABLED=true and DECISION_MODEL_SHADOW=false')
+  await expect(detect()).rejects.toThrow(/DECISION_MODEL_ENABLED=true and DECISION_MODEL_SHADOW=false.*import\.block\.component.*import\.block\.multiple.*DECISION_MODEL_QUESTIONS.*empty or unset enables both by default/)
   expect(global.fetch).not.toHaveBeenCalled()
   expect(launchHeadlessChromium).not.toHaveBeenCalled()
   expect(fill).not.toHaveBeenCalled()

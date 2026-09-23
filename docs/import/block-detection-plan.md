@@ -89,7 +89,7 @@ Lost to the M6b deletion, recorded so the owner can decide whether to rebuild it
 - The `SOURCE_FOOTER_NOT_IMPORTED` warning's main evidence. It compared the imported footer against the source section outline, and that outline went with the section path. The link-count check remains, so the warning still fires for a page with two or more footer-ish links, but it is weaker and now has no test.
 
 Two things need the owner:
-- `IMPORT_DETECTION_HARNESS=blocks` requires `DECISION_MODEL_ENABLED=true`, and that also activates the older questions registered in `lib/studio/decisions` (`page.type`, `page.isInternal`). `page.isInternal` can exclude pages from an import. On tonight's imports it was asked 62 times and excluded none, but it is live. Recommendation: the blocks harness enables only its own two questions (per-question gating) - a small change, not made without a decision.
+- `IMPORT_DETECTION_HARNESS=blocks` requires `DECISION_MODEL_ENABLED=true`; `DECISION_MODEL_QUESTIONS` is a comma-separated question allowlist that defaults to only `import.block.component` and `import.block.multiple` when empty.
 - The pull request's CI fails at the production dependency audit (`npm audit --omit=dev --audit-level=high`) on packages this branch did not change (an AI SDK helper, an XML library); the advisories are newer than main's last CI run. Dependency updates are outside this plan.
 
 ## 5b. Found by measuring the imported pages (22 September 2026)

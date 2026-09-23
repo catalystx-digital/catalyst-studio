@@ -249,7 +249,7 @@ async function resolve(
   // A panel is enabled only if every member can run. Questions differ on
   // whether the allowlist applies to them, so the strictest member decides.
   const tenantScoped = questions.every(question => question.tenantScoped !== false)
-  if (!isDecisionModelEnabledFor(context.websiteId, { tenantScoped })) {
+  if (!isDecisionModelEnabledFor(questionIds, context.websiteId, { tenantScoped })) {
     for (const question of questions) {
       const fallback = runFallback(question, state, context)
       out[question.id] = answerOf(

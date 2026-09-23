@@ -4,8 +4,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { ask, setDecisionClient } from '../ask'
+import { ask, askPanel, setDecisionClient } from '../ask'
 import { createFakeDecisionClient } from '../client'
+import { isDecisionModelEnabledFor } from '../config'
 import { defineQuestion, __resetRegistryForTests } from '../registry'
 import { buildState } from '../state'
 import type { BooleanQuestion, ChoiceQuestion, DecisionClient, EvidenceSource, RawAnswer } from '../index'
@@ -19,6 +20,8 @@ const SOURCE: EvidenceSource = {
     { tag: 'a', text: 'Contact us', href: '/contact' }
   ]
 }
+
+const originalQuestions = process.env.DECISION_MODEL_QUESTIONS
 
 function booleanQuestion(overrides: Partial<BooleanQuestion> = {}): BooleanQuestion {
   return defineQuestion<BooleanQuestion>({
@@ -42,12 +45,15 @@ beforeEach(() => {
   process.env.DECISION_MODEL_ENABLED = 'true'
   process.env.DECISION_MODEL_SHADOW = 'false'
   process.env.DECISION_MODEL_API_KEY = 'test-key'
+  process.env.DECISION_MODEL_QUESTIONS = 'test.flag'
   process.env.DECISION_MODEL_LOG_DIR = 'reports/decisions-test'
   delete process.env.DECISION_MODEL_WEBSITE_ALLOWLIST
 })
 
 afterEach(() => {
   setDecisionClient(null)
+  if (originalQuestions === undefined) delete process.env.DECISION_MODEL_QUESTIONS
+  else process.env.DECISION_MODEL_QUESTIONS = originalQuestions
 })
 
 describe('config independence', () => {
@@ -60,6 +66,92 @@ describe('config independence', () => {
     } finally {
       if (saved !== undefined) process.env.IMPORT_MODEL_CHAIN = saved
     }
+  })
+})
+
+describe('question allowlist', () => {
+  function registerBoolean(id: string): void {
+    defineQuestion<BooleanQuestion>({
+      id,
+      version: 1,
+      owner: 'test',
+      shape: 'boolean',
+      facets: ['url'],
+      instructions: 'Is this true?',
+      criteria: { true: 'Yes.', false: 'No.' },
+      threshold: 0.5,
+      failSafe: false,
+      fallback: () => false
+    })
+  }
+
+  it('defaults to the two block questions while page.isInternal uses its fallback', async () => {
+    process.env.DECISION_MODEL_API_KEY = 'test-key'
+    delete process.env.DECISION_MODEL_QUESTIONS
+    const { pageIsInternal } = await import('../questions/page')
+    defineQuestion(pageIsInternal)
+    registerBoolean('import.block.component')
+    registerBoolean('import.block.multiple')
+    const client = createFakeDecisionClient({
+      'page.isInternal': 0.99,
+      'import.block.component': 0.99,
+      'import.block.multiple': 0.99
+    })
+    const askRaw = jest.spyOn(client, 'askRaw')
+    setDecisionClient(client)
+
+    const internal = await ask<boolean>('page.isInternal', SOURCE)
+    const blocks = await askPanel(['import.block.component', 'import.block.multiple'], SOURCE)
+
+    expect(internal).toMatchObject({ value: false, source: 'disabled' })
+    expect(blocks['import.block.component'].source).toBe('model')
+    expect(blocks['import.block.multiple'].source).toBe('model')
+    expect(askRaw).toHaveBeenCalledTimes(1)
+    expect(askRaw.mock.calls[0][1].map(question => question.id)).toEqual(['import.block.component', 'import.block.multiple'])
+  })
+
+  it('disables the block panel when only one member is listed', async () => {
+    process.env.DECISION_MODEL_API_KEY = 'test-key'
+    process.env.DECISION_MODEL_QUESTIONS = 'import.block.component'
+    registerBoolean('import.block.component')
+    registerBoolean('import.block.multiple')
+    const client = createFakeDecisionClient({ 'import.block.component': 0.99, 'import.block.multiple': 0.99 })
+    const askRaw = jest.spyOn(client, 'askRaw')
+    setDecisionClient(client)
+
+    const blocks = await askPanel(['import.block.component', 'import.block.multiple'], SOURCE)
+
+    expect(isDecisionModelEnabledFor(['import.block.component', 'import.block.multiple'])).toBe(false)
+    expect(blocks['import.block.component'].source).toBe('disabled')
+    expect(blocks['import.block.multiple'].source).toBe('disabled')
+    expect(askRaw).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unregistered question in the configured list', () => {
+    process.env.DECISION_MODEL_API_KEY = 'test-key'
+    process.env.DECISION_MODEL_QUESTIONS = 'import.block.component,missing.question'
+    registerBoolean('import.block.component')
+    expect(() => isDecisionModelEnabledFor(['import.block.component'])).toThrow('missing.question')
+  })
+
+  it('uses fallbacks for unlisted page.type and workflow.isImport', async () => {
+    process.env.DECISION_MODEL_API_KEY = 'test-key'
+    delete process.env.DECISION_MODEL_QUESTIONS
+    registerBoolean('import.block.component')
+    registerBoolean('import.block.multiple')
+    const { pageType } = await import('../questions/page-type')
+    const { workflowIsImport } = await import('../questions/workflow')
+    defineQuestion(pageType)
+    defineQuestion(workflowIsImport)
+    const client = createFakeDecisionClient({ 'page.type': 0.99, 'workflow.isImport': 0.99 })
+    const askRaw = jest.spyOn(client, 'askRaw')
+    setDecisionClient(client)
+
+    expect(await ask<string>('page.type', SOURCE, { input: { deterministicTemplateKey: 'blog/index-standard' } }))
+      .toMatchObject({ value: 'blog/index-standard', source: 'disabled' })
+    expect(await ask<boolean>('workflow.isImport', SOURCE, { input: { workflow: 'import' } }))
+      .toMatchObject({ value: true, source: 'disabled' })
+    expect(askRaw).not.toHaveBeenCalled()
   })
 })
 
@@ -421,6 +513,7 @@ describe('source honesty', () => {
 
 describe('choice questions', () => {
   it('returns the winning option above threshold', async () => {
+    process.env.DECISION_MODEL_QUESTIONS = 'test.kind'
     defineQuestion<ChoiceQuestion>({
       id: 'test.kind',
       version: 1,
@@ -526,6 +619,7 @@ describe('the allowlist', () => {
 
 describe('lazy criteria', () => {
   it('resolves options at ask time, for registry-driven option sets', async () => {
+    process.env.DECISION_MODEL_QUESTIONS = 'test.lazy'
     let resolved = 0
     defineQuestion<ChoiceQuestion>({
       id: 'test.lazy',
@@ -554,6 +648,7 @@ describe('lazy criteria', () => {
   })
 
   it('falls back rather than throwing when a resolver yields too few options', async () => {
+    process.env.DECISION_MODEL_QUESTIONS = 'test.lazyEmpty'
     defineQuestion<ChoiceQuestion>({
       id: 'test.lazyEmpty',
       version: 1,
@@ -663,6 +758,7 @@ describe('the shipped question', () => {
   })
 
   it('excludes the page when the model fails, instead of publishing it', async () => {
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal'
     const { pageIsInternal } = await import('../questions/page')
     // The registry is cleared before each test; re-register the real question.
     defineQuestion(pageIsInternal)
@@ -688,6 +784,7 @@ describe('the shipped question', () => {
   })
 
   it('keeps publishing an uncertain page, which is not a failure', async () => {
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal'
     const { pageIsInternal } = await import('../questions/page')
     defineQuestion(pageIsInternal)
     // Under 0.84. Most pages are, on purpose: the threshold comment above
@@ -738,7 +835,7 @@ describe('the same question asked after the page is fetched', () => {
       path.join(process.cwd(), 'lib/studio/import/web-detection.ts'),
       'utf8'
     )
-    const calls = source.match(/^.*'page\.isInternalFromContent'.*$/gm) ?? []
+    const calls = source.match(/^\s*await ask<boolean>\('page\.isInternalFromContent'.*$/gm) ?? []
     expect(calls).toHaveLength(1)
     expect(calls[0].trim().startsWith('await ask<boolean>(')).toBe(true)
   })

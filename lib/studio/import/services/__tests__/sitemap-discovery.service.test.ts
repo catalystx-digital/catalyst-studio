@@ -202,10 +202,12 @@ describe('SitemapDiscoveryService', () => {
     const savedEnabled = process.env.DECISION_MODEL_ENABLED;
     const savedShadow = process.env.DECISION_MODEL_SHADOW;
     const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
 
     process.env.DECISION_MODEL_ENABLED = 'true';
     process.env.DECISION_MODEL_SHADOW = 'false';
     process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
     // A canned "internal" for every URL would make the assertion below pass
     // even if discovery dropped the whole site, so this stand-in answers from
     // the URL in the state the way the real model would: internal for the
@@ -261,6 +263,207 @@ describe('SitemapDiscoveryService', () => {
       restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
       restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
       restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
+    }
+  });
+
+  it('stops model private checks after one failure and keeps later public URLs', async () => {
+    const { setDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'false';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
+    const askRaw = jest.fn().mockRejectedValue(new Error('connection failed'));
+    setDecisionClient({ askRaw });
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/a/</loc></url><url><loc>https://example.com/b/</loc></url><url><loc>https://example.com/photo.jpg</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    try {
+      const result = await service.expandUrlsForImport('https://example.com/', 2);
+      expect(askRaw).toHaveBeenCalledTimes(1);
+      expect(result.urls).toEqual(['https://example.com/a/', 'https://example.com/b/']);
+      expect(result.skipped).toEqual(expect.arrayContaining([
+        { url: 'https://example.com/', reason: 'private-check-failed' },
+        { url: 'https://example.com/photo.jpg', reason: 'asset-url' }
+      ]));
+    } finally {
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
+    }
+  });
+
+  it('does not inject a priority path excluded by a failed sitemap private check', async () => {
+    const { setDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'false';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
+    setDecisionClient({
+      async askRaw(state: string) {
+        if (state.includes('/staff-portal/')) throw new Error('connection failed');
+        return {
+          answers: { 'page.isInternal': { value: 0.02, probability: 0.02, confidence: null } },
+          usage: { inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 },
+        };
+      },
+    });
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/staff-portal/</loc></url><url><loc>https://example.com/valid/</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    try {
+      const result = await service.expandUrlsForImport('https://example.com/', { maxUrls: 5, priorityPaths: ['/STAFF-PORTAL'] });
+      expect(result.urls).toEqual(['https://example.com/', 'https://example.com/valid/']);
+      expect(result.injectedPriorityUrls).toEqual([]);
+      expect(result.skipped).toContainEqual({ url: 'https://example.com/staff-portal/', reason: 'private-check-failed' });
+    } finally {
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
+    }
+  });
+
+  it('records a first private-check failure during priority injection', async () => {
+    const { setDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'false';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
+    setDecisionClient({
+      async askRaw(state: string) {
+        if (state.includes('/priority')) throw new Error('connection failed');
+        return {
+          answers: { 'page.isInternal': { value: 0.92, probability: 0.92, confidence: null } },
+          usage: { inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 },
+        };
+      },
+    });
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') return makeResponse(200, '<urlset></urlset>');
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const result = await service.expandUrlsForImport('https://example.com/', { maxUrls: 5, priorityPaths: ['/priority', '/intranet/secret'] });
+      expect(result.urls).not.toContain('https://example.com/priority');
+      expect(result.skipped).toContainEqual({ url: 'https://example.com/priority', reason: 'private-check-failed' });
+      expect(result.skipped).toContainEqual({ url: 'https://example.com/intranet/secret', reason: 'private-path' });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"private-check-failed":1'));
+    } finally {
+      warn.mockRestore();
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
+    }
+  });
+
+  it('does not inject a duplicate priority path after its private check fails', async () => {
+    const { setDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'false';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
+    const askRaw = jest.fn(async (state: string) => {
+      if (state.includes('/staff-portal')) throw new Error('connection failed');
+      return {
+        answers: { 'page.isInternal': { value: 0.02, probability: 0.02, confidence: null } },
+        usage: { inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 },
+      };
+    });
+    setDecisionClient({ askRaw });
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') return makeResponse(200, '<urlset></urlset>');
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    try {
+      const result = await service.expandUrlsForImport('https://example.com/', {
+        maxUrls: 5,
+        priorityPaths: ['/staff-portal', '/STAFF-PORTAL/'],
+      });
+      expect(result.urls).toEqual(['https://example.com/']);
+      expect(result.injectedPriorityUrls).toEqual([]);
+      expect(result.skipped).toEqual([{ url: 'https://example.com/staff-portal', reason: 'private-check-failed' }]);
+      expect(askRaw).toHaveBeenCalledTimes(2);
+    } finally {
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
+    }
+  });
+
+  it('counts a private sitemap URL once when also supplied as a priority path', async () => {
+    const { setDecisionClient } = await import('@/lib/studio/decisions');
+    const savedEnabled = process.env.DECISION_MODEL_ENABLED;
+    const savedShadow = process.env.DECISION_MODEL_SHADOW;
+    const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
+    process.env.DECISION_MODEL_ENABLED = 'true';
+    process.env.DECISION_MODEL_SHADOW = 'false';
+    process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
+    setDecisionClient({
+      async askRaw(state: string) {
+        const probability = state.includes('/staff-portal') ? 0.92 : 0.02;
+        return {
+          answers: { 'page.isInternal': { value: probability, probability, confidence: null } },
+          usage: { inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 },
+        };
+      },
+    });
+    (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+      if (input === 'https://example.com/sitemap.xml') {
+        return makeResponse(200, '<urlset><url><loc>https://example.com/staff-portal/</loc></url></urlset>');
+      }
+      return makeResponse(200, '<html>ok</html>', 'text/html');
+    });
+
+    try {
+      const result = await service.expandUrlsForImport('https://example.com/', {
+        maxUrls: 5,
+        priorityPaths: ['/STAFF-PORTAL'],
+      });
+      expect(result.urls).toEqual(['https://example.com/']);
+      expect(result.skipped).toEqual([{ url: 'https://example.com/staff-portal/', reason: 'private-path' }]);
+    } finally {
+      setDecisionClient(null);
+      restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
+      restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
+      restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
     }
   });
 
@@ -269,10 +472,12 @@ describe('SitemapDiscoveryService', () => {
     const savedEnabled = process.env.DECISION_MODEL_ENABLED;
     const savedShadow = process.env.DECISION_MODEL_SHADOW;
     const savedKey = process.env.DECISION_MODEL_API_KEY;
+    const savedQuestions = process.env.DECISION_MODEL_QUESTIONS;
 
     process.env.DECISION_MODEL_ENABLED = 'true';
     process.env.DECISION_MODEL_SHADOW = 'true';
     process.env.DECISION_MODEL_API_KEY = 'test-key';
+    process.env.DECISION_MODEL_QUESTIONS = 'page.isInternal';
     setDecisionClient(
       createFakeDecisionClient({
         'page.isInternal': { value: 0.92, probability: 0.92 },
@@ -303,6 +508,7 @@ describe('SitemapDiscoveryService', () => {
       restoreEnv('DECISION_MODEL_ENABLED', savedEnabled);
       restoreEnv('DECISION_MODEL_SHADOW', savedShadow);
       restoreEnv('DECISION_MODEL_API_KEY', savedKey);
+      restoreEnv('DECISION_MODEL_QUESTIONS', savedQuestions);
     }
   });
 
