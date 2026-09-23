@@ -1,7 +1,6 @@
 /** @jest-environment node */
-import { scoreSheet, matchComponents, checkContent, countItems } from './scoring'
+import { scoreSheet, matchComponents, countItems } from './scoring'
 import { block, label, entry, sheet, component } from './phase2-fixtures'
-import { TEXT_COVERAGE_THRESHOLD } from './metrics'
 const url='https://example.com/garden'
 describe('content matching',()=>{
   test('matches by content rather than type or location',()=>{const result=matchComponents([block()], [{...component,type:'footer',location:'footer'}],url);expect(result.matches[0].primaryBlockId).toBe('hero')})
@@ -11,26 +10,41 @@ describe('content matching',()=>{
   test('flags one component spanning two blocks',()=>{const blocks=[block({id:'first',text:'first unique paragraph with several words here'}),block({id:'second',text:'second distinct paragraph with other words here'})];const result=matchComponents(blocks,[{type:'hero',content:{text:blocks.map(b=>b.text).join(' ')}}],url);expect(result.merged).toHaveLength(1);expect(result.merged[0].blockIds).toEqual(['first','second'])})
   test('shared links alone do not establish a merge',()=>{const blocks=[block({id:'first',links:['https://example.com/']}),block({id:'second',text:'wholly unrelated footer words on this page',links:['https://example.com/']})];expect(matchComponents(blocks,[{...component,content:{...component.content,href:'https://example.com/'}}],url).merged).toEqual([])})
   test('unreviewed matches are not extras or scored blocks',()=>{const result=scoreSheet(sheet([entry({status:'draft'})]),[component],url);expect(result.rows).toEqual([]);expect(result.unreviewedBlocks).toBe(1);expect(result.unreviewedComponents).toEqual([0]);expect(result.extra).toEqual([])})
-})
-describe('every verdict and structural outcome',()=>{
-  test('correct',()=>{expect(scoreSheet(sheet(),[component],url).rows[0].verdict).toBe('correct')})
-  test('right type, content incomplete',()=>{const result=scoreSheet(sheet(),[{type:'hero',content:{heading:component.content.heading}}],url).rows[0];expect(result.verdict).toBe('right type, content incomplete');expect(result.failedChecks).toContain('textCoverage')})
-  test('wrong type includes acceptable and produced types',()=>{const row=scoreSheet(sheet(),[{...component,type:'card-grid'}],url).rows[0];expect(row.verdict).toBe('wrong type');expect(row.producedTypes).toEqual(['card-grid']);expect(row.acceptableTypes).toEqual(['hero'])})
-  test('missed',()=>{expect(scoreSheet(sheet(),[],url).rows[0].verdict).toBe('missed')})
-  test('should have been ignored',()=>{const s=sheet([entry({label:label({ignore:true,ignoreReason:'Cookie notice'})})]);expect(scoreSheet(s,[component],url).rows[0].verdict).toBe('should have been ignored');expect(scoreSheet(s,[],url).rows[0].verdict).toBe('correct');expect(scoreSheet(s,[],url).rows[0].checks.textCoverage.passed).toBeNull()})
-  test('corrected blocks count and alternate types are accepted',()=>{const s=sheet([entry({status:'corrected',label:label({acceptableTypes:['hero','cta-banner']})})]);expect(scoreSheet(s,[{...component,type:'cta-banner'}],url).rows[0].verdict).toBe('correct')})
-  test('split is allowed for the exact labelled component multiset',()=>{const s=sheet([entry({label:label({containsMultipleComponents:true,componentTypes:['hero','hero']})})]);const row=scoreSheet(s,[component,component],url).rows[0];expect(row.split).toBe(true);expect(row.splitAllowed).toBe(true);expect(row.verdict).toBe('correct');expect(scoreSheet(s,[component,{...component,type:'footer'}],url).rows[0].verdict).toBe('wrong type')})
-  test('unexpected split is visible separately from its type verdict',()=>{const row=scoreSheet(sheet(),[component,component],url).rows[0];expect(row.split).toBe(true);expect(row.splitAllowed).toBe(false)})
-})
-describe('individual content checks',()=>{
-  test('requires every heading as complete words',()=>{const e=entry({label:label({expected:{...label().expected,headings:['Grow a greener garden','Other heading']}})});const check=checkContent(e,[component],url).headings;expect(check.passed).toBe(false);expect(check.detail).toContain('Other heading')})
-  test('heading cannot match inside a larger word',()=>{const e=entry({label:label({expected:{...label().expected,headings:['green']}})});expect(checkContent(e,[component],url).headings.passed).toBe(false)})
-  test('CTA labels are independent and all required',()=>{const e=entry({label:label({expected:{...label().expected,ctaLabels:['Start growing','Read more']}})});expect(checkContent(e,[component],url).ctaLabels).toMatchObject({passed:false,produced:['Start growing']})})
-  test('counts explicit items, including zero',()=>{expect(countItems([{type:'card-grid',content:{cards:[{},{}]}}],'cards').count).toBe(2);expect(countItems([{type:'card-grid',content:{cards:[]}}],'cards').count).toBe(0)})
-  test('does not double count child links, metadata, or ambiguous props',()=>{expect(countItems([{type:'card-grid',content:{cards:[{links:[{},{}]}],metadata:{cards:[{}]}}}],'cards').count).toBe(1);expect(countItems([{type:'card-grid',content:{cards:[{}]},props:{cards:[{}]}}],'cards').count).toBeNull()})
-  test('item count reports produced versus expected and missing collections',()=>{const e=entry({label:label({expected:{...label().expected,itemCount:3,itemKind:'cards'}})});expect(checkContent(e,[{type:'card-grid',content:{cards:[{},{}]}}],url).itemCount).toMatchObject({passed:false,expected:3,produced:2});expect(checkContent(e,[{type:'card-grid',content:{cards:[{},{},{}]}}],url).itemCount.passed).toBe(true);expect(checkContent(e,[component],url).itemCount.passed).toBe(false)})
-  test('image requirement is independent',()=>{const e=entry({label:label({expected:{...label().expected,hasImage:true}})});expect(checkContent(e,[component],url).image.passed).toBe(false);expect(checkContent(e,[{...component,content:{...component.content,image:'/garden.jpg'}}],url).image.passed).toBe(true)})
-  test('uses the shared threshold with raw counts',()=>{const e=entry({block:block({text:'one two three four five six seven eight nine ten eleven twelve thirteen fourteen'})});const output={type:'hero',content:{text:'one two three four five six seven eight nine ten eleven twelve thirteen'}};const check=checkContent(e,[output],url).textCoverage;expect(check.expected).toBe(TEXT_COVERAGE_THRESHOLD);expect(check.produced).toMatchObject({numerator:9,denominator:10});expect(check.passed).toBe(true);expect(checkContent(e,[{type:'hero',content:{text:'one two three four five'}}],url).textCoverage.passed).toBe(false)})
-  test('does not concatenate across component boundaries',()=>{const e=entry({block:block({text:'one two three four five six'})});expect(checkContent(e,[{type:'hero',content:{text:'one two three'}},{type:'hero',content:{text:'four five six'}}],url).textCoverage.passed).toBe(false)})
-  test('textless blocks and unrequested count/image checks are explicitly not applicable',()=>{const c=checkContent(entry({block:block({text:''})}),[component],url);expect(c.textCoverage.passed).toBeNull();expect(c.itemCount.passed).toBeNull();expect(c.image.passed).toBeNull()})
+  test('found collection counts, mismatches and missing collection stay distinct',()=>{
+    const answer=sheet([entry({label:label({expected:{headings:[],itemCount:2,itemKind:'cards',hasImage:false,ctaLabels:[]}})})])
+    const counted=scoreSheet(answer,[{...component,content:{...component.content,cards:[{},{}]}}],url)
+    expect(counted.rows[0].checks.C6.passed).toBe(true)
+    const mismatch=scoreSheet(answer,[{...component,content:{...component.content,cards:[{}]}}],url)
+    expect(mismatch.rows[0].checks.C6.passed).toBe(false)
+    expect(mismatch.itemCountMismatches).toHaveLength(1)
+    expect(scoreSheet(answer,[component],url).rows[0].checks.C6).toMatchObject({passed:null,structureUnknown:true,detail:expect.stringContaining('structure-unknown')})
+    expect(countItems([{type:'card-grid',content:{cards:[]}}],'cards').count).toBe(0)
+    expect(countItems([{type:'card-grid',content:{cards:[{links:[{},{}]}],metadata:{cards:[{}]}}}],'cards').count).toBe(1)
+    expect(countItems([{type:'card-grid',content:{cards:[{}]},props:{cards:[{}]}}],'cards')).toMatchObject({count:null,reason:expect.stringContaining('Ambiguous')})
+  })
+  test('ignored imports are junk and multiple matches are reported as splits',()=>{
+    const ignored=sheet([entry({label:label({ignore:true,ignoreReason:'Fixture decoration'})})])
+    expect(scoreSheet(ignored,[component],url).rows[0].verdict).toBe('should have been ignored')
+    const split=scoreSheet(sheet(),[component,component],url).rows[0]
+    expect(split.split).toBe(true)
+    expect(split.structuralErrors).toContain('Unexpected split')
+    expect(scoreSheet(ignored,[],url).rows[0]).toMatchObject({verdict:'correct',ignored:true})
+    expect(scoreSheet(ignored,[],url).rows[0].checks.C6.structureUnknown).toBe(false)
+    expect(scoreSheet(sheet(),[],url).rows[0].checks.C6.structureUnknown).toBe(false)
+  })
+  test('allowed splits require the exact component type multiset',()=>{
+    const answer=sheet([entry({label:label({containsMultipleComponents:true,componentTypes:['hero','hero']})})])
+    expect(scoreSheet(answer,[component,component],url).rows[0]).toMatchObject({split:true,splitAllowed:true,checks:{C1:{passed:true}}})
+    expect(scoreSheet(answer,[component,{...component,type:'footer'}],url).rows[0].checks.C1.passed).toBe(false)
+  })
+  test('sentence and label punctuation at phrase boundaries match',()=>{
+    const sentence='We offer clear practical help for every local family.'
+    const source={text:[{text:sentence,region:'main' as const}],headings:[],links:[{url:'https://example.com/help',label:'Ask our team.'}],images:[],wordCount:9,sourceText:sentence+' Ask our team.'}
+    const answer=sheet([entry({block:block({text:sentence,links:['https://example.com/help'],headings:[]})})])
+    const output={type:'hero',content:{body:sentence+' More details follow.',link:{href:'/help',label:'Ask our team.',description:'A helpful description follows.'}}}
+    const row=scoreSheet(answer,[output],url,{evidence:[source]}).rows[0]
+    expect(row.checks.C2.passed).toBe(true)
+    expect(row.checks.C4.passed).toBe(true)
+    expect(scoreSheet(answer,[{type:'hero',content:{bodyHtml:'<p>'+sentence+'</p><p>More details follow.</p>',link:output.content.link}}],url,{evidence:[source]}).rows[0].checks.C2.passed).toBe(true)
+  })
 })

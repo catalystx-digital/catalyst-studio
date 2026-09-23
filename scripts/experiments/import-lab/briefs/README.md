@@ -1,4 +1,4 @@
-Use briefs 01 through 13 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
+Use briefs 01 through 15 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
 
 These briefs were given to a coding agent with no internet, no paid calls and no secrets. The agent could read saved local evidence, use invented fixtures and run offline checks. Real site names and page content must stay out of source files and new briefs. The owner runs any internet or paid evaluation stages separately.
 
@@ -21,6 +21,9 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 12 | [Component families](12-component-families.md) | Free family scoring, summed-probability picks, optional family choice requests and paired summary tables. | Overlapping page-level types made acceptable labels ambiguous and near-twin decisions look wrong. |
 
 | 13 | [Cleanup](13-cleanup.md) | Keep the repeatable block audit and remove finished experiments. | The winning path was decided; unused machinery and large reports obscured it. |
+
+| 14 | [Accuracy stick](14-accuracy-stick.md) | Derive per-block content expectations from source HTML and score seven checks. | Label-drafted expectations and page-wide invented-text checks could hide content loss or movement. |
+| 15 | [Accuracy report and leak check](15-accuracy-report.md) | Summarise development and held-out stick scores with page ranges and check added code for site names. | The measuring stick needed a one-screen result and a guard against site-specific rules. |
 
 ## Removed after the decisions
 

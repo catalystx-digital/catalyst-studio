@@ -17,6 +17,18 @@ Replay rebuilds the production styling map from saved HTML and stylesheet text. 
 
 Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries and the page manifest remain. Family picking changes only the production component question's options and its type/family wording; it uses the same production evidence and selection.
 
+## Accuracy stick
+
+`score.ts --page PAGE --all-runs` derives expected text, headings, links and image groups from saved HTML and geometry. C1 checks the component family; C2 text runs; C3 heading fields or HTML headings; C4 link targets and labels; C5 content images; C6 counts a found collection against its label; C7 checks invented human text within each block. An absent collection records `structureUnknown` on C6 and does not fail it. Scores go to `labels/<page>/scores-stick/` as `<arm>--<run>--<stick version>[-family-<set>].json`; add `--families scripts/experiments/import-lab/component-families.json --family-set C` for set-C family scoring. Existing score folders are retained. A component spanning blocks is checked against the union of those blocks' source evidence, so content in the wrong one of those blocks can still pass a content check.
+
+## Accuracy report
+
+Run `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs m4-r1,m4-r2 --family-set C` after scoring. It writes the latest `reports/ACCURACY.md` and `reports/accuracy.json` under `IMPORT_LAB_ROOT` and archives previous copies.
+
+## Site-name leak check
+
+Run `node --import tsx scripts/experiments/import-lab/eval.ts leak-check` before sharing changes. Repeat `--root PATH` to include other lab data roots. A hit prints `file:line: part` and exits with status 1.
+
 ## Data and cost
 
 - **FREE:** dry plans, saved-data reads, scoring, summaries, local review and offline tests.

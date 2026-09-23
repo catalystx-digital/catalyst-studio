@@ -33,7 +33,7 @@ const attrsOf = (node: HtmlNode) => Object.fromEntries((node.attrs || []).map(a 
 const blockTags = new Set(['p','div','section','article','header','footer','main','nav','li','ul','ol','h1','h2','h3','h4','h5','h6','blockquote','td','th','tr','figcaption','figure','address','form','br'])
 const excludedTags = new Set(['script','style','template','noscript'])
 
-const normalizePlainText = (value: string) => value.replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, '').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('en')
+const normalizePlainText = (value: string) => value.normalize('NFKC').replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, '').replace(/\s+/gu, ' ').trim().replace(/[\p{P}]+$/gu, '').toLocaleLowerCase('en')
 const joinChildren = (node: HtmlNode, flatten: (child: HtmlNode) => string) => (node.childNodes || []).map((child, index, children) => (index && child.tagName && children[index - 1].tagName ? ' ' : '') + flatten(child)).join('')
 export function normalizeText(value: string): string {
   const tree = parseFragment(value) as HtmlNode
@@ -46,7 +46,12 @@ export function absoluteUrl(value: string, base: string, kind: 'image' | 'link')
   try {
     const url = new URL(clean, base)
     if (!['http:', 'https:', ...(kind === 'link' ? ['mailto:', 'tel:'] : [])].includes(url.protocol)) return null
-    if (kind === 'link') { url.hash = ''; if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/+$/, '') }
+    if (kind === 'link') {
+      if (clean === '#') return null
+      if (url.protocol === 'mailto:' || url.protocol === 'tel:') return url.protocol + url.pathname.toLowerCase()
+      url.hash = ''; if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/+$/, '')
+      for (const key of [...url.searchParams.keys()]) if (/^utm_/i.test(key) || /^(?:gclid|fbclid|msclkid|mc_cid|mc_eid|_ga|_gl)$/i.test(key)) url.searchParams.delete(key)
+    }
     return url.href
   } catch { return null }
 }
@@ -80,36 +85,39 @@ export function isHumanText(field: Field, minimumLength = 12): boolean {
   // Unknown fields need prose evidence; token-like identifiers and class lists are excluded.
   return /\s/u.test(text) && !text.split(/\s+/).every(word => /[_:]/.test(word) || /^[a-z]+-/.test(word)) && /\p{L}/u.test(text)
 }
-export function extractPageEvidence(html: string, pageUrl: string, stylesheets: string[] = []): Evidence {
-  const document = parse(html) as HtmlNode
-  const css: string[] = [...stylesheets]
-  let baseUrl = pageUrl
-  const scan = (node: HtmlNode) => {
-    const attrs = attrsOf(node)
-    if (node.tagName === 'style') css.push(rawText(node))
-    if (node.tagName === 'base' && attrs.href && baseUrl === pageUrl) baseUrl = new URL(attrs.href, pageUrl).href
-    node.childNodes?.forEach(scan)
-  }
-  scan(document)
+const hiddenCache=new WeakMap<string[],(a:Record<string,string>,checkClass?:boolean)=>boolean>()
+export function hiddenElement(css: string[]) {
+  const cached=hiddenCache.get(css);if(cached)return cached
   const hiddenClass = new Set<string>(), hiddenId = new Set<string>()
   const responsive = /^(?:hidden|visible)-(?:xs|sm|md|lg|xl)$/
   for (const stylesheet of css) {
-    const rules = /([^{}]+)\{[^}]*(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)[^}]*\}/gi
-    for (const rule of stylesheet.matchAll(rules)) for (const selector of rule[1].split(',').map(s => s.trim())) {
+    const rules = /([^{}]+)\{([^}]*)\}/g
+    for (const rule of stylesheet.matchAll(rules)) {
+      if (!/(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)/i.test(rule[2])) continue
+      for (const selector of rule[1].split(',').map(s => s.trim())) {
       if (selector.includes('@media')) continue
       const name = selector.match(/^([.#])([a-zA-Z_-][a-zA-Z0-9_-]*)$/)
       if (name && !responsive.test(name[2])) (name[1] === '.' ? hiddenClass : hiddenId).add(name[2])
+      }
     }
   }
-  const result: Evidence = { text: [], allText: [], visibleText: [], attributeText: [], images: [], links: [], baseUrl }
+  const result=(a: Record<string,string>, checkClass = true) => Object.hasOwn(a, 'hidden') || /(?:^|;)\s*(?:display\s*:\s*none|(?:content-)?visibility\s*:\s*hidden)\s*(?:!important)?\s*(?:;|$)/i.test(a.style || '') || hiddenId.has(a.id) || (checkClass && (a.class || '').split(/\s+/).some(name => hiddenClass.has(name))) || /cloned|slick-cloned|swiper-slide-duplicate/i.test(a.class || '')
+  hiddenCache.set(css,result);return result
+}
+export function visibilityContext(document: HtmlNode, css: string[]) {
   const headerLike = (tag: string, attrs: Record<string,string>) => tag === 'header' || attrs.role === 'banner' || ['desktop-header','site-header','global-header','main-header','mobile-header','main-navigation','primary-navigation','primary-nav','nav-menu'].some(token => ((attrs.id || '') + ' ' + (attrs.class || '')).toLowerCase().includes(token))
   const firstTag = (node: HtmlNode, tag: string): HtmlNode | undefined => node.tagName === tag ? node : (node.childNodes || []).map(child => firstTag(child,tag)).find(Boolean)
   const body = firstTag(document,'body')
-  let selectedHeader = body ? firstTag(body,'header') : undefined
+  let selectedHeader: HtmlNode | undefined
   const headerDescendant = (node: HtmlNode): HtmlNode | undefined => {
     if (node.tagName === 'main' || node.tagName === 'footer') return undefined
     return headerLike(node.tagName || '',attrsOf(node)) ? node : (node.childNodes || []).map(headerDescendant).find(Boolean)
   }
+  const realHeader = (node:HtmlNode):HtmlNode|undefined => {
+    if(node.tagName==='main'||node.tagName==='footer')return undefined
+    return node.tagName==='header'?node:(node.childNodes||[]).map(realHeader).find(Boolean)
+  }
+  selectedHeader=body?realHeader(body):undefined
   if (!selectedHeader && body) {
     let inspected = 0
     for (const child of body.childNodes || []) {
@@ -119,7 +127,28 @@ export function extractPageEvidence(html: string, pageUrl: string, stylesheets: 
       if (selectedHeader) break
     }
   }
-  const hidden = (node: HtmlNode, a: Record<string,string>) => Object.hasOwn(a, 'hidden') || /(?:^|;)\s*(?:display\s*:\s*none|(?:content-)?visibility\s*:\s*hidden)\s*(?:!important)?\s*(?:;|$)/i.test(a.style || '') || hiddenId.has(a.id) || (node !== selectedHeader && (a.class || '').split(/\s+/).some(name => hiddenClass.has(name)))
+  const hidden = hiddenElement(css)
+  const visible = new WeakSet<HtmlNode>()
+  const mark = (node:HtmlNode, parentVisible:boolean) => {
+    if (parentVisible && !hidden(attrsOf(node),node !== selectedHeader)) visible.add(node)
+    node.childNodes?.forEach(child => mark(child,visible.has(node)))
+  }
+  mark(document,true)
+  return {selectedHeader, isHidden:(node:HtmlNode)=>!visible.has(node)}
+}
+export function extractPageEvidence(html: string, pageUrl: string, stylesheets: string[] = [], selection?: {document:HtmlNode; roots:HtmlNode[]; visibility:ReturnType<typeof visibilityContext>}): Evidence {
+  const document = selection?.document || parse(html) as HtmlNode
+  let css: string[] = stylesheets
+  let baseUrl = pageUrl
+  const scan = (node: HtmlNode) => {
+    const attrs = attrsOf(node)
+    if (node.tagName === 'style') {if(css===stylesheets)css=[...css];css.push(rawText(node))}
+    if (node.tagName === 'base' && attrs.href && baseUrl === pageUrl) baseUrl = new URL(attrs.href, pageUrl).href
+    node.childNodes?.forEach(scan)
+  }
+  scan(document)
+  const result: Evidence = { text: [], allText: [], visibleText: [], attributeText: [], images: [], links: [], baseUrl }
+  const {selectedHeader,isHidden} = selection?.visibility || visibilityContext(document,css)
   const add = (kind: 'images' | 'links', value: string | undefined, region: Region) => {
     if (!value) return
     const url = absoluteUrl(value, baseUrl, kind === 'images' ? 'image' : 'link')
@@ -130,7 +159,7 @@ export function extractPageEvidence(html: string, pageUrl: string, stylesheets: 
   const walk = (node: HtmlNode, region: Region, parentTag = '', tinyPicture = false) => {
     const tag = node.tagName || '', a = attrsOf(node)
     if (excludedTags.has(tag)) return
-    if (hidden(node,a)) return
+    if (isHidden(node)) return
     if (tag === 'head') { node.childNodes?.forEach(child => walk(child, region, tag)); return }
     if (tag === 'title' || tag === 'meta') return
     const nextRegion: Region = tag === 'footer' || a.role === 'contentinfo' ? 'footer' : node === selectedHeader ? 'header' : tag === 'main' || a.role === 'main' ? 'main' : region
@@ -165,7 +194,7 @@ export function extractPageEvidence(html: string, pageUrl: string, stylesheets: 
     return blockTags.has(tag) || ['title','script','style'].includes(tag) ? ' ' + text + ' ' : text
   }
   result.allText.push(normalizePlainText(allText(document)))
-  walk(document, 'main'); for(const region of ['header','main','footer'] as const) flush(region)
+  for(const root of selection?.roots || [document]) { walk(root, 'main'); for(const region of ['header','main','footer'] as const) flush(region) }
   return result
 }
 export function componentResources(fields: Field[], evidence: Evidence): {images: Resource[]; links: Resource[]} {
@@ -192,7 +221,18 @@ export function wordShingles(value: string): string[] {
   const words = normalizeText(value).split(/\s+/).filter(Boolean)
   return words.length < 5 ? (words.length ? [words.join(' ')] : []) : words.slice(0, -4).map((_, index) => words.slice(index, index + 5).join(' '))
 }
-const containsShingle = (text: string, shingle: string) => (' ' + text + ' ').includes(' ' + shingle + ' ')
+export const containsPhrase = (text:string, phrase:string) => {
+  const needle=normalizeText(phrase), haystack=normalizeText(text)
+  if(!needle)return false
+  let index=haystack.indexOf(needle)
+  while(index!==-1) {
+    const before=haystack[index-1], after=haystack[index+needle.length]
+    if((index===0||/\s/u.test(before)) && (after===undefined||/[\s\p{P}]/u.test(after)))return true
+    index=haystack.indexOf(needle,index+1)
+  }
+  return false
+}
+const containsShingle = (text: string, shingle: string) => containsPhrase(text,shingle)
 function fieldCorpus(fields: Field[]): string[] {
   const groups = new Map<number, string[]>()
   for (const field of fields.filter(field => isHumanText(field, 1))) {
@@ -240,12 +280,12 @@ export function measureTextKept(pieces: Piece[], fields: Field[]) {
   const missingShingles = scores.reduce((n,piece) => n + piece.missingShingles.length, 0)
   return {count: share(scores.length-missing.length,scores.length), characters: share(keptCharacters,totalCharacters), shingles: share(totalShingles-missingShingles,totalShingles), missing, scores, duplicatesRemoved: pieces.length-scores.length}
 }
-export function measureTextNotFound(fields: Field[], evidence: Evidence) {
-  const human = fields.filter(field => isHumanText(field))
-  const source = [...evidence.allText, ...evidence.attributeText].join(' ')
+export function measureTextNotFound(fields: Field[], source: string | Evidence) {
+  const human = fields.filter(field => isHumanText(field,1))
+  const corpus = typeof source === 'string' ? normalizeText(source) : [...source.allText, ...source.attributeText].join(' ')
   const notFound = human.filter(field => {
     const shingles = wordShingles(field.value)
-    return shingles.filter(shingle => containsShingle(source, shingle)).length / shingles.length < TEXT_COVERAGE_THRESHOLD
+    return shingles.filter(shingle => containsShingle(corpus, shingle)).length / shingles.length < TEXT_COVERAGE_THRESHOLD
   })
   return {share: share(notFound.length,human.length), notFound}
 }
@@ -274,7 +314,7 @@ export function measureArm(evidence: Evidence, components: Component[], dropped:
   return Object.fromEntries(regions.map(scope => {
     const select = <T extends {region: Region}>(values:T[]) => scope === 'overall' ? values : values.filter(v => v.region === scope)
     // Kept content may occur anywhere; regional scores describe where the source originated.
-    const kept = measureTextKept(select(evidence.text),fields), notFound=measureTextNotFound(select(fields),evidence)
+    const kept = measureTextKept(select(evidence.text),fields), notFound=measureTextNotFound(select(fields),[...evidence.allText,...evidence.attributeText].join(' '))
     const shownKept = measureTextKept(select(shown.text), fields), reached = measureTextKept(select(evidence.text), shown.fields)
     const imageCoverage=measureResources(select(evidence.images),resources.images)
     imageCoverage.invented=measureResources(evidence.images,select(resources.images)).invented
