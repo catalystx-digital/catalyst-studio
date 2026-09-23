@@ -1,19 +1,24 @@
 import { XMLParser } from 'fast-xml-parser';
+import * as parse5 from 'parse5';
 import * as zlib from 'zlib';
 import { SitemapConfig, LoggingConfig } from '../config';
 import { ask, matchesHardcodedInternalPath } from '@/lib/studio/decisions';
 
-/**
- * File extensions that indicate non-HTML assets.
- * These URLs should be skipped during import as they cannot be parsed for components.
- */
-const ASSET_EXTENSIONS = new Set([
+const MEDIA_EXTENSIONS = new Set([
   // Images
   'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'avif',
   // Documents
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'rtf',
   // Media
   'mp4', 'mp3', 'avi', 'mov', 'wmv', 'wav', 'flac', 'ogg', 'webm', 'm4a', 'm4v',
+]);
+
+/**
+ * File extensions that indicate non-HTML assets.
+ * These URLs should be skipped during import as they cannot be parsed for components.
+ */
+const ASSET_EXTENSIONS = new Set([
+  ...MEDIA_EXTENSIONS,
   // Archives
   'zip', 'rar', '7z', 'tar', 'gz', 'bz2',
   // Data files
@@ -44,17 +49,90 @@ export function isAssetUrl(url: string): boolean {
 }
 
 /**
- * Heuristic for publishing-system image attachment pages.
- * A legitimate page ending in -jpg would be rejected; this is accepted because
+ * Heuristic for publishing-system asset attachment pages.
+ * A legitimate page ending in a media extension would be rejected; this is accepted because
  * such addresses are overwhelmingly attachment pages.
  */
 export function isLikelyAttachmentPageUrl(url: string): boolean {
   try {
     const lastSegment = new URL(url).pathname.replace(/\/+$/, '').split('/').pop() || '';
-    return /-(jpg|jpeg|png|gif|webp|svg|avif|bmp|tif|tiff)$/i.test(lastSegment);
+    const extension = lastSegment.match(/-([a-z0-9]+)(?:-\d+)?$/i)?.[1].toLowerCase();
+    return extension ? MEDIA_EXTENSIONS.has(extension) : false;
   } catch {
     return false;
   }
+}
+
+type NavigationNode = {
+  tagName?: string;
+  attrs?: Array<{ name: string; value: string }>;
+  childNodes?: NavigationNode[];
+};
+
+const MENU_UTILITY_SEGMENTS = new Set([
+  'login', 'log-in', 'signin', 'sign-in', 'logout', 'register', 'signup', 'sign-up',
+  'account', 'my-account', 'cart', 'basket', 'checkout', 'search', 'wp-login.php', 'wp-admin',
+]);
+
+function pageKey(url: string): string {
+  const { host, pathname, search } = new URL(url);
+  return `${host}${pathname.replace(/\/$/, '').toLowerCase()}${search}`;
+}
+
+export function extractNavigationUrls(html: string, origin: string): string[] {
+  const site = new URL(origin);
+  const links: Array<{ url: string; level: number }> = [];
+  const visit = (node: NavigationNode, inNavigation: boolean, listDepth: number, inFooter: boolean, inContent: boolean) => {
+    if (node.tagName === 'footer') inFooter = true;
+    if (node.tagName === 'article' || node.tagName === 'section' || node.tagName === 'aside' || node.tagName === 'main') inContent = true;
+    const role = node.attrs?.find(attr => attr.name === 'role')?.value.toLowerCase();
+    const isNavigation = node.tagName === 'nav' || (node.tagName === 'header' && !inContent) || role === 'navigation';
+    const inside = !inFooter && (inNavigation || isNavigation);
+    const depth = isNavigation ? 0 : listDepth;
+    const nextDepth = inside && (node.tagName === 'ul' || node.tagName === 'ol') ? depth + 1 : depth;
+
+    if (inside && node.tagName === 'a' && !node.attrs?.some(attr => attr.name === 'hreflang')) {
+      const href = node.attrs?.find(attr => attr.name === 'href')?.value.trim();
+      if (href && !href.startsWith('#') && !/^(javascript:|mailto:|tel:)/i.test(href)) {
+        try {
+          const target = new URL(href, site);
+          const path = target.pathname.replace(/\/$/, '').toLowerCase();
+          // Utility paths are menu-only exclusions; sitemap pages remain eligible.
+          if ((target.protocol === 'http:' || target.protocol === 'https:') && target.host === site.host
+            && !MENU_UTILITY_SEGMENTS.has(path.slice(1))) {
+            target.hash = '';
+            links.push({ url: target.toString(), level: Math.max(0, depth - 1) });
+          }
+        } catch {
+          // Ignore malformed links.
+        }
+      }
+    }
+
+    for (const child of node.childNodes ?? []) {
+      visit(child, inside, nextDepth, inFooter, inContent);
+    }
+  };
+
+  visit(parse5.parse(html) as NavigationNode, false, 0, false, false);
+  const seen = new Set<string>();
+  return links.sort((a, b) => a.level - b.level).map(link => link.url).filter(link => {
+    const key = pageKey(link);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function spreadEntries<T>(entries: T[], cap: number): T[] {
+  const stride = cap > 0 ? Math.max(1, Math.floor(entries.length / cap)) : 1;
+  const spread: T[] = [];
+  for (let offset = 0; offset < stride; offset++) {
+    for (let index = offset; index < entries.length; index += stride) {
+      spread.push(entries[index]);
+    }
+  }
+  return spread;
 }
 
 export interface SitemapMetadata {
@@ -169,7 +247,12 @@ export class SitemapDiscoveryService {
 
         const parsed = this.parseSitemap(xml);
         if (parsed.type === 'index') {
-          for (const child of parsed.sitemaps.slice(0, 5)) {
+          // Media sitemaps can list attachment pages without asset file extensions.
+          const pageSitemaps = parsed.sitemaps.filter(child => {
+            const filename = child.split(/[?#]/)[0].split('/').pop()?.toLowerCase() ?? '';
+            return !/^(image|video|attachment)-sitemap/.test(filename);
+          });
+          for (const child of pageSitemaps.slice(0, 5)) {
             if (discoveredMap.size >= discoveryCap) {
               break;
             }
@@ -216,8 +299,9 @@ export class SitemapDiscoveryService {
         }
       };
 
+      let homeHtml: string | null = null;
       try {
-        const homeHtml = await this.safeFetchText(origin + '/');
+        homeHtml = await this.safeFetchText(origin + '/');
         if (homeHtml) {
           const linkMatches = Array.from(homeHtml.matchAll(/<link[^>]+rel=["']sitemap["'][^>]*>/gi));
           for (const match of linkMatches) {
@@ -249,7 +333,23 @@ export class SitemapDiscoveryService {
       const homeUrl = this.selectHomeUrl(entries, origin);
 
       const sorted = entries.sort((a, b) => this.compareEntries(a, b, homeUrl));
-      const ordered = [homeUrl, ...sorted.map((entry) => entry.url).filter((entryUrl) => entryUrl !== homeUrl)];
+      const sitemapUrlByKey = new Map<string, string>();
+      for (const entry of sorted) {
+        const key = pageKey(entry.url);
+        if (!sitemapUrlByKey.has(key)) sitemapUrlByKey.set(key, entry.url);
+      }
+      // JavaScript-built menus are absent from fetched HTML, leaving the sitemap spread as the fallback.
+      const navigationUrls = homeHtml ? extractNavigationUrls(homeHtml, origin) : [];
+      const seenCandidates = new Set([pageKey(homeUrl)]);
+      const unique = (candidateUrl: string) => {
+        const key = pageKey(candidateUrl);
+        if (seenCandidates.has(key)) return false;
+        seenCandidates.add(key);
+        return true;
+      };
+      const menu = navigationUrls.filter(unique).map(url => sitemapUrlByKey.get(pageKey(url)) ?? url);
+      const remaining = sorted.map(entry => entry.url).filter(unique);
+      const ordered = [homeUrl, ...menu, ...spreadEntries(remaining, maxUrls)];
       const normalizedUrls = this.normalizeAndDedupeUrls(ordered);
       const privateCheckState = { failed: false };
       const { reachable, skipped: skippedUrls } = await this.filterReachableUrls(normalizedUrls, maxUrls, websiteId, privateCheckState);
@@ -409,8 +509,9 @@ export class SitemapDiscoveryService {
         const parsed = new URL(url);
         const decodedPath = decodeURIComponent(parsed.pathname);
         const normalizedUrl = `${parsed.protocol}//${parsed.host}${decodedPath}${parsed.search}`;
-        if (!seen.has(normalizedUrl)) {
-          seen.add(normalizedUrl);
+        const key = pageKey(normalizedUrl);
+        if (!seen.has(key)) {
+          seen.add(key);
           normalized.push(normalizedUrl);
         }
       } catch {
