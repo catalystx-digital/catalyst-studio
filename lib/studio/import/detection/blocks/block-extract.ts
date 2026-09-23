@@ -1,3 +1,4 @@
+import { APIError } from 'openai'
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { ConfidenceConfig, DetectionConfig, ModelConfig, OpenRouterConfig } from '@/lib/studio/import/config'
 import { applyAllowedProviders, type createLLMClient } from '@/lib/studio/import/services/llm-client'
@@ -22,6 +23,7 @@ import type { selectBlockCandidates } from './block-pick'
 export const STALL_TIMEOUT_MS = 120_000
 // Exported for the lab to record the production retry limit.
 export const INFRASTRUCTURE_RETRIES = 2
+export const PROVIDER_ERROR_RETRIES = 4
 
 export async function extractBlock({
   blockInput,
@@ -111,6 +113,7 @@ export async function extractBlock({
   const usage: TokenUsage = {}
   let requestCount = 0
   let infrastructureRetries = 0
+  let providerErrorRetries = 0
   let rawResponse = ''
   let finishReason = ''
   let stage: DetectionFailureDebug['stage'] = 'llm_call'
@@ -132,6 +135,7 @@ export async function extractBlock({
         let timer: ReturnType<typeof setTimeout> | undefined
         let timedOut = false
         let truncated = false
+        let providerResponseError = false
         try {
           stage = 'llm_call'
           requestCount++
@@ -162,7 +166,12 @@ export async function extractBlock({
           usage.total_cost = (usage.total_cost ?? 0) + (responseUsage?.total_cost ?? responseUsage?.cost ?? 0)
           const choice = response.choices?.[0]
           if (!choice) {
-            throw new Error('Block extraction response must include choices[0]')
+            const providerError = (response as ChatCompletion & { error?: { message?: string; code?: number | string } }).error
+            const providerCode = Number(providerError?.code)
+            providerResponseError = providerError?.code == null || (Number.isFinite(providerCode) && (providerCode === 429 || providerCode >= 500))
+            throw new Error(providerError
+              ? 'Block extraction provider error' + (providerError.code != null ? ' (' + providerError.code + ')' : '') + (providerError.message ? ': ' + providerError.message : '')
+              : 'Block extraction response must include choices[0]')
           }
           rawResponse = choice.message?.content || ''
           finishReason = choice.finish_reason || 'unknown'
@@ -177,6 +186,13 @@ export async function extractBlock({
           const timeout = timedOut || (error instanceof Error && ['APIConnectionTimeoutError', 'TimeoutError'].includes(error.name))
           if ((timeout || truncated) && infrastructureRetries < INFRASTRUCTURE_RETRIES) {
             infrastructureRetries++
+            continue
+          }
+          const providerHttpError = error instanceof APIError && (error.status === 429 || (error.status != null && error.status >= 500))
+          if ((providerResponseError || providerHttpError) && providerErrorRetries < PROVIDER_ERROR_RETRIES) {
+            providerErrorRetries++
+            if (timer) clearTimeout(timer)
+            await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** (providerErrorRetries - 1)))
             continue
           }
           throw error
