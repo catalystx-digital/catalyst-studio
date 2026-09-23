@@ -166,6 +166,17 @@ const responsiveVisibilityClasses = new Set([
   'visible-xl'
 ])
 
+// These frameworks hide items with a base class and reveal them with script-added state classes, so the base class says nothing about whether the content is real.
+const carouselSlideAndTabPanelClasses = new Set([
+  'slick-slide', 'swiper-slide', 'carousel-item', 'splide__slide',
+  'glide__slide', 'flickity-cell', 'owl-item', 'tab-pane'
+])
+
+// Carousel libraries insert loop copies that should not appear as separate content.
+const duplicateCarouselSlideClasses = new Set([
+  'slick-cloned', 'swiper-slide-duplicate', 'splide__slide--clone', 'cloned'
+])
+
 function inlineStyleHidesElement(style?: string): boolean {
   if (!style) return false
   return /(?:^|;)\s*display\s*:\s*none\s*(?:!important)?\s*(?:;|$)/i.test(style) ||
@@ -177,7 +188,7 @@ function classListContainsHiddenSelector(className: string | undefined, hiddenBy
   if (!className || !hiddenByClass) return false
 
   for (const cls of className.split(/\s+/)) {
-    if (!cls || responsiveVisibilityClasses.has(cls)) continue
+    if (!cls || responsiveVisibilityClasses.has(cls) || carouselSlideAndTabPanelClasses.has(cls)) continue
     if (hiddenByClass.has(cls)) return true
   }
 
@@ -200,6 +211,12 @@ export function isExplicitlyHiddenDomNode(params: {
   }
   if (inlineStyleHidesElement(style)) {
     return true
+  }
+  if (className) {
+    const classes = className.split(/\s+/)
+    if (classes.some(cls => duplicateCarouselSlideClasses.has(cls) && (cls !== 'cloned' || classes.includes('owl-item')))) {
+      return true
+    }
   }
   if (id && bgImageMap?.hiddenById.has(id)) {
     return true
