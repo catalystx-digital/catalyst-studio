@@ -1,4 +1,5 @@
 /** @jest-environment node */
+import { APIError } from 'openai'
 import { extractBlock } from './block-extract'
 import { buildBlockInput } from './block-input'
 import { selectBlockCandidates } from './block-pick'
@@ -95,17 +96,88 @@ test('incomplete JSON with a stop finish reason also retries unchanged', async (
   expect(create.mock.calls[0][0]).toEqual(create.mock.calls[1][0])
 })
 
-test('an error envelope without choices fails response validation without an indexing crash', async () => {
+const providerError = {
+  id: 'fixture-response',
+  error: { message: 'Upstream server error', code: 502, metadata: { error_type: 'provider_unavailable' } }
+}
+
+test('a provider error body retries and succeeds', async () => {
   jest.useFakeTimers()
-  const create = jest.fn().mockResolvedValue({
-    id: 'fixture-response',
-    error: { message: 'Upstream server error', code: 502, metadata: { error_type: 'provider_unavailable' } }
-  })
-  await expect(extractBlock(args(create))).rejects.toMatchObject({
-    message: 'Block extraction response must include choices[0]',
+  const create = jest.fn().mockResolvedValueOnce(providerError).mockResolvedValueOnce(response(valid))
+  const pending = extractBlock(args(create))
+  await jest.advanceTimersByTimeAsync(1000)
+  const result = await pending
+  expect(result.artifact.components).toHaveLength(1)
+  expect(result.requestCount).toBe(2)
+  expect(create).toHaveBeenCalledTimes(2)
+  expect(jest.getTimerCount()).toBe(0)
+})
+
+test.each([400, 401, '400', '401'])('an embedded provider error code %s fails without retrying', async code => {
+  jest.useFakeTimers()
+  const create = jest.fn().mockResolvedValue({ error: { code, message: 'Permanent failure' } })
+  const failure = expect(extractBlock(args(create))).rejects.toMatchObject({
+    message: `Block extraction provider error (${code}): Permanent failure`,
     debug: { requestCount: 1, stage: 'llm_call' }
   })
+  await jest.advanceTimersByTimeAsync(15000)
+  await failure
   expect(create).toHaveBeenCalledTimes(1)
+})
+
+test.each([429, '429', '502', undefined])('an embedded provider error code %s retries', async code => {
+  jest.useFakeTimers()
+  const create = jest.fn()
+    .mockResolvedValueOnce({ error: { code, message: 'Temporary failure' } })
+    .mockResolvedValueOnce(response(valid))
+  const pending = extractBlock(args(create))
+  await jest.advanceTimersByTimeAsync(1000)
+  await expect(pending).resolves.toMatchObject({ requestCount: 2 })
+  expect(create).toHaveBeenCalledTimes(2)
+})
+
+test('provider error bodies exhaust four retries and preserve provider details', async () => {
+  jest.useFakeTimers()
+  const create = jest.fn().mockResolvedValue(providerError)
+  const pending = extractBlock(args(create))
+  const failure = expect(pending).rejects.toMatchObject({
+    message: 'Block extraction provider error (502): Upstream server error',
+    debug: { requestCount: 5, stage: 'llm_call' }
+  })
+  await jest.advanceTimersByTimeAsync(0)
+  for (const delay of [1000, 2000, 4000, 8000]) {
+    const calls = create.mock.calls.length
+    await jest.advanceTimersByTimeAsync(delay - 1)
+    expect(create).toHaveBeenCalledTimes(calls)
+    await jest.advanceTimersByTimeAsync(1)
+    expect(create).toHaveBeenCalledTimes(calls + 1)
+  }
+  await failure
+  expect(create).toHaveBeenCalledTimes(5)
+  expect(jest.getTimerCount()).toBe(0)
+})
+
+test('a response without choices or provider error keeps the existing error wording', async () => {
+  jest.useFakeTimers()
+  const create = jest.fn().mockResolvedValue({ choices: [] })
+  const failure = expect(extractBlock(args(create))).rejects.toMatchObject({
+    message: 'Block extraction response must include choices[0]',
+    debug: { requestCount: 5, stage: 'llm_call' }
+  })
+  await jest.advanceTimersByTimeAsync(15000)
+  await failure
+  expect(create).toHaveBeenCalledTimes(5)
+})
+
+test.each([429, 503])('a thrown HTTP %s APIError retries and succeeds', async status => {
+  jest.useFakeTimers()
+  const create = jest.fn()
+    .mockRejectedValueOnce(new APIError(status, { message: 'Service unavailable' }, 'Service unavailable', new Headers()))
+    .mockResolvedValueOnce(response(valid))
+  const pending = extractBlock(args(create))
+  await jest.advanceTimersByTimeAsync(1000)
+  await expect(pending).resolves.toMatchObject({ requestCount: 2 })
+  expect(create).toHaveBeenCalledTimes(2)
   expect(jest.getTimerCount()).toBe(0)
 })
 
