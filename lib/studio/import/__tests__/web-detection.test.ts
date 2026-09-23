@@ -422,6 +422,7 @@ describe('DetectionService (web-based)', () => {
         DECISION_MODEL_ENABLED: 'true',
         DECISION_MODEL_SHADOW: 'false',
         DECISION_MODEL_API_KEY: 'fake',
+        DECISION_MODEL_QUESTIONS: 'page.type',
         DECISION_MODEL_WEBSITE_ALLOWLIST: '',
         DECISION_MODEL_LOG_DIR: ''
       }

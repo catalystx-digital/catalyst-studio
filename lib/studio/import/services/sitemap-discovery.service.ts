@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import * as zlib from 'zlib';
 import { SitemapConfig, LoggingConfig } from '../config';
-import { ask } from '@/lib/studio/decisions';
+import { ask, matchesHardcodedInternalPath } from '@/lib/studio/decisions';
 
 /**
  * File extensions that indicate non-HTML assets.
@@ -251,21 +251,38 @@ export class SitemapDiscoveryService {
       const sorted = entries.sort((a, b) => this.compareEntries(a, b, homeUrl));
       const ordered = [homeUrl, ...sorted.map((entry) => entry.url).filter((entryUrl) => entryUrl !== homeUrl)];
       const normalizedUrls = this.normalizeAndDedupeUrls(ordered);
-      const { reachable, skipped: skippedUrls } = await this.filterReachableUrls(normalizedUrls, maxUrls, websiteId);
+      const privateCheckState = { failed: false };
+      const { reachable, skipped: skippedUrls } = await this.filterReachableUrls(normalizedUrls, maxUrls, websiteId, privateCheckState);
       skipped.push(...skippedUrls);
+      const failedPrivatePaths = new Set(skippedUrls
+        .filter(item => item.reason === 'private-check-failed')
+        .map(item => new URL(item.url).pathname.toLowerCase().replace(/\/$/, '')));
       let urls = reachable.slice(0, maxUrls);
 
       // Inject priority URLs that are missing from discovered results
       if (priorityPaths.length > 0) {
-        const { urls: urlsWithPriority, injected } = await this.injectPriorityUrls(
+        const { urls: urlsWithPriority, injected, skipped: skippedPriorityUrls } = await this.injectPriorityUrls(
           urls,
           priorityPaths,
           origin,
           maxUrls,
-          websiteId
+          websiteId,
+          privateCheckState,
+          failedPrivatePaths
         );
         urls = urlsWithPriority;
         injectedPriorityUrls.push(...injected);
+        const skipKey = (item: { url: string; reason: string }) => {
+          const parsed = new URL(item.url);
+          return JSON.stringify([parsed.origin, parsed.pathname.toLowerCase().replace(/\/$/, ''), parsed.search, item.reason]);
+        };
+        const seenSkips = new Set(skipped.map(skipKey));
+        for (const item of skippedPriorityUrls) {
+          const key = skipKey(item);
+          if (seenSkips.has(key)) continue;
+          seenSkips.add(key);
+          skipped.push(item);
+        }
       }
 
       for (const entry of entries) {
@@ -291,6 +308,11 @@ export class SitemapDiscoveryService {
       }
 
       if (urls.length === 0) {
+        const counts = skipped.reduce<Record<string, number>>((byReason, item) => {
+          byReason[item.reason] = (byReason[item.reason] ?? 0) + 1;
+          return byReason;
+        }, {});
+        console.warn(`[DISCOVERY] No import URLs survived for ${inputUrl}; skipped by reason: ${JSON.stringify(counts)}`);
         return { urls: [inputUrl], sitemapMetaByUrl: metadataByUrl, detectedPlatform, skipped, injectedPriorityUrls };
       }
 
@@ -399,7 +421,7 @@ export class SitemapDiscoveryService {
     return normalized;
   }
 
-  private async filterReachableUrls(urls: string[], maxUrls: number, websiteId?: string): Promise<{ reachable: string[]; skipped: Array<{ url: string; reason: string }> }> {
+  private async filterReachableUrls(urls: string[], maxUrls: number, websiteId?: string, privateCheckState = { failed: false }): Promise<{ reachable: string[]; skipped: Array<{ url: string; reason: string }> }> {
     const reachable: string[] = [];
     const skipped: Array<{ url: string; reason: string }> = [];
 
@@ -409,8 +431,10 @@ export class SitemapDiscoveryService {
     if (skipReachability) {
       console.log('[DISCOVERY] Fast mode: skipping reachability checks');
       for (const url of urls) {
-        if (await this.isLikelyPrivate(url, websiteId)) {
-          skipped.push({ url, reason: 'private-path' });
+        const privateCheck = await this.isLikelyPrivate(url, websiteId, privateCheckState.failed);
+        if (privateCheck.failed) privateCheckState.failed = true;
+        if (privateCheck.isPrivate) {
+          skipped.push({ url, reason: privateCheck.failed ? 'private-check-failed' : 'private-path' });
           continue;
         }
         // Even in fast mode, skip asset URLs to avoid wasting LLM tokens
@@ -434,8 +458,10 @@ export class SitemapDiscoveryService {
     let checked = 0;
     const total = Math.min(urls.length, maxUrls * 2); // Estimate
     for (const url of urls) {
-      if (await this.isLikelyPrivate(url, websiteId)) {
-        skipped.push({ url, reason: 'private-path' });
+      const privateCheck = await this.isLikelyPrivate(url, websiteId, privateCheckState.failed);
+      if (privateCheck.failed) privateCheckState.failed = true;
+      if (privateCheck.isPrivate) {
+        skipped.push({ url, reason: privateCheck.failed ? 'private-check-failed' : 'private-path' });
         continue;
       }
       checked++;
@@ -465,10 +491,13 @@ export class SitemapDiscoveryService {
     priorityPaths: string[],
     origin: string,
     maxUrls: number,
-    websiteId?: string
-  ): Promise<{ urls: string[]; injected: string[] }> {
+    websiteId: string | undefined,
+    privateCheckState: { failed: boolean },
+    failedPrivatePaths: Set<string>
+  ): Promise<{ urls: string[]; injected: string[]; skipped: Array<{ url: string; reason: string }> }> {
     const injected: string[] = [];
-    const existingPathsLower = new Set(
+    const skipped: Array<{ url: string; reason: string }> = [];
+    const handledPathsLower = new Set(
       existingUrls.map(u => {
         try {
           return new URL(u).pathname.toLowerCase().replace(/\/$/, '');
@@ -497,15 +526,23 @@ export class SitemapDiscoveryService {
       }
 
       // Check if already in discovered URLs
-      if (existingPathsLower.has(normalizedPath)) {
+      if (handledPathsLower.has(normalizedPath)) {
         continue;
       }
+      if (failedPrivatePaths.has(normalizedPath)) {
+        continue;
+      }
+      handledPathsLower.add(normalizedPath);
 
       // Build full URL
       const fullUrl = `${origin}${normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath}`;
 
       // Skip private URLs
-      if (await this.isLikelyPrivate(fullUrl, websiteId)) {
+      const privateCheck = await this.isLikelyPrivate(fullUrl, websiteId, privateCheckState.failed);
+      if (privateCheck.failed) privateCheckState.failed = true;
+      if (privateCheck.isPrivate) {
+        if (privateCheck.failed) failedPrivatePaths.add(normalizedPath);
+        skipped.push({ url: fullUrl, reason: privateCheck.failed ? 'private-check-failed' : 'private-path' });
         console.log(`[DISCOVERY] Skipping private priority URL: ${fullUrl}`);
         continue;
       }
@@ -514,18 +551,18 @@ export class SitemapDiscoveryService {
       if (!skipReachability) {
         const reachability = await this.isReachable(fullUrl);
         if (!reachability.ok) {
+          skipped.push({ url: fullUrl, reason: reachability.reason ?? 'unreachable' });
           console.log(`[DISCOVERY] Priority URL not reachable: ${fullUrl} (${reachability.reason})`);
           continue;
         }
       }
 
       injected.push(fullUrl);
-      existingPathsLower.add(normalizedPath);
       console.log(`[DISCOVERY] Injected priority URL: ${fullUrl}`);
     }
 
     if (injected.length === 0) {
-      return { urls: existingUrls, injected };
+      return { urls: existingUrls, injected, skipped };
     }
 
     // Insert injected URLs after home page (position 1) to prioritize them
@@ -535,7 +572,7 @@ export class SitemapDiscoveryService {
     result.splice(insertPosition, 0, ...injected);
 
     // Trim to maxUrls if needed
-    return { urls: result.slice(0, maxUrls), injected };
+    return { urls: result.slice(0, maxUrls), injected, skipped };
   }
 
   /**
@@ -552,9 +589,10 @@ export class SitemapDiscoveryService {
    * as the fallback and still governs whenever the decision model is off or in
    * shadow mode, which is the default.
    */
-  private async isLikelyPrivate(url: string, websiteId?: string): Promise<boolean> {
+  private async isLikelyPrivate(url: string, websiteId?: string, useFallback = false): Promise<{ isPrivate: boolean; failed: boolean }> {
+    if (useFallback) return { isPrivate: matchesHardcodedInternalPath({ url }), failed: false };
     const answer = await ask<boolean>('page.isInternal', { url, nodes: [] }, { url, websiteId });
-    return answer.value === true;
+    return { isPrivate: answer.value === true, failed: answer.source === 'error' };
   }
 
   private shouldSkipReachability(maxUrls: number): boolean {

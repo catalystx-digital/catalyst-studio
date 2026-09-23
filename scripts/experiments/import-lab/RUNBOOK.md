@@ -34,6 +34,8 @@ $env:IMPORT_BLOCK_FILL_MODEL = 'inception/mercury-2.5'
 $env:IMPORT_BLOCK_CONCURRENCY = '8'
 $env:DECISION_MODEL_ENABLED = 'true'
 $env:DECISION_MODEL_SHADOW = 'false'
+# Empty enables only import.block.component and import.block.multiple.
+$env:DECISION_MODEL_QUESTIONS = ''
 $env:DECISION_MODEL_ID = 'typesafe/jev-1.13'
 $env:DECISION_MODEL_TIMEOUT_MS = '15000'
 $env:DECISION_MODEL_WEBSITE_ALLOWLIST = ''

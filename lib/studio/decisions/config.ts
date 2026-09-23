@@ -9,6 +9,7 @@
  *
  * @module decisions/config
  */
+import { hasQuestion } from './registry'
 
 function readString(key: string, fallback: string): string {
   const raw = process.env[key]
@@ -51,6 +52,7 @@ export interface DecisionConfigShape {
   baseUrl: string
   apiKey: string | undefined
   websiteAllowlist: string[]
+  questions: string[]
   timeoutMs: number
   /** Directory for the shadow log. Developer evidence, gitignored. */
   logDir: string
@@ -58,6 +60,7 @@ export interface DecisionConfigShape {
 
 /** Read fresh each call so tests can change env without resetting modules. */
 export function getDecisionConfig(): DecisionConfigShape {
+  const questions = readList('DECISION_MODEL_QUESTIONS')
   return {
     enabled: readBool('DECISION_MODEL_ENABLED', false),
     shadow: readBool('DECISION_MODEL_SHADOW', true),
@@ -65,20 +68,26 @@ export function getDecisionConfig(): DecisionConfigShape {
     baseUrl: readString('DECISION_MODEL_BASE_URL', 'https://openrouter.ai/api'),
     apiKey: process.env.DECISION_MODEL_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim() || undefined,
     websiteAllowlist: readList('DECISION_MODEL_WEBSITE_ALLOWLIST'),
+    questions: questions.length > 0 ? questions : ['import.block.component', 'import.block.multiple'],
     timeoutMs: readInt('DECISION_MODEL_TIMEOUT_MS', 15_000),
     logDir: readString('DECISION_MODEL_LOG_DIR', 'reports/decisions')
   }
 }
 
 /**
- * Global kill switch plus per-tenant allowlist, the same shape as
+ * Question allowlist, global kill switch plus per-tenant allowlist, the same shape as
  * isDomProbeEnabledForWebsite. An empty allowlist means every website.
  */
 export function isDecisionModelEnabledFor(
+  questionIds: string[],
   websiteId?: string,
   options: { tenantScoped?: boolean } = {}
 ): boolean {
   const config = getDecisionConfig()
+  for (const id of config.questions) {
+    if (!hasQuestion(id)) throw new Error(`DECISION_MODEL_QUESTIONS contains unregistered question '${id}'`)
+  }
+  if (!questionIds.every(id => config.questions.includes(id))) return false
   if (!config.enabled) return false
   if (!config.apiKey) return false
   if (config.websiteAllowlist.length === 0) return true
