@@ -1,4 +1,4 @@
-import { loadFamilies, scoreDirectory, validateFamilyOptions, type FamilyOptions } from './families'
+import { loadFamilies, validateFamilyOptions, type FamilyOptions } from './families'
 import { ARMS } from './run-arm'
 import { mapLimited } from './call-recording'
 import fs from 'node:fs/promises'
@@ -10,23 +10,22 @@ import { selectDraftEntries } from './draft-labels'
 import { loadPages, type PageManifest } from './pages'
 import { readSavedResults, callTotals, median, type SavedResult } from './summary'
 
-interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean; ignoreItemCount?:boolean }
+interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean }
 interface Task {page:string;stage:string;script:string;args:string[];existing:boolean;paid:boolean;internet:boolean;calls:number|null;cost:number|null;reason?:string}
 export function parseEval(argv:string[]): EvalOptions {
-  const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed','--ignore-item-count']
+  const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed']
   const allowed=[...flags,'--families','--family-set','--run','--arms','--concurrency','--model']
   if(!['blocks','arms','score','summary','snapshot','draft','review'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|review')
   for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||key in values)throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);values[key]=args[++i]} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
   validateFamilyOptions({families:values['--families'],familySet:values['--family-set']})
   if(values['--families']&&!['score','arms','summary'].includes(command))throw new Error('Family flags apply to score, arms or summary')
-  if(values['--families']&&values['--ignore-item-count'])throw new Error('Family scoring keeps content checks unchanged')
   const arms=values['--arms']?.split(',').map(identifier)||[]
   if(command==='arms'&&(!arms.length||!values['--run']))throw new Error('Arms need --arms a,b,c --run r1')
   if(values['--families']&&command==='arms'&&(arms.some(arm=>arm!=='jev-pick')))throw new Error('Family picking applies only to jev-pick')
   if(arms.some(arm=>![...ARMS,'jev-pick'].includes(arm)))throw new Error('Unknown arm')
   if(new Set(arms).size!==arms.length)throw new Error('Duplicate arm')
-  return {families:values['--families'],familySet:values['--family-set'],command,run:identifier(values['--run']||'r1'),arms,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed'],ignoreItemCount:!!values['--ignore-item-count']}
+  return {families:values['--families'],familySet:values['--family-set'],command,run:identifier(values['--run']||'r1'),arms,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed']}
 }
 export function estimate(history:SavedResult[], arm:string) {
   const rows=history.filter(r=>r.arm===arm&&r.calls.length)
@@ -64,7 +63,7 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     return tasks
   }
   for(const [page,entry] of Object.entries(pages).sort(([a],[b])=>a.localeCompare(b))) {
-    const label=path.join(root,'labels',page), runs=path.join(root,'runs',page), arms=path.join(root,'arms',page)
+    const label=path.join(root,'labels',page), arms=path.join(root,'arms',page)
     if(options.command==='snapshot') {
       const {pageSlug}=await import('./storage')
       if(pageSlug(entry.url)!==page)throw new Error('Snapshot slug must match pageSlug(url): '+page)
@@ -82,21 +81,12 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
       }
     }
     if(options.command==='score') {
-      const scoreRoot=scoreDirectory(page,options), extra=[...(options.ignoreItemCount?['--ignore-item-count']:[]),...familyArgs]
+      const scoreRoot=path.join(label,'scores-stick'), extra=familyArgs
       if(options.families)await add(page,'score','family-pick-score.ts',['--page',page,...familyArgs],null)
-      for(const run of await directories(runs)) {
-        const folder=path.join(runs,run),record=await optionalJson(path.join(folder,'run.json'))
-        if(record?.status!=='complete')continue
-        const saved=await optionalJson(path.join(folder,'arms.json'))
-        const names=saved?Object.entries(saved.arms).filter(([,r]:[string,any])=>r.status==='complete').map(([name])=>run+'--'+name):[run+'--pre-repair']
-        if(!(await Promise.all(names.map(name=>exists(path.join(scoreRoot,name+'.json'))))).every(Boolean)) {
-          await add(page,'score','score.ts',['--page',page,'--all-runs',...extra],null);break
-        }
-      }
       for(const arm of await directories(arms))for(const run of await directories(path.join(arms,arm))) {
         const folder=path.join(arms,arm,run),record=await optionalJson(path.join(folder,'run.json'))
-        if(record?.status==='dry-run'||!await exists(path.join(folder,'components.json'))||arm==='jev-pick'||arm.startsWith('jev-pick@families-'))continue
-        await add(page,'score','score.ts',['--page',page,'--components',path.join(folder,'components.json'),'--name',arm+'--'+run,...extra],path.join(scoreRoot,arm+'--'+run+'.json'))
+        if(!record||record.status==='dry-run'||arm==='jev-pick'||arm.startsWith('jev-pick@families-'))continue
+        await add(page,'score','score.ts',['--page',page,'--components',path.join(folder,'components.json'),'--name',arm+'--'+run+'-v5',...extra],path.join(scoreRoot,arm+'--'+run+'-v5'+(options.families?'-family-'+options.familySet:'')+'.json'))
       }
     }
   }
@@ -134,7 +124,7 @@ async function draftHistory():Promise<SavedResult[]> {
 export async function evaluate(options:EvalOptions) {
   if(options.families)await loadFamilies(options.families,options.familySet!)
   const pages=await loadPages()
-  if(options.command==='score')for(const page of [...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'runs')),...await directories(path.join(dataRoot(),'arms'))])if(!pages[page])pages[page]={url:'https://example.invalid/',kind:'other',heldOut:false,renderWithJavaScript:false,notes:'Discovered for scoring; not saved to manifest'}
+  if(options.command==='score')for(const page of [...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'arms'))])if(!pages[page])pages[page]={url:'https://example.invalid/',kind:'other',heldOut:false,renderWithJavaScript:false,notes:'Discovered for scoring; not saved to manifest'}
   const history=[...await readSavedResults(),...(options.command==='draft'?await draftHistory():[])],tasks=await planEvaluation(options,pages,history)
   printPlan(tasks);authorizePlan(tasks,options)
   if(options.dryRun)return tasks

@@ -22,6 +22,8 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 
 | 13 | [Cleanup](13-cleanup.md) | Keep the repeatable block audit and remove finished experiments. | The winning path was decided; unused machinery and large reports obscured it. |
 
+| 14 | [Accuracy stick](14-accuracy-stick.md) | Derive per-block content expectations from source HTML and score seven checks. | Label-drafted expectations and page-wide invented-text checks could hide content loss or movement. |
+
 ## Removed after the decisions
 
 - Whole-page extraction: most blocks were missed.

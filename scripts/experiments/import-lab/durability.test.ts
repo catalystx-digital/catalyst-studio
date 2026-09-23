@@ -72,17 +72,17 @@ test('HTML item evidence counts hidden carousel slides and reports unresolved an
   expect(evidence.groups).toContainEqual({parent:'root[0]',signature:'article>p',count:3})
   expect(repeatedHtmlChildren('<p>Missing anchor</p>',b).issue).toContain('no longer resolves')
 })
-test('item count mismatches remain reported when excluded from verdict',()=>{
+test('item count without a matching collection records unknown structure',()=>{
   const answer=sheet();answer.entries[0].label!.expected.itemCount=3;answer.entries[0].label!.expected.itemKind='slides'
-  const normal=scoreSheet(answer,[component],'https://example.com/'),ignored=scoreSheet(answer,[component],'https://example.com/',{ignoreItemCount:true})
-  expect(normal.rows[0].verdict).toBe('right type, content incomplete');expect(ignored.rows[0].verdict).toBe('correct');expect(ignored.itemCountMismatches).toHaveLength(1);expect(ignored.rows[0].checks.itemCount.passed).toBe(false)
+  const result=scoreSheet(answer,[component],'https://example.com/')
+  expect(result.rows[0].checks.C6).toMatchObject({passed:null,structureUnknown:true})
+  expect(result.itemCountMismatches).toHaveLength(0)
 })
-test('all-runs skips dry runs without failing or writing a failed score',async()=>{
+test('stick scoring requires saved geometry',async()=>{
   const directory=path.join(process.env.IMPORT_LAB_ROOT!,'labels','comparison-fixture'),proposal=comparisonProposal(),answer=comparisonSheet()
   await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet.json'),answer)
   await atomicJson(path.join(process.env.IMPORT_LAB_ROOT!,'runs','comparison-fixture','preview','run.json'),{status:'dry-run'})
-  await scorePage('comparison-fixture',{allRuns:true});expect(process.exitCode).toBe(originalExit)
-  expect(await fs.readdir(path.join(directory,'scores'))).toEqual([])
+  await expect(scorePage('comparison-fixture',{allRuns:true})).rejects.toThrow('Missing geometry.json')
 })
 test('occupied review port rejects with a clear instruction and the first server remains listening',async()=>{
   const server=await startReviewServer(0)
@@ -113,7 +113,7 @@ test('existing scores survive rescoring with missing component inputs',async()=>
   await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet.json'),comparisonSheet())
   await atomicJson(path.join(directory,'scores','saved.json'),{status:'complete',proof:'unchanged'})
   const original=await fs.readFile(path.join(directory,'scores','saved.json'),'utf8')
-  await scorePage('comparison-fixture',{components:path.join(directory,'missing.json'),name:'saved'})
+  await expect(scorePage('comparison-fixture',{components:path.join(directory,'missing.json'),name:'saved'})).rejects.toThrow('Missing geometry.json')
   expect(await fs.readFile(path.join(directory,'scores','saved.json'),'utf8')).toBe(original)
 })
 test('many future arms stay below 150 lines without losing their tables',()=>{
@@ -125,7 +125,7 @@ test('many future arms stay below 150 lines without losing their tables',()=>{
 test('summary reads saved scores for removed arms without their implementation',async()=>{
   const directory=process.env.IMPORT_LAB_ROOT!,answer=comparisonSheet()
   await atomicJson(path.join(directory,'labels',answer.page,'answer-sheet.json'),answer)
-  await atomicJson(path.join(directory,'labels',answer.page,'scores','retired-fixture--r1.json'),{name:'retired-fixture--r1',status:'complete',rows:[row('notice','correct')]})
+  await atomicJson(path.join(directory,'labels',answer.page,'scores-stick','retired-fixture--r1-v5.json'),{name:'retired-fixture--r1-v5',version:5,status:'complete',rows:[row('notice','correct')]})
   await atomicJson(path.join(directory,'arms',answer.page,'retired-fixture','r1','run.json'),{status:'complete'})
   const saved=await readSavedResults(),report=buildSummary(saved,{})
   expect(report.json.byArm[0]).toMatchObject({arm:'retired-fixture',correct:1,blocks:1})

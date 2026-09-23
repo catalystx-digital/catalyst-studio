@@ -23,6 +23,7 @@ async function verify(){
   await saveSnapshot(path.join(root,'pages',proposal.page),snapshot)
   const labels=path.join(root,'labels',proposal.page)
   await writeJson(path.join(labels,'blocks.json'),proposal);await writeJson(path.join(labels,'answer-sheet.json'),sheet)
+  await writeJson(path.join(labels,'geometry.json'),{tree:{anchorKey:'body',children:[]}})
   await writeJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://example.com/garden',kind:'home',heldOut:false,renderWithJavaScript:false,notes:'Invented fixture'}})
   const typeRequests:string[]=[]
   const typeRun=await runArm({page:proposal.page,run:'type-fixture',arm:'jev-pick',dryRun:false},{decision:{askRaw:async(state:string,questions:any[])=>{typeRequests.push(state);return runtimeRequire('@/lib/studio/decisions').createFakeDecisionClient({'import.block.component':{value:'text-block',probability:0.9,distribution:Object.fromEntries(Object.keys(questions[0].criteria).map(type=>[type,type==='text-block'?0.9:0.1/(Object.keys(questions[0].criteria).length-1)]))},'import.block.multiple':0.1}).askRaw(state,questions)}}})
@@ -30,13 +31,14 @@ async function verify(){
   const typeDirectory=path.join(root,'arms',proposal.page,'jev-pick','type-fixture')
   // Only this invented fixture is admitted to the saved-data reader for the test.
   await writeJson(path.join(typeDirectory,'run.json'),{...typeRun,fixture:false})
-  const components=sheet.entries.map(e=>({type:'html-block',content:{body:e.block.text}})),componentFile=path.join(root,'fixture-components.json')
+  const components=sheet.entries.map(e=>({type:'html-block',content:{body:e.block.text}})),componentFile=path.join(root,'fixture-run','components.json')
   await writeJson(componentFile,components)
+  await writeJson(path.join(path.dirname(componentFile),'run.json'),{status:'complete',snapshotSha256:sheet.snapshotSha256})
   const unscoredDirectory=path.join(root,'arms',proposal.page,'blocks-production','unsaved-type-baseline')
   await writeJson(path.join(unscoredDirectory,'components.json'),components)
   await writeJson(path.join(unscoredDirectory,'run.json'),{status:'complete',snapshotSha256:sheet.snapshotSha256,proposalSha256:sheet.proposalSha256})
   await scorePage(proposal.page,{components:componentFile,name:'fixture'})
-  const protectedFiles=[path.join(labels,'answer-sheet.json'),path.join(labels,'scores','fixture.json'),path.join(typeDirectory,'run.json'),path.join(typeDirectory,'picks.json')]
+  const protectedFiles=[path.join(labels,'answer-sheet.json'),path.join(labels,'scores-stick','fixture.json'),path.join(typeDirectory,'run.json'),path.join(typeDirectory,'picks.json')]
   const hashes=await Promise.all(protectedFiles.map(async f=>digest(await fs.readFile(f,'utf8'))))
   for(const set of ['A','B']){
     const families=await loadFamilies(file,set);assert.equal(families.entries.length,set==='A'?18:16);assert.equal(Object.keys(families.byType).length,50)
@@ -56,7 +58,7 @@ async function verify(){
     assert.equal(dryRecord.callCount,0);assert.equal(dryRecord.plannedCallCount,3)
     const request=await readJson(path.join(dryDir,'calls','00001.json'));assert.equal(request.status,'planned');assert.equal(Object.keys(request.request.questions['import.block.component'].criteria).length,families.entries.length)
     await scorePage(proposal.page,{components:componentFile,name:'fixture',families:file,familySet:set})
-    const score=await readJson(path.join(labels,'scores-family-'+set,'fixture.json'));assert.equal(score.counts.correct,3)
+    const score=await readJson(path.join(labels,'scores-stick','fixture-family-'+set+'.json'));assert.equal(score.reviewedBlocks,3);assert.equal(score.rows.filter((r:any)=>r.checks.C1.passed===true).length,3)
     await evaluate(parseEval(['score','--families',file,'--family-set',set]))
     for(const arm of ['jev-pick','jev-pick@families-'+set]){const r=await readJson(path.join(labels,'scores-family-'+set,'picks',arm+'--'+(arm==='jev-pick'?'type-fixture':'family-fixture')+'.json'));assert.equal(r.top1,3);assert.equal(r.top3,3)}
     await scoreFamilyPicksPage(proposal.page,file,set)

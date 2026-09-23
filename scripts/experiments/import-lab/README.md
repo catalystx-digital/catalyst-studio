@@ -17,6 +17,10 @@ Replay rebuilds the production styling map from saved HTML and stylesheet text. 
 
 Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries and the page manifest remain. Family picking changes only the production component question's options and its type/family wording; it uses the same production evidence and selection.
 
+## Accuracy stick
+
+`score.ts --page PAGE --all-runs` derives expected text, headings, links and image groups from saved HTML and geometry. C1 checks the component family; C2 text runs; C3 heading fields or HTML headings; C4 link targets and labels; C5 content images; C6 counts a found collection against its label; C7 checks invented human text within each block. An absent collection records `structureUnknown` on C6 and does not fail it. Version-5 scores go to `labels/<page>/scores-stick/` with `-v5` filenames; add `--families scripts/experiments/import-lab/component-families.json --family-set C` for set-C family scoring. Existing score folders are retained. A component spanning blocks is checked against the union of those blocks' source evidence, so content in the wrong one of those blocks can still pass a content check.
+
 ## Data and cost
 
 - **FREE:** dry plans, saved-data reads, scoring, summaries, local review and offline tests.

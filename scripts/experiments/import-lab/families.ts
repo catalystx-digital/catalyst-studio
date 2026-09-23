@@ -5,15 +5,15 @@ import { runtimeRequire } from './runtime'
 import type { Pick } from './pick-score'
 
 export interface FamilyOptions { families?: string; familySet?: string }
-export interface FamilySet { set: 'A'|'B'; sha256: string; entries: Array<{type:string;description:string;types:string[]}>; byType: Record<string,string> }
+export interface FamilySet { set: string; sha256: string; entries: Array<{type:string;description:string;types:string[]}>; byType: Record<string,string> }
 export function validateFamilyOptions(options:FamilyOptions) {
   if(Boolean(options.families)!==Boolean(options.familySet))throw new Error('Use --families and --family-set together')
-  if(options.familySet&&!['A','B'].includes(options.familySet))throw new Error('--family-set must be A or B')
+  if(options.familySet&&!/^[A-Za-z][A-Za-z0-9_-]*$/.test(options.familySet))throw new Error('Invalid family set name')
 }
-export function validateFamilies(value:unknown,types:string[]):Record<'A'|'B',FamilySet> {
-  const sets=(value as any)?.sets, result={} as Record<'A'|'B',FamilySet>
-  if(!sets||typeof sets!=='object'||Array.isArray(sets))throw new Error('Family file needs sets A and B')
-  for(const set of ['A','B'] as const){
+export function validateFamilies(value:unknown,types:string[]):Record<string,FamilySet> {
+  const sets=(value as any)?.sets, result:Record<string,FamilySet>={}
+  if(!sets||typeof sets!=='object'||Array.isArray(sets)||!Object.keys(sets).length)throw new Error('Family file needs named sets')
+  for(const set of Object.keys(sets)){
     const families=sets[set],byType:Record<string,string>={},entries:FamilySet['entries']=[],duplicates=new Set<string>(),unknown=new Set<string>()
     if(!families||typeof families!=='object'||Array.isArray(families)||!Object.keys(families).length)throw new Error('Missing family set '+set)
     for(const [name,raw] of Object.entries(families)){
@@ -32,7 +32,9 @@ export async function loadFamilies(file:string,set:string):Promise<FamilySet> {
   validateFamilyOptions({families:file,familySet:set})
   await runtimeRequire('@/lib/studio/components/cms/_factory/initialize').initializeCMSComponents()
   const {blockCatalogue}=await import('./jev-pick')
-  return validateFamilies(await readJson(path.resolve(file)),(await blockCatalogue()).entries.map(c=>c.type))[set as 'A'|'B']
+  const found=validateFamilies(await readJson(path.resolve(file)),(await blockCatalogue()).entries.map(c=>c.type))[set]
+  if(!found)throw new Error('Missing family set '+set)
+  return found
 }
 export function familyOf(type:string,families:FamilySet) {
   if(!Object.hasOwn(families.byType,type))throw new Error('Unknown catalogue type in family set '+families.set+': '+type)
@@ -53,8 +55,7 @@ export function familyPick(pick:Pick,families:FamilySet):Pick {
   return {...pick,distribution,ranked,allowedTypes:acceptableFamilies(pick.allowedTypes,families)}
 }
 export const familyOutputRoot=()=>path.resolve(process.env.IMPORT_LAB_OUTPUT_ROOT||dataRoot())
-export function scoreDirectory(page:string,options:FamilyOptions&{ignoreItemCount?:boolean}={}) {
+export function scoreDirectory(page:string,options:FamilyOptions={}) {
   validateFamilyOptions(options)
-  if(options.families&&options.ignoreItemCount)throw new Error('Family comparison keeps content checks unchanged; omit --ignore-item-count')
-  return path.join(options.families?familyOutputRoot():dataRoot(),'labels',page,options.families?'scores-family-'+options.familySet:options.ignoreItemCount?'scores-ignore-item-count':'scores')
+  return path.join(options.families?familyOutputRoot():dataRoot(),'labels',page,options.families?'scores-family-'+options.familySet:'scores')
 }

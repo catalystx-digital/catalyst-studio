@@ -20,6 +20,7 @@ const labelSchema = z.object({
   containsMultipleComponents: z.boolean(), componentTypes: z.array(z.string().min(1)),
   ignore: z.boolean(), ignoreReason: z.string(),
   expected: z.object({ headings: z.array(z.string().min(1)), itemCount: z.number().int().nonnegative().nullable(), itemKind: z.string().min(1).nullable(), hasImage: z.boolean(), ctaLabels: z.array(z.string().min(1)) }).strict(),
+  decorativeImages: z.array(z.string().min(1)).optional(),
   reason: z.string().min(1)
 }).strict()
 export type Label = z.infer<typeof labelSchema>
