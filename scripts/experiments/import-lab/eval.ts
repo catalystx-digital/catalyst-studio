@@ -22,8 +22,8 @@ export function parseEval(argv:string[]): EvalOptions {
   if(!['blocks','arms','score','summary','snapshot','draft','merge','review','accuracy','leak-check'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|merge|review|accuracy|leak-check')
   for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||(key in values&&key!=='--root'))throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);const value=args[++i];if(key==='--root')roots.push(value);else values[key]=value} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
-  const families=values['--catalogue']||values['--families']||(command==='draft'?path.join(__dirname,'component-families.json'):command==='score'&&values['--family-set']?path.join(__dirname,'component-families.json'):undefined)
-  const familySet=values['--set']||values['--family-set']||(command==='draft'?'C':undefined)
+  const families=values['--catalogue']||values['--families']||(['draft','score'].includes(command)?path.join(__dirname,'component-families.json'):undefined)
+  const familySet=values['--set']||values['--family-set']||(['draft','score'].includes(command)?'C':undefined)
   const provider=(values['--provider']||'openrouter') as DraftProvider
   if(!['openrouter','claude-cli','codex-cli'].includes(provider)||values['--provider']&&command!=='draft')throw new Error('--provider applies to draft and must be openrouter, claude-cli or codex-cli')
   if(command==='draft'&&positive('--concurrency',1)>4)throw new Error('--concurrency must be at most 4 for draft')
@@ -106,7 +106,6 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     }
     if(options.command==='score') {
       const scoreRoot=path.join(label,'scores-stick'), extra=familyArgs
-      if(options.families&&!options.arm)await add(page,'score','family-pick-score.ts',['--page',page,...familyArgs],null)
       for(const arm of await directories(arms))for(const run of await directories(path.join(arms,arm))) {
         if(options.arm&&arm!==options.arm||options.runs.length&&!options.runs.includes(run))continue
         const folder=path.join(arms,arm,run),record=await optionalJson(path.join(folder,'run.json'))
@@ -122,6 +121,7 @@ export function authorizePlan(tasks:Task[],options:EvalOptions) {
   if(!options.dryRun&&!options.yesSpend&&tasks.some(t=>t.paid&&!t.existing))throw new Error('Paid calls are blocked. Read the --dry-run plan, then add --yes-spend to run it.')
 }
 function printPlan(tasks:Task[]) {
+  if(tasks.length&&tasks.every(task=>task.stage==='merge'||task.stage==='score')){console.log(tasks.length+' offline '+tasks[0].stage+' tasks; '+tasks.filter(task=>task.existing).length+' already complete.');return}
   const pending=tasks.filter(t=>!t.existing),unknownCalls=pending.filter(t=>t.calls===null).length,unknownCosts=pending.filter(t=>t.cost===null).length
   if(tasks.length&&tasks.every(t=>t.stage==='draft'))for(const source of ['answer-sheet.json','blocks.json'] as const){const group=tasks.filter(t=>t.source===source);console.log(source+': '+group.length+' pages, '+group.reduce((n,t)=>n+(t.calls||0),0)+' blocks')}
   const subscription=tasks.length>0&&tasks.every(t=>t.stage==='draft'&&!t.paid)
@@ -132,7 +132,7 @@ function printPlan(tasks:Task[]) {
 async function execute(task:Task) {
   await new Promise<void>((resolve,reject)=>{
     const child=spawn(process.execPath,['--import','tsx',path.join(__dirname,task.script),...task.args],{stdio:'inherit',windowsHide:true,env:process.env})
-    child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(new Error(task.page+' '+task.script+' exited '+code)))
+    child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(new Error(task.script+' exited '+code)))
   })
 }
 async function draftHistory():Promise<SavedResult[]> {
@@ -155,7 +155,7 @@ export async function evaluate(options:EvalOptions) {
   if(options.families)await loadFamilies(options.families,options.familySet!)
   const pages=await loadPages()
   if(options.command==='score')for(const page of [...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'arms'))])if(!pages[page])pages[page]={url:'https://example.invalid/',kind:'other',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:'Discovered for scoring; not saved to manifest'}
-  const history=[...await readSavedResults(),...(options.command==='draft'?await draftHistory():[])],tasks=await planEvaluation(options,pages,history)
+  const history=[...(options.command==='arms'?await readSavedResults():[]),...(options.command==='draft'?await draftHistory():[])],tasks=await planEvaluation(options,pages,history)
   printPlan(tasks);authorizePlan(tasks,options)
   if(options.dryRun)return tasks
   if(options.command==='merge') {

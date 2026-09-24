@@ -6,10 +6,10 @@ import { share, totals, stability, splitResults, pickTotals, buildSummary, readS
 import { validatePages, initializePages, loadPages, setSiteKind } from './pages'
 import { parseEval, planEvaluation, authorizePlan, estimate } from './eval'
 import { repeatedHtmlChildren } from './draft-labels'
-import { comparisonBlocks, comparisonProposal, comparisonSheet } from './phase3-fixtures'
+import { comparisonBlocks, comparisonProposal, comparisonSheet, comparisonV2Sheet } from './phase3-fixtures'
 import { atomicJson } from './labels'
 import { scorePage } from './score'
-import { scoreSheet } from './scoring'
+import { scoreFixture as scoreSheet } from './phase2-fixtures'
 import { startReviewServer } from './review-server'
 import { summary } from './summary'
 import { sheet, component } from './phase2-fixtures'
@@ -66,7 +66,7 @@ test('item count without a matching collection records unknown structure',()=>{
 })
 test('stick scoring requires saved geometry',async()=>{
   const directory=path.join(process.env.IMPORT_LAB_ROOT!,'labels','comparison-fixture'),proposal=comparisonProposal(),answer=comparisonSheet()
-  await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet.json'),answer)
+  await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet-v2.json'),comparisonV2Sheet())
   await atomicJson(path.join(process.env.IMPORT_LAB_ROOT!,'runs','comparison-fixture','preview','run.json'),{status:'dry-run'})
   await expect(scorePage('comparison-fixture',{allRuns:true})).rejects.toThrow('Missing geometry.json')
 })
@@ -85,7 +85,7 @@ test('summary leaves other saved reports byte-for-byte unchanged',async()=>{
 
 test('existing scores survive rescoring with missing component inputs',async()=>{
   const directory=path.join(process.env.IMPORT_LAB_ROOT!,'labels','comparison-fixture'),proposal=comparisonProposal()
-  await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet.json'),comparisonSheet())
+  await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet-v2.json'),comparisonV2Sheet())
   await atomicJson(path.join(directory,'scores','saved.json'),{status:'complete',proof:'unchanged'})
   const original=await fs.readFile(path.join(directory,'scores','saved.json'),'utf8')
   await expect(scorePage('comparison-fixture',{components:path.join(directory,'missing.json'),name:'saved'})).rejects.toThrow('Missing geometry.json')
@@ -100,7 +100,7 @@ test('many future arms stay below 150 lines without losing their tables',()=>{
 test('summary reads saved scores for removed arms without their implementation',async()=>{
   const directory=process.env.IMPORT_LAB_ROOT!,answer=comparisonSheet()
   await atomicJson(path.join(directory,'labels',answer.page,'answer-sheet.json'),answer)
-  await atomicJson(path.join(directory,'labels',answer.page,'scores-stick','retired-fixture--r1--stick1.json'),{name:'retired-fixture--r1--stick1',version:5,status:'complete',rows:[row('notice','correct')]})
+  await atomicJson(path.join(directory,'labels',answer.page,'scores-stick','retired-fixture--r1--stick2-family-C.json'),{name:'retired-fixture--r1--stick2-family-C',familySet:'C',version:6,status:'complete',rows:[row('notice','correct')]})
   await atomicJson(path.join(directory,'arms',answer.page,'retired-fixture','r1','run.json'),{status:'complete'})
   const saved=await readSavedResults(),report=buildSummary(saved,{})
   expect(report.json.byArm[0]).toMatchObject({arm:'retired-fixture',correct:1,blocks:1})
@@ -108,7 +108,7 @@ test('summary reads saved scores for removed arms without their implementation',
 })
 test('summary does not assign an extended run score to a shorter run',async()=>{
   const root=process.env.IMPORT_LAB_ROOT!,page='garden',arm='blocks-production'
-  await atomicJson(path.join(root,'labels',page,'scores-stick',`${arm}--r1-extra-v5.json`),{name:`${arm}--r1-extra-v5`,status:'complete',rows:[row('only-extra','correct')]})
+  await atomicJson(path.join(root,'labels',page,'scores-stick',`${arm}--r1-extra--stick2-family-C.json`),{name:`${arm}--r1-extra--stick2-family-C`,familySet:'C',status:'complete',rows:[row('only-extra','correct')]})
   for(const run of ['r1','r1-extra'])await atomicJson(path.join(root,'arms',page,arm,run,'run.json'),{status:'complete'})
   const saved=(await readSavedResults()).filter(result=>result.page===page&&result.arm===arm)
   expect(saved.find(result=>result.run==='r1')).toMatchObject({rows:[],issues:['No saved score']})

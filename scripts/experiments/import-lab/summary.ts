@@ -5,9 +5,9 @@ import path from 'node:path'
 import { dataRoot, readJson, main } from './storage'
 import { directories, optionalJson, sha, type Sheet } from './labels'
 import { loadPages, type PageManifest } from './pages'
-import { scoreSheet } from './scoring'
 import { stickScoreName } from './stick-version'
 import { probabilityBand } from './pick-score'
+import type { V2Sheet } from './scoring'
 
 export function callTotals(calls:any[]) {
   const active=calls.filter(c=>!['planned','dry-run'].includes(c.status))
@@ -25,7 +25,7 @@ const safe = (v: unknown) => String(v).replace(/\|/g, '\\|').replace(/[\r\n]+/g,
 export const share = (n: number, d: number, distinct = d) => n + '/' + d + (d ? ' (' + (100*n/d).toFixed(1) + '%)' : ' (not measured)') + (distinct < 20 ? ' *' : '')
 export function splitResults(rows: SavedResult[], pages: PageManifest, heldOut: boolean) { return rows.filter(r => pages[r.page] && pages[r.page].heldOut === heldOut) }
 export function totals(results: SavedResult[]) {
-  const rows = results.flatMap(r => r.rows.filter(b => !b.ignored)), distinct = new Set(results.flatMap(r => r.rows.filter(b => !b.ignored).map(b => r.page + ':' + b.id))).size
+  const rows = results.flatMap(r => r.rows.filter(b => !b.ignored&&b.verdict!=='unsettled')), distinct = new Set(results.flatMap(r => r.rows.filter(b => !b.ignored&&b.verdict!=='unsettled').map(b => r.page + ':' + b.id))).size
   const count = (v: string) => rows.filter(b => b.verdict === v).length
   return {blocks: rows.length, distinct, correct: count('correct'), incomplete: count('right type, content incomplete'), wrong: count('wrong type'), missed: count('missed'), right: count('correct') + count('right type, content incomplete'), ignored: results.reduce((n,r) => n + r.rows.filter(b => b.ignored).length, 0)}
 }
@@ -40,7 +40,7 @@ export function stability(results: SavedResult[]) {
         const b=rows.find(r => r.page === a.page && r.run === runs[j])
         if (!b) continue
         if (a.sheetHash !== b.sheetHash || a.record?.comparisonKey !== b.record?.comparisonKey) { excluded++; continue }
-        for (const x of a.rows.filter(x => !x.ignored)) { const y=b.rows.find(y => y.id === x.id && !y.ignored); if (y) { blocks++; if (x.verdict === y.verdict) same++ } }
+        for (const x of a.rows.filter(x => !x.ignored&&x.verdict!=='unsettled')) { const y=b.rows.find(y => y.id === x.id && !y.ignored&&y.verdict!=='unsettled'); if (y) { blocks++; if (x.verdict === y.verdict) same++ } }
       }
       pairs.push({arm, runs:[runs[i],runs[j]],same,blocks,excluded})
     }
@@ -57,42 +57,35 @@ export function pickTotals(rows: any[]) {
 export const median = (values: number[]) => { const a=[...values].sort((a,b)=>a-b); return a.length ? (a[Math.floor((a.length-1)/2)]+a[Math.floor(a.length/2)])/2 : null }
 async function jsonFiles(directory: string) { try { return (await fs.readdir(directory)).filter(f=>f.endsWith('.json')).sort() } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return []; throw e } }
 function compactCall(c: any) { return {status:c.status,kind:c.kind,usage:c.usage,cost:c.cost,latencyMs:c.latencyMs,totalCharacters:c.totalCharacters,truncation:c.truncation,error:c.error,retryReason:c.retryReason} }
-export async function readSavedResults(families?:FamilySet,comparisonBaseline=false): Promise<SavedResult[]> {
+export async function readSavedResults(families?:FamilySet): Promise<SavedResult[]> {
   const results: SavedResult[] = [], pages = [...new Set([...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'runs')),...await directories(path.join(dataRoot(),'arms'))])].sort()
   for (const page of pages) {
-    const sheet=await optionalJson<Sheet>(path.join(dataRoot(),'labels',page,'answer-sheet.json')), sheetHash=sheet?sha(sheet):undefined
+    const sheet=await optionalJson<V2Sheet>(path.join(dataRoot(),'labels',page,'answer-sheet-v2.json')),sheetHash=sheet?sha(sheet):undefined
     const scores:any[]=[],scoreRoot=path.join(dataRoot(),'labels',page,'scores-stick')
-    for (const file of await jsonFiles(scoreRoot)) {const score=await readJson(path.join(scoreRoot,file));if(score.familySet===families?.set)scores.push(score)}
-    const stickScore=(arm:string,run:string,...legacyPrefixes:string[])=>scores.find(score=>score.name===stickScoreName(arm,run,families?.set))||scores.filter(score=>legacyPrefixes.some(prefix=>[prefix,`${prefix}-v5`,`${prefix}-v6`].includes(score.name))).sort((a,b)=>(a.version||0)-(b.version||0)).at(-1)
+    const scoreSet=families?.set||'C'
+    for (const file of await jsonFiles(scoreRoot)) {const score=await readJson(path.join(scoreRoot,file));if(score.familySet===scoreSet)scores.push(score)}
+    const stickScore=(arm:string,run:string)=>scores.find(score=>score.name===stickScoreName(arm,run,scoreSet))
     const add = async (arm: string, run: string, directory: string, score: any, record: any, old=false) => {
       if (record?.fixture || record?.status === 'dry-run') return
-      let computedTypeBaseline=false
-      if(comparisonBaseline&&!families&&!isPickArm(arm)&&sheet&&(score?.status!=='complete'||score?.answerSheetSha256!==sheetHash)){
-        const proposal=await optionalJson(path.join(dataRoot(),'labels',page,'blocks.json'))
-        if(proposal&&sha(proposal)===sheet.proposalSha256&&record?.snapshotSha256===sheet.snapshotSha256&&(!record.proposalSha256||record.proposalSha256===sheet.proposalSha256)){
-          const savedArms=old?await optionalJson(path.join(directory,'arms.json')):null
-          const components=old?(savedArms?.arms[arm==='today-off'?'off':arm.replace(/^today-/,'')]?.components||(arm==='today-off'?await optionalJson(path.join(directory,'pre-repair.json')):null)):await optionalJson(path.join(directory,'components.json'))
-          if(Array.isArray(components)){score={...scoreSheet(sheet,components,proposal.finalUrl),status:'complete'};computedTypeBaseline=true}
-        }
-      }
       const calls:any[]=[]
       for (const f of await jsonFiles(path.join(directory,'calls'))) calls.push(compactCall(await readJson(path.join(directory,'calls',f))))
-      const issues:string[]=computedTypeBaseline?['Type baseline computed in memory; saved type scores unchanged']:[], rows=score?.status==='complete' ? score.rows || [] : []
+      const issues:string[]=[], rows=score?.status==='complete' ? score.rows || [] : []
       if (!score && !isPickArm(arm)) issues.push('No saved score')
       if (score?.answerSheetSha256 && score.answerSheetSha256 !== sheetHash) issues.push('Saved score uses an older answer sheet')
       if (record?.answerSheetSha256 && record.answerSheetSha256 !== sheetHash) issues.push('Run used earlier labels')
       const reviewedBy:Record<string,string>={}
-      for (const row of rows) reviewedBy[row.id] = score.answerSheetSha256 === sheetHash ? sheet?.entries.find(e=>e.block.id===row.id)?.reviewedBy || 'unknown' : 'unknown (older labels)'
+      for (const row of rows) reviewedBy[row.id] = score.answerSheetSha256 === sheetHash ? (sheet?.entries.find(e=>e.blockId===row.id) as any)?.reviewedBy || 'unknown' : 'unknown (older labels)'
       let seconds=finite(record?.wallClockSeconds)?record.wallClockSeconds:null
       if (old) { const detection=await optionalJson(path.join(directory,'detection.json')); seconds=finite(detection?.timingBreakdown?.totalDurationMs)?detection.timingBreakdown.totalDurationMs/1000:null }
       // Saved replies may be checked against the saved answer sheet; no extraction or matching is re-run.
       let picks:any[]=[]
       if (arm==='jev-pick'||(families&&arm==='jev-pick@families-'+families.set)) {
         const saved=await optionalJson(path.join(directory,'picks.json'))
-        if (sheet && saved?.picks && !saved.dryAssumptions) {try{picks=checkedPickScore(sheet,record,saved,families)?.rows||[]}catch(error){issues.push(String(error))}}
+        const pickSheet=await optionalJson<Sheet>(path.join(dataRoot(),'labels',page,'answer-sheet.json'))
+        if (pickSheet && saved?.picks && !saved.dryAssumptions) {try{picks=checkedPickScore(pickSheet,record,saved,families)?.rows||[]}catch(error){issues.push(String(error))}}
         else { const p=await optionalJson(path.join(directory,'pick-score.json')); picks=families?[]:p?.rows || [] }
       }
-      results.push({page,arm,run,status:record?.status || 'missing run',rows,sheetHash:score?.answerSheetSha256,reviewedBy,calls,seconds,issues,picks,record:{computedTypeBaseline,familySha256:score?.familySha256,families:record?.families,comparisonKey:record?.comparisonKey,models:record?.models,model:record?.model,createdAt:record?.createdAt}})
+      results.push({page,arm,run,status:record?.status || 'missing run',rows,sheetHash:score?.answerSheetSha256,reviewedBy,calls,seconds,issues,picks,record:{familySha256:score?.familySha256,families:record?.families,comparisonKey:record?.comparisonKey,models:record?.models,model:record?.model,createdAt:record?.createdAt}})
     }
     for (const run of await directories(path.join(dataRoot(),'runs',page))) {
       const directory=path.join(dataRoot(),'runs',page,run), record=await optionalJson(path.join(directory,'run.json'))
@@ -101,12 +94,12 @@ export async function readSavedResults(families?:FamilySet,comparisonBaseline=fa
       if (!names.size) names.add('off')
       for (const name of names) {
         if (name==='on-as-production') continue
-        await add(name==='off'||name==='pre-repair'?'today-off':name==='on-own-page'?'today-on-own-page':'today-'+name,run,directory,stickScore(name,run,run+'--'+name),record,true)
+        await add(name==='off'||name==='pre-repair'?'today-off':name==='on-own-page'?'today-on-own-page':'today-'+name,run,directory,stickScore(name,run),record,true)
       }
     }
     for (const arm of await directories(path.join(dataRoot(),'arms',page))) for (const run of await directories(path.join(dataRoot(),'arms',page,arm))) {
       const directory=path.join(dataRoot(),'arms',page,arm,run)
-      await add(arm,run,directory,stickScore(arm,run,arm+'--'+run,...(arm==='blocks-production'?[run]:[])),await optionalJson(path.join(directory,'run.json')))
+      await add(arm,run,directory,stickScore(arm,run),await optionalJson(path.join(directory,'run.json')))
     }
   }
   return results
@@ -126,7 +119,7 @@ export function buildSummary(results: SavedResult[], pages: PageManifest) {
   const headline='Component right: today '+share(today?.right||0,today?.blocks||0,today?.distinct||0)+'; '+(bestAll?armLabel(bestAll.arm):'not measured')+' (best on other pages) '+share(bestAll?.right||0,bestAll?.blocks||0,bestAll?.distinct||0)+'.'
   const picks=pickTotals(results.flatMap(r=>r.picks.map(p=>({...p,page:r.page})))), repeats=stability(results)
   const reviewers:Record<string,Set<string>>={}
-  for(const r of scored) for(const b of r.rows) { const who=r.reviewedBy[b.id]||'unknown'; (reviewers[who]??=new Set()).add(r.page+':'+b.id+':'+r.sheetHash) }
+  for(const r of scored) for(const b of r.rows.filter(b=>!b.ignored&&b.verdict!=='unsettled')) { const who=r.reviewedBy[b.id]||'unknown'; (reviewers[who]??=new Set()).add(r.page+':'+b.id+':'+r.sheetHash) }
   const accounting=arms.map(arm=>{
     const rs=results.filter(r=>r.arm===arm), calls=rs.flatMap(r=>r.calls), t=callTotals(calls), times=rs.map(r=>r.seconds).filter(finite)
     const completeCosts=rs.map(r=>callTotals(r.calls).cost).filter(c=>c.count>0&&c.known===c.count)
@@ -135,7 +128,7 @@ export function buildSummary(results: SavedResult[], pages: PageManifest) {
       costPerPage:completeCosts.length?completeCosts.reduce((n,c)=>n+c.value,0)/completeCosts.length:null,costPages:completeCosts.length}
   })
   const checks=arms.map(arm=>{
-    const rows=scored.filter(r=>r.arm===arm).flatMap(r=>r.rows).filter(b=>!b.ignored), names=[...new Set<string>(rows.flatMap(b=>Object.keys(b.checks||{})))]
+    const rows=scored.filter(r=>r.arm===arm).flatMap(r=>r.rows).filter(b=>!b.ignored&&b.verdict!=='unsettled'), names=[...new Set<string>(rows.flatMap(b=>Object.keys(b.checks||{})))]
     return {arm,checks:names.map(name=>({name,failed:rows.filter(b=>b.checks?.[name]?.passed===false).length,checked:rows.filter(b=>typeof b.checks?.[name]?.passed==='boolean').length})).sort((a,b)=>b.failed-a.failed)}
   })
   const lines=[headline,'','Best is chosen from other pages only. Totals include scored partial runs; repeated runs count again. Page coverage differs, so this is not a controlled ranking.','* Fewer than 20 blocks. Ignored blocks are excluded from the four verdict columns and component-right counts.','Correct means component and checked content are right. Component right = correct + content incomplete.','','All saved scores','| Arm / run | Blocks | Correct | Content incomplete | Wrong component | Missed | Component right | Partial / unscored page runs |','| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |']

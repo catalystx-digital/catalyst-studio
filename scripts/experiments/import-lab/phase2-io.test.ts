@@ -15,7 +15,7 @@ beforeEach(async()=>{
   directory=labelDirectory('_fixture');await fs.mkdir(directory,{recursive:true})
   const proposal:Proposal={version:1,page:'_fixture',snapshotSha256:digest(fixtureHtml),finalUrl:'https://example.com/',javascriptEnabled:false,renderedHeight:300,viewportWidth:1440,blocks:[block()],issues:[],status:'complete'}
   await atomicJson(path.join(directory,'blocks.json'),proposal)
-  await atomicJson(path.join(directory,'answer-sheet.json'),{...sheet(),snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal)})
+  await atomicJson(path.join(directory,'answer-sheet-v2.json'),{version:2,page:'_fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),familySet:'C',entries:[{blockId:proposal.blocks[0].id,order:1,status:'agreed',label:{family:'hero',acceptableFamilies:['hero'],multiple:false,familiesInOrder:[],placement:'main',ignore:false,ignoreReason:'',itemCount:null,itemKind:null,decorativeImages:[],reason:{a:'Invented',b:'Invented'}}}]})
   await atomicJson(path.join(directory,'geometry.json'),{tree:{anchorKey:'body',children:[]}})
   const page=path.join(process.env.IMPORT_LAB_ROOT!,'pages','_fixture');await fs.mkdir(page,{recursive:true});await fs.writeFile(path.join(page,'page.html'),fixtureHtml);await atomicJson(path.join(page,'stylesheets.json'),[])
 })
@@ -28,12 +28,12 @@ test('bulk scoring retains completed sections from a failed run',async()=>{
   await atomicJson(path.join(failed,'run.json'),{snapshotSha256:digest(fixtureHtml),status:'failed',failures:[{stage:'run'}]})
   await atomicJson(path.join(failed,'components.json'),[component])
   await scorePage('_fixture',{allRuns:true})
-  expect((await readJson(path.join(directory,'scores-stick',stickScoreName('blocks-production','run-1')+'.json'))).counts.missed).toBe(0)
-  expect((await readJson(path.join(directory,'scores-stick',stickScoreName('blocks-production','run-stage')+'.json'))).counts.missed).toBe(1)
+  expect((await readJson(path.join(directory,'scores-stick',stickScoreName('blocks-production','run-1','C')+'.json'))).counts.missed).toBe(0)
+  expect((await readJson(path.join(directory,'scores-stick',stickScoreName('blocks-production','run-stage','C')+'.json'))).counts.missed).toBe(1)
 })
 test('missing manual components mark every block missed',async()=>{
   await scorePage('_fixture',{components:path.join(directory,'missing.json'),name:'broken'})
-  expect((await readJson(path.join(directory,'scores-stick','broken.json'))).counts.missed).toBe(1)
+  expect((await readJson(path.join(directory,'scores-stick','broken-family-C.json'))).counts.missed).toBe(1)
 })
 
 test('manual score honors the saved run stage',async()=>{
@@ -41,27 +41,27 @@ test('manual score honors the saved run stage',async()=>{
   await atomicJson(path.join(folder,'components.json'),[component])
   await atomicJson(path.join(folder,'run.json'),{snapshotSha256:digest(fixtureHtml),status:'failed',failures:[{stage:'run'}]})
   await scorePage('_fixture',{components:path.join(folder,'components.json'),name:'manual-stage'})
-  expect((await readJson(path.join(directory,'scores-stick','manual-stage.json'))).counts.missed).toBe(1)
+  expect((await readJson(path.join(directory,'scores-stick','manual-stage-family-C.json'))).counts.missed).toBe(1)
 })
 test('the same input preserves identical score bytes',async()=>{
   const input=path.join(directory,'components.json');await atomicJson(input,[component])
   await atomicJson(path.join(directory,'run.json'),{snapshotSha256:digest(fixtureHtml),status:'complete'})
   await scorePage('_fixture',{components:input,name:'repeat'})
-  const file=path.join(directory,'scores-stick','repeat.json'),first=await fs.readFile(file)
+  const file=path.join(directory,'scores-stick','repeat-family-C.json'),first=await fs.readFile(file)
   await scorePage('_fixture',{components:input,name:'repeat-again'})
-  const regenerated=JSON.parse(await fs.readFile(path.join(directory,'scores-stick','repeat-again.json'),'utf8'))
-  regenerated.name='repeat'
+  const regenerated=JSON.parse(await fs.readFile(path.join(directory,'scores-stick','repeat-again-family-C.json'),'utf8'))
+  regenerated.name='repeat-family-C'
   expect(Buffer.from(JSON.stringify(regenerated,null,2)+'\n')).toEqual(first)
 })
 test('run snapshot and saved HTML mismatches reject without writing a score',async()=>{
   const input=path.join(directory,'components.json');await atomicJson(input,[component])
   await atomicJson(path.join(directory,'run.json'),{snapshotSha256:'different-snapshot',status:'complete'})
   await expect(scorePage('_fixture',{components:input,name:'wrong-run'})).rejects.toThrow('Run snapshot checksum differs')
-  await expect(fs.access(path.join(directory,'scores-stick','wrong-run.json'))).rejects.toMatchObject({code:'ENOENT'})
+  await expect(fs.access(path.join(directory,'scores-stick','wrong-run-family-C.json'))).rejects.toMatchObject({code:'ENOENT'})
   await atomicJson(path.join(directory,'run.json'),{snapshotSha256:digest(fixtureHtml),status:'complete'})
   await fs.writeFile(path.join(process.env.IMPORT_LAB_ROOT!,'pages','_fixture','page.html'),fixtureHtml+' ')
   await expect(scorePage('_fixture',{components:input,name:'wrong-html'})).rejects.toThrow('Saved page HTML snapshot checksum differs')
-  await expect(fs.access(path.join(directory,'scores-stick','wrong-html.json'))).rejects.toMatchObject({code:'ENOENT'})
+  await expect(fs.access(path.join(directory,'scores-stick','wrong-html-family-C.json'))).rejects.toMatchObject({code:'ENOENT'})
 })
 test('evaluation schedules only saved arm runs for stick scoring',async()=>{
   const root=process.env.IMPORT_LAB_ROOT!

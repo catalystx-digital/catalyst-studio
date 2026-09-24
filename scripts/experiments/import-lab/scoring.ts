@@ -1,14 +1,17 @@
 import { componentStrings, componentResources, extractPageEvidence, isHumanText, measureTextKept, measureTextNotFound, normalizeText, containsPhrase, wordShingles, TEXT_COVERAGE_THRESHOLD, absoluteUrl, type Component, type Field } from './metrics'
-import { familyOf, acceptableFamilies, type FamilySet } from './families'
-import { sha, type Block, type Entry, type Sheet } from './labels'
+import { familyOf, type FamilySet } from './families'
+import { sha, type Block, type FamilyLabel } from './labels'
 import type { SourceEvidence } from './source-evidence'
 import { fallbackEvidence } from './source-evidence'
 import { createRequire } from 'node:module'
 const {parseFragment}=createRequire(__filename)('parse5') as typeof import('parse5')
-const verdicts=['correct','right type, content incomplete','wrong type','missed','should have been ignored'] as const
+const verdicts=['correct','right type, content incomplete','wrong type','missed','should have been ignored','unsettled'] as const
 type Verdict=typeof verdicts[number]
 interface Check { passed: boolean | null; expected: unknown; produced: unknown; detail: string; structureUnknown?:boolean }
-interface BlockScore { id: string; order: number; description: string; acceptableTypes: string[]; producedTypes: string[]; componentIndices: number[]; verdict: Verdict; checks: Record<'C1'|'C2'|'C3'|'C4'|'C5'|'C6'|'C7',Check>; failedChecks: string[]; split: boolean; splitAllowed: boolean; merged: boolean; ignored: boolean; structuralErrors: string[] }
+interface BlockScore { id: string; order: number; description: string; acceptableFamilies: string[]; producedFamilies: string[]; producedTypes: string[]; componentIndices: number[]; verdict: Verdict; checks: Record<'C1'|'C2'|'C3'|'C4'|'C5'|'C6'|'C7',Check>; failedChecks: string[]; split: boolean; splitAllowed: boolean; merged: boolean; ignored: boolean; structuralErrors: string[] }
+export interface V2Sheet {version:2;page:string;heldOut?:boolean;snapshotSha256:string;proposalSha256:string;blocks?:Block[];familySet:string;entries:Array<{blockId:string;order:number;status:string;label:Record<string,unknown>}>}
+const hasDispute=(value:unknown):boolean=>!!value&&typeof value==='object'&&(('disputed' in value&&value.disputed===true)||Object.values(value).some(hasDispute))
+const familyName=(type:string,families:FamilySet)=>families.entries.some(entry=>entry.type===type)?type:familyOf(type,families)
 const includesText=containsPhrase
 const HEADING_KEYS=new Set(['title','heading','headline','subheading','subtitle','eyebrow','name','question'])
 const lastKey=(field:Field)=>field.path.split('.').pop()!.replace(/\[\d+\]/g,'')
@@ -68,17 +71,15 @@ const emptyEvidence=(block:Block,baseUrl:string):SourceEvidence=>fallbackEvidenc
 function unionEvidence(evidence:SourceEvidence[]):SourceEvidence {
   return {text:evidence.flatMap(e=>e.text),headings:evidence.flatMap(e=>e.headings),links:evidence.flatMap(e=>e.links),images:evidence.flatMap(e=>e.images),wordCount:evidence.reduce((n,e)=>n+e.wordCount,0),sourceText:evidence.map(e=>e.sourceText).join(' ')}
 }
-export function checkContent(entry:Entry, components:Component[], baseUrl:string, source:SourceEvidence=emptyEvidence(entry.block,baseUrl), family?:FamilySet, pageSource=''):BlockScore['checks'] {
-  if(!entry.label)throw new Error('Reviewed block has no label: '+entry.block.id)
-  const fields=componentStrings(components), human=fields.filter(field=>isHumanText(field,1)), label=entry.label
-  const mapped=(type:string)=>family?familyOf(type,family):type
-  const acceptable=family?acceptableFamilies(label.acceptableTypes,family):label.acceptableTypes
-  const remaining=label.componentTypes.map(mapped)
-  const rightType=label.containsMultipleComponents?components.every(c=>{const index=remaining.indexOf(mapped(c.type));if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:components.every(c=>acceptable.includes(mapped(c.type)))
+export function checkContent(block:Block,label:FamilyLabel,components:Component[],baseUrl:string,families:FamilySet,source:SourceEvidence=emptyEvidence(block,baseUrl),pageSource=''):BlockScore['checks'] {
+  const fields=componentStrings(components), human=fields.filter(field=>isHumanText(field,1))
+  const producedFamilies=components.map(c=>familyName(c.type,families))
+  const remaining=[...label.familiesInOrder]
+  const rightType=label.multiple?producedFamilies.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:producedFamilies.every(name=>label.acceptableFamilies.includes(name))
   const missingRuns=source.text.filter(run=>!components.some(component=>measureTextKept([run],componentStrings([component])).scores[0]?.kept))
   const headingFields=[...fields.filter(f=>HEADING_KEYS.has(lastKey(f))).map(f=>f.value),...fields.filter(f=>/<[a-z][\s\S]*>/i.test(f.value)).flatMap(f=>htmlHeadings(f.value))]
   const missingHeadings=source.headings.filter(h=>!phrasePresent(headingFields,h))
-  const resources=componentResources(fields,{...extractPageEvidence('',baseUrl),images:source.images.flatMap(group=>group.addresses.map(url=>({url,region:entry.block.region})))})
+  const resources=componentResources(fields,{...extractPageEvidence('',baseUrl),images:source.images.flatMap(group=>group.addresses.map(url=>({url,region:block.region})))})
   const outputLinks=new Set(resources.links.map(item=>absoluteUrl(item.url,baseUrl,'link')).filter(Boolean))
   const missingLinks=source.links.filter(link=>!outputLinks.has(absoluteUrl(link.url,baseUrl,'link')))
   const humanByComponent=components.map((_,index)=>fields.filter(f=>f.componentIndex===index&&(isHumanText(f,1)||/^\S+@\S+\.\S+$/.test(f.value)||/^\+?[\d\s().-]{3,}$/.test(f.value))).map(f=>normalizeText(f.value)).join(' '))
@@ -87,42 +88,46 @@ export function checkContent(entry:Entry, components:Component[], baseUrl:string
   const decorations=new Set((label.decorativeImages||[]).map(address=>absoluteUrl(address,baseUrl,'image')))
   const contentImages=source.images.filter(group=>!group.addresses.some(address=>decorations.has(absoluteUrl(address,baseUrl,'image'))))
   const missingImages=contentImages.filter(group=>!group.addresses.some(address=>outputImages.has(absoluteUrl(address,baseUrl,'image'))))
-  const item=countItems(components,label.expected.itemKind)
+  const item=countItems(components,label.itemKind)
   const alt=human.filter(f=>lastKey(f).toLowerCase()==='alt'),subject=human.filter(f=>lastKey(f).toLowerCase()!=='alt')
   const notFound=measureTextNotFound(subject,source.sourceText).notFound
   const totalCharacters=subject.reduce((n,f)=>n+normalizeText(f.value).length,0)
   const notFoundCharacters=notFound.reduce((n,f)=>n+normalizeText(f.value).length,0)
   const moved=notFound.filter(f=>pageSource&&measureTextNotFound([f],pageSource).notFound.length===0).map(f=>f.path)
   return {
-    C1:{passed:components.length?rightType:false,expected:label.containsMultipleComponents?label.componentTypes:acceptable,produced:components.map(c=>mapped(c.type)),detail:components.length?(rightType?'Right type or family':'Wrong type or family'):'No matched component'},
+    C1:{passed:components.length?rightType:false,expected:label.multiple?label.familiesInOrder:label.acceptableFamilies,produced:producedFamilies,detail:components.length?(rightType?'Right family':'Wrong family'):'No matched component'},
     C2:{passed:missingRuns.length===0,expected:source.text.length,produced:source.text.length-missingRuns.length,detail:missingRuns.map(run=>run.text).join('; ')},
     C3:{passed:missingHeadings.length===0,expected:source.headings,produced:source.headings.filter(h=>!missingHeadings.includes(h)),detail:missingHeadings.join('; ')},
     C4:{passed:!missingLinks.length&&!missingLabels.length,expected:source.links,produced:resources.links.map(l=>l.url),detail:`Missing targets: ${missingLinks.map(l=>l.url).join(', ')}; labels: ${missingLabels.map(l=>l.label).join(', ')}`},
     C5:{passed:missingImages.length===0,expected:contentImages,produced:resources.images.map(i=>i.url),detail:`Missing ${missingImages.length} of ${contentImages.length} groups`},
-    C6:{passed:label.expected.itemCount===null||!label.expected.itemKind||item.reason.startsWith('Collection not found')?null:item.count===label.expected.itemCount,expected:label.expected.itemCount,produced:item.count,detail:label.expected.itemCount!==null&&(!label.expected.itemKind||item.reason.startsWith('Collection not found'))?'structure-unknown: '+item.reason:item.reason,structureUnknown:label.expected.itemCount!==null&&(!label.expected.itemKind||item.reason.startsWith('Collection not found'))},
+    C6:{passed:label.itemCount===null||!label.itemKind||item.count===null?null:item.count===label.itemCount,expected:label.itemCount,produced:item.count,detail:label.itemCount!==null&&(!label.itemKind||item.count===null)?'structure-unknown: '+item.reason:item.reason,structureUnknown:label.itemCount!==null&&(!label.itemKind||item.count===null)},
     C7:{passed:totalCharacters?notFoundCharacters/totalCharacters<=0.05:true,expected:{maximumShare:0.05},produced:{notFoundCharacters,totalCharacters,altExemptCharacters:alt.reduce((n,f)=>n+normalizeText(f.value).length,0),moved},detail:notFound.map(f=>f.path).join(', ')}
   }
 }
-export function scoreSheet(sheet:Sheet,components:Component[],baseUrl:string,options:{families?:FamilySet;evidence?:SourceEvidence[];pageSource?:string;allMissed?:boolean}={}) {
+export function scoreSheet(sheet:V2Sheet,components:Component[],baseUrl:string,options:{families:FamilySet;blocks:Block[];evidence?:SourceEvidence[];pageSource?:string;allMissed?:boolean}) {
+  if(sheet?.version!==2||!Array.isArray(sheet.entries))throw new Error('Expected a version-2 answer sheet (answer-sheet-v2.json); version-1 sheets cannot be scored')
+  if(sheet.familySet!==options.families.set)throw new Error('Answer sheet and scoring family sets differ')
   if(!Array.isArray(components)||components.some(c=>!c||typeof c.type!=='string'))throw new Error('Expected a JSON array of components, each with a string type')
-  if(options.families)components.forEach(c=>familyOf(c.type,options.families!))
-  const matching=matchComponents(sheet.entries.map(e=>e.block),options.allMissed?[]:components,baseUrl)
-  const reviewed=sheet.entries.filter(e=>e.status==='approved'||e.status==='corrected')
-  const rows:BlockScore[]=reviewed.map(entry=>{
-    if(!entry.label)throw new Error('Reviewed block has no label: '+entry.block.id)
-    const indices=matching.matches.filter(m=>m.blockIds.includes(entry.block.id)).map(m=>m.componentIndex)
-    const produced=indices.map(i=>components[i]),types=produced.map(c=>c.type),label=entry.label
+  components.forEach(c=>familyName(c.type,options.families))
+  if(sheet.entries.length!==options.blocks.length||sheet.entries.some((entry,index)=>entry.blockId!==options.blocks[index].id))throw new Error('Version-2 answer sheet and block proposal differ')
+  const matching=matchComponents(options.blocks,options.allMissed?[]:components,baseUrl)
+  const rows:BlockScore[]=sheet.entries.map((entry,index)=>{
+    const block=options.blocks[index]
+    const indices=matching.matches.filter(m=>m.blockIds.includes(block.id)).map(m=>m.componentIndex)
+    const produced=indices.map(i=>components[i]),types=produced.map(c=>c.type),mapped=types.map(type=>familyName(type,options.families))
+    const unsettled=hasDispute(entry.label)
+    if(!unsettled&&(!entry.label||typeof entry.label!=='object'))throw new Error('Missing version-2 label: '+block.id)
+    const label=entry.label as unknown as FamilyLabel
     const blockIds=new Set(indices.flatMap(i=>matching.matches[i].blockIds))
-    const source=unionEvidence(sheet.entries.filter(e=>blockIds.has(e.block.id)||e.block.id===entry.block.id).map(e=>options.evidence?.[sheet.entries.indexOf(e)]||emptyEvidence(e.block,baseUrl)))
-    const checks=checkContent(entry,produced,baseUrl,source,options.families,options.pageSource)
-    if(!indices.length||label.ignore)for(const check of Object.values(checks)){check.passed=null;check.structureUnknown=false;check.detail=label.ignore?'Ignored block':'No matched component'}
+    const source=unionEvidence(options.blocks.filter(b=>blockIds.has(b.id)||b.id===block.id).map(b=>options.evidence?.[options.blocks.indexOf(b)]||emptyEvidence(b,baseUrl)))
+    const checks=unsettled?Object.fromEntries(['C1','C2','C3','C4','C5','C6','C7'].map(name=>[name,{passed:null,expected:null,produced:null,detail:'Unsettled label'}])) as BlockScore['checks']:checkContent(block,label,produced,baseUrl,options.families,source,options.pageSource)
+    if(!unsettled&&(!indices.length||label.ignore))for(const check of Object.values(checks)){check.passed=null;check.structureUnknown=false;check.detail=label.ignore?'Ignored block':'No matched component'}
     const failedChecks=Object.entries(checks).filter(([,check])=>check.passed===false).map(([name])=>name)
-    const verdict:Verdict=label.ignore?(indices.length?'should have been ignored':'correct'):!indices.length?'missed':checks.C1.passed===false?'wrong type':failedChecks.length?'right type, content incomplete':'correct'
-    const merged=matching.merged.some(m=>m.blockIds.includes(entry.block.id))
-    return {...(options.families&&!label.ignore?{acceptableFamilies:acceptableFamilies(label.containsMultipleComponents?label.componentTypes:label.acceptableTypes,options.families),producedFamilies:types.map(t=>familyOf(t,options.families!))}:{}),id:entry.block.id,order:entry.block.order,description:(entry.block.headings[0]||entry.block.text||entry.block.region).slice(0,100),acceptableTypes:label.containsMultipleComponents?label.componentTypes:label.acceptableTypes,producedTypes:types,componentIndices:indices,verdict,checks,failedChecks,split:indices.length>1,splitAllowed:label.containsMultipleComponents,merged,ignored:label.ignore,structuralErrors:[...(indices.length>1&&!label.containsMultipleComponents?['Unexpected split']:[]),...(merged?['Component spans multiple blocks']:[])]}
+    const verdict:Verdict=unsettled?'unsettled':label.ignore?(indices.length?'should have been ignored':'correct'):!indices.length?'missed':checks.C1.passed===false?'wrong type':failedChecks.length?'right type, content incomplete':'correct'
+    const merged=matching.merged.some(m=>m.blockIds.includes(block.id))
+    return {acceptableFamilies:unsettled?[]:label.multiple?label.familiesInOrder:label.acceptableFamilies,producedFamilies:mapped,id:block.id,order:block.order,description:(block.headings[0]||block.text||block.region).slice(0,100),producedTypes:types,componentIndices:indices,verdict,checks,failedChecks,split:indices.length>1,splitAllowed:unsettled?false:label.multiple,merged,ignored:unsettled?false:label.ignore,structuralErrors:[...(indices.length>1&&!label.multiple?['Unexpected split']:[]),...(merged?['Component spans multiple blocks']:[])]}
   })
-  const scored=rows.filter(r=>!r.ignored)
-  return {version:5,page:sheet.page,itemCountMismatches:rows.filter(r=>!r.ignored&&r.checks.C6.passed===false).map(r=>({id:r.id,expected:r.checks.C6.expected,produced:r.checks.C6.produced})),answerSheetSha256:sha(sheet),reviewedBlocks:reviewed.length,scoredBlocks:scored.length,accuracy:{correct:scored.filter(r=>r.verdict==='correct').length,total:scored.length},unreviewedBlocks:sheet.entries.length-reviewed.length,totalBlocks:sheet.entries.length,rows,counts:Object.fromEntries(verdicts.map(v=>[v,rows.filter(r=>r.verdict===v).length])),...matching,
-    unreviewedComponents:matching.matches.filter(m=>m.primaryBlockId&&!reviewed.some(e=>e.block.id===m.primaryBlockId)).map(m=>m.componentIndex),
-    issues:[...sheet.issues,...(options.evidence||[]).flatMap(e=>e.issue?[e.issue]:[]),...matching.matches.filter(m=>m.tiedBlockIds.length>1).map(m=>'Component '+m.componentIndex+' has tied content matches: '+m.tiedBlockIds.join(', ')+'; primary uses document order'),...(reviewed.length<sheet.entries.length?[String(sheet.entries.length-reviewed.length)+' unreviewed blocks excluded from verdicts']:[])]}
+  const scored=rows.filter(r=>!r.ignored&&r.verdict!=='unsettled')
+  return {version:6,page:sheet.page,itemCountMismatches:scored.filter(r=>r.checks.C6.passed===false).map(r=>({id:r.id,expected:r.checks.C6.expected,produced:r.checks.C6.produced})),answerSheetSha256:sha(sheet),reviewedBlocks:sheet.entries.length,scoredBlocks:scored.length,unsettledBlocks:rows.filter(r=>r.verdict==='unsettled').length,accuracy:{correct:scored.filter(r=>r.verdict==='correct').length,total:scored.length},unreviewedBlocks:0,totalBlocks:sheet.entries.length,rows,counts:Object.fromEntries(verdicts.map(v=>[v,rows.filter(r=>r.verdict===v).length])),...matching,
+    unreviewedComponents:[],issues:[...(options.evidence||[]).flatMap(e=>e.issue?[e.issue]:[]),...matching.matches.filter(m=>m.tiedBlockIds.length>1).map(m=>'Component '+m.componentIndex+' has tied content matches: '+m.tiedBlockIds.join(', ')+'; primary uses document order')]}
 }

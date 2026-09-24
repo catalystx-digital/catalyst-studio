@@ -19,11 +19,11 @@ Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries
 
 ## Accuracy stick
 
-`score.ts --page PAGE --all-runs` derives expected text, headings, links and image groups from saved HTML and geometry. C1 checks the component family; C2 text runs; C3 heading fields or HTML headings; C4 link targets and labels; C5 content images; C6 counts a found collection against its label; C7 checks invented human text within each block. An absent collection records `structureUnknown` on C6 and does not fail it. Scores go to `labels/<page>/scores-stick/` as `<arm>--<run>--<stick version>[-family-<set>].json`; add `--families scripts/experiments/import-lab/component-families.json --family-set C` for set-C family scoring. Existing score folders are retained. A component spanning blocks is checked against the union of those blocks' source evidence, so content in the wrong one of those blocks can still pass a content check.
+`score.ts --page PAGE --all-runs` reads `answer-sheet-v2.json` and derives expected text, headings, links and image groups from saved HTML and geometry. C1 checks set-C component families, including components already named by family; C2 text runs; C3 headings; C4 links; C5 content images after excluding labelled decorations; C6 labelled item count when the collection can be found; C7 invented human text. Ignored and unsettled labels stay outside the accuracy denominator, with unsettled sections counted separately. Scores go to `labels/<page>/scores-stick/` as `<arm>--<run>--stick2-family-C.json`. Old stick1 files remain separate. A component spanning blocks is checked against the union of those blocks' source evidence, so content in the wrong one of those blocks can still pass a content check.
 
 ## Accuracy report
 
-Run `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs m4-r1,m4-r2 --family-set C` after scoring. It writes the latest `reports/ACCURACY.md` and `reports/accuracy.json` under `IMPORT_LAB_ROOT` and archives previous copies.
+Run `node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`, then `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`. The report names development pages skipped for missing runs and gives only an aggregate held-out skip count. It writes the latest `reports/ACCURACY.md` and `reports/accuracy.json` under `IMPORT_LAB_ROOT` and archives previous copies.
 
 ## Site-name leak check
 

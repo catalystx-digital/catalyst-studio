@@ -90,7 +90,7 @@ Section replay and repair commands have been removed. Saved results remain reada
 ~~~powershell
 $env:NODE_OPTIONS = '--require=./scripts/experiments/import-lab/offline-guard.cjs'
 node --import tsx scripts/experiments/import-lab/eval.ts score
-node --import tsx scripts/experiments/import-lab/eval.ts score --families scripts/experiments/import-lab/component-families.json --family-set A
+node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C
 node --import tsx scripts/experiments/import-lab/eval.ts summary
 ~~~
 
@@ -98,17 +98,18 @@ These commands are **FREE**. Summary regeneration writes reports/SUMMARY.md and 
 
 ## Accuracy stick
 
-Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs` with `IMPORT_LAB_ROOT` set to saved data. C1 checks family, C2 text, C3 headings, C4 links, C5 content images, C6 item count and C7 invented text. Add `--families scripts/experiments/import-lab/component-families.json --family-set C` for family mode. Immutable files are saved in `labels/<page>/scores-stick/` using the shared stick version.
+Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs` with `IMPORT_LAB_ROOT` set to saved data. It reads the version-2 answer key and uses set C by default. C1 checks family, C2 text, C3 headings, C4 links, C5 content images after labelled decorations, C6 item count and C7 invented text. Unsettled labels are counted but excluded from accuracy. Immutable stick2 files are saved in `labels/<page>/scores-stick/` without colliding with stick1 files.
 
 ## Accuracy report
 
 ~~~powershell
-node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs m4-r1,m4-r2
-node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs m4-r1,m4-r2 --family-set C
-node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs m4-r1,m4-r2 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C
 ~~~
 
-These saved-data commands are **FREE**. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
+These saved-data commands are **FREE**. Use set C for both score and accuracy. Pages without the requested runs are skipped; the report names skipped development pages and counts skipped held-out pages. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
+
+After stick2 score files exist, move each version-1 `labels/<page>/answer-sheet.json` into `archive/labels-v1/<page>/answer-sheet.json` as a separate operator step. Do not move the version-2 sheet or stick scores.
 
 ## Two-labeller family key
 
@@ -116,11 +117,11 @@ Fill the required site kinds before paid labelling. Use `pages.ts --set-site-kin
 
 1. Run `node --import tsx scripts/experiments/import-lab/eval.ts draft --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run` to see the batch call count and cost estimate without writing labels.
 2. Run `node --import tsx scripts/experiments/import-lab/draft-labels.ts --page PAGE --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run` to check one page's source evidence. Add `--yes-spend` in place of `--dry-run` to write its first label file. Repeat with a model from another vendor and `--out vendor-b`.
-3. Run `node --import tsx scripts/experiments/import-lab/merge-labels.ts --page PAGE --a vendor-a --b vendor-b`; use `eval.ts merge --a vendor-a --b vendor-b` for every page. Inspect `labels/agreement.json` and the disputed fields in each `answer-sheet-v2.json`. A development page may use `--c vendor-c`; a held-out page never uses it.
+3. Run `node --import tsx scripts/experiments/import-lab/merge-labels.ts --page PAGE --a vendor-a --b vendor-b`; use `eval.ts merge --a vendor-a --b vendor-b --c vendor-c` for every page. Inspect `labels/agreement.json` and review development disputes. A complete C label may settle a development block; a failed or absent C block leaves its A/B dispute. Held-out disputes go to founder review.
 
 The batch draft covers every `pages.json` entry with `blocks.json` and a screenshot. A version-1 `answer-sheet.json` supplies block boundaries when present; other pages use `blocks.json`. The dry plan prints pages and blocks by source and writes nothing. `--provider openrouter` is the default paid API route and requires `--yes-spend` to run. `--provider codex-cli` uses subscription billing and does not require `--yes-spend`. `--provider claude-cli` uses subscription billing and runs only when none of the four organisation-managed Claude policy files described below exists. All three routes accept `--concurrency 1` through `4` for blocks within each page, defaulting to 1. `--only-failed` with the same model and output name resumes failed or unfinished blocks across the batch, starts all blocks on pages without that output, and preserves complete entries. Keep the version-1 answer sheets and saved scores intact.
 
-For a Claude dry plan, set `IMPORT_LAB_ROOT` and `IMPORT_MODEL_CHAIN='test/dummy'`, then run `node --import tsx scripts/experiments/import-lab/eval.ts draft --provider claude-cli --model opus --out vendor-a --dry-run`. Before a real call, the route checks `managed-settings.json` and `managed-mcp.json` in both `C:\ProgramData\ClaudeCode` and `C:\Program Files\ClaudeCode`; if any exists, it refuses with the file path. With no managed policy file, untrusted page text can only produce a reply: the command uses `--print --input-format stream-json --output-format json --safe-mode --settings '{"disableAllHooks":true}' --strict-mcp-config --tools "" --disable-slash-commands --no-chrome --permission-prompts none --model MODEL --system-prompt PROMPT --session-id UUID`; a validation retry substitutes `--resume UUID`. The child environment allowlist and saved-record sanitisation remain in force. No skip-permissions or bypass flag is used.
+For a Claude dry plan, set `IMPORT_LAB_ROOT` and `IMPORT_MODEL_CHAIN='test/dummy'`, then run `node --import tsx scripts/experiments/import-lab/eval.ts draft --provider claude-cli --model opus --out vendor-a --dry-run`. Before a real call, the route checks `managed-settings.json` and `managed-mcp.json` in both `C:\ProgramData\ClaudeCode` and `C:\Program Files\ClaudeCode`; if any exists, it refuses with the file path. With no managed policy file, untrusted page text can only produce a reply: the command uses `--print --input-format stream-json --output-format stream-json --verbose --safe-mode --settings '{"disableAllHooks":true}' --strict-mcp-config --tools "" --disable-slash-commands --no-chrome --permission-prompts none --model MODEL --system-prompt PROMPT --session-id UUID`; a validation retry substitutes `--resume UUID`. The reply comes from the final `type: "result"` stream event when `is_error` is false and `subtype` is `"success"`. The child environment allowlist and saved-record sanitisation remain in force. No skip-permissions or bypass flag is used.
 
 For OpenAI subscription labelling, run `node --import tsx scripts/experiments/import-lab/eval.ts draft --provider codex-cli --model gpt-6-sol --out vendor-b --dry-run`; remove `--dry-run` after reviewing the plan. Each block attempt runs `codex exec -m MODEL -s read-only --skip-git-repo-check -C TEMP_DIR -i TEMP_DIR/crop.png -o TEMP_DIR/reply.txt -`, with the same prompt on stdin and the PNG crop attached. The directory starts empty; the crop is written there immediately before the call. Only the `-o` file is read as the reply, and the directory is deleted in `finally` even when the command fails. A validation retry uses a new directory and includes the prior reply, exact validation message and `Reply again with valid JSON only`. The CLI flags were confirmed with the locally installed `codex exec --help`. `-s read-only` is required because page text is untrusted. Never pass `--dangerously-bypass-approvals-and-sandbox`, `--full-auto`, `-s workspace-write` or `-s danger-full-access`. The child environment contains only OS/runtime variables and `CODEX_HOME` for subscription authentication; unrelated credentials are excluded. Call records use `provider: "codex-cli"`, `billing: "subscription"`, `cost: null`, prompt and image hashes, reply, attempts and latency, without image bytes.
 

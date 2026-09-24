@@ -14,6 +14,12 @@ import { evaluate, parseEval } from './eval'
 const catalogue=path.join(__dirname,'component-families.json')
 const originalRoot=process.env.IMPORT_LAB_ROOT,originalExit=process.exitCode
 const answer=(change:Record<string,unknown>={})=>JSON.stringify({family:'hero',acceptableFamilies:['hero'],multiple:false,familiesInOrder:[],placement:'main',ignore:false,ignoreReason:'',itemCount:null,itemKind:null,decorativeImageGroupIds:[],reason:'Invented introduction.',...change})
+const claudeStream=(result:string)=>[
+  JSON.stringify({type:'system',subtype:'init'}),
+  JSON.stringify({type:'result',subtype:'success',is_error:false,result:'{}'}),
+  JSON.stringify({type:'assistant',message:{content:[{type:'text',text:'intermediate'}]}}),
+  JSON.stringify({type:'result',subtype:'success',is_error:false,result})
+].join('\n')+'\n'
 let root:string
 beforeEach(async()=>{root=await fs.mkdtemp(path.join(os.tmpdir(),'labeller-fixes-'));process.env.IMPORT_LAB_ROOT=root})
 afterEach(async()=>{await fs.rm(root,{recursive:true,force:true});if(originalRoot===undefined)delete process.env.IMPORT_LAB_ROOT;else process.env.IMPORT_LAB_ROOT=originalRoot;process.exitCode=originalExit})
@@ -32,6 +38,107 @@ async function pageSetup(page='invented-page',v1=false,blocks=3){
 }
 async function calls(directory:string){const runs=await fs.readdir(path.join(directory,'calls'));return Promise.all((await fs.readdir(path.join(directory,'calls',runs[0]))).map(async file=>JSON.parse(await fs.readFile(path.join(directory,'calls',runs[0],file),'utf8'))))}
 const options=(page:string,out='a')=>({page,catalogue,set:'C',model:'opus',out})
+
+test.each(['openrouter','claude-cli','codex-cli'] as const)('%s scales a very tall crop and leaves a normal crop unchanged',async provider=>{
+  for(const height of [10338,500]){
+    const page=`crop-${provider}-${height}`,{directory,proposal}=await pageSetup(page,false,1)
+    proposal.blocks[0].box={x:0,y:0,width:336,height}
+    await atomicJson(path.join(directory,'blocks.json'),proposal)
+    await sharp({create:{width:336,height,channels:3,background:'#fff'}}).png().toFile(path.join(directory,'screenshot.png'))
+    let image:Buffer|null=null
+    const fake={chat:{completions:{create:async(request:any)=>{
+      image=Buffer.from(request.messages[1].content[1].image_url.url.split(',')[1],'base64')
+      return {choices:[{message:{content:answer()}}]}
+    }}}}
+    const runner=async(_command:string,args:string[],input:string)=>{
+      if(provider==='claude-cli'){
+        image=Buffer.from(JSON.parse(input).message.content[1].source.data,'base64')
+        return {stdout:claudeStream(answer()),exitCode:0}
+      }
+      image=await fs.readFile(args[args.indexOf('-i')+1])
+      await fs.writeFile(args[args.indexOf('-o')+1],answer())
+      return {stdout:'',exitCode:0}
+    }
+    const sheet=await draftLabels({...options(page),provider},provider==='openrouter'?fake:undefined,runner)
+    expect(sheet.entries[0].draftStatus).toBe('complete')
+    const sent=await sharp(image!).metadata(),record=(await calls(directory))[0]
+    if(height===10338){
+      expect(sent.height).toBe(7900)
+      expect(sent.width).toBeLessThanOrEqual(7900)
+      expect(Math.abs(sent.width!/sent.height!-336/height)).toBeLessThan(1/7900)
+      expect(record.crop.resized).toEqual({from:[336,height],to:[sent.width,sent.height]})
+    }else{
+      expect(sent).toMatchObject({width:336,height})
+      expect(record.crop).not.toHaveProperty('resized')
+    }
+  }
+})
+
+test.each(['openrouter','claude-cli','codex-cli'] as const)('%s sends a clamped crop for a partly visible block',async provider=>{
+  const page='partly-visible-'+provider,{directory,proposal}=await pageSetup(page,false,1)
+  proposal.blocks[0].box={x:-10,y:500,width:1460,height:80}
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  let image:Buffer|null=null
+  const fake={chat:{completions:{create:async(request:any)=>{
+    image=Buffer.from(request.messages[1].content[1].image_url.url.split(',')[1],'base64')
+    return {choices:[{message:{content:answer()}}]}
+  }}}}
+  const runner=async(_command:string,args:string[],input:string)=>{
+    if(provider==='claude-cli'){
+      image=Buffer.from(JSON.parse(input).message.content[1].source.data,'base64')
+      return {stdout:claudeStream(answer()),exitCode:0}
+    }
+    image=await fs.readFile(args[args.indexOf('-i')+1])
+    await fs.writeFile(args[args.indexOf('-o')+1],answer())
+    return {stdout:'',exitCode:0}
+  }
+  const sheet=await draftLabels({...options(page),provider},provider==='openrouter'?fake:undefined,runner)
+  expect(sheet.entries[0].draftStatus).toBe('complete')
+  expect(await sharp(image!).metadata()).toMatchObject({width:1440,height:40})
+  expect((await calls(directory))[0]).toMatchObject({crop:{status:'clamped',left:0,top:500,width:1440,height:40},request:{imageSha256:expect.any(String)}})
+})
+
+test.each(['openrouter','claude-cli','codex-cli'] as const)('%s sends text only for a block below the screenshot',async provider=>{
+  const page='outside-'+provider,{directory,proposal}=await pageSetup(page,false,1)
+  proposal.blocks[0].box={x:0,y:600,width:1440,height:180}
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  let prompt='',imageCount=-1,cliArgs:string[]=[]
+  const fake={chat:{completions:{create:async(request:any)=>{
+    const content=request.messages[1].content
+    prompt=content[0].text;imageCount=content.length-1
+    return {choices:[{message:{content:answer()}}]}
+  }}}}
+  const runner=async(_command:string,args:string[],input:string)=>{
+    cliArgs=args
+    if(provider==='claude-cli'){
+      const content=JSON.parse(input).message.content
+      prompt=content[0].text;imageCount=content.length-1
+      return {stdout:claudeStream(answer()),exitCode:0}
+    }
+    prompt=input
+    imageCount=(await fs.readdir(args[args.indexOf('-C')+1])).length
+    await fs.writeFile(args[args.indexOf('-o')+1],answer())
+    return {stdout:'',exitCode:0}
+  }
+  const sheet=await draftLabels({...options(page),provider},provider==='openrouter'?fake:undefined,runner)
+  expect(sheet.entries[0].draftStatus).toBe('complete')
+  expect(imageCount).toBe(0)
+  expect(prompt).toContain('No picture is available for this section; decide from the text, headings, links and image list.')
+  expect((await calls(directory))[0]).toMatchObject({crop:{status:'missing'},request:{imageSha256:null}})
+  if(provider==='codex-cli')expect(cliArgs).not.toContain('-i')
+})
+
+test('a crop narrower than 8 px is sent as text only',async()=>{
+  const page='narrow-crop',{directory,proposal}=await pageSetup(page,false,1)
+  proposal.blocks[0].box={x:1435,y:0,width:40,height:180}
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  let content:any[]=[]
+  const fake={chat:{completions:{create:async(request:any)=>{content=request.messages[1].content;return {choices:[{message:{content:answer()}}]}}}}}
+  const sheet=await draftLabels(options(page),fake)
+  expect(sheet.entries[0].draftStatus).toBe('complete')
+  expect(content).toHaveLength(1)
+  expect((await calls(directory))[0].crop).toEqual({status:'missing'})
+})
 
 test('v2 accepts count without kind and normalises the best family',()=>{
   const label={family:'hero',acceptableFamilies:[],multiple:false,familiesInOrder:[],placement:'main',ignore:false,ignoreReason:'',itemCount:4,itemKind:null,decorativeImages:[],reason:'Invented collection.'}
@@ -102,7 +209,7 @@ test('claude-cli sends an image block with no tools and limits concurrent blocks
     seen.push({command,args,input:JSON.parse(input.trim())})
     await new Promise(resolve=>setTimeout(resolve,15))
     active--
-    return {stdout:JSON.stringify({type:'result',result:answer()}),exitCode:0}
+    return {stdout:claudeStream(answer()),exitCode:0}
   }
   const sheet=await draftLabels({...options('invented-page'),provider:'claude-cli' as const,concurrency:2},undefined,runner)
   expect(sheet.entries.map(entry=>entry.draftStatus)).toEqual(['complete','complete','complete'])
@@ -110,7 +217,8 @@ test('claude-cli sends an image block with no tools and limits concurrent blocks
   expect(seen).toHaveLength(3)
   for(const call of seen){
     expect(call.command).toBe('claude')
-    expect(call.args).toEqual(expect.arrayContaining(['--print','--input-format','stream-json','--output-format','json','--safe-mode','--settings','{"disableAllHooks":true}','--strict-mcp-config','--tools','','--model','opus']))
+    expect(call.args.slice(0,7)).toEqual(['--print','--input-format','stream-json','--output-format','stream-json','--verbose','--safe-mode'])
+    expect(call.args).toEqual(expect.arrayContaining(['--print','--input-format','stream-json','--output-format','stream-json','--verbose','--safe-mode','--settings','{"disableAllHooks":true}','--strict-mcp-config','--tools','','--model','opus']))
     expect(call.args.join(' ')).not.toMatch(/dangerously-skip-permissions|bypassPermissions/)
     const content=call.input.message.content
     expect(content[1]).toMatchObject({type:'image',source:{type:'base64',media_type:'image/png',data:expect.any(String)}})
@@ -126,7 +234,7 @@ test('claude-cli corrective retry resumes the same block conversation',async()=>
   const seen:Array<{args:string[];input:any}>=[]
   const runner=async(_command:string,args:string[],input:string)=>{
     seen.push({args,input:JSON.parse(input.trim())})
-    return {stdout:JSON.stringify({type:'result',result:seen.length===1?answer({placement:'ceiling'}):answer()}),exitCode:0}
+    return {stdout:claudeStream(seen.length===1?answer({placement:'ceiling'}):answer()),exitCode:0}
   }
   const sheet=await draftLabels({...options('invented-page'),provider:'claude-cli'},undefined,runner)
   expect(sheet.entries[0].draftStatus).toBe('complete')
@@ -136,6 +244,18 @@ test('claude-cli corrective retry resumes the same block conversation',async()=>
   expect(seen[1].args.at(-1)).toBe(seen[0].args.at(-1))
   expect(seen[1].input.message.content[0].text).toContain('Reply again with valid JSON only')
   expect(seen[1].input.message.content[0].text).toContain('ceiling')
+})
+
+test.each([
+  ['missing result',JSON.stringify({type:'assistant',message:{content:[]}})+'\n'],
+  ['error result',JSON.stringify({type:'result',subtype:'success',is_error:true,result:answer()})+'\n'],
+  ['non-success result',JSON.stringify({type:'result',subtype:'error',is_error:false,result:answer()})+'\n']
+])('claude-cli records %s as a sanitised failure',async(_caseName,stdout)=>{
+  const {directory}=await pageSetup('invented-page',false,1)
+  const sheet=await draftLabels({...options('invented-page'),provider:'claude-cli'},undefined,async()=>({stdout,exitCode:0}))
+  expect(sheet.entries[0].draftStatus).toBe('failed')
+  expect(sheet.entries[0].error).toContain('claude returned no successful JSON result')
+  expect((await calls(directory))[0]).toMatchObject({status:'failed',attempts:[{status:'failed'}]})
 })
 
 test('codex-cli reads only the reply file, isolates each call and removes its temp directory',async()=>{
@@ -227,6 +347,19 @@ test('Claude refuses any managed policy file and fake spawn runs when none exist
   expect(spawn).toHaveBeenCalledTimes(1)
 })
 
+test('early child exit handles stdin EPIPE without an unhandled stream error',async()=>{
+  const child=Object.assign(new EventEmitter(),{stdin:new PassThrough(),stdout:new PassThrough(),stderr:new PassThrough()})
+  const spawn=jest.fn(()=>{
+    process.nextTick(()=>{
+      child.stdin.emit('error',Object.assign(new Error('write EPIPE'),{code:'EPIPE'}))
+      child.emit('close',1)
+    })
+    return child as any
+  })
+  await expect(defaultProcessRunner('codex',[], 'x'.repeat(1024*1024),spawn as unknown as typeof spawnType)).resolves.toMatchObject({exitCode:1})
+  expect(spawn).toHaveBeenCalledTimes(1)
+})
+
 test('child environments exclude unrelated parent credentials',()=>{
   const keys=['OPENROUTER_API_KEY','AWS_SECRET_ACCESS_KEY','ANTHROPIC_API_KEY','OPENAI_API_KEY','OTHER_SECRET','OTHER_TOKEN']
   const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]))
@@ -305,7 +438,7 @@ test.each(['claude-cli','codex-cli'] as const)('%s persists no credentials from 
   const runner=async(_command:string,args:string[])=>{
     const raw=reply(++attempt===1?'ceiling':'main')
     if(provider==='codex-cli')await fs.writeFile(args[args.indexOf('-o')+1],raw)
-    return {stdout:provider==='claude-cli'?JSON.stringify({type:'result',result:raw}):'',exitCode:0}
+    return {stdout:provider==='claude-cli'?claudeStream(raw):'',exitCode:0}
   }
   const sheet=await draftLabels({...options(page),provider},undefined,runner)
   expect(sheet.entries[0].draftStatus).toBe('complete')

@@ -1,6 +1,6 @@
 /** @jest-environment node */
-import { scoreSheet, matchComponents, countItems } from './scoring'
-import { block, label, entry, sheet, component } from './phase2-fixtures'
+import { matchComponents, countItems } from './scoring'
+import { block, label, entry, sheet, component, scoreFixture as scoreSheet } from './phase2-fixtures'
 const url='https://example.com/garden'
 describe('content matching',()=>{
   test('matches by content rather than type or location',()=>{const result=matchComponents([block()], [{...component,type:'footer',location:'footer'}],url);expect(result.matches[0].primaryBlockId).toBe('hero')})

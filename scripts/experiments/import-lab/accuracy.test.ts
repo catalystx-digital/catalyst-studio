@@ -81,12 +81,12 @@ test('held-out output contains overall accuracy only, and the opening uses plain
   const result=await generateAccuracy(root,{arm:'blocks-production',runs:['r1','r2'],familySet:'C'})
   const md=await fs.readFile(path.join(root,'reports','ACCURACY.md'),'utf8')
   const json=JSON.parse(await fs.readFile(path.join(root,'reports','accuracy.json'),'utf8'))
-  expect(Object.keys(json.heldOut).sort()).toEqual(['accuracy','interval','pages','scoredBlocks'])
+  expect(Object.keys(json.heldOut).sort()).toEqual(['accuracy','interval','pages','scoredBlocks','unsettledBlocks'])
   expect(JSON.stringify(json.heldOut)).not.toMatch(/C[1-7]|block-|fixture-family|fixture-type/)
   expect(md.match(/Held-out:.*/g)).toHaveLength(1)
   expect(md.split('\n').slice(0,4)).toEqual([
     expect.stringMatching(/^About \d+\.\d in 10 website sections import correctly today \(likely range \d+\.\d–\d+\.\d in 10\)\.$/),
-    'Rough first number: the answer key was drafted by AI and has not been checked yet.',
+    'The answer key was checked by two AI models from different companies; a third settled most disagreements and the founder settled the rest.',
     expect.stringMatching(/^The three biggest losses: .+, .+, .+\.$/),
     '---'
   ])
@@ -94,10 +94,25 @@ test('held-out output contains overall accuracy only, and the opening uses plain
   expect(result.heldOut.accuracy).toBe(0.7)
 })
 
-test('missing score names its page',async()=>{
+test('missing runs skip a page and name the development page only',async()=>{
   await pages({alpha:page(),missing:page()})
   await save('alpha','r1',8)
-  await expect(generateAccuracy(root,{arm:'blocks-production',runs:['r1']})).rejects.toThrow('missing')
+  const result=await generateAccuracy(root,{arm:'blocks-production',runs:['r1']})
+  expect(result.skipped).toEqual({development:['missing'],heldOutPages:0})
+})
+
+test('line two counts distinct unsettled sections and excludes them',async()=>{
+  await pages({alpha:page(),beta:page(true)})
+  for(const name of ['alpha','beta'])await save(name,'r1',1,2,'C')
+  const file=path.join(root,'labels','alpha','scores-stick',stickScoreName('blocks-production','r1','C')+'.json')
+  const score=JSON.parse(await fs.readFile(file,'utf8'))
+  score.rows[1].verdict='unsettled'
+  await fs.writeFile(file,JSON.stringify(score))
+  const result=await generateAccuracy(root,{arm:'blocks-production',runs:['r1'],familySet:'C'})
+  expect(result.development.unsettledBlocks).toBe(1)
+  expect(result.development.scoredBlocks).toBe(1)
+  expect(result.development.cleanPages.count).toBe(0)
+  expect((await fs.readFile(path.join(root,'reports','ACCURACY.md'),'utf8')).split('\n')[1]).toBe('Answer key not finished: 1 sections still await a decision.')
 })
 
 test('upper bound counts only single-check failures',async()=>{
@@ -114,14 +129,15 @@ test('upper bound counts only single-check failures',async()=>{
 })
 
 test('both score routes use the one stick name',async()=>{
-  expect(STICK_VERSION).toBe('stick1')
-  expect(stickScoreName('blocks-production','r1','C')).toBe('blocks-production--r1--stick1-family-C')
+  expect(STICK_VERSION).toBe('stick2')
+  expect(stickScoreName('blocks-production','r1','C')).toBe('blocks-production--r1--stick2-family-C')
+  expect(stickScoreName('blocks-production','r1','C')).not.toBe('blocks-production--r1--stick1-family-C')
   const folder=path.join(root,'arms','alpha','blocks-production','r1')
   await fs.mkdir(folder,{recursive:true})
   await fs.writeFile(path.join(folder,'run.json'),JSON.stringify({status:'complete'}))
   process.env.IMPORT_LAB_ROOT=root
   const options=parseEval(['score','--arm','blocks-production','--runs','r1'])
   const task=(await planEvaluation(options,{alpha:page()})).find(t=>t.script==='score.ts')
-  expect(task?.args).toContain('blocks-production--r1--stick1')
+  expect(task?.args).toContain('blocks-production--r1--stick2')
   delete process.env.IMPORT_LAB_ROOT
 })

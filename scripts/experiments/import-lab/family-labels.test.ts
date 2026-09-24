@@ -68,6 +68,18 @@ test('merge agrees field by field and preserves explicit disputes',()=>{
   expect(result.label.ignore).toBe(false)
 })
 
+test('item kind and ignore reason use the first present label without creating a dispute',()=>{
+  const evidence={detectedCount:null,imageGroups:[]}
+  const a={...label(),itemKind:'cards',ignoreReason:'A reason'}
+  const b={...label(),itemKind:'slides',ignoreReason:'B reason'}
+  const c={...label(),itemKind:'posts',ignoreReason:'C reason'}
+  expect(compareLabels(a,b,c,evidence)).toMatchObject({status:'agreed',label:{itemKind:'cards',ignoreReason:'A reason'}})
+  const absentA={...a,itemKind:null,ignoreReason:null} as unknown as FamilyLabel
+  expect(compareLabels(absentA,b,c,evidence)).toMatchObject({status:'agreed',label:{itemKind:'slides',ignoreReason:'B reason'}})
+  const absentB={...b,itemKind:null,ignoreReason:null} as unknown as FamilyLabel
+  expect(compareLabels(absentA,absentB,c,evidence)).toMatchObject({status:'agreed',label:{itemKind:'posts',ignoreReason:'C reason'}})
+})
+
 test('code count and decorative rules settle only supported differences',()=>{
   const a={...label(),itemCount:3,itemKind:'cards',decorativeImages:['https://invented.example/tiny.png']}
   const b={...label(),itemCount:4,itemKind:'cards',decorativeImages:[]}
@@ -81,6 +93,38 @@ test('third model settles development family majority; held-out ignores it',()=>
   expect(compareLabels(a,b,c,{detectedCount:null,imageGroups:[],heldOut:false}).label.family).toBe('content')
   expect(compareLabels(a,b,c,{detectedCount:null,imageGroups:[],heldOut:true}).label.family).toMatchObject({disputed:true})
   expect(compareLabels(a,b,{...label(),family:'collection',acceptableFamilies:['collection']},{detectedCount:null,imageGroups:[],heldOut:false}).label.family).toMatchObject({disputed:true})
+})
+
+test('development majority settles every scored field and records each decision',()=>{
+  const image='https://invented.example/decorative.png'
+  const a={...label(),family:'content',acceptableFamilies:['content','hero'],placement:'footer' as const,ignore:true,ignoreReason:'Invented decoration',multiple:true,familiesInOrder:['content','hero'],itemCount:3,itemKind:'cards',decorativeImages:[image]}
+  const b={...label(),family:'hero',acceptableFamilies:['hero'],placement:'main' as const,ignore:false,multiple:false,familiesInOrder:[],itemCount:4,itemKind:'cards',decorativeImages:[]}
+  const c={...a,acceptableFamilies:['content','collection'],decorativeImages:[image]}
+  const result=compareLabels(a,b,c,{detectedCount:null,imageGroups:[],heldOut:false})
+  expect(result.status).toBe('agreed')
+  expect(result.label).toMatchObject({family:'content',acceptableFamilies:['content'],placement:'footer',ignore:true,multiple:true,familiesInOrder:['content','hero'],itemCount:3,decorativeImages:[image]})
+  expect(result.settledBy).toEqual(Object.fromEntries(['family','acceptableFamilies','placement','ignore','multiple','familiesInOrder','itemCount','decorativeImages'].map(field=>[field,'majority'])))
+})
+
+test('a three-way split stays disputed; held-out fields ignore C',()=>{
+  const a={...label(),placement:'header' as const,itemCount:2}
+  const b={...label(),placement:'main' as const,itemCount:3}
+  const c={...label(),placement:'footer' as const,itemCount:4}
+  const split=compareLabels(a,b,c,{detectedCount:null,imageGroups:[],heldOut:false})
+  expect(split.label.placement).toMatchObject({disputed:true,a:'header',b:'main',c:'footer'})
+  expect(split.label.itemCount).toMatchObject({disputed:true,a:2,b:3,c:4})
+  expect(split.settledBy).toEqual({})
+  const held=compareLabels(a,b,{...a},{detectedCount:null,imageGroups:[],heldOut:true})
+  expect(held.label.placement).toMatchObject({disputed:true,a:'header',b:'main'})
+  expect(held.label.itemCount).toMatchObject({disputed:true,a:2,b:3})
+  expect(held.settledBy).toEqual({})
+})
+
+test('detected count wins before C majority and is not attributed to C',()=>{
+  const a={...label(),itemCount:2},b={...label(),itemCount:3},c={...label(),itemCount:2}
+  const result=compareLabels(a,b,c,{detectedCount:3,imageGroups:[],heldOut:false})
+  expect(result.label.itemCount).toBe(3)
+  expect(result.settledBy).toEqual({})
 })
 
 test('acceptable lists intersect; multiple order and unresolved counts remain disputed',()=>{
@@ -117,16 +161,45 @@ test('fake saved labellers merge invented blocks without touching version one',a
   const oldSheet=comparisonSheet();await atomicJson(path.join(directory,'answer-sheet.json'),oldSheet)
   await atomicJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://invented.example/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
   const entries:FamilyDraftEntry[]=proposal.blocks.map((block,i)=>({blockId:block.id,draftStatus:'complete',label:i===2?{...label(),family:'content',acceptableFamilies:['content']}:label(),evidence:{detectedCount:null,imageGroups:[]}}))
-  for(const [out,model,rows] of [['a','vendor-a/model',entries],['b','vendor-b/model',entries.map((entry,i)=>i===2?{...entry,label:label()}:entry)]] as const)await atomicJson(path.join(directory,`label-${out}.json`),{version:2,page:proposal.page,model,familySet:'C',familyNames:names,catalogueSha256:'fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),entries:rows})
+  entries[0].label={...label(),itemKind:null,ignoreReason:'A note'}
+  entries[1].label={...label(),itemKind:'cards',ignoreReason:'A reason'}
+  const bEntries=entries.map((entry,i)=>i===2?{...entry,label:label()}:entry)
+  bEntries[0]={...bEntries[0],label:{...label(),itemKind:'slides',ignoreReason:'B note'}}
+  bEntries[1]={...bEntries[1],label:{...label(),itemKind:'slides',ignoreReason:'B reason'}}
+  for(const [out,model,rows] of [['a','vendor-a/model',entries],['b','vendor-b/model',bEntries]] as const)await atomicJson(path.join(directory,`label-${out}.json`),{version:2,page:proposal.page,model,familySet:'C',familyNames:names,catalogueSha256:'fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),entries:rows})
   const result=await mergePage(proposal.page,'a','b')
   expect(result.entries.map(e=>e.status)).toEqual(['agreed','agreed','disputed'])
+  expect(result.entries[0].label).toMatchObject({itemKind:'slides',ignoreReason:'A note'})
+  expect(result.entries[1].label).toMatchObject({itemKind:'cards',ignoreReason:'A reason'})
   const agreement=JSON.parse(await fs.readFile(path.join(root,'labels','agreement.json'),'utf8'))
   expect(agreement.perField.family).toMatchObject({agreed:2,total:3,rate:2/3})
+  expect(agreement.perField.itemKind).toMatchObject({agreed:1,total:3,rate:1/3,label:'(not disputed)'})
+  expect(agreement.perField.ignoreReason).toMatchObject({agreed:1,total:3,rate:1/3,label:'(not disputed)'})
   expect(agreement.disputedBlocks.development).toBe(1)
   expect(agreement.trustworthy).toBe(false)
   expect(process.exitCode).toBe(1)
   expect(await fs.readFile(path.join(directory,'answer-sheet.json'),'utf8')).toContain('Invented standalone notice.')
   await expect(mergePage(proposal.page,'a','b')).rejects.toThrow('already exists')
+})
+
+test('missing C block leaves its dispute while C settles another development block',async()=>{
+  const proposal=comparisonProposal(),directory=path.join(root,'labels',proposal.page)
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  await atomicJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://invented.example/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
+  const base=proposal.blocks.map(block=>({blockId:block.id,draftStatus:'complete',label:label(),evidence:{detectedCount:null,imageGroups:[]}}))
+  const b=base.map((entry,index)=>index<2?{...entry,label:{...label(),family:'content',acceptableFamilies:['content'],placement:'footer' as const}}:entry)
+  const c=base.map((entry,index)=>index===0?{...entry,draftStatus:'failed',label:null}:index===1?{...entry,label:{...label(),family:'content',acceptableFamilies:['content'],placement:'footer' as const}}:entry)
+  for(const [out,model,entries] of [['a','vendor-a/model',base],['b','vendor-b/model',b],['c','vendor-c/model',c]] as const)await atomicJson(path.join(directory,`label-${out}.json`),{version:2,page:proposal.page,model,familySet:'C',familyNames:names,catalogueSha256:'fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),entries})
+  const result=await mergePage(proposal.page,'a','b','c')
+  expect(result.entries[0].label.family).toMatchObject({disputed:true,a:'hero',b:'content'})
+  expect(result.entries[1].label.family).toBe('content')
+  expect(result.entries.map(entry=>entry.status)).toEqual(['disputed','agreed','agreed'])
+  expect(result.entries[1].settledBy).toEqual({family:'majority',acceptableFamilies:'majority',placement:'majority'})
+  const agreement=JSON.parse(await fs.readFile(path.join(root,'labels','agreement.json'),'utf8'))
+  expect(agreement.perField.family.settledByMajority).toBe(1)
+  expect(agreement.perField.acceptableFamilies.settledByMajority).toBe(1)
+  expect(agreement.perField.placement.settledByMajority).toBe(1)
+  expect(agreement.perField.itemCount.settledByMajority).toBe(0)
 })
 
 test('two fake clients draft source-only labels, resume a failure, and merge',async()=>{
@@ -216,7 +289,7 @@ test('interrupted draft resumes pending and absent entries, preserving complete 
   expect(resumed.entries[0].label).toEqual(saved.entries[0].label)
 })
 
-test('crop preparation failure is recorded per block and later blocks complete',async()=>{
+test('an off-screen block is labelled from text and later blocks complete',async()=>{
   const proposal=comparisonProposal(),directory=path.join(root,'labels',proposal.page)
   proposal.blocks[1].box={x:5000,y:0,width:100,height:100}
   await atomicJson(path.join(directory,'blocks.json'),proposal)
@@ -225,17 +298,18 @@ test('crop preparation failure is recorded per block and later blocks complete',
   await fs.writeFile(path.join(pageDir,'page.html'),comparisonSnapshot().html)
   await atomicJson(path.join(pageDir,'stylesheets.json'),[])
   await sharp({create:{width:1440,height:540,channels:3,background:'#ffffff'}}).png().toFile(path.join(directory,'screenshot.png'))
-  let calls=0
-  const fake={chat:{completions:{create:async()=>{calls++;const answer={...label(),decorativeImageGroupIds:[]};delete (answer as any).decorativeImages;return {choices:[{message:{content:JSON.stringify(answer)}}]}}}}}
+  let calls=0,missingContent:any[]=[]
+  const fake={chat:{completions:{create:async(request:any)=>{calls++;if(calls===2)missingContent=request.messages[1].content;const answer={...label(),decorativeImageGroupIds:[]};delete (answer as any).decorativeImages;return {choices:[{message:{content:JSON.stringify(answer)}}]}}}}}
   await draftLabels({page:proposal.page,catalogue:path.join(__dirname,'component-families.json'),set:'C',model:'vendor/model',out:'a'},fake)
   const saved=JSON.parse(await fs.readFile(path.join(directory,'label-a.json'),'utf8'))
-  expect(calls).toBe(2)
-  expect(saved.entries.map((entry:FamilyDraftEntry)=>entry.draftStatus)).toEqual(['complete','failed','complete'])
-  expect(saved.entries[1].error).toContain('outside screenshot')
+  expect(calls).toBe(3)
+  expect(saved.entries.map((entry:FamilyDraftEntry)=>entry.draftStatus)).toEqual(['complete','complete','complete'])
+  expect(missingContent).toHaveLength(1)
+  expect(missingContent[0].text).toContain('No picture is available for this section')
   const callRuns=await fs.readdir(path.join(directory,'calls'))
-  const failedCall=JSON.parse(await fs.readFile(path.join(directory,'calls',callRuns[0],'hours.json'),'utf8'))
-  expect(failedCall).toMatchObject({status:'failed'})
-  expect(failedCall).not.toHaveProperty('payload')
+  const textOnlyCall=JSON.parse(await fs.readFile(path.join(directory,'calls',callRuns[0],'hours.json'),'utf8'))
+  expect(textOnlyCall).toMatchObject({status:'complete',crop:{status:'missing'}})
+  expect(textOnlyCall).not.toHaveProperty('payload')
   process.exitCode=originalExit
 })
 
