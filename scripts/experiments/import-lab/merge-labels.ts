@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { dataRoot, main, readJson } from './storage'
 import { argumentsForPhase2, familyBlockSource, labelDirectory, optionalJson, sha, slug, validateFamilyLabel, type FamilyLabel, type FamilyDraftSheet, type FamilyDraftEntry, type Proposal } from './labels'
 import { loadPages } from './pages'
@@ -59,6 +60,46 @@ async function saveExclusive(file:string,value:unknown) {
   await fs.mkdir(path.dirname(file),{recursive:true})
   await fs.writeFile(file,JSON.stringify(value,null,2)+'\n',{flag:'wx'})
 }
+type FounderChange={field:string;chosen:unknown;at:string;queue?:string;[key:string]:unknown}
+type PreviousEntry={blockId:string;status:string;reviewedBy?:string;label:Record<string,unknown>;history?:FounderChange[]}
+type PreviousSheet={version:number;page:string;snapshotSha256:string;proposalSha256:string;blocks:Proposal['blocks'];entries:PreviousEntry[]}
+type SampleCorrection={blockId:string;correction:string;time:string}
+const decisionTime=(value:string)=>{const time=Date.parse(value);if(!Number.isFinite(time))throw new Error('Founder decision has an invalid timestamp');return time}
+function validatePrevious(previous:PreviousSheet,proposal:Proposal) {
+  if(previous.version!==2||previous.page!==proposal.page||previous.snapshotSha256!==proposal.snapshotSha256||!Array.isArray(previous.blocks)||!Array.isArray(previous.entries)||previous.blocks.length!==previous.entries.length||previous.proposalSha256!==sha({...proposal,blocks:previous.blocks}))throw new Error('Previous answer sheet has incompatible provenance; no labels were written')
+  const ids=new Set<string>()
+  for(let index=0;index<previous.entries.length;index++){
+    const entry=previous.entries[index],block=previous.blocks[index]
+    if(!entry||!block||entry.blockId!==block.id||ids.has(block.id))throw new Error('Previous answer sheet has incompatible block provenance; no labels were written')
+    ids.add(block.id)
+    if(entry.reviewedBy==='founder'&&!same(block,proposal.blocks.find(candidate=>candidate.id===block.id)))throw new Error('Founder-reviewed block '+block.id+' must map to an unchanged block in the new proposal; no labels were written')
+  }
+}
+function preserveFounder(entry:ReturnType<typeof compareLabels>&{blockId:string;order:number;reviewedBy?:string},previous?:PreviousEntry,corrections:SampleCorrection[]=[]):typeof entry&{history?:PreviousEntry['history']} {
+  if(!previous&&!corrections.length)return entry
+  const label={...entry.label},history=[...(previous?.history||[])]
+  for(const change of history)decisionTime(change.at)
+  for(const correction of corrections)decisionTime(correction.time)
+  if(previous?.reviewedBy==='founder') {
+    const settled=new Set(history.length?history.map(change=>change.field):Object.keys(previous.label))
+    if(settled.has('family'))settled.add('acceptableFamilies')
+    for(const field of settled)if(Object.hasOwn(previous.label,field)){
+      const newest=history.filter(change=>change.field===field).sort((a,b)=>decisionTime(b.at)-decisionTime(a.at))[0]
+      label[field]=newest?newest.chosen:previous.label[field]
+    }
+  }
+  const latestSample=[...corrections].sort((a,b)=>decisionTime(b.time)-decisionTime(a.time))[0]
+  const latestFamily=history.filter(change=>change.field==='family').sort((a,b)=>decisionTime(b.at)-decisionTime(a.at))[0]
+  if(latestSample&&(!previous||previous.reviewedBy!=='founder'||latestFamily&&decisionTime(latestSample.time)>decisionTime(latestFamily.at))){
+    label.family=latestSample.correction
+    const acceptable=label.acceptableFamilies
+    if(Array.isArray(acceptable)&&!acceptable.includes(latestSample.correction))label.acceptableFamilies=[...acceptable,latestSample.correction]
+    if(!history.some(change=>change.field==='family'&&change.at===latestSample.time&&same(change.chosen,latestSample.correction)))history.push({field:'family',chosen:latestSample.correction,at:latestSample.time,queue:'sample'})
+  }
+  const founder=previous?.reviewedBy==='founder'||corrections.length>0
+  const status=Object.values(label).some(value=>value&&typeof value==='object'&&!Array.isArray(value)&&'disputed' in value)?'disputed':founder?'reviewed':entry.status
+  return {...entry,label,status,...(founder?{reviewedBy:'founder'}:{}),...(history.length?{history}:{})}
+}
 function verifyDraft(sheet:FamilyDraftSheet,proposal:Proposal,complete=true) {
   if(sheet.version!==2||sheet.page!==proposal.page||sheet.snapshotSha256!==proposal.snapshotSha256||sheet.proposalSha256!==sha(proposal))throw new Error('Label sheet and block proposal differ')
   if(!Array.isArray(sheet.familyNames)||!sheet.familyNames.length||sheet.familyNames.some(name=>typeof name!=='string'))throw new Error('Missing family names in label sheet')
@@ -67,15 +108,19 @@ function verifyDraft(sheet:FamilyDraftSheet,proposal:Proposal,complete=true) {
 export async function mergePage(page:string,aName:string,bName:string,cName?:string,finalize=true) {
   for(const name of [page,aName,bName,cName].filter((value):value is string=>!!value))slug(name)
   const directory=labelDirectory(page),target=path.join(directory,'answer-sheet-v2.json')
-  if(await optionalJson(target))throw new Error('answer-sheet-v2.json already exists: '+page)
+  const previous=await optionalJson<PreviousSheet>(target)
   const pages=await loadPages(),manifest=pages[page]
   if(!manifest)throw new Error('Page absent from manifest: '+page)
   const proposal=await familyBlockSource(page)
+  if(previous)validatePrevious(previous,proposal)
   const read=async(name:string)=>readJson<FamilyDraftSheet>(path.join(directory,'label-'+name+'.json'))
   const [a,b,c]=await Promise.all([read(aName),read(bName),cName&&!manifest.heldOut?read(cName):Promise.resolve(undefined)])
   if(a.model.split('/')[0]===b.model.split('/')[0])throw new Error('Independent labellers must use different vendors')
   verifyDraft(a,proposal);verifyDraft(b,proposal);if(c)verifyDraft(c,proposal,false)
+  if(a.labelPromptVersion!==b.labelPromptVersion||c&&c.labelPromptVersion!==a.labelPromptVersion)throw new Error('Labellers used different label prompt versions')
   if(a.familySet!==b.familySet||a.catalogueSha256!==b.catalogueSha256||!same(a.familyNames,b.familyNames)||c&&(c.familySet!==a.familySet||c.catalogueSha256!==a.catalogueSha256||!same(c.familyNames,a.familyNames)))throw new Error('Labellers used different family catalogues')
+  const sampleFiles=['review-sample.json','review-sample-round2.json']
+  const corrections=(await Promise.all(sampleFiles.map(name=>optionalJson<Array<{page:string;blockId:string;answer:string;correction?:string;time:string}>>(path.join(dataRoot(),'labels',name))))).flatMap(records=>records||[]).filter((record):record is {page:string;blockId:string;answer:string;correction:string;time:string}=>record.page===page&&record.answer==='wrong'&&typeof record.correction==='string')
   const entries=proposal.blocks.map((block,index)=>{
     const left=a.entries[index],right=b.entries[index],third=c?.entries[index]
     const labels=[left.label!,right.label!,third?.draftStatus==='complete'?third.label??undefined:undefined]
@@ -84,9 +129,11 @@ export async function mergePage(page:string,aName:string,bName:string,cName?:str
     if(!evidence)throw new Error('Missing source evidence for '+block.id)
     if(right.evidence&&!same(evidence,right.evidence))throw new Error('Labellers have different source evidence for '+block.id)
     const merged=compareLabels(labels[0]!,labels[1]!,labels[2],{...evidence,heldOut:manifest.heldOut})
-    return {blockId:block.id,order:block.order,...merged,...(merged.status==='agreed'?{reviewedBy:'model-agreed:'+a.model+'+'+b.model}:{})}
+    const entry={blockId:block.id,order:block.order,...merged,...(merged.status==='agreed'?{reviewedBy:'model-agreed:'+a.model+'+'+b.model}:{})}
+    return preserveFounder(entry,previous?.entries.find(old=>old.blockId===block.id),corrections.filter(record=>record.blockId===block.id))
   })
-  const sheet={version:2,page,heldOut:manifest.heldOut,snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),blocks:proposal.blocks,familySet:a.familySet,catalogueSha256:a.catalogueSha256,labellers:{a:{out:aName,model:a.model},b:{out:bName,model:b.model},...(!manifest.heldOut&&c?{c:{out:cName,model:c.model}}:{})},entries}
+  const sheet={version:2,labelPromptVersion:a.labelPromptVersion,page,heldOut:manifest.heldOut,snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),blocks:proposal.blocks,familySet:a.familySet,catalogueSha256:a.catalogueSha256,labellers:{a:{out:aName,model:a.model},b:{out:bName,model:b.model},...(!manifest.heldOut&&c?{c:{out:cName,model:c.model}}:{})},entries}
+  if(previous)await fs.rename(target,path.join(directory,'answer-sheet-v2.'+new Date().toISOString().replace(/[:.]/g,'-')+'-'+randomUUID()+'.json'))
   await saveExclusive(target,sheet)
   if(finalize)await writeAgreement()
   return sheet

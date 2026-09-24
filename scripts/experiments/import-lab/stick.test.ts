@@ -179,12 +179,12 @@ test('text moved from another block is reported and alt text is exempt',()=>{
   expect((row.checks.C7.produced as {moved:string[];altExemptCharacters:number}).altExemptCharacters).toBeGreaterThan(0)
 })
 
-test('one source run cannot be assembled across separate components',()=>{
+test('one source run can be retained across separate components',()=>{
   const run='one two three four five six seven eight nine ten eleven twelve'
   const b=block({text:run})
   const e={text:[{text:run,region:'main' as const}],headings:[],links:[],images:[],wordCount:12,sourceText:run}
   const checks=scoreSheet(sheet([entry({block:b})]),[{type:'hero',content:{text:'one two three four five six'}},{type:'hero',content:{text:'seven eight nine ten eleven twelve'}}],url,{evidence:[e]}).rows[0].checks
-  expect(checks.C2.passed).toBe(false)
+  expect(checks.C2.passed).toBe(true)
 })
 
 test('heading case and mailto and tel output links compare after normalisation',()=>{

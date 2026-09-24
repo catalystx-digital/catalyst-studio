@@ -29,7 +29,8 @@ describe('content matching',()=>{
     expect(scoreSheet(ignored,[component],url).rows[0].verdict).toBe('should have been ignored')
     const split=scoreSheet(sheet(),[component,component],url).rows[0]
     expect(split.split).toBe(true)
-    expect(split.structuralErrors).toContain('Unexpected split')
+    expect(split.splitAllowed).toBe(true)
+    expect(split.structuralErrors).not.toContain('Unexpected split')
     expect(scoreSheet(ignored,[],url).rows[0]).toMatchObject({verdict:'correct',ignored:true})
     expect(scoreSheet(ignored,[],url).rows[0].checks.C6.structureUnknown).toBe(false)
     expect(scoreSheet(sheet(),[],url).rows[0].checks.C6.structureUnknown).toBe(false)

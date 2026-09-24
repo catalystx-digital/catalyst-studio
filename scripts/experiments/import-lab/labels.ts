@@ -33,7 +33,7 @@ const familyLabelSchema=z.object({
 }).strict()
 export type FamilyLabel=z.infer<typeof familyLabelSchema>
 export interface FamilyDraftEntry {blockId:string;draftStatus:'pending'|'complete'|'failed';label:FamilyLabel|null;error?:string;normalised?:string[];evidence?:{detectedCount:number|null;imageGroups:Array<{id:number;addresses:string[];width:number|null;height:number|null;alt:string;kind:string;clonedCarouselCopy?:boolean}>}}
-export interface FamilyDraftSheet {version:2;page:string;model:string;familySet:string;familyNames:string[];catalogueSha256:string;snapshotSha256:string;proposalSha256:string;entries:FamilyDraftEntry[]}
+export interface FamilyDraftSheet {version:2;labelPromptVersion?:string;page:string;model:string;familySet:string;familyNames:string[];catalogueSha256:string;snapshotSha256:string;proposalSha256:string;entries:FamilyDraftEntry[]}
 export interface Entry { block: Block; status: 'draft' | 'approved' | 'corrected'; label: Label | null; draftStatus: 'complete' | 'failed' | 'dry-run' | 'manual'; reviewedBy?: string; error?: string }
 export interface Sheet { version: 1; page: string; snapshotSha256: string; proposalSha256: string; updatedAt: string; entries: Entry[]; issues: string[] }
 export function slug(value: string) { if (!/^[a-zA-Z0-9_][a-zA-Z0-9_@.-]{0,239}$/.test(value)) throw new Error('Invalid page or arm name'); return value }

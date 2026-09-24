@@ -31,7 +31,7 @@
     .editor select,.editor input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #8da9b5;border-radius:7px;background:white;color:#173241}
     .editor .check{display:flex;align-items:center;gap:8px;font-weight:500}.editor .check input{width:auto}
     .decoration-list{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}.decoration-item{display:flex;align-items:center;gap:7px}.decoration-item img{width:64px;height:64px;object-fit:cover;border-radius:5px;border:1px solid #b4c5cd}.answer .decoration-list{margin-bottom:0}
-    .imported{border:1px solid #d5e0e5;border-radius:9px;padding:16px;margin-bottom:18px;background:#f8fbfc}.imported h3{font-size:.9rem;margin:14px 0 5px}.imported h3:first-child{margin-top:0}.imported p,.imported ul{margin:0;color:#243d4a;overflow-wrap:anywhere}.imported ul{padding-left:20px}.thumbs{display:flex;flex-wrap:wrap;gap:8px}.thumbs img{width:74px;height:74px;object-fit:cover;border-radius:5px;background:#d7e1e5}
+    .imported{border:1px solid #d5e0e5;border-radius:9px;padding:16px;margin-bottom:18px;background:#f8fbfc;max-height:65vh;overflow:auto}.imported h3{font-size:.9rem;margin:14px 0 5px}.imported h3:first-child{margin-top:0}.imported p,.imported ul{margin:0;color:#243d4a;overflow-wrap:anywhere}.imported ul{padding-left:20px}.thumbs{display:flex;flex-wrap:wrap;gap:8px}.thumbs img{width:74px;height:74px;object-fit:cover;border-radius:5px;background:#d7e1e5}
     .message{min-height:24px;margin:14px 0;color:#a23a22;font-weight:700}.empty{padding:36px 0}.empty h2{font-size:1.5rem}.previous-note{padding:12px;background:#dce9ee;border-radius:8px;margin-bottom:14px}
     [hidden]{display:none!important}@media(max-width:760px){.shell{padding:18px 16px 50px}.review-grid{grid-template-columns:1fr;gap:18px}.decision{padding:18px}.crop img{max-height:45vh}.toolbar{flex-wrap:wrap}.toolbar .count{flex-basis:100%}}
   </style>
@@ -42,6 +42,7 @@
     <main>
       <section id="start">
         <h1>Choose a short review batch</h1>
+        <p id="round"></p>
         <p class="lede">See the source first. Make one decision at a time. You can stop after any item and return to the next unanswered one.</p>
         <div class="queue-list" id="queues"></div>
         <div class="rules" id="rules"></div>
@@ -80,7 +81,7 @@
     async function start(){
       state.queue=null;state.item=null;state.previous=[];state.lookingBack=false;state.batchDone=false;$('start').hidden=false;$('review').hidden=true;
       try{
-        const data=await api('/api/summary'),list=$('queues');list.replaceChildren();
+        const data=await api('/api/summary'),list=$('queues');list.replaceChildren();$('round').textContent='Round '+data.round;
         for(const queue of ['disputes','sample','stick']){
           const stats=data.queues[queue],choice=button('', 'queue-choice',()=>openQueue(queue));
           choice.append(el('strong',names[queue]),el('b',String(stats.remaining)),el('span',stats.remaining===1?'item remaining':'items remaining'),el('em','About '+stats.estimateMinutes+' min · batches of 20'));
