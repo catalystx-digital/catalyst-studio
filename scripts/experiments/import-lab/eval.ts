@@ -14,11 +14,11 @@ import { stickScoreName } from './stick-version'
 import { generateAccuracy } from './accuracy'
 import { checkLeaks } from './leak-check'
 
-interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; provider:DraftProvider; onlyFailed?:boolean;out?:string;a?:string;b?:string;c?:string }
+interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; provider:DraftProvider; onlyFailed?:boolean;out?:string;a?:string;b?:string;c?:string;round?:1|2 }
 interface Task {page:string;stage:string;script:string;args:string[];existing:boolean;paid:boolean;internet:boolean;calls:number|null;cost:number|null;source?:'answer-sheet.json'|'blocks.json';reason?:string}
 export function parseEval(argv:string[]): EvalOptions {
   const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed']
-  const allowed=[...flags,'--families','--family-set','--catalogue','--set','--out','--a','--b','--c','--run','--arms','--arm','--runs','--root','--concurrency','--model','--provider'],roots:string[]=[]
+  const allowed=[...flags,'--families','--family-set','--catalogue','--set','--out','--a','--b','--c','--run','--arms','--arm','--runs','--root','--concurrency','--model','--provider','--round'],roots:string[]=[]
   if(!['blocks','arms','score','summary','snapshot','draft','merge','review','accuracy','leak-check'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|merge|review|accuracy|leak-check')
   for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||(key in values&&key!=='--root'))throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);const value=args[++i];if(key==='--root')roots.push(value);else values[key]=value} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
@@ -38,12 +38,13 @@ export function parseEval(argv:string[]): EvalOptions {
   if(new Set(runs).size!==runs.length)throw new Error('Duplicate run')
   if(command==='accuracy'&&(!values['--arm']||![1,2,4].includes(runs.length)))throw new Error('Accuracy needs --arm and one, two or four --runs')
   if(command==='score'&&values['--runs']&&(!values['--arm']||!runs.length))throw new Error('Score needs --arm with --runs')
+  if(values['--round']&&(command!=='review'||!['1','2'].includes(values['--round'])))throw new Error('--round applies to review and must be 1 or 2')
   const arms=values['--arms']?.split(',').map(identifier)||[]
   if(command==='arms'&&(!arms.length||!values['--run']))throw new Error('Arms need --arms a,b,c --run r1')
   if(values['--families']&&command==='arms'&&(arms.some(arm=>arm!=='jev-pick')))throw new Error('Family picking applies only to jev-pick')
   if(arms.some(arm=>![...ARMS,'jev-pick'].includes(arm)))throw new Error('Unknown arm')
   if(new Set(arms).size!==arms.length)throw new Error('Duplicate arm')
-  return {families,familySet,command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],provider,onlyFailed:!!values['--only-failed'],out:values['--out'],a:values['--a'],b:values['--b'],c:values['--c']}
+  return {families,familySet,command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],provider,onlyFailed:!!values['--only-failed'],out:values['--out'],a:values['--a'],b:values['--b'],c:values['--c'],round:values['--round']?Number(values['--round']) as 1|2:undefined}
 }
 export function estimate(history:SavedResult[], arm:string) {
   const rows=history.filter(r=>r.arm===arm&&r.calls.length)
@@ -76,7 +77,7 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     tasks.push({page,stage,script,args,existing:(output?await exists(output):false)||(stage==='draft'&&calls===0),paid,internet,calls,cost,source:stage==='draft'?(await exists(path.join(label,'answer-sheet.json'))?'answer-sheet.json':'blocks.json'):undefined,reason})
   }
   if(options.command==='summary'||options.command==='review') {
-    await add('all',options.command,options.command==='summary'?'summary.ts':'review-server.ts',options.command==='review'?[...(options.arm?['--arm',options.arm]:[]),...(options.run?['--run',options.run]:[])]:familyArgs,null)
+    await add('all',options.command,options.command==='summary'?'summary.ts':'review-server.ts',options.command==='review'?[...(options.arm?['--arm',options.arm]:[]),...(options.run?['--run',options.run]:[]),...(options.round?['--round',String(options.round)]:[])]:familyArgs,null)
     return tasks
   }
   for(const [page,entry] of Object.entries(pages).sort(([a],[b])=>a.localeCompare(b))) {
@@ -96,7 +97,9 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
       const left=await exists(path.join(label,'label-'+options.a+'.json')),right=await exists(path.join(label,'label-'+options.b+'.json'))
       if(left!==right)throw new Error('Both labellers must have a label output for '+page)
       if(!left)continue
-      await add(page,'merge','merge-labels.ts',['--page',page,'--a',options.a!,'--b',options.b!,...(options.c?['--c',options.c]:[])],path.join(label,'answer-sheet-v2.json'))
+      const target=path.join(label,'answer-sheet-v2.json'),previous=await optionalJson<{heldOut?:boolean;labellers?:{a?:{out:string};b?:{out:string};c?:{out:string}}}>(target)
+      const current=previous?.labellers?.a?.out===options.a&&previous?.labellers?.b?.out===options.b&&(previous?.heldOut||(previous?.labellers?.c?.out||undefined)===(options.c||undefined))
+      await add(page,'merge','merge-labels.ts',['--page',page,'--a',options.a!,'--b',options.b!,...(options.c?['--c',options.c]:[])],current?target:null)
     }
     if(options.command==='arms') {
       for(const arm of options.arms) {

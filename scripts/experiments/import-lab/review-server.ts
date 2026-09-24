@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import sharp from 'sharp'
 import { dataRoot, main } from './storage'
 import { argumentsForPhase2, atomicJson, directories, familyBlockSource, labelDirectory, optionalJson, sha, slug, type Block, type Proposal, type FamilyDraftSheet } from './labels'
-import { componentStrings, componentResources, extractPageEvidence, normalizeText, absoluteUrl, type Component } from './metrics'
+import { componentRegion, componentResources, extractPageEvidence, normalizeText, absoluteUrl, type Component, type Field as ComponentField } from './metrics'
 const { parseFragment } = createRequire(__filename)('parse5') as typeof import('parse5')
 type HtmlNode = {nodeName?:string;tagName?:string;value?:string;attrs?:Array<{name:string;value:string}>;childNodes?:HtmlNode[]}
 
@@ -17,7 +17,7 @@ type Sheet = {version:2;page:string;heldOut:boolean;familySet:string;familyNames
 type ScoreRow = {id:string;verdict:string;ignored?:boolean;componentIndices?:number[]}
 type Candidate = {page:string;blockId:string;sheet:Sheet;entry:Entry;block:Block;revision:string;row?:ScoreRow}
 type ReviewRecord = {page:string;blockId:string;answer:'right'|'wrong';time:string;correction?:string;stickVerdict?:string;arm?:string;run?:string}
-type Options = {arm?:string;run?:string}
+type Options = {arm?:string;run?:string;round?:1|2}
 const fields:Field[]=['family','acceptableFamilies','multiple','familiesInOrder','placement','ignore','ignoreReason','itemCount','itemKind','decorativeImages']
 const kindNames:Record<string,string>={'site-header':'Top menu','site-footer':'Bottom of page','local-nav':'Page menu',hero:'Opening banner',content:'Text section',collection:'Repeated items (cards, posts, people)','logo-strip':'Logo row',stats:'Key numbers',testimonials:'Quotes and reviews',pricing:'Prices and plans',disclosure:'Expandable content (accordion or tabs)',cta:'Call to action',form:'Form',table:'Table or chart',media:'Pictures, video or map',navigation:'Menu',footer:'Bottom of page',split:'Side by side section',cards:'Cards',feed:'Updates',text:'Text',statistics:'Key numbers',logos:'Logos',tables:'Tables',article:'Article',contact:'Contact details',timeline:'Timeline',section:'Section'}
 const fieldNames:Record<Field,string>={family:'section kind',acceptableFamilies:'allowed section kinds',multiple:'more than one section',familiesInOrder:'section kinds from top to bottom',placement:'where it sits',ignore:'skip this section',ignoreReason:'reason for skipping',itemCount:'number of items',itemKind:'type of item',decorativeImages:'decoration images'}
@@ -27,9 +27,9 @@ const readable=(field:Field,value:unknown):string=>Array.isArray(value)?value.le
 const isDispute=(value:unknown):value is Dispute=>!!value&&typeof value==='object'&&!Array.isArray(value)&&(value as Dispute).disputed===true
 const disputedFields=(entry:Entry)=>fields.filter(field=>isDispute(entry.label[field]))
 const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b)
-const recordFile=(queue:'sample'|'stick')=>path.join(dataRoot(),'labels',queue==='sample'?'review-sample.json':'stick-check.json')
+const recordFile=(queue:'sample'|'stick',round:1|2=1)=>path.join(dataRoot(),'labels',(queue==='sample'?'review-sample':'stick-check')+(round===2?'-round2':'')+'.json')
 const readRecords=async(queue:'sample'|'stick',options:Options={})=>{
-  const all=(await optionalJson<ReviewRecord[]>(recordFile(queue)))||[]
+  const all=(await optionalJson<ReviewRecord[]>(recordFile(queue,options.round)))||[]
   return queue==='stick'?all.filter(record=>record.arm===(options.arm||'blocks-production')&&record.run===(options.run||'')):all
 }
 const rank=(seed:string,item:Candidate)=>sha(seed+'|'+item.page+'/'+item.blockId)
@@ -90,7 +90,13 @@ async function selections(options:Options) {
     }
   }
   disputes.sort((a,b)=>Number(b.sheet.heldOut)-Number(a.sheet.heldOut)||a.page.localeCompare(b.page)||a.entry.order-b.entry.order)
-  return {disputes,disputeDone,sample:shuffle(sample,'sample-v1').slice(0,30),stick:shuffle(stick,'stick-v1|'+(options.arm||'blocks-production')+'|'+(options.run||'')).slice(0,30)}
+  const stickSeed='stick-v1|'+(options.arm||'blocks-production')+'|'+(options.run||'')
+  const firstSample=shuffle([...sample],'sample-v1').slice(0,30),firstStick=shuffle([...stick],stickSeed).slice(0,30)
+  if(options.round!==2)return {disputes,disputeDone,sample:firstSample,stick:firstStick}
+  const [sampleRecords,stickRecords]=await Promise.all([readRecords('sample',{round:1}),optionalJson<ReviewRecord[]>(recordFile('stick',1)).then(records=>records||[])])
+  const used=(items:Candidate[],records:ReviewRecord[])=>new Set([...(records.length>=30?[]:items.map(item=>item.page+'/'+item.blockId)),...records.map(record=>record.page+'/'+record.blockId)])
+  const sampleUsed=used(firstSample,sampleRecords),stickUsed=used(firstStick,stickRecords)
+  return {disputes,disputeDone,sample:shuffle(sample.filter(item=>!sampleUsed.has(item.page+'/'+item.blockId)),'sample-v2').slice(0,30),stick:shuffle(stick.filter(item=>!stickUsed.has(item.page+'/'+item.blockId)),'stick-v2|'+(options.arm||'blocks-production')+'|'+(options.run||'')).slice(0,30)}
 }
 function choices(entry:Entry,decorationGroups:Array<{number:number;addresses:string[]}> = []) {
   const fields=disputedFields(entry),result:Array<{id:string;label:string;values:Record<string,unknown>;decorationNumbers:number[]}>=[]
@@ -113,14 +119,21 @@ function choices(entry:Entry,decorationGroups:Array<{number:number;addresses:str
 }
 function importedContents(components:Component[],indices:number[],baseUrl:string) {
   const selected=indices.filter(index=>Number.isInteger(index)&&index>=0&&index<components.length).map(index=>components[index])
-  const fields=componentStrings(selected),evidence=extractPageEvidence('',baseUrl),resources=componentResources(fields,evidence)
+  const fields:ComponentField[]=[]
+  selected.forEach((component,componentIndex)=>{
+    const walk=(value:unknown,fieldPath:string):void=>{
+      if(typeof value==='string'||typeof value==='number')fields.push({value:String(value),path:fieldPath,componentType:component.type,componentIndex,region:componentRegion(component)})
+      else if(Array.isArray(value))value.forEach((item,index)=>walk(item,fieldPath+'['+index+']'))
+      else if(value&&typeof value==='object')Object.entries(value).forEach(([key,item])=>walk(item,fieldPath+'.'+key))
+    }
+    for(const [key,value] of Object.entries(component))if(!['type','component','id','location'].includes(key))walk(value,key)
+  })
+  const evidence=extractPageEvidence('',baseUrl),resources=componentResources(fields,evidence)
   const headings:string[]=[],paragraphs:string[]=[],links:Array<{label:string;target:string}>=[]
   const add=(list:string[],value:string)=>{const clean=normalizeText(value);if(clean&&!list.includes(clean))list.push(clean)}
   const displayLink=(value:string)=>{
-    const canonical=absoluteUrl(value,baseUrl,'link')
-    if(!canonical)return null
-    const hash=new URL(value,baseUrl).hash
-    return canonical+hash
+    if(!absoluteUrl(value,baseUrl,'link'))return null
+    return new URL(value,baseUrl).href
   }
   const addLink=(label:string,value:string)=>{
     const target=displayLink(value)
@@ -145,7 +158,7 @@ function importedContents(components:Component[],indices:number[],baseUrl:string
       walk(parseFragment(field.value) as HtmlNode)
       add(paragraphs,parsed.visibleText.join(' '))
     }else if(/^(heading|headline|title|subheading|h[1-6])$/i.test(key))add(headings,field.value)
-    else if(/^(text|body|bodyHtml|description|paragraph|content|caption|quote|html|summary)$/i.test(key)&&!/^https?:/i.test(field.value))add(paragraphs,field.value)
+    else if(!/^(?:id|type|component|variant|layout|size|align|alignment|position|region|location|confidence|class|className|classes|color|style|theme|icon|font|fontFamily|weight|target|rel|mediaType|url|href|src|srcset|path|originalUrl|canonicalUrl)$/i.test(key)&&!/^(?:https?:|mailto:|tel:|data:|\/|#)/i.test(field.value))add(paragraphs,field.value)
   }
   for(const field of fields){
     const key=field.path.split('.').pop()!.replace(/\[\d+\]/g,'')
@@ -155,7 +168,7 @@ function importedContents(components:Component[],indices:number[],baseUrl:string
     if(target)addLink(field.value,target.value)
   }
   for(const resource of resources.links)if(!links.some(link=>absoluteUrl(link.target,baseUrl,'link')===resource.url))links.push({label:resource.url,target:resource.url})
-  return {headings,text:paragraphs.join(' ').slice(0,300),images:[...new Set(resources.images.map(resource=>resource.url))],links}
+  return {headings,text:paragraphs.join(' '),images:resources.images.map(resource=>resource.url),links}
 }
 async function decorationGroups(item:Candidate){
   const out=item.sheet.labellers?.a?.out
@@ -195,8 +208,8 @@ export function reviewSummary(samples:Array<Pick<ReviewRecord,'answer'>>,sticks:
   return {sample:{wrong,total:30,answered:samples.length,relabel:wrong>=2,rule:'2 or more wrong: fix labelling instructions and relabel'},stick:{agree,total:30,answered:sticks.length,passes:agree>=28&&sticks.length===30,rule:'28 or more must agree'}}
 }
 async function getSummary(options:Options) {
-  const all=await selections(options),sample=await readRecords('sample'),stick=await readRecords('stick',options)
-  return {queues:{disputes:progress(all.disputes.length+all.disputeDone,all.disputeDone),sample:progress(all.sample.length,sample.length),stick:progress(all.stick.length,stick.length)},...reviewSummary(sample,stick)}
+  const all=await selections(options),sample=await readRecords('sample',options),stick=await readRecords('stick',options)
+  return {round:options.round||1,queues:{disputes:progress(all.disputes.length+all.disputeDone,all.disputeDone),sample:progress(all.sample.length,sample.length),stick:progress(all.stick.length,stick.length)},...reviewSummary(sample,stick)}
 }
 async function getQueue(queue:Queue,options:Options) {
   const all=await selections(options),items=all[queue],records=queue==='disputes'?[]:await readRecords(queue,options)
@@ -242,7 +255,7 @@ async function saveAnswer(queue:Queue,body:any,options:Options) {
     resolveDispute(item,body)
     await atomicJson(path.join(labelDirectory(item.page),'answer-sheet-v2.json'),item.sheet)
   }else{
-    const records=(await optionalJson<ReviewRecord[]>(recordFile(queue)))||[]
+    const records=(await optionalJson<ReviewRecord[]>(recordFile(queue,options.round)))||[]
     if(records.some(record=>record.page===item.page&&record.blockId===item.blockId&&(queue==='sample'||record.arm===(options.arm||'blocks-production')&&record.run===(options.run||''))))return {status:409,value:{error:'Already answered. Reload to continue.'}}
     if(body.answer!=='right'&&body.answer!=='wrong')throw new Error('Choose Right or Wrong')
     if(queue==='sample'&&body.answer==='wrong') {
@@ -256,7 +269,7 @@ async function saveAnswer(queue:Queue,body:any,options:Options) {
       await atomicJson(path.join(labelDirectory(item.page),'answer-sheet-v2.json'),item.sheet)
     }
     records.push({page:item.page,blockId:item.blockId,answer:body.answer,time:new Date().toISOString(),...(queue==='sample'&&body.answer==='wrong'?{correction:body.correction}:{}),...(queue==='stick'?{stickVerdict:item.row!.verdict,arm:options.arm||'blocks-production',run:options.run||''}:{})})
-    await atomicJson(recordFile(queue),records)
+    await atomicJson(recordFile(queue,options.round),records)
   }
   return {status:200,value:await getQueue(queue,options)}
 }
@@ -266,6 +279,7 @@ function parseQueue(value:unknown):Queue {
 }
 export async function startReviewServer(port=4777,options:Options={}) {
   if(!Number.isInteger(port)||port<0||port>65535)throw new Error('Invalid port')
+  if(options.round!==undefined&&options.round!==1&&options.round!==2)throw new Error('Review round must be 1 or 2')
   if(options.arm)slug(options.arm)
   if(options.run)slug(options.run)
   let writes=Promise.resolve()
@@ -307,4 +321,4 @@ export async function startReviewServer(port=4777,options:Options={}) {
   const address=server.address();console.log('Review: http://127.0.0.1:'+(typeof address==='object'&&address?address.port:port))
   return server
 }
-if(require.main===module)main(async()=>{const a=argumentsForPhase2(['--port','--arm','--run']);await startReviewServer(Number(a['--port']||4777),{arm:a['--arm'],run:a['--run']})})
+if(require.main===module)main(async()=>{const a=argumentsForPhase2(['--port','--arm','--run','--round']);await startReviewServer(Number(a['--port']||4777),{arm:a['--arm'],run:a['--run'],round:a['--round']?Number(a['--round']) as 1|2:1})})

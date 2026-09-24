@@ -6,7 +6,7 @@ import sharp from 'sharp'
 import { validatePages, setSiteKind } from './pages'
 import { validateFamilyLabel, atomicJson, familyBlockSource, sha, type FamilyLabel, type FamilyDraftEntry } from './labels'
 import { compareLabels, familyKappa, mergePage } from './merge-labels'
-import { draftLabels, selectFailedEntries, buildFamilyRequest } from './draft-labels'
+import { draftLabels, selectFailedEntries, buildFamilyRequest, LABEL_PROMPT_VERSION } from './draft-labels'
 import { comparisonProposal, comparisonSheet, comparisonSnapshot } from './phase3-fixtures'
 import { evaluate, parseEval } from './eval'
 import { blockEvidence } from './source-evidence'
@@ -151,6 +151,70 @@ test('clone images from source HTML stay flagged; shared content addresses stay 
   expect(compareLabels(a,b,undefined,{detectedCount:null,imageGroups:cloneOnly}).label.decorativeImages).toEqual([address])
 })
 
+test('family request puts hero, media and CTA boundaries before precedence',()=>{
+  const request=buildFamilyRequest('invented/model',{text:[],headings:[],links:[],images:[],wordCount:0,sourceText:''},[],{groups:[],issue:null},null)
+  const prompt=JSON.parse((request.messages[1].content as any[])[0].text.split('\nNo picture')[0])
+  expect(prompt.labelPromptVersion).toBe(LABEL_PROMPT_VERSION)
+  expect(prompt.rules).toEqual([
+    'Opening banner (hero): only the section that holds the page\'s main heading (usually the only h1) near the top, with an intro or a primary button. Without the page\'s main heading it is not a hero.',
+    'A section that is mostly one large picture, screenshot or video, with at most a caption or one short line, is media.',
+    'A short prompt with at most two sentences and one to three prominent buttons or links, and no main heading, is a call to action.'
+  ])
+  expect(Object.keys(prompt).indexOf('rules')).toBeLessThan(Object.keys(prompt).indexOf('precedence'))
+})
+
+test('relabel keeps founder fields, sample correction and archived answer sheet; versions must match',async()=>{
+  const proposal=comparisonProposal(),directory=path.join(root,'labels',proposal.page)
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  await atomicJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://invented.example/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
+  const entries=proposal.blocks.map(block=>({blockId:block.id,draftStatus:'complete',label:label(),evidence:{detectedCount:null,imageGroups:[]}}))
+  for(const [out,model] of [['a2','vendor-a/model'],['b2','vendor-b/model']])await atomicJson(path.join(directory,`label-${out}.json`),{version:2,labelPromptVersion:LABEL_PROMPT_VERSION,page:proposal.page,model,familySet:'C',familyNames:names,catalogueSha256:'fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),entries})
+  const previous={version:2,page:proposal.page,snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),blocks:proposal.blocks,entries:proposal.blocks.map((block,index)=>({blockId:block.id,status:'reviewed',reviewedBy:'founder',label:{...label(),family:index===0?'media':'content',acceptableFamilies:[index===0?'media':'content']},history:[{field:'family',chosen:index===0?'media':'content',losingOptions:['hero'],at:index===0?'2026-01-01':'2026-01-02',queue:index===0?'disputes':'sample'}]}))}
+  await atomicJson(path.join(directory,'answer-sheet-v2.json'),previous)
+  await atomicJson(path.join(root,'labels','review-sample.json'),[{page:proposal.page,blockId:proposal.blocks[1].id,answer:'wrong',correction:'content',time:'2026-01-02'}])
+  const mismatch=JSON.parse(await fs.readFile(path.join(directory,'label-b2.json'),'utf8'));mismatch.labelPromptVersion='different';await atomicJson(path.join(directory,'label-b2.json'),mismatch)
+  await expect(mergePage(proposal.page,'a2','b2',undefined,false)).rejects.toThrow(/prompt version/i)
+  mismatch.labelPromptVersion=LABEL_PROMPT_VERSION;await atomicJson(path.join(directory,'label-b2.json'),mismatch)
+  const merged=await mergePage(proposal.page,'a2','b2',undefined,false)
+  expect(merged.entries[0]).toMatchObject({reviewedBy:'founder',label:{family:'media',acceptableFamilies:['media']}})
+  expect(merged.entries[1]).toMatchObject({reviewedBy:'founder',label:{family:'content',acceptableFamilies:['content']}})
+  expect(merged.entries[0].history).toEqual(previous.entries[0].history)
+  const archived=(await fs.readdir(directory)).filter(name=>/^answer-sheet-v2\..+\.json$/.test(name))
+  expect(archived).toHaveLength(1)
+  expect(JSON.parse(await fs.readFile(path.join(directory,archived[0]),'utf8'))).toEqual(previous)
+})
+
+test('newest founder family decision wins across sample records and sheet history',async()=>{
+  const proposal=comparisonProposal(),directory=path.join(root,'labels',proposal.page)
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  await atomicJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://invented.example/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
+  const entries=proposal.blocks.map(block=>({blockId:block.id,draftStatus:'complete',label:label(),evidence:{detectedCount:null,imageGroups:[]}}))
+  for(const [out,model] of [['a2','vendor-a/model'],['b2','vendor-b/model']])await atomicJson(path.join(directory,`label-${out}.json`),{version:2,labelPromptVersion:LABEL_PROMPT_VERSION,page:proposal.page,model,familySet:'C',familyNames:names,catalogueSha256:'fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),entries})
+  const old={version:2,page:proposal.page,snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),blocks:proposal.blocks,entries:proposal.blocks.map((block,index)=>({blockId:block.id,status:'reviewed',reviewedBy:'founder',label:{...label(),family:index===0?'media':'content',acceptableFamilies:[index===0?'media':'content']},history:[{field:'family',chosen:index===0?'media':'content',losingOptions:['hero'],at:index===0?'2026-01-03T00:00:00Z':'2026-01-01T00:00:00Z',queue:'disputes'}]}))}
+  await atomicJson(path.join(directory,'answer-sheet-v2.json'),old)
+  await atomicJson(path.join(root,'labels','review-sample.json'),[{page:proposal.page,blockId:proposal.blocks[0].id,answer:'wrong',correction:'content',time:'2026-01-02T00:00:00Z'},{page:proposal.page,blockId:proposal.blocks[1].id,answer:'wrong',correction:'media',time:'2026-01-02T00:00:00Z'}])
+  const merged=await mergePage(proposal.page,'a2','b2',undefined,false)
+  expect(merged.entries[0]).toMatchObject({reviewedBy:'founder',label:{family:'media',acceptableFamilies:['media']}})
+  expect(merged.entries[1]).toMatchObject({reviewedBy:'founder',label:{family:'media',acceptableFamilies:['content','media']}})
+})
+
+test('missing founder-reviewed block refuses relabel before archive or write',async()=>{
+  const proposal=comparisonProposal(),directory=path.join(root,'labels',proposal.page)
+  await atomicJson(path.join(directory,'blocks.json'),proposal)
+  await atomicJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://invented.example/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
+  const entries=proposal.blocks.map(block=>({blockId:block.id,draftStatus:'complete',label:label(),evidence:{detectedCount:null,imageGroups:[]}}))
+  for(const [out,model] of [['a2','vendor-a/model'],['b2','vendor-b/model']])await atomicJson(path.join(directory,`label-${out}.json`),{version:2,labelPromptVersion:LABEL_PROMPT_VERSION,page:proposal.page,model,familySet:'C',familyNames:names,catalogueSha256:'fixture',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),entries})
+  const missing={...proposal.blocks[0],id:'retired-block'}
+  const previousBlocks=[missing,...proposal.blocks.slice(1)]
+  const previous={version:2,page:proposal.page,snapshotSha256:proposal.snapshotSha256,proposalSha256:sha({...proposal,blocks:previousBlocks}),blocks:previousBlocks,entries:[{blockId:missing.id,status:'reviewed',reviewedBy:'founder',label:{...label(),family:'media'},history:[{field:'family',chosen:'media',at:'2026-01-03T00:00:00Z'}]},...proposal.blocks.slice(1).map(block=>({blockId:block.id,status:'agreed',label:label()}))]}
+  const target=path.join(directory,'answer-sheet-v2.json')
+  await atomicJson(target,previous)
+  const before=await fs.readFile(target,'utf8')
+  await expect(mergePage(proposal.page,'a2','b2',undefined,false)).rejects.toThrow(/founder-reviewed block.*retired-block.*unchanged/i)
+  expect(await fs.readFile(target,'utf8')).toBe(before)
+  expect((await fs.readdir(directory)).filter(name=>/^answer-sheet-v2\..+\.json$/.test(name))).toEqual([])
+})
+
 test('kappa matches a hand-computed balanced fixture',()=>{
   expect(familyKappa([['hero','hero'],['hero','hero'],['content','content'],['content','hero']])).toBeCloseTo(0.5)
 })
@@ -179,7 +243,9 @@ test('fake saved labellers merge invented blocks without touching version one',a
   expect(agreement.trustworthy).toBe(false)
   expect(process.exitCode).toBe(1)
   expect(await fs.readFile(path.join(directory,'answer-sheet.json'),'utf8')).toContain('Invented standalone notice.')
-  await expect(mergePage(proposal.page,'a','b')).rejects.toThrow('already exists')
+  const repeated=await mergePage(proposal.page,'a','b',undefined,false)
+  expect(repeated.entries).toHaveLength(proposal.blocks.length)
+  expect((await fs.readdir(directory)).some(name=>/^answer-sheet-v2\..+\.json$/.test(name))).toBe(true)
 })
 
 test('missing C block leaves its dispute while C settles another development block',async()=>{

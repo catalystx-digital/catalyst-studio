@@ -75,8 +75,19 @@ export function checkContent(block:Block,label:FamilyLabel,components:Component[
   const fields=componentStrings(components), human=fields.filter(field=>isHumanText(field,1))
   const producedFamilies=components.map(c=>familyName(c.type,families))
   const remaining=[...label.familiesInOrder]
-  const rightType=label.multiple?producedFamilies.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:producedFamilies.every(name=>label.acceptableFamilies.includes(name))
-  const missingRuns=source.text.filter(run=>!components.some(component=>measureTextKept([run],componentStrings([component])).scores[0]?.kept))
+  const rightType=label.multiple?producedFamilies.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:producedFamilies.some(name=>label.acceptableFamilies.includes(name))
+  const missingRuns=components.length>1?(()=>{
+    const words=(value:string)=>normalizeText(value).match(/[\p{L}\p{N}]+/gu)||[]
+    const available=new Map<string,number>()
+    for(const field of human)for(const word of words(field.value))available.set(word,(available.get(word)||0)+1)
+    return source.text.filter(run=>{
+      const needed=new Map<string,number>()
+      for(const word of words(run.text))needed.set(word,(needed.get(word)||0)+1)
+      if([...needed].some(([word,count])=>(available.get(word)||0)<count))return true
+      for(const [word,count] of needed)available.set(word,available.get(word)!-count)
+      return false
+    })
+  })():source.text.filter(run=>!components.some(component=>measureTextKept([run],componentStrings([component])).scores[0]?.kept))
   const headingFields=[...fields.filter(f=>HEADING_KEYS.has(lastKey(f))).map(f=>f.value),...fields.filter(f=>/<[a-z][\s\S]*>/i.test(f.value)).flatMap(f=>htmlHeadings(f.value))]
   const missingHeadings=source.headings.filter(h=>!phrasePresent(headingFields,h))
   const resources=componentResources(fields,{...extractPageEvidence('',baseUrl),images:source.images.flatMap(group=>group.addresses.map(url=>({url,region:block.region})))})
@@ -125,7 +136,7 @@ export function scoreSheet(sheet:V2Sheet,components:Component[],baseUrl:string,o
     const failedChecks=Object.entries(checks).filter(([,check])=>check.passed===false).map(([name])=>name)
     const verdict:Verdict=unsettled?'unsettled':label.ignore?(indices.length?'should have been ignored':'correct'):!indices.length?'missed':checks.C1.passed===false?'wrong type':failedChecks.length?'right type, content incomplete':'correct'
     const merged=matching.merged.some(m=>m.blockIds.includes(block.id))
-    return {acceptableFamilies:unsettled?[]:label.multiple?label.familiesInOrder:label.acceptableFamilies,producedFamilies:mapped,id:block.id,order:block.order,description:(block.headings[0]||block.text||block.region).slice(0,100),producedTypes:types,componentIndices:indices,verdict,checks,failedChecks,split:indices.length>1,splitAllowed:unsettled?false:label.multiple,merged,ignored:unsettled?false:label.ignore,structuralErrors:[...(indices.length>1&&!label.multiple?['Unexpected split']:[]),...(merged?['Component spans multiple blocks']:[])]}
+    return {acceptableFamilies:unsettled?[]:label.multiple?label.familiesInOrder:label.acceptableFamilies,producedFamilies:mapped,id:block.id,order:block.order,description:(block.headings[0]||block.text||block.region).slice(0,100),producedTypes:types,componentIndices:indices,verdict,checks,failedChecks,split:indices.length>1,splitAllowed:unsettled?false:indices.length>1&&checks.C1.passed===true,merged,ignored:unsettled?false:label.ignore,structuralErrors:[...(merged?['Component spans multiple blocks']:[])]}
   })
   const scored=rows.filter(r=>!r.ignored&&r.verdict!=='unsettled')
   return {version:6,page:sheet.page,itemCountMismatches:scored.filter(r=>r.checks.C6.passed===false).map(r=>({id:r.id,expected:r.checks.C6.expected,produced:r.checks.C6.produced})),answerSheetSha256:sha(sheet),reviewedBlocks:sheet.entries.length,scoredBlocks:scored.length,unsettledBlocks:rows.filter(r=>r.verdict==='unsettled').length,accuracy:{correct:scored.filter(r=>r.verdict==='correct').length,total:scored.length},unreviewedBlocks:0,totalBlocks:sheet.entries.length,rows,counts:Object.fromEntries(verdicts.map(v=>[v,rows.filter(r=>r.verdict===v).length])),...matching,

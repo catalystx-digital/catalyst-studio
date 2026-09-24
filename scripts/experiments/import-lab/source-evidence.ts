@@ -31,7 +31,11 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
   const css=[...stylesheets,...(head?descendants(head).filter(n=>n.tagName==='style').map(rawText):[])]
   const visibility=visibilityContext(doc,css)
   const {isHidden}=visibility
-  const visibleText=(node:Node):string=>excluded.has(node.tagName||'')||isHidden(node)?'':node.nodeName==='#text'?node.value||'':(node.childNodes||[]).map(visibleText).join(' ')
+  const screenReaderOnly=(node:Node)=>{const a=attrs(node);return a['aria-hidden']==='true'||/sr-only|visually-hidden|screen-reader/i.test(a.class||'')}
+  const excludedText=new WeakSet<Node>()
+  const markExcluded=(node:Node,parent=false)=>{const hidden=parent||screenReaderOnly(node);if(hidden)excludedText.add(node);node.childNodes?.forEach(child=>markExcluded(child,hidden))}
+  markExcluded(doc)
+  const visibleText=(node:Node):string=>excluded.has(node.tagName||'')||isHidden(node)||excludedText.has(node)?'':node.nodeName==='#text'?node.value||'':(node.childNodes||[]).map(visibleText).join(' ')
   const map=new Map<string,GeometryNode>()
   const mapGeometry=(g:GeometryNode)=>{if(g.anchorKey!=null)map.set(g.anchorKey,g);g.children?.forEach(mapGeometry)}
   mapGeometry((geometry as {tree:GeometryNode}).tree)
@@ -42,7 +46,7 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
     const body=descendants(doc).find(node=>node.tagName==='body')!
     roots=anchors.map(anchor=>anchor.path.reduce((node,index)=>elements(node)[index],body))
   } catch { return fallbackEvidence(block,pageUrl,`Block ${block.id} has no resolved anchor; used blocks.json evidence`) }
-  const extracted=extractPageEvidence(html,pageUrl,stylesheets,{document:doc,roots,visibility})
+  const extracted=extractPageEvidence(html,pageUrl,stylesheets,{document:doc,roots,visibility:{...visibility,isHidden:(node:Node)=>isHidden(node)||excludedText.has(node)}})
   const headings:string[]=[],links:SourceEvidence['links']=[],images:ImageGroup[]=[]
   const seenImages=new Set<string>()
   const pushImage=(group:ImageGroup)=>{group.addresses=[...new Set(group.addresses)];const signature=[...group.addresses].sort().join('|');if(group.addresses.length&&(includeDecorative||counted(group)&&!group.clonedCarouselCopy)&&(includeDecorative||!seenImages.has(signature))){seenImages.add(signature);images.push({...group,id:images.length})}}
@@ -68,7 +72,7 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
       if(parentPicture){parentPicture.addresses.push(...addresses);parentPicture.alt ||= a.alt||'';const box=size(a,g);parentPicture.width=Math.max(parentPicture.width||0,box.width||0)||null;parentPicture.height=Math.max(parentPicture.height||0,box.height||0)||null}
       else if(tag==='img')pushImage({addresses:[...new Set(addresses)],...size(a,g),alt:a.alt||'',kind:'image',clonedCarouselCopy:cloned})
     }
-    if(!imageOnly&&(/^h[1-6]$/.test(tag)||a.role==='heading')&&a['aria-hidden']!=='true'&&!/sr-only|visually-hidden|screen-reader/i.test(a.class||'')){const value=normalizeText(visibleText(node));if(value)headings.push(value)}
+    if(!imageOnly&&!excludedText.has(node)&&(/^h[1-6]$/.test(tag)||a.role==='heading')){const value=normalizeText(visibleText(node));if(value)headings.push(value)}
     if(!imageOnly&&tag==='a') {const url=absoluteUrl(a.href||'',pageUrl,'link'),label=normalizeText(visibleText(node));if(url&&!links.some(link=>link.url===url&&link.label===label))links.push({url,label})}
     const childImages=new Set((g?.children||[]).flatMap(function collect(child):string[]{return [...(child.evidence?.images||[]),...(child.children||[]).flatMap(collect)]}))
     const own=(g?.evidence?.images||[]).filter(address=>!childImages.has(address)&&tag!=='img'&&tag!=='picture')
@@ -78,7 +82,7 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
   }
   roots.forEach((root,index)=>walk(root,anchors[index].path))
   const attributes:string[]=[]
-  const collectAttributes=(node:Node)=>{if(excluded.has(node.tagName||'')||isHidden(node))return;const a=attrs(node);attributes.push(...['alt','title','aria-label'].map(key=>a[key]).filter(Boolean));node.childNodes?.forEach(collectAttributes)}
+  const collectAttributes=(node:Node)=>{if(excluded.has(node.tagName||'')||isHidden(node)||excludedText.has(node))return;const a=attrs(node);attributes.push(...['alt','title','aria-label'].map(key=>a[key]).filter(Boolean));node.childNodes?.forEach(collectAttributes)}
   roots.forEach(collectAttributes)
   const sourceText=[...extracted.visibleText,...attributes].join(' ')
   return {text:extracted.text,headings:[...new Set(headings)],links,images,wordCount:extracted.visibleText.flatMap(run=>run.split(/\s+/).filter(Boolean)).length,sourceText:normalizeText(sourceText)}

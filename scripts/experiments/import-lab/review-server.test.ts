@@ -124,14 +124,20 @@ test('merged block geometry serves the queue and matching crop',async()=>{
 
 test('stick preview extracts HTML and structured image and link URLs',async()=>{
   const file=path.join(root,'arms','development','blocks-production','fixture-run','components.json')
-  const rich={type:'hero',content:{heading:'A Clear Heading',bodyHtml:'<p>Useful imported description with <a href="/inside">inside link</a>.</p><img src="/inside.png">',description:'Long plain words '.repeat(40),image:{url:'/photo.png'},link:{label:'Visit details',url:'/details'}}}
+  const rich={type:'hero',content:{heading:'A Clear Heading',bodyHtml:'<p>Useful imported description with <a href="/inside">inside link</a>.</p><img src="/inside.png">',description:'Long plain words '.repeat(40),date:'2026-09-24',tabs:[{label:'All updates'},{label:'Research'}],caption:'Figure caption',image:{url:'/photo.png'},link:{label:'Visit details',url:'/details?view=all&utm_source=fixture#tab'}},metadata:{region:'main',readingTime:'8 min read'}}
   await fs.writeFile(file,JSON.stringify(Array.from({length:32},()=>rich)))
   const imported=(await get('stick')).item.imported
   expect(imported.headings).toContain('a clear heading')
   expect(imported.text).toContain('useful imported description')
-  expect(imported.text.length).toBe(300)
+  expect(imported.text).toContain('long plain words '.repeat(40).trim())
+  expect(imported.text.length).toBeGreaterThan(300)
+  expect(imported.text).toContain('2026-09-24')
+  expect(imported.text).toContain('all updates')
+  expect(imported.text).toContain('research')
+  expect(imported.text).toContain('figure caption')
+  expect(imported.text).toContain('8 min read')
   expect(imported.images).toEqual(expect.arrayContaining(['https://example.test/inside.png','https://example.test/photo.png']))
-  expect(imported.links).toEqual(expect.arrayContaining([{label:'Visit details',target:'https://example.test/details'}]))
+  expect(imported.links).toEqual(expect.arrayContaining([{label:'Visit details',target:'https://example.test/details?view=all&utm_source=fixture#tab'}]))
   expect(imported.links.some((link:any)=>link.target==='https://example.test/inside')).toBe(true)
 })
 
@@ -152,6 +158,35 @@ test('stick preview pairs a structured button label with its fragment URL',async
   await fs.writeFile(file,JSON.stringify(Array.from({length:32},()=>rich)))
   const imported=(await get('stick')).item.imported
   expect(imported.links).toEqual([{label:'Get Started Free',target:'https://example.test/inside#details'}])
+})
+
+test('round two samples fresh blocks and stores answers in separate files',async()=>{
+  const firstSample=(await get('sample')).item,firstStick=(await get('stick')).item
+  expect((await answer('sample',firstSample,{answer:'right'})).status).toBe(200)
+  expect((await answer('stick',firstStick,{answer:'right'})).status).toBe(200)
+  const roundOne=Array.from({length:30},(_,i)=>({page:'held',blockId:'held-'+i,answer:i<2?'wrong':'right',time:'2026-01-01T00:00:00Z',...(i<2?{correction:'content'}:{})}))
+  await fs.writeFile(path.join(root,'labels','review-sample.json'),JSON.stringify(roundOne))
+  const heldFile=path.join(root,'labels','held','answer-sheet-v2.json'),devFile=path.join(root,'labels','development','answer-sheet-v2.json')
+  for(const [file,prefix] of [[heldFile,'held'],[devFile,'dev']] as const){const sheet=JSON.parse(await fs.readFile(file,'utf8'));sheet.entries.push(...Array.from({length:30},(_,i)=>agreed(prefix+'-new-'+i,34+i)));await fs.writeFile(file,JSON.stringify(sheet));const blocksFile=path.join(path.dirname(file),'blocks.json'),proposal=JSON.parse(await fs.readFile(blocksFile,'utf8'));proposal.blocks.push(...Array.from({length:30},(_,i)=>block(prefix+'-new-'+i,34+i)));await fs.writeFile(blocksFile,JSON.stringify(proposal))}
+  const scoreFile=path.join(root,'labels','development','scores-stick','blocks-production--fixture-run--stick1.json')
+  const score=JSON.parse(await fs.readFile(scoreFile,'utf8'));score.rows.push(...Array.from({length:30},(_,i)=>({id:'dev-new-'+i,verdict:'correct',componentIndices:[i]})));await fs.writeFile(scoreFile,JSON.stringify(score))
+  await stop();server=await startReviewServer(0,{arm:'blocks-production',run:'fixture-run',round:2});const a=server.address();address='http://127.0.0.1:'+(typeof a==='object'&&a?a.port:0)
+  const summary=await (await fetch(address+'/api/summary')).json() as any
+  expect(summary.round).toBe(2)
+  expect(summary.queues.sample.total).toBe(30)
+  expect(summary.queues.sample.remaining).toBe(30)
+  expect(summary.sample).toMatchObject({wrong:0,answered:0,relabel:false})
+  expect(summary.queues.stick.total).toBe(30)
+  const sample=(await get('sample')).item,stick=(await get('stick')).item
+  expect(sample.blockId).not.toBe(firstSample.blockId)
+  expect(stick.blockId).not.toBe(firstStick.blockId)
+  expect((await answer('sample',sample,{answer:'wrong',correction:'content'})).status).toBe(200)
+  const partial=await (await fetch(address+'/api/summary')).json() as any
+  expect(partial.queues.sample.remaining).toBe(29)
+  expect(partial.sample).toMatchObject({wrong:1,answered:1,relabel:false})
+  expect((await answer('stick',stick,{answer:'right'})).status).toBe(200)
+  expect(await fs.readFile(path.join(root,'labels','review-sample-round2.json'),'utf8')).toContain(sample.blockId)
+  expect(await fs.readFile(path.join(root,'labels','stick-check-round2.json'),'utf8')).toContain(stick.blockId)
 })
 
 test('two one-image decoration answers carry distinct shared image numbers',async()=>{
