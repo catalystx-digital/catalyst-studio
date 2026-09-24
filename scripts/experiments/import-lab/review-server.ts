@@ -18,6 +18,7 @@ type ScoreRow = {id:string;verdict:string;ignored?:boolean;componentIndices?:num
 type Candidate = {page:string;blockId:string;sheet:Sheet;entry:Entry;block:Block;revision:string;row?:ScoreRow}
 type ReviewRecord = {page:string;blockId:string;answer:'right'|'wrong';time:string;correction?:string;stickVerdict?:string;arm?:string;run?:string}
 type Options = {arm?:string;run?:string;round?:1|2}
+const realStickVerdicts=new Set(['correct','right type, content incomplete','wrong type','missed','should have been ignored'])
 const fields:Field[]=['family','acceptableFamilies','multiple','familiesInOrder','placement','ignore','ignoreReason','itemCount','itemKind','decorativeImages']
 const kindNames:Record<string,string>={'site-header':'Top menu','site-footer':'Bottom of page','local-nav':'Page menu',hero:'Opening banner',content:'Text section',collection:'Repeated items (cards, posts, people)','logo-strip':'Logo row',stats:'Key numbers',testimonials:'Quotes and reviews',pricing:'Prices and plans',disclosure:'Expandable content (accordion or tabs)',cta:'Call to action',form:'Form',table:'Table or chart',media:'Pictures, video or map',navigation:'Menu',footer:'Bottom of page',split:'Side by side section',cards:'Cards',feed:'Updates',text:'Text',statistics:'Key numbers',logos:'Logos',tables:'Tables',article:'Article',contact:'Contact details',timeline:'Timeline',section:'Section'}
 const fieldNames:Record<Field,string>={family:'section kind',acceptableFamilies:'allowed section kinds',multiple:'more than one section',familiesInOrder:'section kinds from top to bottom',placement:'where it sits',ignore:'skip this section',ignoreReason:'reason for skipping',itemCount:'number of items',itemKind:'type of item',decorativeImages:'decoration images'}
@@ -86,7 +87,7 @@ async function selections(options:Options) {
     if(!await optionalJson<unknown[]>(componentFile))continue
     for(const row of score.rows||[]) {
       const entry=source.sheet.entries.find(entry=>entry.blockId===row.id)
-      if(entry&&entry.label.ignore!==true&&!row.ignored)stick.push({...makeCandidate(source,entry),row})
+      if(entry&&entry.label.ignore!==true&&!row.ignored&&realStickVerdicts.has(row.verdict))stick.push({...makeCandidate(source,entry),row})
     }
   }
   disputes.sort((a,b)=>Number(b.sheet.heldOut)-Number(a.sheet.heldOut)||a.page.localeCompare(b.page)||a.entry.order-b.entry.order)

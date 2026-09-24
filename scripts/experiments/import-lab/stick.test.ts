@@ -57,6 +57,27 @@ test('visibility, headings, links and URLs share source rules',()=>{
   expect(absoluteUrl('/stories/one/?fbclid=x',url,'link')).toBe('https://example.test/stories/one')
 })
 
+test('a logo image alone is not a required heading, but visible heading text is',()=>{
+  const b=block({id:'fixture',anchor:{path:[0],tag:'section',id:'fixture',classes:[]},text:'Site name'})
+  const logo='<html><body><section id="fixture"><h1><a href="/"><img src="/logo.png" alt="Site name" width="200" height="80"></a></h1></section></body></html>'
+  const logoEvidence=blockEvidence(logo,[],b,geometry,url)
+  expect(logoEvidence.headings).toEqual([])
+  expect(logoEvidence.images[0].alt).toBe('Site name')
+  expect(logoEvidence.sourceText).toContain('site name')
+  const answer=sheet([entry({block:b})])
+  const logoChecks=scoreSheet(answer,[{type:'hero',content:{image:'/logo.png',alt:'Site name'}}],url,{evidence:[logoEvidence]}).rows[0].checks
+  expect(logoChecks.C3.passed).toBe(true)
+  expect(logoChecks.C5.passed).toBe(true)
+  expect(logoChecks.C7.passed).toBe(true)
+
+  for(const heading of ['<h1>Real page title</h1>','<div role="heading">Real page title</div>']) {
+    const titledBlock=block({...b,text:'Real page title'})
+    const evidence=blockEvidence('<html><body><section id="fixture">'+heading+'</section></body></html>',[],titledBlock,geometry,url)
+    expect(evidence.headings).toEqual(['real page title'])
+    expect(scoreSheet(sheet([entry({block:titledBlock})]),[{type:'hero',content:{text:'Real page title'}}],url,{evidence:[evidence]}).rows[0].checks.C3.passed).toBe(false)
+  }
+})
+
 test('header-like visibility is shared by page and block evidence',()=>{
   const variant='<html><body><div id="fixture" class="desktop-header"><h2>Helpful local services</h2><a href="/help">Ask for support</a><img src="/logo.jpg" width="200" height="80"></div><div class="hidden-panel"><h2>Hidden panel</h2><a href="/hidden">Hidden link</a><img src="/hidden.jpg"></div></body></html>'
   const b=block({id:'fixture',anchor:{path:[0],tag:'div',id:'fixture',classes:['desktop-header']}})

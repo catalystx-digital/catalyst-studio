@@ -93,6 +93,23 @@ test('wrong sample corrects the family; stick record stores its verdict privatel
   expect(records[0]).toMatchObject({page:stick.page,blockId:stick.blockId,answer:'right',stickVerdict:'correct',arm:'blocks-production',run:'fixture-run'})
 })
 
+test('stick queue excludes unsettled rows and records the latest verdict after drawing',async()=>{
+  const file=path.join(root,'labels','development','scores-stick','blocks-production--fixture-run--stick1.json')
+  const score=JSON.parse(await fs.readFile(file,'utf8'))
+  score.rows[0].verdict='unsettled'
+  await fs.writeFile(file,JSON.stringify(score))
+  const first=await get('stick')
+  expect(first.progress.total).toBe(30)
+  expect(first.item.blockId).not.toBe('dev-0')
+
+  const drawn=score.rows.find((row:any)=>row.id===first.item.blockId)
+  drawn.verdict='wrong type'
+  await fs.writeFile(file,JSON.stringify(score))
+  expect((await answer('stick',first.item,{answer:'wrong'})).status).toBe(200)
+  const records=JSON.parse(await fs.readFile(path.join(root,'labels','stick-check.json'),'utf8'))
+  expect(records[0]).toMatchObject({blockId:first.item.blockId,stickVerdict:'wrong type'})
+})
+
 test('summary rules flip at 2 wrong and 28 agreements',()=>{
   const samples=(wrong:number)=>Array.from({length:30},(_,i)=>({answer:(i<wrong?'wrong':'right') as 'wrong'|'right'}))
   const sticks=(agree:number)=>Array.from({length:30},(_,i)=>({answer:(i<agree?'right':'wrong') as 'right'|'wrong',stickVerdict:'correct'}))

@@ -1,4 +1,4 @@
-Use briefs 01 through 20 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
+Use briefs 01 through 21 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
 
 These briefs were given to a coding agent with no internet, no paid calls and no secrets. The agent could read saved local evidence, use invented fixtures and run offline checks. Real site names and page content must stay out of source files and new briefs. The owner runs any internet or paid evaluation stages separately.
 
@@ -29,6 +29,7 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 18 | [Labeller fixes and subscription CLIs](18-labeller-fixes-and-cli.md) | Accept count-only labels, normalise family lists, retry invalid replies, cover proposal-only pages and add Claude and read-only Codex subscription routes. | The first labelling pass rejected valid counts and skipped 18 pages. |
 | 19 | [Score on the new answer key](19-score-on-new-key.md) | Make C optional per block, score version-2 family labels with stick2 and report unsettled sections. | The measuring stick still used the unreviewed version-1 answer key. |
 | 20 | [Founder's first check fixes](20-founder-check-fixes.md) | Exclude screen-reader-only text, accept content-preserving splits, show full review previews, version and refine labelling instructions, preserve founder decisions during relabel, and draw round-two checks. | The founder found four wrong sample labels and nine stick disagreements. |
+| 21 | [Checker fixes from the second check](21-checker-fixes-round2.md) | Keep image-alt-only logo headings out of C3 and draw stick checks only from settled verdicts, using current scores when answers are saved. | The founder's second spot-check agreed on 13 of 30; evidence supported the checker in most cases, with these two exceptions. |
 
 ## Removed after the decisions
 
