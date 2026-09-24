@@ -4,27 +4,32 @@ import { mapLimited } from './call-recording'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import { dataRoot, main, identifier } from './storage'
-import { directories, optionalJson } from './labels'
-import { selectDraftEntries } from './draft-labels'
+import { dataRoot, main, identifier, readJson } from './storage'
+import { directories, familyBlockSource, optionalJson } from './labels'
+import { selectFailedEntries } from './draft-labels'
+import { mergePage, writeAgreement } from './merge-labels'
 import { loadPages, type PageManifest } from './pages'
 import { readSavedResults, callTotals, median, type SavedResult } from './summary'
 import { stickScoreName } from './stick-version'
 import { generateAccuracy } from './accuracy'
 import { checkLeaks } from './leak-check'
 
-interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean }
+interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; onlyFailed?:boolean;out?:string;a?:string;b?:string;c?:string }
 interface Task {page:string;stage:string;script:string;args:string[];existing:boolean;paid:boolean;internet:boolean;calls:number|null;cost:number|null;reason?:string}
 export function parseEval(argv:string[]): EvalOptions {
   const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed']
-  const allowed=[...flags,'--families','--family-set','--run','--arms','--arm','--runs','--root','--concurrency','--model'],roots:string[]=[]
-  if(!['blocks','arms','score','summary','snapshot','draft','review','accuracy','leak-check'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|review|accuracy|leak-check')
+  const allowed=[...flags,'--families','--family-set','--catalogue','--set','--out','--a','--b','--c','--run','--arms','--arm','--runs','--root','--concurrency','--model'],roots:string[]=[]
+  if(!['blocks','arms','score','summary','snapshot','draft','merge','review','accuracy','leak-check'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|merge|review|accuracy|leak-check')
   for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||(key in values&&key!=='--root'))throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);const value=args[++i];if(key==='--root')roots.push(value);else values[key]=value} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
-  const families=values['--families']||(command==='score'&&values['--family-set']?path.join(__dirname,'component-families.json'):undefined)
-  if(command!=='accuracy')validateFamilyOptions({families,familySet:values['--family-set']})
+  const families=values['--catalogue']||values['--families']||(command==='score'&&values['--family-set']?path.join(__dirname,'component-families.json'):undefined)
+  const familySet=values['--set']||values['--family-set']
+  if(command!=='accuracy')validateFamilyOptions({families,familySet})
   if(command==='accuracy'&&values['--families'])throw new Error('Accuracy uses --family-set without --families')
   if(values['--families']&&!['score','arms','summary'].includes(command))throw new Error('Family flags apply to score, arms or summary')
+  if(values['--catalogue']&&command!=='draft')throw new Error('--catalogue applies to draft')
+  if(command==='draft'&&(!families||!familySet||!values['--out']))throw new Error('Draft needs --catalogue, --set and --out')
+  if(command==='merge'&&(!values['--a']||!values['--b']))throw new Error('Merge needs --a and --b')
   if(roots.length&&command!=='leak-check')throw new Error('--root applies to leak-check')
   const runs=values['--runs']?.split(',').map(identifier)||[]
   if(new Set(runs).size!==runs.length)throw new Error('Duplicate run')
@@ -35,13 +40,33 @@ export function parseEval(argv:string[]): EvalOptions {
   if(values['--families']&&command==='arms'&&(arms.some(arm=>arm!=='jev-pick')))throw new Error('Family picking applies only to jev-pick')
   if(arms.some(arm=>![...ARMS,'jev-pick'].includes(arm)))throw new Error('Unknown arm')
   if(new Set(arms).size!==arms.length)throw new Error('Duplicate arm')
-  return {families,familySet:values['--family-set'],command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed']}
+  return {families,familySet,command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],onlyFailed:!!values['--only-failed'],out:values['--out'],a:values['--a'],b:values['--b'],c:values['--c']}
 }
 export function estimate(history:SavedResult[], arm:string) {
   const rows=history.filter(r=>r.arm===arm&&r.calls.length)
   const calls=rows.map(r=>callTotals(r.calls).calls)
   const costs=rows.map(r=>callTotals(r.calls).cost).filter(c=>c.known===c.count&&c.count>0).map(c=>c.value)
   return {calls:median(calls),cost:median(costs)}
+}
+async function dryDraftPlan(options:EvalOptions):Promise<Task[]> {
+  if(!options.model)throw new Error('Draft needs --model with a vision-capable model')
+  const root=dataRoot(),tasks:Task[]=[]
+  for(const page of await directories(path.join(root,'labels'))) {
+    const directory=path.join(root,'labels',page)
+    const [reviewed,previous]=await Promise.all([optionalJson(path.join(directory,'answer-sheet.json')),optionalJson(path.join(directory,'label-'+options.out+'.json'))])
+    if(!reviewed)continue
+    const proposal=await familyBlockSource(page)
+    if(options.onlyFailed&&!previous)throw new Error('--only-failed needs an existing label output: '+page)
+    const selected=options.onlyFailed&&previous?selectFailedEntries(proposal.blocks,previous.entries):proposal.blocks
+    const calls=selected.length
+    const models=await optionalJson<{data:Array<{id:string;pricing?:{prompt?:string;completion?:string;image?:string}}> }>(path.join(root,'pages',page,'models.json'))
+    const pricing=models?.data.find(model=>model.id===options.model)?.pricing
+    const input=Number(pricing?.prompt),output=Number(pricing?.completion),image=Number(pricing?.image||0)
+    const catalogue=await readJson<any>(options.families!),descriptions=Object.values(catalogue.sets?.[options.familySet!]||{}).map((family:any)=>family.description||'').join('')
+    const cost=pricing&&Number.isFinite(input)&&Number.isFinite(output)?selected.reduce((total:number,block:any)=>total+(Math.ceil((block.text.length+descriptions.length+1200)/4)+1000)*input+200*output+image,0):null
+    tasks.push({page,stage:'draft',script:'draft-labels.ts',args:['--page',page,'--catalogue',options.families!,'--set',options.familySet!,'--model',options.model,'--out',options.out!],existing:!!previous&&!options.onlyFailed||calls===0,paid:true,internet:true,calls,cost,reason:'Estimate: source text and family descriptions at 4 characters/token, 1,000 visual input tokens and 200 output tokens per block; cached model prices.'})
+  }
+  return tasks
 }
 const exists=async(file:string)=>{try{await fs.stat(file);return true}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return false;throw e}}
 export async function planEvaluation(options:EvalOptions,pages:PageManifest,history:SavedResult[]=[]):Promise<Task[]> {
@@ -52,12 +77,12 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     let calls=known.calls, cost=known.cost
     const label=path.join(root,'labels',page)
     if(paid) {
-      const proposal=await optionalJson(path.join(label,'blocks.json')),sheet=await optionalJson(path.join(label,'answer-sheet.json'))
+      const proposal=stage==='draft'?await familyBlockSource(page):await optionalJson(path.join(label,'blocks.json')),sheet=await optionalJson(path.join(label,'answer-sheet.json'))
       let initial:number|null=null
       if(stage==='draft'&&proposal) {
-        const previous=await optionalJson(path.join(label,'draft.json'))
-        const kept=options.onlyFailed?selectDraftEntries(proposal,previous,sheet,true):[]
-        initial=proposal.blocks.length-kept.length
+        const previous=await optionalJson(path.join(label,'label-'+options.out+'.json'))
+        if(options.onlyFailed&&!previous)throw new Error('--only-failed needs an existing label output: '+page)
+        initial=options.onlyFailed&&previous?selectFailedEntries(proposal.blocks,previous.entries).length:proposal.blocks.length
       }
       if(stage==='arms') {
         if(arm==='blocks-production')initial=proposal?proposal.blocks.length*2:null
@@ -82,7 +107,14 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     if(options.command==='blocks')await add(page,'blocks','propose-blocks.ts',['--page',page,...(!entry.renderWithJavaScript?['--no-js']:[])],path.join(label,'blocks.json'),false,true)
     if(options.command==='draft') {
       if(!options.model)throw new Error('Draft needs --model with a vision-capable model')
-      await add(page,'draft','draft-labels.ts',['--page',page,'--model',options.model,...(options.onlyFailed?['--only-failed']:[])],options.onlyFailed?null:path.join(label,'draft.json'),true,true,'draft')
+      if(!await exists(path.join(label,'answer-sheet.json')))continue
+      await add(page,'draft','draft-labels.ts',['--page',page,'--catalogue',options.families!,'--set',options.familySet!,'--model',options.model,'--out',options.out!,...(options.onlyFailed?['--only-failed']:[]),...(options.yesSpend?['--yes-spend']:[])],options.onlyFailed?null:path.join(label,'label-'+options.out+'.json'),true,true,'draft')
+    }
+    if(options.command==='merge') {
+      const left=await exists(path.join(label,'label-'+options.a+'.json')),right=await exists(path.join(label,'label-'+options.b+'.json'))
+      if(left!==right)throw new Error('Both labellers must have a label output for '+page)
+      if(!left)continue
+      await add(page,'merge','merge-labels.ts',['--page',page,'--a',options.a!,'--b',options.b!,...(options.c?['--c',options.c]:[])],path.join(label,'answer-sheet-v2.json'))
     }
     if(options.command==='arms') {
       for(const arm of options.arms) {
@@ -110,7 +142,7 @@ export function authorizePlan(tasks:Task[],options:EvalOptions) {
 function printPlan(tasks:Task[]) {
   const pending=tasks.filter(t=>!t.existing),unknownCalls=pending.filter(t=>t.calls===null).length,unknownCosts=pending.filter(t=>t.cost===null).length
   console.log(pending.length+' tasks to run; '+(tasks.length-pending.length)+' existing tasks skipped. Estimated calls: '+pending.reduce((n,t)=>n+(t.calls||0),0)+(unknownCalls?' plus '+unknownCalls+' unknown tasks':'')+'. Estimated cost: $'+pending.reduce((n,t)=>n+(t.cost||0),0).toFixed(4)+(unknownCosts?' plus '+unknownCosts+' unknown tasks':'')+'.')
-  console.log('Estimates use middle recorded page costs and call counts. Splits and retries can add calls; unknown costs are not zero. Existing folders are never overwritten; use a fresh run ID after failure.')
+  console.log(tasks.every(t=>t.stage==='draft')?'Draft cost estimate uses cached model prices, source text and family descriptions at 4 characters/token, 1,000 visual input tokens and 200 output tokens per block. Actual vision tokens and retries may differ.':'Estimates use middle recorded page costs and call counts. Splits and retries can add calls; unknown costs are not zero. Existing folders are never overwritten; use a fresh run ID after failure.')
   for(const t of tasks)console.log((t.existing?'SKIP':t.paid?'PAID':t.internet?'INTERNET':'FREE')+' '+t.page+': '+t.script+' '+t.args.join(' ')+'; calls '+(t.calls??'unknown')+'; cost '+(t.cost===null?'unknown':'$'+t.cost.toFixed(4)))
 }
 async function execute(task:Task) {
@@ -136,12 +168,18 @@ async function draftHistory():Promise<SavedResult[]> {
 export async function evaluate(options:EvalOptions) {
   if(options.command==='accuracy'){await generateAccuracy(dataRoot(),{arm:options.arm!,runs:options.runs,familySet:options.familySet});return []}
   if(options.command==='leak-check'){process.exitCode=await checkLeaks([dataRoot(),...options.roots]);return []}
+  if(options.command==='draft'&&options.dryRun){const tasks=await dryDraftPlan(options);printPlan(tasks);return tasks}
   if(options.families)await loadFamilies(options.families,options.familySet!)
   const pages=await loadPages()
-  if(options.command==='score')for(const page of [...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'arms'))])if(!pages[page])pages[page]={url:'https://example.invalid/',kind:'other',heldOut:false,renderWithJavaScript:false,notes:'Discovered for scoring; not saved to manifest'}
+  if(options.command==='score')for(const page of [...await directories(path.join(dataRoot(),'labels')),...await directories(path.join(dataRoot(),'arms'))])if(!pages[page])pages[page]={url:'https://example.invalid/',kind:'other',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:'Discovered for scoring; not saved to manifest'}
   const history=[...await readSavedResults(),...(options.command==='draft'?await draftHistory():[])],tasks=await planEvaluation(options,pages,history)
   printPlan(tasks);authorizePlan(tasks,options)
   if(options.dryRun)return tasks
+  if(options.command==='merge') {
+    for(const task of tasks.filter(task=>!task.existing))await mergePage(task.page,options.a!,options.b!,options.c,false)
+    await writeAgreement()
+    return tasks
+  }
   const byPage=[...new Set(tasks.map(t=>t.page))]
   const outcomes=await mapLimited(byPage,options.concurrency,async page=>{
     for(const task of tasks.filter(t=>t.page===page&&!t.existing))await execute(task)

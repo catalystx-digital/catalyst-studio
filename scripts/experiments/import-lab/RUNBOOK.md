@@ -10,12 +10,12 @@ Keep the existing ten reviewed answer sheets unchanged for M3. New-page work rem
 node --import tsx scripts/experiments/import-lab/eval.ts snapshot --dry-run
 node --import tsx scripts/experiments/import-lab/eval.ts snapshot
 node --import tsx scripts/experiments/import-lab/eval.ts blocks
-node --import tsx scripts/experiments/import-lab/eval.ts draft --model MODEL --dry-run
-node --import tsx scripts/experiments/import-lab/eval.ts draft --model MODEL --yes-spend
+node --import tsx scripts/experiments/import-lab/eval.ts draft --catalogue scripts/experiments/import-lab/component-families.json --set C --model MODEL --out vendor-a --dry-run
+node --import tsx scripts/experiments/import-lab/eval.ts draft --catalogue scripts/experiments/import-lab/component-families.json --set C --model MODEL --out vendor-a --yes-spend
 node --import tsx scripts/experiments/import-lab/eval.ts review
 ~~~
 
-Snapshots and labelling renders are **INTERNET**. Drafting is **INTERNET + PAID**. Review is **FREE**; correct blocks and labels, approve with a reviewer name, and stop the server with Ctrl+C. pages.ts --init initializes an absent manifest; pages.ts --add URL accepts --kind, --held-out, --no-js and --notes. The proposal and screenshot are for labelling only. Saved geometry can be re-proposed offline with propose-blocks.ts --page PAGE --from-geometry. Retry failed drafts with --only-failed; reviewed corrections are preserved.
+Snapshots and labelling renders are **INTERNET**. Drafting is **INTERNET + PAID**. Review is **FREE**; correct blocks and labels, approve with a reviewer name, and stop the server with Ctrl+C. pages.ts --init initializes an absent manifest; pages.ts --add URL accepts --site-kind, --kind, --held-out, --no-js and --notes. The proposal and screenshot are for labelling only. Saved geometry can be re-proposed offline with propose-blocks.ts --page PAGE --from-geometry. Retry failed or unfinished drafts with --only-failed; reviewed corrections are preserved.
 
 ## 2. Production block detection
 
@@ -107,6 +107,16 @@ node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-p
 ~~~
 
 These saved-data commands are **FREE**. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
+
+## Two-labeller family key
+
+Fill the required site kinds before paid labelling. Use `pages.ts --set-site-kind PAGE KIND` for existing pages or `pages.ts --add URL --site-kind KIND --kind PAGE_KIND` for a new page. Valid `KIND` values are listed in [README.md](README.md). The page manifest has no inferred site kind.
+
+1. Run `node --import tsx scripts/experiments/import-lab/eval.ts draft --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run` to see the batch call count and cost estimate without writing labels.
+2. Run `node --import tsx scripts/experiments/import-lab/draft-labels.ts --page PAGE --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run` to check one page's source evidence. Add `--yes-spend` in place of `--dry-run` to write its first label file. Repeat with a model from another vendor and `--out vendor-b`.
+3. Run `node --import tsx scripts/experiments/import-lab/merge-labels.ts --page PAGE --a vendor-a --b vendor-b`; use `eval.ts merge --a vendor-a --b vendor-b` for every page. Inspect `labels/agreement.json` and the disputed fields in each `answer-sheet-v2.json`. A development page may use `--c vendor-c`; a held-out page never uses it.
+
+Use `--only-failed` with the same model and output name to resume failed blocks. Keep the version-1 answer sheets and saved scores intact.
 
 ## Site-name leak check
 

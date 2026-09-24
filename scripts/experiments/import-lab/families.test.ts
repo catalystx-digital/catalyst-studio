@@ -46,7 +46,7 @@ test('summary pairs the same blocks and labels, preserves content misses, counts
   expect(pairedFamilies([before],[{...after,sheetHash:'old'}],family()).pairs).toHaveLength(0)
   const s=sheet([entry({label:label({acceptableTypes:['hero','hero-split','card-grid']})})]);s.page='garden'
   expect(ambiguity([s],family())).toEqual({blocks:1,typeCount:3,familyCount:2,types:3,families:2})
-  const summary=buildFamilySummary([before],[{definition:family(),results:[after]}],{garden:{url,kind:'home',heldOut:true,renderWithJavaScript:false,notes:''}},[s])
+  const summary=buildFamilySummary([before],[{definition:family(),results:[after]}],{garden:{url,kind:'home',siteKind:'saas',heldOut:true,renderWithJavaScript:false,notes:''}},[s])
   expect(summary.json.scopes[0].rows[0].sets[0]).toMatchObject({type:{blocks:2,right:0,wrong:1,missed:1},family:{blocks:2,right:1,incomplete:1,missed:1},changed:1})
   expect(summary.json.scopes[1].rows).toHaveLength(1);expect(summary.json.scopes[2].rows).toHaveLength(0)
 })
@@ -59,7 +59,7 @@ test('CLI validates paired flags and passes them to family arm plans and isolate
   expect(()=>parseEval(['arms','--arms','blocks-production','--run','r1','--families','families.json','--family-set','A'])).toThrow('only to jev-pick')
   expect(()=>parseEval(['score','--obsolete'])).toThrow('Unknown')
   const options=parseEval(['arms','--arms','jev-pick','--run','family-test','--families','families.json','--family-set','A','--dry-run'])
-  const tasks=await planEvaluation(options,{garden:{url,kind:'home',heldOut:false,renderWithJavaScript:false,notes:''}})
+  const tasks=await planEvaluation(options,{garden:{url,kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
   expect(tasks[0].args).toEqual(expect.arrayContaining(['--families','families.json','--family-set','A']));expect(tasks[0].paid).toBe(true)
   expect(scoreDirectory('garden',{families:'families.json',familySet:'B'})).toContain('scores-family-B')
 })

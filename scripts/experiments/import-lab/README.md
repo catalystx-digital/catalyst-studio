@@ -29,6 +29,23 @@ Run `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blo
 
 Run `node --import tsx scripts/experiments/import-lab/eval.ts leak-check` before sharing changes. Repeat `--root PATH` to include other lab data roots. A hit prints `file:line: part` and exits with status 1.
 
+## Family answer key
+
+Every manifest entry needs a site kind. For an existing entry, run `node --import tsx scripts/experiments/import-lab/pages.ts --set-site-kind PAGE saas` with the appropriate kind. New entries use `node --import tsx scripts/experiments/import-lab/pages.ts --add https://invented.example/ --site-kind saas --kind home`. Allowed site kinds are `saas`, `shop`, `hospitality-local`, `professional-services`, `government`, `health`, `education`, `charity`, `magazine-news`, and `docs-portfolio-events`.
+
+Run two independent vision models from different vendors, giving each a distinct output name. The direct dry run reads source evidence without writing a label file. The batch dry run plans calls and estimates cost from cached model prices without writing labels. Paid commands require `--yes-spend`.
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts draft --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run
+node --import tsx scripts/experiments/import-lab/draft-labels.ts --page PAGE --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run
+node --import tsx scripts/experiments/import-lab/draft-labels.ts --page PAGE --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --yes-spend
+node --import tsx scripts/experiments/import-lab/draft-labels.ts --page PAGE --catalogue scripts/experiments/import-lab/component-families.json --set C --model google/gemini-2.5-flash --out vendor-b --yes-spend
+node --import tsx scripts/experiments/import-lab/merge-labels.ts --page PAGE --a vendor-a --b vendor-b
+node --import tsx scripts/experiments/import-lab/eval.ts merge --a vendor-a --b vendor-b
+~~~
+
+`--only-failed` resumes failed blocks of that same output name. `--c NAME` on merge uses a third labeller for development-page family ties; held-out pages always leave ties disputed. The merge creates `answer-sheet-v2.json` once per page and updates `labels/agreement.json`. Version-1 answer sheets remain readable and unchanged.
+
 ## Data and cost
 
 - **FREE:** dry plans, saved-data reads, scoring, summaries, local review and offline tests.

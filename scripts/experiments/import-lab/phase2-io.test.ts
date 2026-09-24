@@ -2,10 +2,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import sharp from 'sharp'
 import { scorePage } from './score'
 import { parseEval, planEvaluation } from './eval'
-import { draftLabels } from './draft-labels'
 import { validateLabel, atomicJson, catalogue, labelDirectory, sha, type Proposal } from './labels'
 import { block, label, entry, sheet, component, fixtureHtml } from './phase2-fixtures'
 import { digest, readJson } from './storage'
@@ -72,20 +70,9 @@ test('evaluation schedules only saved arm runs for stick scoring',async()=>{
   const arm=path.join(root,'arms','_fixture','blocks-production','saved')
   await atomicJson(path.join(arm,'run.json'),{status:'complete',snapshotSha256:digest(fixtureHtml)})
   await atomicJson(path.join(arm,'components.json'),[component])
-  const tasks=await planEvaluation(parseEval(['score']),{'_fixture':{url:'https://example.com/',kind:'home',heldOut:false,renderWithJavaScript:false,notes:''}})
+  const tasks=await planEvaluation(parseEval(['score']),{'_fixture':{url:'https://example.com/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
   expect(tasks.filter(task=>task.script==='score.ts')).toHaveLength(1)
   expect(tasks.find(task=>task.script==='score.ts')?.args).toContain(path.join(arm,'components.json'))
-})
-test('dry-run saves one request with image size, full catalogue, no reply or approvals',async()=>{
-  const proposal=await readJson<Proposal>(path.join(directory,'blocks.json'));directory=labelDirectory('_draft_fixture');await atomicJson(path.join(directory,'blocks.json'),{...proposal,page:'_draft_fixture'})
-  await sharp({create:{width:1440,height:300,channels:3,background:'#ffffff'}}).png().toFile(path.join(directory,'screenshot.png'))
-  const draft=await draftLabels('_draft_fixture','example/vision-test',true)
-  expect(draft.entries).toHaveLength(1);expect(draft.entries[0]).toMatchObject({status:'draft',draftStatus:'dry-run',label:null})
-  const batch=(await fs.readdir(path.join(directory,'calls')))[0]
-  const call=await readJson(path.join(directory,'calls',batch,'hero.json'))
-  expect(call.model).toBe('example/vision-test');expect(call.status).toBe('planned');expect(call.usage).toBeNull();expect(call.rawReply).toBeUndefined()
-  const parts=call.payload.messages[1].content;expect(parts[1].image_url.url).toMatch(/^\[PNG image: \d+ bytes;/)
-  const prompt=JSON.parse(parts[0].text);expect(prompt.catalogue.length).toBeGreaterThan(20);expect(prompt.catalogue.find((c:any)=>c.type==='hero-banner').description).toBeTruthy()
 })
 
 test('catalogue returns distinct types including testimonials',async()=>{

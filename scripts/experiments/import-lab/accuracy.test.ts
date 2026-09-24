@@ -9,7 +9,7 @@ import { parseEval, planEvaluation } from './eval'
 let root:string
 beforeEach(async()=>{root=await fs.mkdtemp(path.join(os.tmpdir(),'accuracy-fixture-'))})
 afterEach(async()=>{await fs.rm(root,{recursive:true,force:true})})
-const page=(heldOut=false)=>({url:'https://invented.example/',kind:'home' as const,heldOut,renderWithJavaScript:false,notes:''})
+const page=(heldOut=false)=>({url:'https://invented.example/',kind:'home' as const,siteKind:'saas' as const,heldOut,renderWithJavaScript:false,notes:''})
 async function save(pageName:string,run:string,correct:number,total=10,familySet?:string) {
   const rows=Array.from({length:total},(_,i)=>({id:`block-${i}`,ignored:false,verdict:i<correct?'correct':'right type, content incomplete',failedChecks:i<correct?[]:['C2'],checks:{C6:{structureUnknown:false}},acceptableTypes:['fixture-type'],acceptableFamilies:['fixture-family']}))
   const file=path.join(root,'labels',pageName,'scores-stick',stickScoreName('blocks-production',run,familySet)+'.json')

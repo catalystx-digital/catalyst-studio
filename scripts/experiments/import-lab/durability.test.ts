@@ -1,12 +1,11 @@
 /** @jest-environment node */
 import fs from 'node:fs/promises'
-import sharp from 'sharp'
 import path from 'node:path'
 import os from 'node:os'
 import { share, totals, stability, splitResults, pickTotals, buildSummary, readSavedResults, type SavedResult } from './summary'
-import { validatePages, initializePages, loadPages } from './pages'
+import { validatePages, initializePages, loadPages, setSiteKind } from './pages'
 import { parseEval, planEvaluation, authorizePlan, estimate } from './eval'
-import { selectDraftEntries, repeatedHtmlChildren, draftLabels } from './draft-labels'
+import { repeatedHtmlChildren } from './draft-labels'
 import { comparisonBlocks, comparisonProposal, comparisonSheet } from './phase3-fixtures'
 import { atomicJson } from './labels'
 import { scorePage } from './score'
@@ -17,7 +16,7 @@ import { sheet, component } from './phase2-fixtures'
 const originalRoot=process.env.IMPORT_LAB_ROOT, originalExit=process.exitCode
 beforeEach(async()=>{process.env.IMPORT_LAB_ROOT=await fs.mkdtemp(path.join(os.tmpdir(),'import-lab-durability-'))})
 afterEach(async()=>{await fs.rm(process.env.IMPORT_LAB_ROOT!,{recursive:true,force:true});if(originalRoot===undefined)delete process.env.IMPORT_LAB_ROOT;else process.env.IMPORT_LAB_ROOT=originalRoot;process.exitCode=originalExit})
-const manifest=()=>validatePages({garden:{url:'https://example.com/',kind:'home',heldOut:false,renderWithJavaScript:true,notes:''},library:{url:'https://example.org/library',kind:'listing',heldOut:true,renderWithJavaScript:false,notes:''}})
+const manifest=()=>validatePages({garden:{url:'https://example.com/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:true,notes:''},library:{url:'https://example.org/library',kind:'listing',siteKind:'education',heldOut:true,renderWithJavaScript:false,notes:''}})
 const row=(id:string,verdict:string,ignored=false)=>({id,verdict,ignored,checks:{itemCount:{passed:false}}})
 const result=(changes:Partial<SavedResult>={}):SavedResult=>({page:'garden',arm:'today-off',run:'r1',status:'complete',rows:[row('a','correct'),row('b','wrong type')],sheetHash:'same',reviewedBy:{a:'owner',b:'reviewer'},calls:[],seconds:null,issues:[],picks:[],record:{comparisonKey:'same'},...changes})
 test('summary pools counts, excludes ignored blocks, and flags small shares',()=>{
@@ -41,7 +40,7 @@ test('manifest validates settings and initialization never replaces an existing 
   expect(()=>validatePages({...manifest(),bad:{...manifest().garden,heldOut:'yes'}})).toThrow('Invalid page settings')
   expect(()=>validatePages({'../bad':manifest().garden})).toThrow()
   await atomicJson(path.join(process.env.IMPORT_LAB_ROOT!,'pages','garden','manifest.json'),{url:'https://example.com/'})
-  await initializePages();expect((await loadPages()).garden.kind).toBe('home')
+  await initializePages();await setSiteKind('garden','saas');expect((await loadPages()).garden.kind).toBe('home')
   await expect(initializePages()).rejects.toMatchObject({code:'EEXIST'})
 })
 test('dry evaluation plans preserve run IDs, skip existing folders, and require explicit spending',async()=>{
@@ -52,19 +51,6 @@ test('dry evaluation plans preserve run IDs, skip existing folders, and require 
   expect(()=>authorizePlan(tasks,{...options,dryRun:false,yesSpend:true})).not.toThrow()
   expect(estimate([], 'new-arm')).toEqual({calls:null,cost:null})
   expect(await fs.readdir(path.join(process.env.IMPORT_LAB_ROOT!,'arms','garden','blocks-production'))).toEqual(['run-1'])
-})
-test('only-failed keeps successful drafts and reviewed corrections, rejects changed proposals',()=>{
-  const proposal=comparisonProposal(), previous=comparisonSheet();previous.entries.forEach(e=>{e.status='draft';e.draftStatus='complete'});previous.entries[1].draftStatus='failed';previous.entries[2].draftStatus='failed'
-  const reviewed=structuredClone(previous);reviewed.entries[2].status='corrected';reviewed.entries[2].reviewedBy='owner'
-  const kept=selectDraftEntries(proposal,previous,reviewed,true);expect(kept.map(e=>e.block.id)).toEqual(['notice','noticeboard']);expect(kept[1].reviewedBy).toBe('owner')
-  expect(()=>selectDraftEntries({...proposal,snapshotSha256:'changed'},previous,null,true)).toThrow('differ')
-  expect(()=>selectDraftEntries(proposal,previous,null,false)).toThrow('--only-failed')
-})
-test('only-failed with no failures makes no new call batch and leaves reviewed labels untouched',async()=>{
-  const directory=path.join(process.env.IMPORT_LAB_ROOT!,'labels','comparison-fixture'),proposal=comparisonProposal(), previous=comparisonSheet()
-  await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'draft.json'),previous)
-  expect(await draftLabels('comparison-fixture','example/vision',true,true)).toEqual(previous)
-  await expect(fs.stat(path.join(directory,'calls'))).rejects.toMatchObject({code:'ENOENT'})
 })
 test('HTML item evidence counts hidden carousel slides and reports unresolved anchors',()=>{
   const b={...comparisonBlocks()[0],anchor:{path:[0],tag:'section',id:'notice',classes:[]}}
@@ -97,17 +83,6 @@ test('summary leaves other saved reports byte-for-byte unchanged',async()=>{
   expect(await fs.readFile(path.join(directory,'SUMMARY.md'),'utf8')).toMatch(/^Component right:/)
 })
 
-test('only-failed writes requests only for failed blocks and keeps reviewed answers unchanged',async()=>{
-  const directory=path.join(process.env.IMPORT_LAB_ROOT!,'labels','comparison-fixture'),proposal=comparisonProposal(),previous=comparisonSheet()
-  previous.entries.forEach(e=>{e.status='draft';e.draftStatus='complete'});previous.entries[1].draftStatus='failed'
-  const reviewed=structuredClone(previous);reviewed.entries[2].status='corrected';reviewed.entries[2].reviewedBy='owner'
-  await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'draft.json'),previous);await atomicJson(path.join(directory,'answer-sheet.json'),reviewed)
-  const original=await fs.readFile(path.join(directory,'answer-sheet.json'),'utf8')
-  await sharp({create:{width:1440,height:540,channels:3,background:'#ffffff'}}).png().toFile(path.join(directory,'screenshot.png'))
-  const next=await draftLabels('comparison-fixture','example/vision',true,true), batches=await fs.readdir(path.join(directory,'calls'))
-  expect(await fs.readdir(path.join(directory,'calls',batches[0]))).toEqual(['hours.json'])
-  expect(next.entries[0]).toEqual(previous.entries[0]);expect(next.entries[2]).toEqual(reviewed.entries[2]);expect(await fs.readFile(path.join(directory,'answer-sheet.json'),'utf8')).toBe(original)
-})
 test('existing scores survive rescoring with missing component inputs',async()=>{
   const directory=path.join(process.env.IMPORT_LAB_ROOT!,'labels','comparison-fixture'),proposal=comparisonProposal()
   await atomicJson(path.join(directory,'blocks.json'),proposal);await atomicJson(path.join(directory,'answer-sheet.json'),comparisonSheet())

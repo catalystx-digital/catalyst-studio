@@ -24,7 +24,7 @@ async function verify(){
   const labels=path.join(root,'labels',proposal.page)
   await writeJson(path.join(labels,'blocks.json'),proposal);await writeJson(path.join(labels,'answer-sheet.json'),sheet)
   await writeJson(path.join(labels,'geometry.json'),{tree:{anchorKey:'body',children:[]}})
-  await writeJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://example.com/garden',kind:'home',heldOut:false,renderWithJavaScript:false,notes:'Invented fixture'}})
+  await writeJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://example.com/garden',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:'Invented fixture'}})
   const typeRequests:string[]=[]
   const typeRun=await runArm({page:proposal.page,run:'type-fixture',arm:'jev-pick',dryRun:false},{decision:{askRaw:async(state:string,questions:any[])=>{typeRequests.push(state);return runtimeRequire('@/lib/studio/decisions').createFakeDecisionClient({'import.block.component':{value:'text-block',probability:0.9,distribution:Object.fromEntries(Object.keys(questions[0].criteria).map(type=>[type,type==='text-block'?0.9:0.1/(Object.keys(questions[0].criteria).length-1)]))},'import.block.multiple':0.1}).askRaw(state,questions)}}})
   assert.equal(typeRun.status,'complete')

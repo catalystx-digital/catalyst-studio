@@ -6,7 +6,7 @@ import type { Block, Box } from './labels'
 const { parse } = createRequire(__filename)('parse5') as typeof import('parse5')
 type Node = {tagName?:string;nodeName?:string;value?:string;attrs?:Array<{name:string;value:string}>;childNodes?:Node[]}
 type GeometryNode = {anchorKey?:string|null;box?:Box;evidence?:{images?:string[]};children?:GeometryNode[]}
-export interface ImageGroup {addresses:string[]; width:number|null; height:number|null; kind:'image'|'background'}
+export interface ImageGroup {id?:number;addresses:string[]; width:number|null; height:number|null; alt?:string; kind:'image'|'background';clonedCarouselCopy?:boolean}
 export interface SourceEvidence {text:Array<{text:string;region:Region}>; headings:string[]; links:Array<{url:string;label:string}>; images:ImageGroup[]; wordCount:number; sourceText:string; issue?:string}
 const attrs=(node:Node)=>Object.fromEntries((node.attrs||[]).map(a=>[a.name,a.value]))
 const elements=(node:Node)=>(node.childNodes||[]).filter(n=>n.tagName)
@@ -19,9 +19,9 @@ const size=(a:Record<string,string>,g?:GeometryNode)=>({width:Math.max(Number(a.
 const counted=(group:ImageGroup)=>!((group.width===1&&group.height===1)||(group.width!==null&&group.height!==null&&group.width<16&&group.height<16))
 export function fallbackEvidence(block:Block,pageUrl:string,issue:string):SourceEvidence {
   const sourceText=normalizeText(block.text)
-  return {text:sourceText.length>=12?[{text:sourceText,region:block.region}]:[],headings:block.headings.map(normalizeText),links:[...new Set(block.links.map(url=>absoluteUrl(url,pageUrl,'link')).filter((url):url is string=>!!url))].map(url=>({url,label:''})),images:block.images.map(address=>({addresses:[absoluteUrl(address,pageUrl,'image')||address],width:null,height:null,kind:'image'})),wordCount:sourceText.split(/\s+/).filter(Boolean).length,sourceText,issue}
+  return {text:sourceText.length>=12?[{text:sourceText,region:block.region}]:[],headings:block.headings.map(normalizeText),links:[...new Set(block.links.map(url=>absoluteUrl(url,pageUrl,'link')).filter((url):url is string=>!!url))].map(url=>({url,label:''})),images:block.images.map((address,id)=>({id,addresses:[absoluteUrl(address,pageUrl,'image')||address],width:null,height:null,alt:'',kind:'image'})),wordCount:sourceText.split(/\s+/).filter(Boolean).length,sourceText,issue}
 }
-export function blockEvidence(html:string, stylesheets:string[], block:Block, geometry:unknown, pageUrl:string):SourceEvidence {
+export function blockEvidence(html:string, stylesheets:string[], block:Block, geometry:unknown, pageUrl:string, includeDecorative=false):SourceEvidence {
   if (!geometry || typeof geometry!=='object' || !('tree' in geometry)) throw new Error('Missing geometry.json')
   if (!(block.sourceAnchors?.length||block.anchor) || !block.anchorResolved) {
     return fallbackEvidence(block,pageUrl,`Block ${block.id} has no resolved anchor; used blocks.json evidence`)
@@ -45,33 +45,36 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
   const extracted=extractPageEvidence(html,pageUrl,stylesheets,{document:doc,roots,visibility})
   const headings:string[]=[],links:SourceEvidence['links']=[],images:ImageGroup[]=[]
   const seenImages=new Set<string>()
-  const pushImage=(group:ImageGroup)=>{group.addresses=[...new Set(group.addresses)];const signature=[...group.addresses].sort().join('|');if(group.addresses.length&&counted(group)&&!seenImages.has(signature)){seenImages.add(signature);images.push(group)}}
-  const walk=(node:Node,path:number[],parentPicture?:{addresses:string[];width:number|null;height:number|null})=>{
+  const pushImage=(group:ImageGroup)=>{group.addresses=[...new Set(group.addresses)];const signature=[...group.addresses].sort().join('|');if(group.addresses.length&&(includeDecorative||counted(group)&&!group.clonedCarouselCopy)&&(includeDecorative||!seenImages.has(signature))){seenImages.add(signature);images.push({...group,id:images.length})}}
+  const walk=(node:Node,path:number[],parentPicture?:{addresses:string[];width:number|null;height:number|null;alt:string},cloned=false,imageOnly=false)=>{
     const a=attrs(node)
-    if(isHidden(node))return
+    cloned=cloned||/\b(?:swiper-slide-duplicate|slick-cloned|clone|cloned)\b/i.test(a.class||'')
+    // The visibility pass hides carousel clones. Traverse their images separately,
+    // while leaving their text, headings and links out of visible evidence.
+    if(isHidden(node)){if(!cloned)return;imageOnly=true}
     const tag=node.tagName||''
     const key=path.join('.')||'body',g=map.get(key)
     if(node.nodeName==='#text')return
     if(excluded.has(tag))return
     if(tag==='picture') {
       const ownSize=size(a,g)
-      const group={addresses:[...oneUrl(a.src,pageUrl),...oneUrl(a['data-src'],pageUrl),...srcsetUrls(a.srcset,pageUrl),...srcsetUrls(a['data-srcset'],pageUrl),...(g?.evidence?.images||[]).flatMap(u=>oneUrl(u,pageUrl))],width:ownSize.width,height:ownSize.height}
-      elements(node).forEach((child,index)=>walk(child,[...path,index],group))
-      pushImage({...group,kind:'image'})
+      const group={addresses:[...oneUrl(a.src,pageUrl),...oneUrl(a['data-src'],pageUrl),...srcsetUrls(a.srcset,pageUrl),...srcsetUrls(a['data-srcset'],pageUrl),...(g?.evidence?.images||[]).flatMap(u=>oneUrl(u,pageUrl))],width:ownSize.width,height:ownSize.height,alt:a.alt||''}
+      elements(node).forEach((child,index)=>walk(child,[...path,index],group,cloned,imageOnly))
+      pushImage({...group,kind:'image',clonedCarouselCopy:cloned})
       return
     }
     if(tag==='img'||tag==='source'&&parentPicture){
       const addresses=[...oneUrl(a.src,pageUrl),...oneUrl(a['data-src'],pageUrl),...srcsetUrls(a.srcset,pageUrl),...srcsetUrls(a['data-srcset'],pageUrl),...(g?.evidence?.images||[]).flatMap(u=>oneUrl(u,pageUrl))]
-      if(parentPicture){parentPicture.addresses.push(...addresses);const box=size(a,g);parentPicture.width=Math.max(parentPicture.width||0,box.width||0)||null;parentPicture.height=Math.max(parentPicture.height||0,box.height||0)||null}
-      else if(tag==='img')pushImage({addresses:[...new Set(addresses)],...size(a,g),kind:'image'})
+      if(parentPicture){parentPicture.addresses.push(...addresses);parentPicture.alt ||= a.alt||'';const box=size(a,g);parentPicture.width=Math.max(parentPicture.width||0,box.width||0)||null;parentPicture.height=Math.max(parentPicture.height||0,box.height||0)||null}
+      else if(tag==='img')pushImage({addresses:[...new Set(addresses)],...size(a,g),alt:a.alt||'',kind:'image',clonedCarouselCopy:cloned})
     }
-    if((/^h[1-6]$/.test(tag)||a.role==='heading')&&a['aria-hidden']!=='true'&&!/sr-only|visually-hidden|screen-reader/i.test(a.class||'')){const value=normalizeText(visibleText(node));if(value)headings.push(value)}
-    if(tag==='a') {const url=absoluteUrl(a.href||'',pageUrl,'link'),label=normalizeText(visibleText(node));if(url&&!links.some(link=>link.url===url&&link.label===label))links.push({url,label})}
+    if(!imageOnly&&(/^h[1-6]$/.test(tag)||a.role==='heading')&&a['aria-hidden']!=='true'&&!/sr-only|visually-hidden|screen-reader/i.test(a.class||'')){const value=normalizeText(visibleText(node));if(value)headings.push(value)}
+    if(!imageOnly&&tag==='a') {const url=absoluteUrl(a.href||'',pageUrl,'link'),label=normalizeText(visibleText(node));if(url&&!links.some(link=>link.url===url&&link.label===label))links.push({url,label})}
     const childImages=new Set((g?.children||[]).flatMap(function collect(child):string[]{return [...(child.evidence?.images||[]),...(child.children||[]).flatMap(collect)]}))
     const own=(g?.evidence?.images||[]).filter(address=>!childImages.has(address)&&tag!=='img'&&tag!=='picture')
     const inline=[...(a.style||'').matchAll(/background(?:-image)?\s*:\s*([^;]+)/gi)].flatMap(declaration=>[...declaration[1].matchAll(/url\(\s*['"]?([^'"\s)]+)['"]?\s*\)/gi)].map(m=>m[1]))
-    for(const address of [...new Set([...own,...inline])]){const url=absoluteUrl(address,pageUrl,'image');if(url)pushImage({addresses:[url],...size(a,g),kind:'background'})}
-    elements(node).forEach((child,index)=>walk(child,[...path,index],parentPicture))
+    for(const address of [...new Set([...own,...inline])]){const url=absoluteUrl(address,pageUrl,'image');if(url)pushImage({addresses:[url],...size(a,g),alt:'',kind:'background',clonedCarouselCopy:cloned})}
+    elements(node).forEach((child,index)=>walk(child,[...path,index],parentPicture,cloned,imageOnly))
   }
   roots.forEach((root,index)=>walk(root,anchors[index].path))
   const attributes:string[]=[]
