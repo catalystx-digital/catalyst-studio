@@ -3,7 +3,6 @@ import { probabilityBand, scorePicks } from './pick-score'
 import { comparisonSheet } from './phase3-fixtures'
 import { mapLimited } from './call-recording'
 import { callTotals } from './summary'
-import { changeSheet } from './review-server'
 
 const ranks=(a:number,b:number,c:number)=>[{type:'text-block',probability:a},{type:'hero-simple',probability:b},{type:'card-grid',probability:c}]
 test('all probability boundaries and top-three scoring retain counts and every miss',()=>{
@@ -19,12 +18,6 @@ test('all probability boundaries and top-three scoring retain counts and every m
 test('telemetry distinguishes unknown reasoning and cost from measured zero',()=>{
   const t=callTotals([{status:'complete',kind:'extract',usage:{total_tokens:12,completion_tokens:4},cost:null},{status:'planned',kind:'extract'}])
   expect(t.calls).toBe(1);expect(t.planned).toBe(1);expect(t.reasoningTokens.known).toBe(0);expect(t.answerTokens.known).toBe(0);expect(t.cost.known).toBe(0)
-})
-test('review attribution is explicit and old sheets stay readable',()=>{
-  const sheet=comparisonSheet();delete sheet.entries[0].reviewedBy
-  const changed=changeSheet(sheet,{action:'correct',blockId:sheet.entries[0].block.id,label:sheet.entries[0].label,reviewedBy:'owner'},['text-block'])
-  expect(changed.entries[0].reviewedBy).toBe('owner');expect(sheet.entries[0].reviewedBy).toBeUndefined()
-  expect(()=>changeSheet(sheet,{action:'correct',blockId:sheet.entries[0].block.id,label:sheet.entries[0].label,reviewedBy:''},['text-block'])).toThrow('reviewedBy')
 })
 test('bounded work records independent failures without losing ordering',async()=>{
   const results=await mapLimited([1,2,3],2,async n=>{if(n===2)throw new Error('fixture failure');return n})

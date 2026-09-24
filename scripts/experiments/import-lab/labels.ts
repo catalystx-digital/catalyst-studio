@@ -28,11 +28,11 @@ const familyLabelSchema=z.object({
   family:z.string().min(1).nullable(),acceptableFamilies:z.array(z.string().min(1)),
   multiple:z.boolean(),familiesInOrder:z.array(z.string().min(1)),
   placement:z.enum(['header','main','sidebar','footer']),ignore:z.boolean(),ignoreReason:z.string(),
-  itemCount:z.number().int().nonnegative().nullable(),itemKind:z.string().min(1).nullable(),
+  itemCount:z.number().int().nonnegative().nullable(),itemKind:z.string().min(1).nullable().default(null),
   decorativeImages:z.array(z.string().min(1)),reason:z.string().min(1)
 }).strict()
 export type FamilyLabel=z.infer<typeof familyLabelSchema>
-export interface FamilyDraftEntry {blockId:string;draftStatus:'pending'|'complete'|'failed';label:FamilyLabel|null;error?:string;evidence?:{detectedCount:number|null;imageGroups:Array<{id:number;addresses:string[];width:number|null;height:number|null;alt:string;kind:string;clonedCarouselCopy?:boolean}>}}
+export interface FamilyDraftEntry {blockId:string;draftStatus:'pending'|'complete'|'failed';label:FamilyLabel|null;error?:string;normalised?:string[];evidence?:{detectedCount:number|null;imageGroups:Array<{id:number;addresses:string[];width:number|null;height:number|null;alt:string;kind:string;clonedCarouselCopy?:boolean}>}}
 export interface FamilyDraftSheet {version:2;page:string;model:string;familySet:string;familyNames:string[];catalogueSha256:string;snapshotSha256:string;proposalSha256:string;entries:FamilyDraftEntry[]}
 export interface Entry { block: Block; status: 'draft' | 'approved' | 'corrected'; label: Label | null; draftStatus: 'complete' | 'failed' | 'dry-run' | 'manual'; reviewedBy?: string; error?: string }
 export interface Sheet { version: 1; page: string; snapshotSha256: string; proposalSha256: string; updatedAt: string; entries: Entry[]; issues: string[] }
@@ -78,13 +78,12 @@ export function validateLabel(value: unknown, types: string[]): Label {
 export function validateFamilyLabel(value:unknown,families:string[]):FamilyLabel {
   const label=familyLabelSchema.parse(value)
   for(const name of [label.family,...label.acceptableFamilies,...label.familiesInOrder])if(name!==null&&!families.includes(name))throw new Error('Unknown family: '+name)
-  if(!label.ignore&&(!label.family||!label.acceptableFamilies.includes(label.family)))throw new Error('Choose a family and include it among acceptable families')
+  if(!label.ignore&&!label.family)throw new Error('Choose a family')
   if(new Set(label.acceptableFamilies).size!==label.acceptableFamilies.length)throw new Error('Acceptable families must be distinct')
   if(label.multiple!==(label.familiesInOrder.length>=2)||(!label.multiple&&label.familiesInOrder.length))throw new Error('Multiple families require at least two families in order')
   if(label.ignore&&!label.ignoreReason.trim())throw new Error('Explain why this block should be ignored')
-  if(label.itemCount!==null&&!label.itemKind)throw new Error('Name the item collection when specifying its count')
   if(new Set(label.decorativeImages).size!==label.decorativeImages.length)throw new Error('Decorative images must be distinct')
-  return {...label,acceptableFamilies:[...label.acceptableFamilies].sort(),decorativeImages:[...label.decorativeImages].sort()}
+  return {...label,acceptableFamilies:[...new Set([...label.acceptableFamilies,...(label.family?[label.family]:[])])].sort(),decorativeImages:[...label.decorativeImages].sort()}
 }
 export function blankLabel(block: Block): Label {
   return {bestType:null, acceptableTypes:[], containsMultipleComponents:false, componentTypes:[], ignore:false, ignoreReason:'', expected:{headings:block.headings,itemCount:null,itemKind:null,hasImage:block.images.length>0,ctaLabels:[]},reason:'Awaiting human review.'}

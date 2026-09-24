@@ -1,4 +1,4 @@
-Use briefs 01 through 16 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
+Use briefs 01 through 18 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
 
 These briefs were given to a coding agent with no internet, no paid calls and no secrets. The agent could read saved local evidence, use invented fixtures and run offline checks. Real site names and page content must stay out of source files and new briefs. The owner runs any internet or paid evaluation stages separately.
 
@@ -25,6 +25,8 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 14 | [Accuracy stick](14-accuracy-stick.md) | Derive per-block content expectations from source HTML and score seven checks. | Label-drafted expectations and page-wide invented-text checks could hide content loss or movement. |
 | 15 | [Accuracy report and leak check](15-accuracy-report.md) | Summarise development and held-out stick scores with page ranges and check added code for site names. | The measuring stick needed a one-screen result and a guard against site-specific rules. |
 | 16 | [Two-labeller family key](16-family-labels.md) | Add site kinds, independent family labelling, field-level merge and agreement reports. | Most blocks in the first answer key had not received block review. |
+| 17 | [Founder review queues](17-review-queues.md) | Replace the version-1 edit form with short dispute, sample and stick-check queues. | The founder needed source-first decisions in short batches and visible review thresholds. |
+| 18 | [Labeller fixes and subscription CLIs](18-labeller-fixes-and-cli.md) | Accept count-only labels, normalise family lists, retry invalid replies, cover proposal-only pages and add Claude and read-only Codex subscription routes. | The first labelling pass rejected valid counts and skipped 18 pages. |
 
 ## Removed after the decisions
 

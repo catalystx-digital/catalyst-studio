@@ -18,6 +18,8 @@ describe('content matching',()=>{
     expect(mismatch.rows[0].checks.C6.passed).toBe(false)
     expect(mismatch.itemCountMismatches).toHaveLength(1)
     expect(scoreSheet(answer,[component],url).rows[0].checks.C6).toMatchObject({passed:null,structureUnknown:true,detail:expect.stringContaining('structure-unknown')})
+    const noKind=sheet([entry({label:label({expected:{headings:[],itemCount:2,itemKind:null,hasImage:false,ctaLabels:[]}})})])
+    expect(scoreSheet(noKind,[component],url).rows[0].checks.C6).toMatchObject({passed:null,structureUnknown:true,detail:expect.stringContaining('structure-unknown')})
     expect(countItems([{type:'card-grid',content:{cards:[]}}],'cards').count).toBe(0)
     expect(countItems([{type:'card-grid',content:{cards:[{links:[{},{}]}],metadata:{cards:[{}]}}}],'cards').count).toBe(1)
     expect(countItems([{type:'card-grid',content:{cards:[{}]},props:{cards:[{}]}}],'cards')).toMatchObject({count:null,reason:expect.stringContaining('Ambiguous')})

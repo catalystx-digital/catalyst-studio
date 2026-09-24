@@ -5,7 +5,7 @@ import os from 'node:os'
 import { scorePage } from './score'
 import { parseEval, planEvaluation } from './eval'
 import { validateLabel, atomicJson, catalogue, labelDirectory, sha, type Proposal } from './labels'
-import { block, label, entry, sheet, component, fixtureHtml } from './phase2-fixtures'
+import { block, label, sheet, component, fixtureHtml } from './phase2-fixtures'
 import { digest, readJson } from './storage'
 import { stickScoreName } from './stick-version'
 const originalRoot=process.env.IMPORT_LAB_ROOT,originalExit=process.exitCode
@@ -81,12 +81,5 @@ test('catalogue returns distinct types including testimonials',async()=>{
   expect(types).toContain('testimonials')
 })
 
-import { changeSheet } from './review-server'
 const types=['hero','card-grid','footer']
-test('approval is explicit and rejects an altered draft',()=>{const s=sheet([entry({status:'draft'})]);expect(changeSheet(s,{blockId:'hero',action:'approve',label:label()},types).entries[0].status).toBe('approved');expect(()=>changeSheet(s,{blockId:'hero',action:'approve',label:label({bestType:'footer',acceptableTypes:['footer']})},types)).toThrow('Save correction');expect(s.entries[0].status).toBe('draft')})
-test('correction validates schema and catalogue',()=>{expect(()=>validateLabel({...label(),bestType:'imaginary'},types)).toThrow();expect(()=>validateLabel({...label(),expected:{itemCount:-1}},types)).toThrow();expect(()=>validateLabel(label({ignore:true,ignoreReason:''}),types)).toThrow();expect(changeSheet(sheet(),{blockId:'hero',action:'correct',label:label({bestType:'footer',acceptableTypes:['footer']})},types).entries[0].status).toBe('corrected')})
-test('merge preserves content, source anchors and resets review',()=>{const s=sheet([entry(),entry({block:block({id:'next',order:2,text:'second block',box:{x:0,y:300,width:1440,height:200}})})]);const merged=changeSheet(s,{blockId:'hero',action:'merge'},types);expect(merged.entries).toHaveLength(1);expect(merged.entries[0].status).toBe('draft');expect(merged.entries[0].block.box.height).toBe(500);expect(merged.entries[0].block.text).toContain('second block');expect(merged.entries[0].block.sourceAnchors).toHaveLength(2);const split=changeSheet(merged,{blockId:merged.entries[0].block.id,action:'split'},types);expect(split.entries.map(e=>e.block.id)).toEqual(['hero','next']);expect(split.entries.every(e=>e.status==='draft')).toBe(true)})
-test('split uses stored children, renumbers and clears labels',()=>{const s=sheet([entry({block:block({children:[block({id:'a'}),block({id:'b'})]})})]);const result=changeSheet(s,{blockId:'hero',action:'split'},types);expect(result.entries.map(e=>e.block.order)).toEqual([1,2]);expect(result.entries.every(e=>e.status==='draft'&&e.label?.bestType===null)).toBe(true)})
-test('ignore does not auto-approve; single children cannot split',()=>{const result=changeSheet(sheet(),{blockId:'hero',action:'ignore',reason:'Cookie notice'},types);expect(result.entries[0].status).toBe('draft');expect(result.entries[0].label?.ignore).toBe(true);expect(()=>changeSheet(sheet(),{blockId:'hero',action:'split'},types)).toThrow();expect(sha(result)).not.toBe(sha(sheet()))})
-
-test('approval treats acceptable types as a set',()=>{const s=sheet([entry({status:'draft',label:label({acceptableTypes:['hero','footer']})})]);expect(changeSheet(s,{blockId:'hero',action:'approve',label:label({acceptableTypes:['footer','hero']})},types).entries[0].status).toBe('approved')})
+test('version-one label validation remains available for historical scoring',()=>{expect(()=>validateLabel({...label(),bestType:'imaginary'},types)).toThrow();expect(()=>validateLabel({...label(),expected:{itemCount:-1}},types)).toThrow();expect(()=>validateLabel(label({ignore:true,ignoreReason:''}),types)).toThrow()})

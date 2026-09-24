@@ -33,7 +33,7 @@ Run `node --import tsx scripts/experiments/import-lab/eval.ts leak-check` before
 
 Every manifest entry needs a site kind. For an existing entry, run `node --import tsx scripts/experiments/import-lab/pages.ts --set-site-kind PAGE saas` with the appropriate kind. New entries use `node --import tsx scripts/experiments/import-lab/pages.ts --add https://invented.example/ --site-kind saas --kind home`. Allowed site kinds are `saas`, `shop`, `hospitality-local`, `professional-services`, `government`, `health`, `education`, `charity`, `magazine-news`, and `docs-portfolio-events`.
 
-Run two independent vision models from different vendors, giving each a distinct output name. The direct dry run reads source evidence without writing a label file. The batch dry run plans calls and estimates cost from cached model prices without writing labels. Paid commands require `--yes-spend`.
+Run two independent vision models from different vendors, giving each a distinct output name. The direct dry run reads source evidence without writing a label file. The batch dry run plans calls without writing labels; API cost estimates use saved call history where available. OpenRouter calls require `--yes-spend`.
 
 ~~~powershell
 node --import tsx scripts/experiments/import-lab/eval.ts draft --catalogue scripts/experiments/import-lab/component-families.json --set C --model openai/gpt-4.1 --out vendor-a --dry-run
@@ -44,7 +44,23 @@ node --import tsx scripts/experiments/import-lab/merge-labels.ts --page PAGE --a
 node --import tsx scripts/experiments/import-lab/eval.ts merge --a vendor-a --b vendor-b
 ~~~
 
-`--only-failed` resumes failed blocks of that same output name. `--c NAME` on merge uses a third labeller for development-page family ties; held-out pages always leave ties disputed. The merge creates `answer-sheet-v2.json` once per page and updates `labels/agreement.json`. Version-1 answer sheets remain readable and unchanged.
+`--provider openrouter` is the default API route. `--provider codex-cli --model gpt-6-sol` uses the installed subscription command and requires no `--yes-spend`. `claude-cli` refuses real calls on the installed Claude version because managed hooks and built-in plugins cannot be verifiably disabled. All three routes support `--concurrency 1` through `4` within each page; the default is `1`. A batch draft includes every manifest page with a block proposal and screenshot. Version-1 answer sheets supply block boundaries where present; other pages use `blocks.json`. The dry plan prints the page and block count for each source. `--only-failed` resumes failed or unfinished blocks across existing outputs and starts all blocks on pages without an output. Labels already complete are preserved. A count may be saved without an item kind; C6 reports `structure-unknown` when today's type scorer cannot locate the collection. Valid best families omitted from the acceptable list are added and marked `normalised` on the draft entry. One invalid reply gets one corrective retry, with both attempts recorded.
+
+Subscription calls send the same text and PNG crop as the API route. Each call record includes provider, subscription billing, model, prompt and image hashes, a sanitized reply, latency, and `cost: null`; image bytes are not saved in call records. Codex runs with `-s read-only --skip-git-repo-check -C` in a fresh temporary directory, attaches the crop with `-i`, reads only the `-o` reply file, and deletes the directory after each call. See [RUNBOOK.md](RUNBOOK.md) for the exact flags and Claude limitation. `--c NAME` on merge uses a third labeller for development-page family ties; held-out pages always leave ties disputed. The merge creates `answer-sheet-v2.json` once per page and updates `labels/agreement.json`. Version-1 answer sheets remain readable and unchanged.
+
+## Founder review page
+
+Start the local page with `IMPORT_LAB_ROOT` set to saved lab data:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/review-server.ts --arm blocks-production --run RUN
+~~~
+
+Open the printed `http://127.0.0.1:4777` address. `--port PORT` selects another local port. `--arm` and `--run` select the saved development stick scores and imported components; the newest matching stick score file is used for each page. No model call runs.
+
+Choose **Disputes** for held-out disagreements first, then development disagreements. The source crop leads; one labeller answer resolves all disputed fields in the block, or **Other** lets you choose values. **Sample** checks 30 seeded agreed held-out blocks with Right or a corrected family. **Stick check** checks 30 seeded scored development blocks against imported headings, text, images and links; its saved verdict stays hidden until after the answer. Each queue shows up to 20 items per batch and resumes at the next unanswered item. Press `1`/`2`/`3` for visible answers, `Enter` for Right, or `Esc` to see the previous item.
+
+The start screen and `/api/summary` show both rules: **2 or more wrong out of 30 sample blocks: fix labelling instructions and relabel**; **28 or more out of 30 stick checks must agree**. Review writes only the chosen version-2 label corrections and append-only records in `labels/review-sample.json` and `labels/stick-check.json`.
 
 ## Data and cost
 

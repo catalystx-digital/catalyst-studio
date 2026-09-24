@@ -1,34 +1,182 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review page blocks</title>
-<style>
-:root{color-scheme:dark;--bg:#0a0a0a;--panel:#1a1a1a;--line:#484848;--text:#fff;--muted:#c4c4cc;--accent:#ff7a38}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}button,input,select,textarea{font:inherit}button,input,select,textarea{border:1px solid var(--line);border-radius:6px;background:#222;color:var(--text)}button{min-height:44px;padding:9px 16px;cursor:pointer}button:hover{background:#363636}button:disabled{opacity:.5;cursor:not-allowed}button.primary{background:var(--accent);color:#171717;font-weight:750;border-color:var(--accent)}button.primary:hover{background:#ff995f}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}header{padding:16px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;flex-wrap:wrap}h1{font-size:22px;line-height:1.2;margin:0}header p{margin:2px 0;color:var(--muted)}#progress{margin-left:auto;font-size:18px;font-weight:650}progress{width:160px;accent-color:var(--accent);height:9px;display:block;margin-top:7px}main{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(440px,1fr);height:calc(100vh - 110px)}#preview{overflow:auto;background:#303033;padding:16px}#canvas{position:relative;width:100%;line-height:0}#shot{width:100%;height:auto}#outlines{position:absolute;inset:0}button.outline{position:absolute;border:2px solid #2166bc;background:transparent;padding:0;border-radius:0;min-height:0;line-height:1;text-align:left}button.outline.active{border:4px solid #d34b00;background:rgba(255,122,56,.08)}.outline span{position:absolute;left:0;top:0;padding:7px 10px;color:white;background:#194e90;font:700 16px system-ui}.outline.active span{background:#9a3500}#review{display:flex;flex-direction:column;min-height:0;background:var(--panel)}#fields{padding:22px 28px;overflow:auto;flex:1}.block-nav{display:flex;gap:8px;align-items:center;margin-bottom:20px}.block-nav h2{font-size:21px;margin:0 auto 0 0}.hint{color:var(--muted);font-size:14px;margin:5px 0 12px}label.field{display:block;font-weight:600;margin:18px 0 5px}input:not([type=checkbox]),select,textarea{width:100%;min-height:44px;padding:9px 10px}textarea{resize:vertical;min-height:76px}input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none}.check{display:flex;gap:10px;align-items:center;min-height:44px;cursor:pointer}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}details{border-top:1px solid var(--line);margin-top:20px;padding-top:12px}summary{cursor:pointer;min-height:44px;padding:8px 0;font-weight:600}.choices{max-height:230px;overflow:auto}.choices label{padding:7px 4px}.choices small{display:block;font-weight:400;color:var(--muted)}#own-text{white-space:pre-wrap;line-height:1.7;color:var(--muted)}.surgery{display:flex;flex-wrap:wrap;gap:8px}.actions{padding:14px 28px;border-top:1px solid var(--line);background:var(--panel)}.actions .buttons{display:flex;gap:10px;flex-wrap:wrap}#message{margin:0 0 10px;min-height:24px;color:var(--muted)}#message.error{color:#ffb8a6}#pages{padding:28px;max-width:1000px;margin:auto}#page-list{display:grid;gap:12px;margin-top:22px}.page-link{text-align:left;display:flex;justify-content:space-between;gap:20px;padding:16px}.page-link small{display:block;color:var(--muted)}.warning{color:#ffd39c}#model-reason{line-height:1.6}#summary{color:var(--muted);font-size:14px}#alerts{white-space:pre-wrap}#all-pages{white-space:nowrap}[hidden]{display:none!important}@media(max-width:850px){header{padding:12px 16px;gap:12px}#progress{margin-left:0}main{height:auto;grid-template-columns:1fr}#preview{height:40vh}#review{max-height:80vh}#fields{padding:18px}#page-name{max-width:95vw;overflow-wrap:anywhere}.actions{padding:14px 18px}.two{grid-template-columns:1fr}}
-</style></head><body>
-<header><button id="all-pages" hidden>← All pages</button><div><h1>Review page blocks</h1><p id="page-name">Choose a page to begin.</p></div><div id="progress" aria-live="polite"></div></header>
-<section id="pages"><h2>Choose a saved page</h2><p>Check one block at a time. Nothing is approved until you say so.</p><div id="page-list"></div></section>
-<main id="workspace" hidden><section id="preview" aria-label="Page screenshot with numbered blocks"><div id="canvas"><img id="shot" alt="Saved page screenshot"><div id="outlines"></div></div></section>
-<section id="review" aria-label="Selected block"><div id="fields"><div class="block-nav"><h2 id="block-title"></h2><button id="previous" aria-label="Previous block">←</button><button id="next">Next →</button></div><p id="block-state" class="hint"></p><p id="anchor-warning" class="warning"></p>
-<label class="field" for="best">Best component type</label><select id="best"></select><p id="summary"></p>
-<details id="acceptable-details"><summary id="acceptable-summary">Other acceptable types</summary><p class="hint">Choose only types you would accept as correct.</p><label for="type-search">Find a type</label><input id="type-search" type="search" placeholder="Search names or descriptions"><div id="acceptable" class="choices"></div></details>
-<label class="check"><input id="ignore" type="checkbox">This block should not be imported</label><label class="field" for="ignore-reason">Why ignore it?</label><input id="ignore-reason" placeholder="For example: cookie notice">
-<details id="expected-details" open><summary>Content this block must keep</summary><label class="field" for="headings">Headings · one per line</label><textarea id="headings" rows="2"></textarea><div class="two"><div><label class="field" for="item-count">Number of items</label><input id="item-count" type="number" min="0" step="1" placeholder="Not required"></div><div><label class="field" for="item-kind">Which items?</label><input id="item-kind" placeholder="cards, posts, links…"></div></div><label class="check"><input id="has-image" type="checkbox">An image must be present</label><label class="field" for="ctas">Button or link labels · one per line</label><textarea id="ctas" rows="2"></textarea></details>
-<details><summary>Does this block need multiple components?</summary><label class="check"><input id="multiple" type="checkbox">Yes, this block contains multiple components</label><label class="field" for="component-types">Component types · one per line, including repeats</label><textarea id="component-types" rows="2"></textarea><p class="hint">Use names from the component menu. Review the list before saving.</p></details>
-<details><summary>Why this type was suggested</summary><p id="model-reason"></p><label class="field" for="reason">Your explanation</label><textarea id="reason" rows="2"></textarea></details>
-<details><summary>Change the block boundaries</summary><div class="surgery"><button id="merge">Merge with next block</button><button id="split">Split into its child blocks</button><button id="ignore-block">Ignore this block</button></div><p class="hint">Boundary changes are saved as unreviewed. Check the result before approving.</p></details>
-<details><summary>Read this block’s text</summary><p id="own-text"></p></details><details><summary>Page notes</summary><p id="alerts"></p></details></div>
-<div class="actions"><p id="message" role="status" aria-live="polite">Check the type, then approve or save your correction.</p><div class="buttons"><button class="primary" id="approve">Approve & next</button><button id="correct">Save correction & next</button></div><p class="hint">Shortcut: A approves an unchanged label · N moves to the next block. Shortcuts pause while typing.</p></div></section></main>
-<script>
-const $=id=>document.getElementById(id);let state=null,selected=0,page='',dirty=false,busy=false;
-const lines=value=>value.split('\n').map(s=>s.trim()).filter(Boolean);
-function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error)}
-async function api(url,options){const response=await fetch(url,options);const value=await response.json();if(!response.ok)throw Error(value.error||'Request failed');return value}
-function discard(){return !dirty||confirm('Discard the changes to this block?')}
-async function showPages(){if(!discard())return;dirty=false;$('workspace').hidden=true;$('pages').hidden=false;$('all-pages').hidden=true;$('progress').textContent='';$('page-name').textContent='Choose a page to begin.';const list=$('page-list');list.replaceChildren();try{const pages=await api('/api/pages');if(!pages.length)list.textContent='No saved pages yet. Run the block proposal command first.';for(const p of pages){const button=document.createElement('button');button.className='page-link';const title=document.createElement('span');title.textContent=p.page;const status=document.createElement('small');status.textContent=p.error||p.done+' of '+p.total+' blocks done';button.append(title,status);button.disabled=!!p.error;button.onclick=()=>openPage(p.page);list.append(button)}}catch(e){list.textContent=e.message}}
-async function openPage(name){try{page=name;state=await api('/api/page?page='+encodeURIComponent(page));selected=state.sheet.entries.findIndex(e=>e.status==='draft');if(selected<0)selected=0;$('pages').hidden=true;$('workspace').hidden=false;$('all-pages').hidden=false;$('page-name').textContent=page;$('shot').src='/screenshot.png?page='+encodeURIComponent(page);const best=$('best');best.replaceChildren(new Option('Choose a component type',''));for(const c of state.catalogue)best.add(new Option(c.type+' — '+c.description,c.type));render()}catch(e){$('page-list').textContent=e.message}}
-function readLabel(){return {bestType:$('best').value||null,acceptableTypes:Array.from($('acceptable').querySelectorAll('input:checked')).map(c=>c.value),containsMultipleComponents:$('multiple').checked,componentTypes:lines($('component-types').value),ignore:$('ignore').checked,ignoreReason:$('ignore-reason').value,expected:{headings:lines($('headings').value),itemCount:$('item-count').value===''?null:Number($('item-count').value),itemKind:$('item-kind').value.trim()||null,hasImage:$('has-image').checked,ctaLabels:lines($('ctas').value)},reason:$('reason').value}}
-function updateTypes(){const c=state.catalogue.find(c=>c.type===$('best').value);$('summary').textContent=c?.description||'Choose the component that represents this whole block.';$('acceptable-summary').textContent='Acceptable types ('+$('acceptable').querySelectorAll('input:checked').length+' selected)'}
-function render(){dirty=false;const entries=state.sheet.entries,done=entries.filter(e=>e.status!=='draft').length;$('progress').textContent=done+' of '+entries.length+' blocks done';const progress=document.createElement('progress');progress.max=entries.length||1;progress.value=done;progress.setAttribute('aria-label','Review progress');$('progress').append(progress);if(!entries.length){message('No blocks found. Check the page notes.',true);return}selected=Math.max(0,Math.min(selected,entries.length-1));const entry=entries[selected],b=entry.block,l=entry.label||{bestType:null,acceptableTypes:[],containsMultipleComponents:false,componentTypes:[],ignore:false,ignoreReason:'',expected:{headings:b.headings,itemCount:null,itemKind:null,hasImage:b.images.length>0,ctaLabels:[]},reason:'Human label.'};$('block-title').textContent='Block '+(selected+1)+' of '+entries.length;$('block-state').textContent=b.region+' · '+entry.status+ (entry.error?' · '+entry.error:'');$('anchor-warning').textContent=b.anchorResolved?'':'This block could not be traced to the saved HTML. Check its boundaries carefully.';$('best').value=l.bestType||'';const choices=$('acceptable');choices.replaceChildren();for(const c of state.catalogue){const label=document.createElement('label');label.className='check';const input=document.createElement('input');input.type='checkbox';input.value=c.type;input.checked=l.acceptableTypes.includes(c.type);const words=document.createElement('span');words.textContent=c.type;const small=document.createElement('small');small.textContent=c.description;words.append(small);label.append(input,words);choices.append(label)}$('type-search').value='';$('ignore').checked=l.ignore;$('ignore-reason').value=l.ignoreReason;$('headings').value=l.expected.headings.join('\n');$('item-count').value=l.expected.itemCount??'';$('item-kind').value=l.expected.itemKind||'';$('has-image').checked=l.expected.hasImage;$('ctas').value=l.expected.ctaLabels.join('\n');$('multiple').checked=l.containsMultipleComponents;$('component-types').value=l.componentTypes.join('\n');$('model-reason').textContent=state.draftReasons?.[b.id]||'No valid model draft. Choose the label yourself.';$('reason').value=l.reason;$('own-text').textContent=b.text||'No text in this block.';$('alerts').textContent=state.sheet.issues.join('\n')||'No page issues recorded.';$('previous').disabled=selected===0;$('next').disabled=selected===entries.length-1;$('merge').disabled=selected===entries.length-1;$('split').disabled=b.children.length<2;$('approve').disabled=!entry.label;updateTypes();draw();message('Check the type, then approve or save your correction.')}
-function draw(){const layer=$('outlines');layer.replaceChildren();state.sheet.entries.forEach((entry,index)=>{const b=entry.block,button=document.createElement('button');button.className='outline'+(index===selected?' active':'');button.style.left=b.box.x/state.proposal.viewportWidth*100+'%';button.style.top=b.box.y/state.proposal.renderedHeight*100+'%';button.style.width=b.box.width/state.proposal.viewportWidth*100+'%';button.style.height=b.box.height/state.proposal.renderedHeight*100+'%';button.setAttribute('aria-label','Select block '+(index+1));button.setAttribute('aria-pressed',String(index===selected));const badge=document.createElement('span');badge.textContent=index+1;button.append(badge);button.onclick=()=>select(index);layer.append(button)})}
-function select(index){if(busy||!discard())return;selected=index;render();const box=state.sheet.entries[selected].block.box;const scale=$('shot').clientWidth/state.proposal.viewportWidth;$('preview').scrollTop=Math.max(0,box.y*scale-30);$('fields').scrollTop=0}
-async function save(action){if(busy)return;busy=true;message('Saving…');const index=selected;try{const result=await api('/api/review?page='+encodeURIComponent(page),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:state.revision,blockId:state.sheet.entries[selected].block.id,action,label:readLabel(),reason:$('ignore-reason').value})});state.sheet=result.sheet;state.revision=result.revision;dirty=false;if(action==='approve'||action==='correct'){const next=state.sheet.entries.findIndex((e,i)=>i>index&&e.status==='draft');const first=state.sheet.entries.findIndex(e=>e.status==='draft');selected=next>=0?next:first>=0?first:index}render();message(action==='approve'||action==='correct'?'Saved. '+(state.sheet.entries.every(e=>e.status!=='draft')?'Every block is reviewed.':'Check the next block.'):'Saved as unreviewed. Check the result before approving.');$('fields').scrollTop=0;const box=state.sheet.entries[selected]?.block.box;if(box)$('preview').scrollTop=Math.max(0,box.y*$('shot').clientWidth/state.proposal.viewportWidth-30)}catch(e){message(e.message,true)}finally{busy=false}}
-$('fields').addEventListener('input',event=>{if(event.target.id==='type-search')return;dirty=true;$('approve').disabled=true;message('Changes ready. Use Save correction to keep them.');updateTypes()});$('best').onchange=()=>{const checkbox=Array.from($('acceptable').querySelectorAll('input')).find(c=>c.value===$('best').value);if(checkbox)checkbox.checked=true;updateTypes()};$('type-search').oninput=()=>{const query=$('type-search').value.toLowerCase();for(const label of $('acceptable').children)label.hidden=!label.textContent.toLowerCase().includes(query)};$('approve').onclick=()=>save('approve');$('correct').onclick=()=>save('correct');$('merge').onclick=()=>{if(discard())save('merge')};$('split').onclick=()=>{if(discard())save('split')};$('ignore-block').onclick=()=>save('ignore');$('next').onclick=()=>select(Math.min(selected+1,state.sheet.entries.length-1));$('previous').onclick=()=>select(Math.max(0,selected-1));$('all-pages').onclick=showPages;document.addEventListener('keydown',e=>{if(!state||$('workspace').hidden||e.ctrlKey||e.metaKey||e.altKey||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key.toLowerCase()==='a'&&!$('approve').disabled){e.preventDefault();save('approve')}if(e.key.toLowerCase()==='n'){e.preventDefault();$('next').click()}});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});showPages();
-</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import lab review</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#192b39;background:#edf2f4;font-size:16px}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh}button,select,input{font:inherit}button{cursor:pointer}
+    button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #006f8b;outline-offset:3px}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .shell{max-width:1120px;margin:auto;padding:28px 24px 64px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:28px;border-bottom:1px solid #bdcbd1}
+    .brand{font-weight:800;letter-spacing:-.025em}.brand small{display:block;font-size:.75rem;letter-spacing:.02em;color:#4b6572;font-weight:600}
+    h1{font-size:clamp(2rem,4vw,3.25rem);letter-spacing:-.035em;line-height:1.1;margin:34px 0 10px}
+    h2{font-size:1.1rem;margin:0 0 8px;letter-spacing:-.02em}p{line-height:1.5}.lede{max-width:65ch;color:#435d6b;margin:0 0 28px}
+    .queue-list{display:grid;gap:10px;max-width:780px}.queue-choice{width:100%;background:#fff;border:1px solid #b4c5cd;border-radius:12px;padding:20px 24px;text-align:left;display:grid;grid-template-columns:1fr auto;gap:8px 24px;box-shadow:0 4px 14px #0000000b}
+    .queue-choice:hover{border-color:#006f8b;background:#f8fcfd}.queue-choice strong{font-size:1.2rem}.queue-choice span{color:#435d6b}.queue-choice b{font-size:1.65rem;font-variant-numeric:tabular-nums}.queue-choice em{font-style:normal;color:#435d6b;grid-column:1/-1}
+    .rules{max-width:780px;margin-top:30px;padding-top:20px;border-top:1px solid #bdcbd1;color:#38515e}.rules p{margin:6px 0}.rules strong{color:#192b39}
+    .toolbar{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:14px;background:#edf2f4;padding:14px 0;border-bottom:1px solid #bdcbd1}.toolbar .count{font-weight:800;font-size:1.1rem;font-variant-numeric:tabular-nums;margin-right:auto}
+    .quiet{border:0;background:transparent;color:#28566a;font-weight:700;padding:8px 10px;min-height:44px;border-radius:7px}.quiet:hover{background:#dce9ee}
+    .review-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);gap:28px;margin-top:24px;align-items:start}
+    .source{min-width:0}.source h2{margin:0 0 12px}.crop{min-height:230px;display:flex;align-items:center;justify-content:center;background:#d7e1e5;border:1px solid #b4c5cd;border-radius:12px;overflow:hidden}
+    .crop img{display:block;width:100%;height:auto;max-height:65vh;object-fit:contain}
+    .decision{background:white;padding:24px;border:1px solid #b4c5cd;border-radius:12px;box-shadow:0 8px 24px #00000010}
+    .decision p{color:#435d6b;margin:0 0 18px}
+    .answers{display:grid;gap:10px}.answer{border:1px solid #9bb7c2;border-radius:9px;background:#f5f9fa;color:#173241;padding:16px;text-align:left;font-weight:750;min-height:57px}
+    .answer:hover{background:#e1f1f5;border-color:#006f8b}.answer.primary{background:#0b657b;border-color:#0b657b;color:white}.answer.primary:hover{background:#064c60}.answer .key{display:inline-grid;place-items:center;width:27px;height:27px;border:1px solid currentColor;border-radius:6px;font-size:.8rem;margin-right:12px;opacity:.75}
+    .answer.wrong{background:#fff;border-color:#9bb7c2}.answer.wrong:hover{background:#f5f9fa}
+    .editor{margin-top:16px;padding-top:16px;border-top:1px solid #d5e0e5;display:grid;gap:12px}.editor label{font-size:.9rem;font-weight:700;display:grid;gap:5px}
+    .editor select,.editor input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #8da9b5;border-radius:7px;background:white;color:#173241}
+    .editor .check{display:flex;align-items:center;gap:8px;font-weight:500}.editor .check input{width:auto}
+    .decoration-list{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}.decoration-item{display:flex;align-items:center;gap:7px}.decoration-item img{width:64px;height:64px;object-fit:cover;border-radius:5px;border:1px solid #b4c5cd}.answer .decoration-list{margin-bottom:0}
+    .imported{border:1px solid #d5e0e5;border-radius:9px;padding:16px;margin-bottom:18px;background:#f8fbfc}.imported h3{font-size:.9rem;margin:14px 0 5px}.imported h3:first-child{margin-top:0}.imported p,.imported ul{margin:0;color:#243d4a;overflow-wrap:anywhere}.imported ul{padding-left:20px}.thumbs{display:flex;flex-wrap:wrap;gap:8px}.thumbs img{width:74px;height:74px;object-fit:cover;border-radius:5px;background:#d7e1e5}
+    .message{min-height:24px;margin:14px 0;color:#a23a22;font-weight:700}.empty{padding:36px 0}.empty h2{font-size:1.5rem}.previous-note{padding:12px;background:#dce9ee;border-radius:8px;margin-bottom:14px}
+    [hidden]{display:none!important}@media(max-width:760px){.shell{padding:18px 16px 50px}.review-grid{grid-template-columns:1fr;gap:18px}.decision{padding:18px}.crop img{max-height:45vh}.toolbar{flex-wrap:wrap}.toolbar .count{flex-basis:100%}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header><div class="brand">IMPORT LAB <small>Founder review</small></div></header>
+    <main>
+      <section id="start">
+        <h1>Choose a short review batch</h1>
+        <p class="lede">See the source first. Make one decision at a time. You can stop after any item and return to the next unanswered one.</p>
+        <div class="queue-list" id="queues"></div>
+        <div class="rules" id="rules"></div>
+      </section>
+      <section id="review" hidden>
+        <div class="toolbar"><div class="count" id="count">1 of 20</div><button class="quiet" id="back" type="button">Back one</button><button class="quiet" id="done" type="button">Done for now</button></div>
+        <div id="empty" class="empty" hidden><h2>Queue complete</h2><p>There is nothing left to answer here.</p><button class="answer primary" id="empty-home">Back to queues</button></div>
+        <div id="batch-done" class="empty" hidden><h2>Batch done</h2><p>You finished 20 of 20. Your place is saved.</p><button class="answer primary" id="continue" type="button">Continue</button><button class="quiet" id="batch-home" type="button">Done for now</button></div>
+        <div class="review-grid" id="work">
+          <div class="source"><h2>Source block</h2><div class="crop" id="crop"></div></div>
+          <div class="decision">
+            <div id="previous-note" class="previous-note" hidden>Previous item. This answer is saved. <button class="quiet" id="return">Return to current</button></div>
+            <h2 id="prompt"></h2><p id="hint"></p>
+            <div id="imported" class="imported" hidden></div>
+            <div id="answers" class="answers"></div>
+            <div id="editor" class="editor" hidden></div>
+            <div class="message" id="message" role="alert" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const $=id=>document.getElementById(id);
+    const state={queue:null,item:null,progress:null,previous:[],lookingBack:false,busy:false,batchDone:false};
+    const names={disputes:'Disputes',sample:'Sample',stick:'Stick check'};
+    const fields={family:'section kind',acceptableFamilies:'allowed section kinds',familiesInOrder:'section kinds from top to bottom',itemCount:'number of items',itemKind:'type of item',placement:'where it sits',decorativeImages:'decoration images',multiple:'more than one section',ignore:'skip this section',ignoreReason:'reason for skipping'};
+    const placements=[['header','Top'],['main','Main area'],['sidebar','Side'],['footer','Bottom']];
+    const kinds={'site-header':'Top menu','site-footer':'Bottom of page','local-nav':'Page menu',hero:'Opening banner',content:'Text section',collection:'Repeated items (cards, posts, people)','logo-strip':'Logo row',stats:'Key numbers',testimonials:'Quotes and reviews',pricing:'Prices and plans',disclosure:'Expandable content (accordion or tabs)',cta:'Call to action',form:'Form',table:'Table or chart',media:'Pictures, video or map',navigation:'Menu',footer:'Bottom of page',split:'Side by side section',cards:'Cards',feed:'Updates',text:'Text',statistics:'Key numbers',logos:'Logos',tables:'Tables',article:'Article',contact:'Contact details',timeline:'Timeline',section:'Section'};
+    const kind=value=>value===null?'None':kinds[value]||String(value).replace(/[-_]/g,' ');
+    function readable(key,value){if(Array.isArray(value))return value.length?value.map(part=>readable(key,part)).join(', '):'None';if(value===null||value==='')return 'None';if(typeof value==='boolean')return value?'Yes':'No';if(['family','acceptableFamilies','familiesInOrder','itemKind'].includes(key))return kind(value);if(key==='placement')return placements.find(pair=>pair[0]===value)?.[1]||value;return String(value)}
+    async function api(url,options){let response;try{response=await fetch(url,options)}catch{throw new Error('Cannot reach the review page. Reload and try again.')}let data;try{data=await response.json()}catch{throw new Error('The review page could not load. Reload and try again.')}if(!response.ok)throw new Error(data.error||'That action did not save. Reload and try again.');return data}
+    function button(label,className='',onClick){const element=document.createElement('button');element.type='button';element.className=className;element.textContent=label;element.onclick=onClick;return element}
+    function el(tag,text){const node=document.createElement(tag);node.textContent=text;return node}
+    function message(value){$('message').textContent=value}
+    async function start(){
+      state.queue=null;state.item=null;state.previous=[];state.lookingBack=false;state.batchDone=false;$('start').hidden=false;$('review').hidden=true;
+      try{
+        const data=await api('/api/summary'),list=$('queues');list.replaceChildren();
+        for(const queue of ['disputes','sample','stick']){
+          const stats=data.queues[queue],choice=button('', 'queue-choice',()=>openQueue(queue));
+          choice.append(el('strong',names[queue]),el('b',String(stats.remaining)),el('span',stats.remaining===1?'item remaining':'items remaining'),el('em','About '+stats.estimateMinutes+' min · batches of 20'));
+          list.append(choice);
+        }
+        const rules=$('rules');rules.replaceChildren(el('h2','Check results'));
+        rules.append(el('p','Sample: '+data.sample.wrong+' wrong out of 30. '+data.sample.rule+'.'));
+        rules.append(el('p','Stick check: '+data.stick.agree+' agree out of 30. '+data.stick.rule+'.'));
+      }catch(error){$('queues').textContent=error.message}
+    }
+    async function openQueue(queue){
+      state.queue=queue;state.previous=[];state.lookingBack=false;state.batchDone=false;$('start').hidden=true;$('review').hidden=false;
+      await load();
+    }
+    async function load(){
+      try{const data=await api('/api/queue?queue='+state.queue);state.item=data.item;state.progress=data.progress;render()}
+      catch(error){message(error.message)}
+    }
+    function render(){
+      const item=state.item,progress=state.progress;
+      $('batch-done').hidden=!state.batchDone;$('empty').hidden=state.batchDone||!!item;$('work').hidden=state.batchDone||!item;
+      $('count').textContent=state.batchDone?'20 of 20':item?progress.position+' of '+progress.batchSize:'Done';
+      $('back').disabled=state.batchDone||!state.previous.length;$('previous-note').hidden=!state.lookingBack;
+      if(!item)return;
+      const image=document.createElement('img');image.src=item.cropUrl;image.alt='Screenshot crop of the source block';$('crop').replaceChildren(image);
+      $('answers').replaceChildren();$('editor').replaceChildren();$('editor').hidden=true;$('imported').replaceChildren();$('imported').hidden=true;message('');
+      if(state.queue==='disputes'){
+        $('prompt').textContent='Which answer matches the source?';$('hint').textContent='Choose one answer for '+item.fields.map(field=>field.label).join(', ')+'.';
+        item.choices.forEach((choice,index)=>{const node=button('', 'answer'+(index===0?' primary':''),()=>save({choiceId:choice.id}));const key=el('span',String(index+1));key.className='key';node.append(key,document.createTextNode(choice.label));if(choice.decorationNumbers.length)node.append(decorationList(choice.decorationNumbers,item.decorationGroups));$('answers').append(node)});
+        $('answers').append(button('Other · choose values','answer',showOther));
+      }else{
+        $('prompt').textContent=state.queue==='sample'?'Is this section kind right?':'Is this import right?';
+        $('hint').textContent=state.queue==='sample'?'Current section kind: '+item.family:'Compare what was imported with the source.';
+        if(state.queue==='stick')showImported(item.imported);
+        $('answers').append(button('Right','answer primary',()=>save({answer:'right'})),button('Wrong','answer wrong',()=>state.queue==='sample'?showCorrection():save({answer:'wrong'})));
+      }
+      if(state.lookingBack){for(const node of $('answers').children)node.disabled=true;$('editor').hidden=true}
+    }
+    function decorationList(numbers,groups){const row=el('div','');row.className='decoration-list';for(const number of numbers){const group=groups.find(group=>group.number===number);if(!group)continue;const item=el('span','');item.className='decoration-item';const image=document.createElement('img');image.src=group.thumbnail;image.alt='Decoration image '+number;image.loading='lazy';item.append(image,el('span','Image '+number));row.append(item)}return row}
+    function showImported(data){
+      const box=$('imported');box.hidden=false;
+      const section=(title,values)=>{box.append(el('h3',title));if(!values.length)box.append(el('p','None'));else{const list=el('ul','');values.forEach(value=>list.append(el('li',value)));box.append(list)}};
+      section('Headings',data.headings);section('Text',data.text?[data.text]:[]);
+      box.append(el('h3','Images'));if(data.images.length){const row=el('div','');row.className='thumbs';data.images.forEach((src,index)=>{const image=document.createElement('img');image.src=src;image.alt='Imported image '+(index+1)+' of '+data.images.length;image.loading='lazy';row.append(image)});box.append(row)}else box.append(el('p','None'));
+      section('Links',data.links.map(link=>link.label+' → '+link.target));
+    }
+    function field(label,control){const wrapper=document.createElement('label');wrapper.append(el('span',label),control);$('editor').append(wrapper);return control}
+    function select(values){const input=document.createElement('select');values.forEach(value=>input.append(new Option(value.label??String(value),value.value??String(value))));return input}
+    function showCorrection(){
+      const box=$('editor');box.replaceChildren();box.hidden=false;
+      const family=field('Correct section kind',select(state.item.familyNames));family.value=state.item.currentFamily;
+      box.append(button('Save correction','answer primary',()=>save({answer:'wrong',correction:family.value})));family.focus();
+    }
+    function showOther(){
+      const item=state.item,box=$('editor'),inputs={};box.replaceChildren();box.hidden=false;
+      const family=field('Section kind',select(item.familyNames));family.value=item.fields.some(field=>field.key==='family')?item.otherFields.family[0]:item.currentFamily;inputs.family=family;
+      for(const {key} of item.fields){
+        if(key==='family')continue;
+        if(key==='itemCount'){const input=document.createElement('input');input.type='number';input.min='0';input.value=item.otherFields[key].find(value=>value!==null)??'';inputs[key]=field('Number of items (blank for none)',input)}
+        else if(key==='placement')inputs[key]=field('Where it sits',select(placements.map(([value,label])=>({value,label}))));
+        else if(key==='itemKind')inputs[key]=field(fields[key],select(item.otherFields[key].map(value=>({value:value??'',label:readable(key,value)}))));
+        else if(key==='ignoreReason'){const input=document.createElement('input');input.value=item.otherFields[key][0]??'';inputs[key]=field(fields[key],input)}
+        else if(key==='decorativeImages'){
+          const group=document.createElement('div');
+          group.append(el('span','Decoration images'));
+          item.decorationGroups.forEach(imageGroup=>{const label=document.createElement('label');label.className='check';const input=document.createElement('input');input.type='checkbox';input.value=JSON.stringify(imageGroup.addresses);const image=document.createElement('img');image.src=imageGroup.thumbnail;image.alt='Decoration image '+imageGroup.number;image.width=64;image.height=64;label.append(input,image,el('span','Image '+imageGroup.number));group.append(label)});
+          box.append(group);inputs[key]=group;
+        }
+        else {const input=select(item.otherFields[key].map(value=>({value:JSON.stringify(value),label:readable(key,value)})));inputs[key]=field(fields[key],input)}
+      }
+      box.append(button('Save other answer','answer primary',()=>{
+        const values={};
+        for(const [key,input] of Object.entries(inputs))values[key]=key==='decorativeImages'?[...new Set([...input.querySelectorAll('input:checked')].flatMap(choice=>JSON.parse(choice.value)))]:key==='itemCount'?(input.value===''?null:Number(input.value)):key==='itemKind'?(input.value||null):key==='family'||key==='placement'||key==='ignoreReason'?input.value:JSON.parse(input.value);
+        save({choiceId:'other',values});
+      }));
+    }
+    async function save(values){
+      if(state.busy||state.lookingBack)return;state.busy=true;message('Saving…');
+      const item=state.item;
+      try{
+        const data=await api('/api/answer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({queue:state.queue,page:item.page,blockId:item.blockId,revision:item.revision,...values})});
+        const finishedBatch=state.progress.position===state.progress.batchSize&&state.progress.batchSize===20;
+        state.previous.push({item,progress:state.progress});state.item=data.item;state.progress=data.progress;state.batchDone=finishedBatch;render();
+      }catch(error){message(error.message)}finally{state.busy=false}
+    }
+    function back(){if(!state.previous.length||state.lookingBack)return;const prior=state.previous.pop();state.current={item:state.item,progress:state.progress};state.item=prior.item;state.progress=prior.progress;state.lookingBack=true;render()}
+    function returnCurrent(){if(!state.lookingBack)return;state.item=state.current.item;state.progress=state.current.progress;state.lookingBack=false;render()}
+    $('done').onclick=$('empty-home').onclick=$('batch-home').onclick=start;$('continue').onclick=()=>{state.batchDone=false;render()};$('back').onclick=back;$('return').onclick=returnCurrent;
+    document.addEventListener('keydown',event=>{
+      if(!state.queue||state.batchDone||event.ctrlKey||event.altKey||event.metaKey)return;
+      if(event.key==='Escape'){event.preventDefault();state.lookingBack?returnCurrent():back();return}
+      if(state.lookingBack||!$('editor').hidden||/INPUT|SELECT|TEXTAREA|BUTTON/.test(event.target.tagName))return;
+      if(event.key==='Enter'&&state.queue!=='disputes'){event.preventDefault();$('answers').querySelector('button')?.click();return}
+      const index=Number(event.key)-1;if(index>=0&&index<3){const choice=$('answers').querySelectorAll('button')[index];if(choice){event.preventDefault();choice.click()}}
+    });
+    start();
+  </script>
+</body>
+</html>

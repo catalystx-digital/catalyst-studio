@@ -32,11 +32,9 @@ test.each([
   [{family:'unknown'},'Unknown family'],
   [{acceptableFamilies:['unknown']},'Unknown family'],
   [{familiesInOrder:['hero','unknown'],multiple:true},'Unknown family'],
-  [{acceptableFamilies:[]},'include'],
   [{multiple:true,familiesInOrder:['hero']},'Multiple'],
   [{multiple:false,familiesInOrder:['hero','content']},'Multiple'],
   [{ignore:true,ignoreReason:''},'Explain'],
-  [{itemCount:3,itemKind:null},'item'],
   [{itemCount:-1,itemKind:'cards'},''],
 ] as const)('family label validation rejects %p', (change,part)=>{
   expect(()=>validateFamilyLabel({...label(),...change},names)).toThrow(part||undefined)
@@ -236,7 +234,8 @@ test('crop preparation failure is recorded per block and later blocks complete',
   expect(saved.entries[1].error).toContain('outside screenshot')
   const callRuns=await fs.readdir(path.join(directory,'calls'))
   const failedCall=JSON.parse(await fs.readFile(path.join(directory,'calls',callRuns[0],'hours.json'),'utf8'))
-  expect(failedCall).toMatchObject({status:'failed',payload:null})
+  expect(failedCall).toMatchObject({status:'failed'})
+  expect(failedCall).not.toHaveProperty('payload')
   process.exitCode=originalExit
 })
 
