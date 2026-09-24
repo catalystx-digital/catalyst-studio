@@ -1,6 +1,16 @@
 # How other tools model page content, and a proposed importer catalogue
 
-**Status: provisional.** The founder approves or changes the family list at gate G1 (see [method.md](method.md)). Until then, set `C` in `scripts/experiments/import-lab/component-families.json` is the working mapping, and nothing in the app changes.
+**Status: approved by the founder at gate G1 (2026-09-24).** Set `C` in `scripts/experiments/import-lab/component-families.json` is the mapping. Nothing in the app changes until the offline proof (Phase C) and a founder go.
+
+Gate G1 decisions:
+- The 15 families below are approved.
+- Contact details (address, phone, hours) are labelled facts inside a content section, not a 16th family.
+- Stats, testimonials, pricing and logo strip stay separate families; whether to fold them into collection is decided by the Phase C measurements.
+- Hero stays a family.
+- Carousel is a layout setting of collection, testimonials or media, not a family.
+- Placement (`header | main | sidebar | footer`) is a label on every section, not separate families.
+- Icons are stored as real images (URL or inline SVG), never as icon-set names.
+- Jev checks imported content only where code cannot, and only after it agrees with the answer key at least 90% of the time.
 
 Terminology: this report says `region`; the lab and the method use `placement` (`header | main | sidebar | footer`) for the same idea.
 

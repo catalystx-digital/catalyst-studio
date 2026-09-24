@@ -1,6 +1,6 @@
 /** @jest-environment node */
-import { scoreSheet, matchComponents, countItems } from './scoring'
-import { block, label, entry, sheet, component } from './phase2-fixtures'
+import { matchComponents, countItems } from './scoring'
+import { block, label, entry, sheet, component, scoreFixture as scoreSheet } from './phase2-fixtures'
 const url='https://example.com/garden'
 describe('content matching',()=>{
   test('matches by content rather than type or location',()=>{const result=matchComponents([block()], [{...component,type:'footer',location:'footer'}],url);expect(result.matches[0].primaryBlockId).toBe('hero')})
@@ -18,6 +18,8 @@ describe('content matching',()=>{
     expect(mismatch.rows[0].checks.C6.passed).toBe(false)
     expect(mismatch.itemCountMismatches).toHaveLength(1)
     expect(scoreSheet(answer,[component],url).rows[0].checks.C6).toMatchObject({passed:null,structureUnknown:true,detail:expect.stringContaining('structure-unknown')})
+    const noKind=sheet([entry({label:label({expected:{headings:[],itemCount:2,itemKind:null,hasImage:false,ctaLabels:[]}})})])
+    expect(scoreSheet(noKind,[component],url).rows[0].checks.C6).toMatchObject({passed:null,structureUnknown:true,detail:expect.stringContaining('structure-unknown')})
     expect(countItems([{type:'card-grid',content:{cards:[]}}],'cards').count).toBe(0)
     expect(countItems([{type:'card-grid',content:{cards:[{links:[{},{}]}],metadata:{cards:[{}]}}}],'cards').count).toBe(1)
     expect(countItems([{type:'card-grid',content:{cards:[{}]},props:{cards:[{}]}}],'cards')).toMatchObject({count:null,reason:expect.stringContaining('Ambiguous')})

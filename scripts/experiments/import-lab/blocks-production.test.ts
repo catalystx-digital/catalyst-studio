@@ -17,7 +17,7 @@ test.each(['complete', 'failure', 'retry', 'dry'])('production arm records %s wi
 
 test('evaluation accepts production and labels retired arms without losing their history', async () => {
   const options = parseEval(['arms', '--arms', 'blocks-production', '--run', 'm3-r1', '--dry-run'])
-  const tasks = await planEvaluation(options, { garden: { url: 'https://example.com/', kind: 'home', heldOut: false, renderWithJavaScript: true, notes: '' } })
+  const tasks = await planEvaluation(options, { garden: { url: 'https://example.com/', kind: 'home', siteKind:'saas', heldOut: false, renderWithJavaScript: true, notes: '' } })
   expect(tasks[0]).toMatchObject({ paid: true, internet: true, script: 'run-arm.ts' })
   expect(tasks[0].args).toContain('blocks-production')
   expect(armLabel('blocks-production')).toBe('blocks-production')

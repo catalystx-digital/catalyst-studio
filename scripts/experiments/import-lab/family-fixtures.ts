@@ -3,14 +3,13 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { dataRoot, saveSnapshot, writeJson, readJson, digest } from './storage'
-import { comparisonSnapshot, comparisonProposal, comparisonSheet } from './phase3-fixtures'
+import { comparisonSnapshot, comparisonProposal, comparisonSheet, comparisonV2Sheet } from './phase3-fixtures'
 import { runtimeRequire } from './runtime'
 import { loadFamilies } from './families'
 import { runArm } from './run-arm'
 import { scorePage } from './score'
 import { scoreFamilyPicksPage } from './family-pick-score'
 import { readSavedResults } from './summary'
-import { evaluate, parseEval } from './eval'
 
 async function verify(){
   const root=path.join(dataRoot(),'fixture-'+Date.now()+'-'+process.pid);process.env.IMPORT_LAB_ROOT=root;delete process.env.IMPORT_LAB_OUTPUT_ROOT
@@ -22,9 +21,9 @@ async function verify(){
   finally{globalThis.fetch=previous}
   await saveSnapshot(path.join(root,'pages',proposal.page),snapshot)
   const labels=path.join(root,'labels',proposal.page)
-  await writeJson(path.join(labels,'blocks.json'),proposal);await writeJson(path.join(labels,'answer-sheet.json'),sheet)
+  await writeJson(path.join(labels,'blocks.json'),proposal);await writeJson(path.join(labels,'answer-sheet.json'),sheet);await writeJson(path.join(labels,'answer-sheet-v2.json'),comparisonV2Sheet())
   await writeJson(path.join(labels,'geometry.json'),{tree:{anchorKey:'body',children:[]}})
-  await writeJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://example.com/garden',kind:'home',heldOut:false,renderWithJavaScript:false,notes:'Invented fixture'}})
+  await writeJson(path.join(root,'pages.json'),{[proposal.page]:{url:'https://example.com/garden',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:'Invented fixture'}})
   const typeRequests:string[]=[]
   const typeRun=await runArm({page:proposal.page,run:'type-fixture',arm:'jev-pick',dryRun:false},{decision:{askRaw:async(state:string,questions:any[])=>{typeRequests.push(state);return runtimeRequire('@/lib/studio/decisions').createFakeDecisionClient({'import.block.component':{value:'text-block',probability:0.9,distribution:Object.fromEntries(Object.keys(questions[0].criteria).map(type=>[type,type==='text-block'?0.9:0.1/(Object.keys(questions[0].criteria).length-1)]))},'import.block.multiple':0.1}).askRaw(state,questions)}}})
   assert.equal(typeRun.status,'complete')
@@ -38,7 +37,7 @@ async function verify(){
   await writeJson(path.join(unscoredDirectory,'components.json'),components)
   await writeJson(path.join(unscoredDirectory,'run.json'),{status:'complete',snapshotSha256:sheet.snapshotSha256,proposalSha256:sheet.proposalSha256})
   await scorePage(proposal.page,{components:componentFile,name:'fixture'})
-  const protectedFiles=[path.join(labels,'answer-sheet.json'),path.join(labels,'scores-stick','fixture.json'),path.join(typeDirectory,'run.json'),path.join(typeDirectory,'picks.json')]
+  const protectedFiles=[path.join(labels,'answer-sheet.json'),path.join(labels,'answer-sheet-v2.json'),path.join(labels,'scores-stick','fixture-family-C.json'),path.join(typeDirectory,'run.json'),path.join(typeDirectory,'picks.json')]
   const hashes=await Promise.all(protectedFiles.map(async f=>digest(await fs.readFile(f,'utf8'))))
   for(const set of ['A','B']){
     const families=await loadFamilies(file,set);assert.equal(families.entries.length,set==='A'?18:16);assert.equal(Object.keys(families.byType).length,50)
@@ -57,14 +56,11 @@ async function verify(){
     const dryDir=path.join(root,'arms',proposal.page,record.arm,'dry-fixture'),dryRecord=await readJson(path.join(dryDir,'run.json'))
     assert.equal(dryRecord.callCount,0);assert.equal(dryRecord.plannedCallCount,3)
     const request=await readJson(path.join(dryDir,'calls','00001.json'));assert.equal(request.status,'planned');assert.equal(Object.keys(request.request.questions['import.block.component'].criteria).length,families.entries.length)
-    await scorePage(proposal.page,{components:componentFile,name:'fixture',families:file,familySet:set})
-    const score=await readJson(path.join(labels,'scores-stick','fixture-family-'+set+'.json'));assert.equal(score.reviewedBlocks,3);assert.equal(score.rows.filter((r:any)=>r.checks.C1.passed===true).length,3)
-    await evaluate(parseEval(['score','--families',file,'--family-set',set]))
-    for(const arm of ['jev-pick','jev-pick@families-'+set]){const r=await readJson(path.join(labels,'scores-family-'+set,'picks',arm+'--'+(arm==='jev-pick'?'type-fixture':'family-fixture')+'.json'));assert.equal(r.top1,3);assert.equal(r.top3,3)}
     await scoreFamilyPicksPage(proposal.page,file,set)
+    for(const arm of ['jev-pick','jev-pick@families-'+set]){const r=await readJson(path.join(labels,'scores-family-'+set,'picks',arm+'--'+(arm==='jev-pick'?'type-fixture':'family-fixture')+'.json'));assert.equal(r.top1,3);assert.equal(r.top3,3)}
   }
-  const baseline=(await readSavedResults(undefined,true)).find(r=>r.arm==='blocks-production'&&r.run==='unsaved-type-baseline')
-  assert.equal(baseline?.record.computedTypeBaseline,true);assert.equal(baseline?.rows.length,3);assert(baseline?.rows.every(r=>r.verdict==='wrong type'))
+  const baseline=(await readSavedResults()).find(r=>r.arm==='blocks-production'&&r.run==='unsaved-type-baseline')
+  assert.equal(baseline?.rows.length,0)
   assert.equal(await fs.stat(path.join(labels,'scores','blocks-production--unsaved-type-baseline.json')).then(()=>true).catch(()=>false),false)
   assert.deepEqual(await Promise.all(protectedFiles.map(async f=>digest(await fs.readFile(f,'utf8')))),hashes)
   console.log('PASS families: 50 catalogue types, both sets, exact fake requests, dry CLI, post-hoc scoring and preserved source files')

@@ -2,6 +2,7 @@
   "example-garden": {
     "url": "https://example.com/garden",
     "kind": "landing",
+    "siteKind": "education",
     "heldOut": false,
     "renderWithJavaScript": true,
     "notes": "Invented design page."
@@ -9,6 +10,7 @@
   "example-library": {
     "url": "https://example.org/library",
     "kind": "listing",
+    "siteKind": "charity",
     "heldOut": true,
     "renderWithJavaScript": false,
     "notes": "Invented held-out page. Never use its results to choose prompts or rules."

@@ -73,11 +73,8 @@ export async function simplerSummary(pages:PageManifest,options:FamilyOptions={}
   for(const name of names){const definition=await loadFamilies(file,name);sets.push({definition,results:await readSavedResults(definition)})}
   const sheets:Sheet[]=[]
   for(const page of await directories(path.join(dataRoot(),'labels'))){const sheet=await optionalJson<Sheet>(path.join(dataRoot(),'labels',page,'answer-sheet.json'));if(sheet)sheets.push(sheet)}
-  const comparisonTypes=await readSavedResults(undefined,true)
+  const comparisonTypes=await readSavedResults()
   const result=buildFamilySummary(comparisonTypes,sets,pages,sheets)
-  const computedTypeBaselines=comparisonTypes.filter(r=>r.record.computedTypeBaseline).length
-  result.markdown=result.markdown.replace('Free regrouping of saved outputs;',computedTypeBaselines+' missing or stale type baselines computed in memory from the same saved outputs; saved type scores unchanged. Free regrouping of saved outputs;')
-  Object.assign(result.json,{computedTypeBaselines})
   const issues=sets.flatMap(s=>s.results.flatMap(r=>r.issues.map(issue=>s.definition.set+': '+issue)))
   result.markdown+='Family scoring gaps: '+issues.length+' recorded issues. Details are in summary.json.\n'
   Object.assign(result.json,{issues})

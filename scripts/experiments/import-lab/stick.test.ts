@@ -1,7 +1,6 @@
 /** @jest-environment node */
 import { blockEvidence } from './source-evidence'
-import { scoreSheet } from './scoring'
-import { block, entry, label, sheet } from './phase2-fixtures'
+import { block, entry, label, sheet, scoreFixture as scoreSheet } from './phase2-fixtures'
 import type { Component } from './metrics'
 import { absoluteUrl, extractPageEvidence, normalizeText } from './metrics'
 import { validateFamilies } from './families'
