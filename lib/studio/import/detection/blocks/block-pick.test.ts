@@ -8,6 +8,7 @@ afterEach(() => { process.env = { ...previous }; setDecisionClient(null) })
 test('malformed boolean answer keeps the same fallback candidates with a per-call catalogue', async () => {
   process.env.DECISION_MODEL_ENABLED = 'true'
   process.env.DECISION_MODEL_SHADOW = 'false'
+  process.env.DECISION_MODEL_API_KEY = 'test-key'
   const types = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`type-${i}`, `Type ${i}`]))
   const allowedTypes = Object.keys(types)
   setDecisionClient({ askRaw: async () => ({ answers: {
