@@ -10,17 +10,17 @@ let root:string
 beforeEach(async()=>{root=await fs.mkdtemp(path.join(os.tmpdir(),'accuracy-fixture-'))})
 afterEach(async()=>{await fs.rm(root,{recursive:true,force:true})})
 const page=(heldOut=false)=>({url:'https://invented.example/',kind:'home' as const,siteKind:'saas' as const,heldOut,renderWithJavaScript:false,notes:''})
-async function save(pageName:string,run:string,correct:number,total=10,familySet?:string) {
+async function save(pageName:string,run:string,correct:number,total=10,familySet?:string,heldOut=false) {
   const rows=Array.from({length:total},(_,i)=>({id:`block-${i}`,ignored:false,verdict:i<correct?'correct':'right type, content incomplete',failedChecks:i<correct?[]:['C2'],checks:{C6:{structureUnknown:false}},acceptableTypes:['fixture-type'],acceptableFamilies:['fixture-family']}))
   const file=path.join(root,'labels',pageName,'scores-stick',stickScoreName('blocks-production',run,familySet)+'.json')
   await fs.mkdir(path.dirname(file),{recursive:true})
-  await fs.writeFile(file,JSON.stringify({rows,extra:[],counts:{missed:0,'should have been ignored':0}}))
+  await fs.writeFile(file,JSON.stringify(heldOut?{version:6,name:'invented',status:'complete',familySet:familySet||'C',accuracy:{correct,total}}:{rows,extra:[],counts:{missed:0,'should have been ignored':0}}))
 }
 async function pages(entries:Record<string,ReturnType<typeof page>>) {await fs.writeFile(path.join(root,'pages.json'),JSON.stringify(entries))}
 
 test('fixed seed writes byte-identical latest reports and archives older copies',async()=>{
   await pages({alpha:page(),beta:page(true)})
-  for(const run of ['r1','r2']) {await save('alpha',run,7,10,'C');await save('beta',run,8,10,'C')}
+  for(const run of ['r1','r2']) {await save('alpha',run,7,10,'C');await save('beta',run,8,10,'C',true)}
   await generateAccuracy(root,{arm:'blocks-production',runs:['r1','r2'],familySet:'C'})
   const md=await fs.readFile(path.join(root,'reports','ACCURACY.md'))
   const json=await fs.readFile(path.join(root,'reports','accuracy.json'))
@@ -77,11 +77,11 @@ test('all 61 type groups fit within the 30-line report',async()=>{
 
 test('held-out output contains overall accuracy only, and the opening uses plain words',async()=>{
   await pages({development:page(),heldout:page(true)})
-  for(const run of ['r1','r2']) {await save('development',run,8,10,'C');await save('heldout',run,7,10,'C')}
+  for(const run of ['r1','r2']) {await save('development',run,8,10,'C');await save('heldout',run,7,10,'C',true)}
   const result=await generateAccuracy(root,{arm:'blocks-production',runs:['r1','r2'],familySet:'C'})
   const md=await fs.readFile(path.join(root,'reports','ACCURACY.md'),'utf8')
   const json=JSON.parse(await fs.readFile(path.join(root,'reports','accuracy.json'),'utf8'))
-  expect(Object.keys(json.heldOut).sort()).toEqual(['accuracy','interval','pages','scoredBlocks','unsettledBlocks'])
+  expect(Object.keys(json.heldOut).sort()).toEqual(['accuracy','interval','pages','scoredBlocks'])
   expect(JSON.stringify(json.heldOut)).not.toMatch(/C[1-7]|block-|fixture-family|fixture-type/)
   expect(md.match(/Held-out:.*/g)).toHaveLength(1)
   expect(md.split('\n').slice(0,4)).toEqual([
@@ -94,6 +94,17 @@ test('held-out output contains overall accuracy only, and the opening uses plain
   expect(result.heldOut.accuracy).toBe(0.7)
 })
 
+test('score.ts aggregate-only held-out scores feed accuracy without rows',async()=>{
+  await pages({development:page(),hiddenSmall:page(true),hiddenLarge:page(true)})
+  await save('development','r1',1,2,'C')
+  await save('hiddenSmall','r1',1,1,'C',true)
+  await save('hiddenLarge','r1',0,9,'C',true)
+  const result=await generateAccuracy(root,{arm:'blocks-production',runs:['r1'],familySet:'C'})
+  expect(result.heldOut.accuracy).toBeCloseTo(0.1)
+  expect(result.heldOut.scoredBlocks).toBe(10)
+  expect((await fs.readFile(path.join(root,'reports','ACCURACY.md'),'utf8')).match(/Held-out:.*/)?.[0]).toContain('1/10')
+})
+
 test('missing runs skip a page and name the development page only',async()=>{
   await pages({alpha:page(),missing:page()})
   await save('alpha','r1',8)
@@ -103,7 +114,8 @@ test('missing runs skip a page and name the development page only',async()=>{
 
 test('line two counts distinct unsettled sections and excludes them',async()=>{
   await pages({alpha:page(),beta:page(true)})
-  for(const name of ['alpha','beta'])await save(name,'r1',1,2,'C')
+  await save('alpha','r1',1,2,'C')
+  await save('beta','r1',1,2,'C',true)
   const file=path.join(root,'labels','alpha','scores-stick',stickScoreName('blocks-production','r1','C')+'.json')
   const score=JSON.parse(await fs.readFile(file,'utf8'))
   score.rows[1].verdict='unsettled'

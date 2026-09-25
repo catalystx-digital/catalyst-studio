@@ -31,7 +31,7 @@ Run with `$env:IMPORT_MODEL_CHAIN='test/dummy'; $env:SKIP_DB_SETUP='true'; npx -
 - The first three lines contain no statistics words (interval, bootstrap, kappa, percentile) and no check codes.
 
 ## Verify (offline, free)
-Run the command on the real data root once the runs exist; print `COMPARE.md` in full in your final message (it contains only development aggregates, site kinds and overall held-out numbers). Both typechecks 0 errors. README/RUNBOOK: the compare command; `briefs/README.md`: add this brief as number 24.
+The paid runs may still be in progress while you work. Verify with invented fixtures. Only if every c-r1/c-r2 run directory for both arms on development pages and c-r1 on held-out pages already exists, run the command on the real data root; print `COMPARE.md` in full in your final message (it contains only development aggregates, site kinds and overall held-out numbers). Both typechecks 0 errors. README/RUNBOOK: the compare command; `briefs/README.md`: add this brief as number 24.
 
 ## Final message
 Plain English: what was built; the full COMPARE.md; test and typecheck output lines.

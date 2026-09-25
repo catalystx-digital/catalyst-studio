@@ -122,6 +122,10 @@ These saved-data commands are **FREE**. Use set C for both score and accuracy. P
 
 After stick2 score files exist, move each version-1 `labels/<page>/answer-sheet.json` into `archive/labels-v1/<page>/answer-sheet.json` as a separate operator step. Do not move the version-2 sheet or stick scores.
 
+## Family go / no-go comparison
+
+After both development runs and the held-out run are saved for both arms, run `node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate family-fill --runs c-r1,c-r2 --held-out-runs c-r1 --family-set C`. This is offline and free. Read `reports/COMPARE.md` under `IMPORT_LAB_ROOT`; it contains development aggregates and only overall held-out accuracy per arm. Missing stick files are scored into new files.
+
 ## Two-labeller family key
 
 Fill the required site kinds before paid labelling. Use `pages.ts --set-site-kind PAGE KIND` for existing pages or `pages.ts --add URL --site-kind KIND --kind PAGE_KIND` for a new page. Valid `KIND` values are listed in [README.md](README.md). The page manifest has no inferred site kind.

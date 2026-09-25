@@ -9,7 +9,9 @@ type CheckName=typeof CHECKS[number]
 const PLAIN:Record<CheckName,string>={C1:'wrong or missing section kind',C2:'text lost',C3:'headings lost or demoted',C4:'links lost',C5:'images lost',C6:'wrong number of items',C7:'invented text'}
 type Row={id:string;ignored:boolean;verdict:string;failedChecks:string[];checks?:{C6?:{structureUnknown?:boolean}};acceptableTypes?:string[];acceptableFamilies?:string[]}
 type Score={rows:Row[];extra?:unknown[]}
+type OverallScore={accuracy:{correct:number;total:number}}
 type PageScores={page:string;scores:Score[]}
+type HeldPageScores={page:string;scores:OverallScore[]}
 interface AccuracyOptions {arm:string;runs:string[];familySet?:string}
 
 function mulberry32(seed:number) {
@@ -20,16 +22,16 @@ const unsettled=(pages:PageScores[])=>new Set(pages.flatMap(page=>page.scores.fl
 const totals=(pages:PageScores[],runs:number[])=>runs.map(run=>pages.reduce((sum,page)=>{
   const rows=scored(page.scores[run]);return {correct:sum.correct+rows.filter(row=>row.verdict==='correct').length,total:sum.total+rows.length}
 },{correct:0,total:0}))
+const meanRates=(values:Array<{correct:number;total:number}>)=>values.length?values.reduce((sum,value)=>sum+(value.total?value.correct/value.total:0),0)/values.length:0
 function accuracy(pages:PageScores[],runs:number[]) {
   if(!pages.length)return 0
-  const values=totals(pages,runs)
-  return values.reduce((sum,value)=>sum+(value.total?value.correct/value.total:0),0)/values.length
+  return meanRates(totals(pages,runs))
 }
 function percentile(sorted:number[],fraction:number) {
   const position=(sorted.length-1)*fraction,lower=Math.floor(position),weight=position-lower
   return sorted[lower]*(1-weight)+sorted[Math.ceil(position)]*weight
 }
-function bootstrap(pages:PageScores[],measure:(sample:PageScores[])=>number) {
+function bootstrap<T>(pages:T[],measure:(sample:T[])=>number) {
   if(!pages.length)return [0,0] as [number,number]
   const random=mulberry32(1),draws:number[]=[]
   for(let i=0;i<2000;i++)draws.push(measure(Array.from({length:pages.length},()=>pages[Math.floor(random()*pages.length)])))
@@ -69,34 +71,43 @@ function diagnostics(pages:PageScores[],familySet?:string) {
 export async function generateAccuracy(root:string,options:AccuracyOptions) {
   if(![1,2,4].includes(options.runs.length))throw new Error('Accuracy needs one, two or four runs')
   const manifest=validatePages(await readJson(path.join(root,'pages.json'))),pages:PageScores[]=[],skippedDevelopment:string[]=[]
+  const heldOut:HeldPageScores[]=[]
   let skippedHeldOut=0
   for(const page of Object.keys(manifest).sort()){
-    const scores:Score[]=[]
+    const scores:Score[]=[],overall:OverallScore[]=[]
     for(const run of options.runs){
       const file=path.join(root,'labels',page,'scores-stick',stickScoreName(options.arm,run,options.familySet)+'.json')
-      let score:Score
+      let score:Score|OverallScore
       try{score=await readJson(file)}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT'){scores.length=0;break}throw error}
-      if(!Array.isArray(score.rows))throw new Error(`Invalid stick score for page ${page}, run ${run}`)
-      scores.push(score)
+      if(manifest[page].heldOut){
+        if(!('accuracy' in score)||!score.accuracy||!Number.isFinite(score.accuracy.correct)||!Number.isFinite(score.accuracy.total))throw new Error(`Invalid held-out score for page ${page}, run ${run}`)
+        overall.push({accuracy:score.accuracy})
+      }else{
+        if(!Array.isArray((score as Score).rows))throw new Error(`Invalid stick score for page ${page}, run ${run}`)
+        scores.push(score as Score)
+      }
     }
-    if(scores.length!==options.runs.length){if(manifest[page].heldOut)skippedHeldOut++;else skippedDevelopment.push(page);continue}
-    pages.push({page,scores})
+    if(manifest[page].heldOut){if(overall.length===options.runs.length)heldOut.push({page,scores:overall});else skippedHeldOut++}
+    else if(scores.length===options.runs.length)pages.push({page,scores})
+    else skippedDevelopment.push(page)
   }
-  const development=pages.filter(page=>!manifest[page.page].heldOut),heldOut=pages.filter(page=>manifest[page.page].heldOut)
+  const development=pages
   if(!development.length)throw new Error('No development pages in pages.json')
   const runIndices=options.runs.map((_,index)=>index)
   const devAccuracy=accuracy(development,runIndices),devInterval=bootstrap(development,sample=>accuracy(sample,runIndices))
-  const heldAccuracy=accuracy(heldOut,runIndices),heldInterval=bootstrap(heldOut,sample=>accuracy(sample,runIndices))
+  const heldTotals=(sample:HeldPageScores[])=>runIndices.map(run=>sample.reduce((sum,page)=>({correct:sum.correct+page.scores[run].accuracy.correct,total:sum.total+page.scores[run].accuracy.total}),{correct:0,total:0}))
+  const heldRate=(sample:HeldPageScores[])=>meanRates(heldTotals(sample))
+  const heldAccuracy=heldRate(heldOut),heldInterval=bootstrap(heldOut,heldRate)
   const diagnostic=diagnostics(development,options.familySet)
   const compare=(sample:PageScores[])=>options.runs.length===4?accuracy(sample,[0,1])-accuracy(sample,[2,3]):accuracy(sample,[0])-accuracy(sample,[1])
   const difference=options.runs.length>1?compare(development):null
   const differenceInterval=options.runs.length>1?bootstrap(development,compare):null
   const noise=options.runs.length===1?{label:'not measured',difference:null,interval:null,halfWidth:null}:{label:options.runs.length===2?'single-run, conservative':'paired runs',difference,interval:differenceInterval,halfWidth:(differenceInterval![1]-differenceInterval![0])/2}
-  const devCounts=totals(development,runIndices),heldCounts=totals(heldOut,runIndices)
-  const devUnsettled=unsettled(development),heldUnsettled=unsettled(heldOut),totalUnsettled=devUnsettled+heldUnsettled
+  const devCounts=totals(development,runIndices),heldCounts=heldTotals(heldOut)
+  const devUnsettled=unsettled(development),totalUnsettled=devUnsettled
   const result={arm:options.arm,runs:options.runs,familySet:options.familySet||null,
     development:{accuracy:devAccuracy,interval:devInterval,pages:development.length,correctBlocks:sum(devCounts.map(v=>v.correct)),unsettledBlocks:devUnsettled,...diagnostic},
-    heldOut:{accuracy:heldAccuracy,interval:heldInterval,pages:heldOut.length,scoredBlocks:sum(heldCounts.map(v=>v.total)),unsettledBlocks:heldUnsettled},skipped:{development:skippedDevelopment,heldOutPages:skippedHeldOut},noise}
+    heldOut:{accuracy:heldAccuracy,interval:heldInterval,pages:heldOut.length,scoredBlocks:sum(heldCounts.map(v=>v.total))},skipped:{development:skippedDevelopment,heldOutPages:skippedHeldOut},noise}
   const biggest=[...CHECKS].sort((a,b)=>diagnostic.checks[b].failureRate-diagnostic.checks[a].failureRate||a.localeCompare(b)).slice(0,3).map(check=>PLAIN[check])
   const groups=Object.entries(diagnostic.groups).map(([name,value])=>`${name} ${countText(value.correct,value.total)}`)
   const groupSize=Math.max(1,Math.ceil(groups.length/10))
@@ -110,7 +121,7 @@ export async function generateAccuracy(root:string,options:AccuracyOptions) {
     `Held-out: ${percent(heldAccuracy)} (${sum(heldCounts.map(v=>v.correct))}/${result.heldOut.scoredBlocks} across ${heldOut.length} pages); 95% interval ${percent(heldInterval[0])}–${percent(heldInterval[1])}.`,
     `Noise band: ${noise.halfWidth===null?'not measured':`${percent(noise.halfWidth)} half-width; difference ${percent(noise.difference!)}; interval ${percent(noise.interval![0])}–${percent(noise.interval![1])} (${noise.label})`}.`,
     `Clean development pages: ${countText(diagnostic.cleanPages.count,diagnostic.cleanPages.total)}.`,
-    `Unsettled sections: development ${devUnsettled}; held-out ${heldUnsettled}.`,
+    `Unsettled sections: development ${devUnsettled}.`,
     `Skipped for missing production runs: development ${skippedDevelopment.join(', ')||'none'}; held-out ${skippedHeldOut} pages.`,
     ...CHECKS.map(check=>`${check} ${PLAIN[check]}: failures ${countText(diagnostic.checks[check].failures,diagnostic.checks[check].total)}; upper bound ${countText(diagnostic.checks[check].onlyFailure,diagnostic.checks[check].total)}.`),
     `C6 structure unknown: ${diagnostic.structureUnknown}/${diagnostic.scoredBlocks}.`,

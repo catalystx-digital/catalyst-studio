@@ -28,6 +28,10 @@ Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries
 
 Run `node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`, then `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`. The report names development pages skipped for missing runs and gives only an aggregate held-out skip count. It writes the latest `reports/ACCURACY.md` and `reports/accuracy.json` under `IMPORT_LAB_ROOT` and archives previous copies.
 
+## Family go / no-go comparison
+
+With all saved runs present, run `node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate family-fill --runs c-r1,c-r2 --held-out-runs c-r1 --family-set C`. This offline command writes `reports/COMPARE.md` and `reports/compare.json` under `IMPORT_LAB_ROOT`. It scores missing stick files without making model calls; held-out output contains only overall accuracy per arm.
+
 ## Site-name leak check
 
 Run `node --import tsx scripts/experiments/import-lab/eval.ts leak-check` before sharing changes. Repeat `--root PATH` to include other lab data roots. A hit prints `file:line: part` and exits with status 1.
