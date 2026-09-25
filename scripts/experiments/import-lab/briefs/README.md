@@ -32,6 +32,7 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 21 | [Checker fixes from the second check](21-checker-fixes-round2.md) | Keep image-alt-only logo headings out of C3 and draw stick checks only from settled verdicts, using current scores when answers are saved. | The founder's second spot-check agreed on 13 of 30; evidence supported the checker in most cases, with these two exceptions. |
 | 22 | [Family schemas and fill arm](22-family-fill-arm.md) | Add strict schemas for 15 families and a lab-only family fill arm using production cutting and picking. | Compare generic family filling with production's overlapping component fills on the same saved pages. |
 | 23 | [Fair family comparison](23-fair-family-comparison.md) | Use one production blocks path with an optional catalogue override in `lib/studio/import/detection/blocks/` and minimum web-detection wiring. | The first family fill arm had different execution and acceptance rules, so its comparison was uncontrolled. |
+| 25 | [Family required-section fix](25-family-drop-fix.md) | Apply the override's production-equivalent type when checking required header and footer blocks. | A valid family header was parsed but rejected by a production-only type check. |
 
 ## Removed after the decisions
 

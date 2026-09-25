@@ -6,6 +6,9 @@ import {spawnSync} from 'node:child_process'
 import { buildDetectionPromptFromCatalog } from '@/lib/studio/import/detection/prompt-builder'
 import { familyCatalogueOverride } from './family-fill'
 import { familyJsonSchemas } from './family-schemas'
+import { parseSectionDetectionResponse } from '@/lib/studio/import/detection/response-parser'
+import { aggregateSectionArtifacts } from '@/lib/studio/import/detection/section-aggregation'
+import type { DetectionSectionTask } from '@/lib/studio/import/detection/section-plan'
 import {
   CONTENT_EXTRACTION_SECTION, VALUE_OBJECT_OUTPUT_SECTION,
   CONTENT_REFERENCE_RULES_SECTION, FORBIDDEN_FIELDS_SECTION
@@ -30,6 +33,32 @@ test('family prompt preserves every description and the complete JSON Schema con
       new RegExp(`(^|[^a-zA-Z0-9_-])${type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^a-zA-Z0-9_-])`).test(line)))
   expect(omitted.length).toBeGreaterThan(0)
   for (const rule of omitted) expect(prompt).not.toContain(rule)
+})
+
+test('a filled family header passes the required block check after parsing', async () => {
+  const { override } = await familyCatalogueOverride()
+  const sectionKey = 'block:1'
+  const content = {
+    heading: 'Invented Workshop',
+    links: [{ label: 'Visit', url: 'https://example.com/visit' }],
+    placement: 'header',
+    settings: { sticky: true }
+  }
+  const parsed = parseSectionDetectionResponse({
+    rawResponse: JSON.stringify({ sectionKey, components: [{ component: 'site-header', confidence: 0.95, content }] }),
+    sectionKey,
+    availableComponents: [{ type: 'site-header', confidence: 1 }],
+    url: 'https://example.com/',
+    confidenceThreshold: 0.6,
+    validateContent: ({ canonicalType, content }) => override.validateContent(canonicalType, content)
+  })
+  expect(parsed.components).toHaveLength(1)
+  parsed.components[0].location = override.location(parsed.components[0].type, parsed.components[0].content) as typeof parsed.components[0]['location']
+  const tasks: DetectionSectionTask[] = [{ sectionKey, sectionOrder: 0, role: 'header', required: true, candidateTypes: ['site-header'] }]
+  const artifacts = [{ ...parsed, sectionOrder: 0 }]
+  expect(() => aggregateSectionArtifacts(tasks, artifacts)).toThrow('Required section block:1 produced no components')
+  const components = aggregateSectionArtifacts(tasks, artifacts, override.templateEquivalent)
+  expect(components).toMatchObject([{ type: 'site-header', confidence: 0.95, content, location: 'header' }])
 })
 
 test.each(['valid-repair','invalid-twice'])('family fill runs with invented offline clients: %s',mode=>{
