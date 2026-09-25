@@ -34,6 +34,7 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 23 | [Fair family comparison](23-fair-family-comparison.md) | Use one production blocks path with an optional catalogue override in `lib/studio/import/detection/blocks/` and minimum web-detection wiring. | The first family fill arm had different execution and acceptance rules, so its comparison was uncontrolled. |
 | 24 | [Family go / no-go screen](24-go-no-go.md) | Compare paired family and production stick scores with site, check, noise and held-out gates. | The founder needs one decision screen for the 15 families. |
 | 25 | [Family required-section fix](25-family-drop-fix.md) | Apply the override's production-equivalent type when checking required header and footer blocks. | A valid family header was parsed but rejected by a production-only type check. |
+| 26 | [Automatic block verification](26-block-verification.md) | Check imported development sections for missing text, links and images or invented text using source evidence alone. | A runtime check is needed before a targeted repair call can list missing content. |
 
 ## Removed after the decisions
 

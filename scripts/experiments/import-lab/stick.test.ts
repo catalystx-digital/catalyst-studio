@@ -5,34 +5,15 @@ import type { Component } from './metrics'
 import { absoluteUrl, extractPageEvidence, normalizeText } from './metrics'
 import { validateFamilies } from './families'
 import families from './component-families.json'
+import { f1Url as url, f1Paragraph as paragraph, f1Html as html, f1Block as sourceBlock, f1Sheet as sourceSheet, f1Geometry as geometry, f1Content as content, f1Mutations } from './f1-fixtures'
 
-const url = 'https://example.test/page'
-const paragraph = 'Families can discover welcoming activities nearby with practical guidance about access times locations and friendly people who help everyone participate throughout the year.'
-const items = [1, 2, 3].map(n => ({title:`Item title ${n} here`, text:`This helpful item shares clear details about local options schedules support and ways families can take part together ${n}.`}))
-const html = `<html><body><section id="fixture"><h2>Our services for families</h2><p>${paragraph}</p><ul>${items.map(i=>`<li><h3>${i.title}</h3><p>${i.text}</p></li>`).join('')}</ul><img width="300" height="200" src="/photo-small.jpg" srcset="/photo-small.jpg 300w, /photo-large.jpg 600w"><p><a href="/stories/one?utm_source=x">Read the full story</a></p></section></body></html>`
-const sourceBlock = block({id:'fixture', anchor:{path:[0],tag:'section',id:'fixture',classes:[]},text:`Our services for families ${paragraph} ${items.map(i=>`${i.title} ${i.text}`).join(' ')} Read the full story`,images:['https://example.test/photo-small.jpg'],links:['https://example.test/stories/one?utm_source=x']})
-const sourceSheet = sheet([entry({block:sourceBlock,label:label({bestType:'card-grid',acceptableTypes:['card-grid'],expected:{headings:[],itemCount:3,itemKind:'items',hasImage:false,ctaLabels:[]}})})])
-const geometry = {tree:{anchorKey:'body',box:{width:800,height:800},children:[{anchorKey:'0',box:{width:600,height:600},children:[{anchorKey:'0.3',box:{width:300,height:200},children:[],evidence:{images:['https://example.test/photo-small.jpg']}}]}]}}
-const content = {heading:'Our services for families',description:paragraph,items:items.map(i=>({title:i.title,text:i.text})),image:'/photo-large.jpg',label:'Read the full story',href:'/stories/one'}
 const score = (value: Component[]) => scoreSheet(sourceSheet,value,url,{evidence:[blockEvidence(html,[],sourceBlock,geometry,url)]}).rows[0]
 
 test('F1 mutations fail only their defined checks',()=>{
-  const mutations: Array<[string,Component[],string[]]> = [
-    ['M1',[{type:'card-grid',content}],[]],
-    ['M2',[{type:'card-grid',content:{...content,heading:''}}],['C2','C3']],
-    ['M3',[{type:'card-grid',content:{...content,heading:'',body:'Our services for families'}}],['C3']],
-    ['M4',[{type:'card-grid',content:{...content,description:paragraph.split(' ').slice(0,10).join(' ')}}],['C2']],
-    ['M5',[{type:'card-grid',content:{...content,href:undefined}}],['C4']],
-    ['M6',[{type:'card-grid',content:{...content,href:undefined,label:undefined}}],['C2','C4']],
-    ['M7',[{type:'card-grid',content:{...content,image:undefined}}],['C5']],
-    ['M8',[{type:'card-grid',content:{...content,items:content.items.slice(0,2)}}],['C2','C3','C6']],
-    ['M9',[{type:'card-grid',content:{...content,body:Array(30).fill('invented').join(' ')}}],['C7']],
-    ['M10',[{type:'footer',content}],['C1']],
-    ['M11',[],[]]
-  ]
-  for (const [name,components,expected] of mutations) {
+  const failures:Record<string,string[]>={M1:[],M2:['C2','C3'],M3:['C3'],M4:['C2'],M5:['C4'],M6:['C2','C4'],M7:['C5'],M8:['C2','C3','C6'],M9:['C7'],M10:['C1'],M11:[]}
+  for (const [name,components] of f1Mutations) {
     const row=score(components)
-    expect(row.failedChecks.sort()).toEqual(expected.sort())
+    expect(row.failedChecks.sort()).toEqual(failures[name].sort())
     if(name==='M11')expect(row.verdict).toBe('missed')
   }
 })

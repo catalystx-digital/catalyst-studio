@@ -104,6 +104,15 @@ export async function generateAccuracy(root:string,options:AccuracyOptions) {
   const differenceInterval=options.runs.length>1?bootstrap(development,compare):null
   const noise=options.runs.length===1?{label:'not measured',difference:null,interval:null,halfWidth:null}:{label:options.runs.length===2?'single-run, conservative':'paired runs',difference,interval:differenceInterval,halfWidth:(differenceInterval![1]-differenceInterval![0])/2}
   const devCounts=totals(development,runIndices),heldCounts=heldTotals(heldOut)
+  let verified=0,verifiedTotal=0,verifyAgreement=0,hasVerify=false
+  for(const page of development)for(const run of options.runs){
+    const file=path.join(root,'labels',page.page,'verify',`${options.arm}--${run}.json`)
+    try{
+      const result=await readJson<{summary:{complete:number;total:number;agreement:number}}>(file)
+      if(!result.summary||!Number.isFinite(result.summary.total))throw new Error('Invalid verify summary: '+file)
+      verified+=result.summary.complete;verifiedTotal+=result.summary.total;verifyAgreement+=result.summary.agreement;hasVerify=true
+    }catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error}
+  }
   const devUnsettled=unsettled(development),totalUnsettled=devUnsettled
   const result={arm:options.arm,runs:options.runs,familySet:options.familySet||null,
     development:{accuracy:devAccuracy,interval:devInterval,pages:development.length,correctBlocks:sum(devCounts.map(v=>v.correct)),unsettledBlocks:devUnsettled,...diagnostic},
@@ -122,6 +131,7 @@ export async function generateAccuracy(root:string,options:AccuracyOptions) {
     `Noise band: ${noise.halfWidth===null?'not measured':`${percent(noise.halfWidth)} half-width; difference ${percent(noise.difference!)}; interval ${percent(noise.interval![0])}–${percent(noise.interval![1])} (${noise.label})`}.`,
     `Clean development pages: ${countText(diagnostic.cleanPages.count,diagnostic.cleanPages.total)}.`,
     `Unsettled sections: development ${devUnsettled}.`,
+    ...(hasVerify?[`Sections the automatic check calls complete: ${verified} of ${verifiedTotal}`,`Agreement between the automatic check and the measuring stick's content checks: ${verifyAgreement} of ${verifiedTotal}`]:[]),
     `Skipped for missing production runs: development ${skippedDevelopment.join(', ')||'none'}; held-out ${skippedHeldOut} pages.`,
     ...CHECKS.map(check=>`${check} ${PLAIN[check]}: failures ${countText(diagnostic.checks[check].failures,diagnostic.checks[check].total)}; upper bound ${countText(diagnostic.checks[check].onlyFailure,diagnostic.checks[check].total)}.`),
     `C6 structure unknown: ${diagnostic.structureUnknown}/${diagnostic.scoredBlocks}.`,

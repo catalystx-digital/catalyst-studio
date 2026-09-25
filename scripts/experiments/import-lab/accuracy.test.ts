@@ -153,3 +153,16 @@ test('both score routes use the one stick name',async()=>{
   expect(task?.args).toContain('blocks-production--r1--stick2')
   delete process.env.IMPORT_LAB_ROOT
 })
+
+test('accuracy report includes verification counts for the reported arm',async()=>{
+  await pages({alpha:page(),hidden:page(true)})
+  await save('alpha','r1',1,2,'C')
+  await save('hidden','r1',1,2,'C',true)
+  const folder=path.join(root,'labels','alpha','verify')
+  await fs.mkdir(folder,{recursive:true})
+  await fs.writeFile(path.join(folder,'blocks-production--r1.json'),JSON.stringify({summary:{complete:1,total:2,agreement:2},rows:[]}))
+  await generateAccuracy(root,{arm:'blocks-production',runs:['r1'],familySet:'C'})
+  const markdown=await fs.readFile(path.join(root,'reports','ACCURACY.md'),'utf8')
+  expect(markdown).toContain('Sections the automatic check calls complete: 1 of 2')
+  expect(markdown).toContain("Agreement between the automatic check and the measuring stick's content checks: 2 of 2")
+})

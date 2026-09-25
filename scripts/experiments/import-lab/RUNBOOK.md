@@ -115,10 +115,13 @@ Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all
 
 ~~~powershell
 node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C
-node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts verify --arm blocks-production --runs a-r1,a-r2
+node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2 --family-set C
 ~~~
 
 These saved-data commands are **FREE**. Use set C for both score and accuracy. Pages without the requested runs are skipped; the report names skipped development pages and counts skipped held-out pages. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
+
+The verify command reads development pages only, saves one file per arm and run without overwriting it, and exits 1 on any mismatch with the stick's C2, C4, C5 by code rule, and C7 checks. Rerun accuracy with the same arm and verified runs to show the two automatic-check counts.
 
 After stick2 score files exist, move each version-1 `labels/<page>/answer-sheet.json` into `archive/labels-v1/<page>/answer-sheet.json` as a separate operator step. Do not move the version-2 sheet or stick scores.
 

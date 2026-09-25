@@ -28,6 +28,8 @@ Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries
 
 Run `node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`, then `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`. The report names development pages skipped for missing runs and gives only an aggregate held-out skip count. It writes the latest `reports/ACCURACY.md` and `reports/accuracy.json` under `IMPORT_LAB_ROOT` and archives previous copies.
 
+Run `node --import tsx scripts/experiments/import-lab/eval.ts verify --arm blocks-production --runs a-r1,a-r2` to check each scored development section using source evidence and produced components. It writes new `labels/<page>/verify/<arm>--<run>.json` files without overwriting existing ones. Then rerun `eval.ts accuracy` for the same arm and runs to include the automatic completeness and stick agreement counts in `ACCURACY.md`. The command exits with status 1 if any content-check identity disagrees with the stick; headings are reported separately.
+
 ## Family go / no-go comparison
 
 With all saved runs present, run `node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate family-fill --runs c-r1,c-r2 --held-out-runs c-r1 --family-set C`. This offline command writes `reports/COMPARE.md` and `reports/compare.json` under `IMPORT_LAB_ROOT`. It scores missing stick files without making model calls; held-out output contains only overall accuracy per arm.
