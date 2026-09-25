@@ -35,6 +35,8 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 24 | [Family go / no-go screen](24-go-no-go.md) | Compare paired family and production stick scores with site, check, noise and held-out gates. | The founder needs one decision screen for the 15 families. |
 | 25 | [Family required-section fix](25-family-drop-fix.md) | Apply the override's production-equivalent type when checking required header and footer blocks. | A valid family header was parsed but rejected by a production-only type check. |
 | 26 | [Automatic block verification](26-block-verification.md) | Check imported development sections for missing text, links and images or invented text using source evidence alone. | A runtime check is needed before a targeted repair call can list missing content. |
+| 27 | [Targeted repair](27-targeted-repair.md) | Repair only sections with measured missing or invented content. | The verifier identified content gaps after import. |
+| 28 | [Family fairness gaps](28-family-fairness-gaps.md) | Validate family links with production SmartLink rules and place families as their production equivalents for template assembly. | Final ruling removed family-only link, settings and media repairs; saved development comparisons showed four generic-template region failures. |
 
 ## Removed after the decisions
 

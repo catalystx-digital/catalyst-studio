@@ -1,8 +1,9 @@
 import path from 'node:path'
 import { loadFamilies } from './families'
-import { familySchemas, familyJsonSchemas } from './family-schemas'
+import { familyJsonSchemas, validateFamilyContent } from './family-schemas'
 import { runProductionBlocks, type RunFixtures } from './blocks-production'
 import { loadPages } from './pages'
+import { inferLocationFromType } from '@/lib/studio/import/detection/response-parser'
 import type { BlockCatalogueOverride } from '@/lib/studio/import/detection/blocks/block-catalogue'
 
 export async function familyCatalogueOverride(): Promise<{ override: BlockCatalogueOverride; familySha256: string }> {
@@ -25,14 +26,12 @@ export async function familyCatalogueOverride(): Promise<{ override: BlockCatalo
       'MediaReference', 'mediaId', 'mediaType'
     ])],
     validateContent(type, content) {
-      const result = familySchemas[type]?.safeParse(content)
-      if (!result?.success) throw new Error(result?.error.message ?? 'Unknown component family: ' + type)
-      return result.data as Record<string, unknown>
+      return validateFamilyContent(type, content)
     },
-    location(type, content) {
-      const placement = content.placement
-      if (placement === 'header' || placement === 'main' || placement === 'sidebar' || placement === 'footer') return placement
-      return type === 'site-header' ? 'header' : type === 'site-footer' ? 'footer' : 'main'
+    location(type) {
+      const entry = families.entries.find(entry => entry.type === type)
+      if (!entry) throw new Error('Unknown component family: ' + type)
+      return inferLocationFromType(entry.types[0]) ?? 'main'
     },
     templateEquivalent(type) {
       const entry = families.entries.find(entry => entry.type === type)

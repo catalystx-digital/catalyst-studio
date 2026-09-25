@@ -10,7 +10,7 @@ Measure production detection against saved snapshots and reviewed blocks. Start 
 | jev-pick | Production block input, questions, evidence and selection against reviewed labels, including family mode. |
 | family-fill | The same production blocks harness with an optional catalogue override for 15 family schemas. |
 
-`family-fill` uses family set C through `catalogueOverride`. Both arms use production decision resolution, prompt assembly, response parsing, cutting, scheduling, retries, validation gates, assembly and logical-call recording. Family template compatibility uses the first production type listed for each family in set C; other template rules remain production rules. Dry runs use saved geometry to plan one decision and one fill per block; their call lists and `run.json` are saved. Compare `components.json` with `blocks-production` using `score.ts --page PAGE --all-runs`; stick2 scores are under `labels/PAGE/scores-stick/`.
+`family-fill` uses family set C through `catalogueOverride`. Both arms use production decision resolution, prompt assembly, response parsing, cutting, scheduling, retries, validation gates, assembly and logical-call recording. Family placement and template compatibility use the first production type listed for each family in set C; other template rules remain production rules. Dry runs use saved geometry to plan one decision and one fill per block; their call lists and `run.json` are saved. Compare `components.json` with `blocks-production` using `score.ts --page PAGE --all-runs`; stick2 scores are under `labels/PAGE/scores-stick/`.
 
 Removed arms remain visible in summaries as “arm removed from the tool”; their saved runs and scores stay readable. Production helpers are imported normally; no source text is rewritten.
 
