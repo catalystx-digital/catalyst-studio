@@ -57,6 +57,9 @@ export interface BuildDetectionPromptOptions {
   pagePrompt?: string
   pageSummary?: any
   mode?: 'full' | 'section'
+  /** Replaces only the component catalogue and contracts in section prompts. */
+  catalogueContractOverride?: string
+  omitCatalogueRules?: string[]
 }
 
 export interface BuildChatPromptOptions {

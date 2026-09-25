@@ -4,6 +4,7 @@ import { filterPageContentCandidateTypes } from '../candidate-types'
 import { roleForSection, candidatesForRole } from '../section-plan'
 import { classifySectionIntent } from '../section-taxonomy'
 import type { BlockInput } from './block-input'
+import type { BlockCatalogueOverride } from './block-catalogue'
 
 const COMPONENT_QUESTION = 'import.block.component'
 const MULTIPLE_QUESTION = 'import.block.multiple'
@@ -11,7 +12,7 @@ const EVIDENCE_CHARACTERS = 14_000
 const NODE_TEXT_CHARACTERS = 180
 const DEPTH_LIMIT = 6
 
-export function selectBlockCandidates(input: BlockInput, url: string) {
+export function selectBlockCandidates(input: BlockInput, url: string, catalogueOverride?: Pick<BlockCatalogueOverride, 'types'>) {
   const index = input.block.order - 1
   const sectionKey = input.block.region + '-block-' + input.block.order + '-' + input.block.id
   const role = roleForSection(sectionKey, index)
@@ -34,7 +35,7 @@ export function selectBlockCandidates(input: BlockInput, url: string) {
     types.clear()
     types.add(task.role === 'header' ? 'navbar' : 'footer')
   }
-  return { allowedTypes: filterPageContentCandidateTypes(types), task, taxonomy }
+  return { allowedTypes: catalogueOverride ? Object.keys(catalogueOverride.types) : filterPageContentCandidateTypes(types), task, taxonomy }
 }
 
 // Exported for the lab to record production evidence in dry runs.
@@ -102,13 +103,18 @@ function isProbability(value: unknown): value is number {
 
 export async function pickBlockTypes(
   blockInput: BlockInput & { url: string; websiteId?: string },
-  selection = selectBlockCandidates(blockInput, blockInput.url)
+  selection = selectBlockCandidates(blockInput, blockInput.url),
+  catalogueOverride?: Pick<BlockCatalogueOverride, 'types'>
 ) {
   const evidence = renderPickEvidence(blockInput)
   const answer = await askPanel(
     [COMPONENT_QUESTION, MULTIPLE_QUESTION],
     { url: blockInput.url, nodes: [], rendered: evidence.state },
-    { websiteId: blockInput.websiteId }
+    { websiteId: blockInput.websiteId },
+    catalogueOverride ? { [COMPONENT_QUESTION]: {
+      criteria: catalogueOverride.types,
+      instructions: current => current.replace('catalogue page-level component type', 'component family')
+    } } : undefined
   )
   const component = answer[COMPONENT_QUESTION]
   const multiple = answer[MULTIPLE_QUESTION]
@@ -122,7 +128,7 @@ export async function pickBlockTypes(
   if (component.source !== 'model' || multiple.source !== 'model') {
     return fallback(component.source !== 'model' ? component.source : multiple.source)
   }
-  const question = getQuestion(COMPONENT_QUESTION)
+  const question = catalogueOverride ? { ...getQuestion(COMPONENT_QUESTION), criteria: catalogueOverride.types } : getQuestion(COMPONENT_QUESTION)
   if (question.shape !== 'choice') {
     throw new Error('Block component question must be a choice')
   }

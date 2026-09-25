@@ -42,9 +42,9 @@ function getClient(): DecisionClient {
  * Turns a question with a criteria resolver into one with concrete criteria.
  * Returns the question unchanged when its criteria are already literal.
  */
-async function resolveCriteria(question: Question): Promise<Question> {
-  if (question.shape !== 'choice' || typeof question.criteria !== 'function') return question
-  const criteria = await question.criteria()
+async function resolveCriteria(question: Question, validateLiteral = false): Promise<Question> {
+  if (question.shape !== 'choice' || (typeof question.criteria !== 'function' && !validateLiteral)) return question
+  const criteria = typeof question.criteria === 'function' ? await question.criteria() : question.criteria
   const options = Object.keys(criteria)
   if (options.length < 2) {
     throw new Error(`Choice ${question.id} resolved to ${options.length} option(s)`)
@@ -236,9 +236,17 @@ function unaskedAnswer<TValue>(questionId: string, message: string): Answer<TVal
 async function resolve(
   questionIds: string[],
   source: EvidenceSource,
-  context: DecisionContext
+  context: DecisionContext,
+  criteriaOverrides?: Record<string, { criteria: Record<string, string>; instructions?: string | ((current: string) => string) }>
 ): Promise<Record<string, Answer<unknown>>> {
-  const questions = questionIds.map(getQuestion)
+  const questions = questionIds.map(id => {
+    const question = getQuestion(id)
+    const override = criteriaOverrides?.[id]
+    if (!override) return question
+    if (question.shape !== 'choice') throw new Error(`Criteria override requires a choice question: ${id}`)
+    return { ...question, criteria: override.criteria,
+      instructions: typeof override.instructions === 'function' ? override.instructions(question.instructions) : override.instructions ?? question.instructions }
+  })
   const out: Record<string, Answer<unknown>> = {}
 
   // A panel shares one state, so every question in it must agree on facets.
@@ -266,7 +274,7 @@ async function resolve(
   let usage: DecisionUsage | undefined
   let transportError: string | undefined
   try {
-    const prepared = await Promise.all(questions.map(resolveCriteria))
+    const prepared = await Promise.all(questions.map(question => resolveCriteria(question, Boolean(criteriaOverrides?.[question.id]))))
     const response = await getClient().askRaw(state, prepared)
     raw = response.answers
     usage = response.usage
@@ -383,10 +391,11 @@ export async function ask<TValue>(
 export async function askPanel(
   questionIds: string[],
   source: EvidenceSource,
-  context: DecisionContext = {}
+  context: DecisionContext = {},
+  criteriaOverrides?: Record<string, { criteria: Record<string, string>; instructions?: string | ((current: string) => string) }>
 ): Promise<Record<string, Answer<unknown>>> {
   try {
-    return await resolve(questionIds, source, { url: source.url, ...context })
+    return await resolve(questionIds, source, { url: source.url, ...context }, criteriaOverrides)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const out: Record<string, Answer<unknown>> = {}

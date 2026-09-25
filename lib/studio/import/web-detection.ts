@@ -549,7 +549,8 @@ export function clampCompletionTokens(
 export class DetectionService {
   private templateAllowsDetectedComponents(
     template: DetectionPromptPayload['pageSummary']['templates'][number],
-    components: DetectedComponent[]
+    components: DetectedComponent[],
+    templateEquivalent?: (type: string) => string
   ): boolean {
     const regions = [...(template.requiredRegions ?? []), ...(template.optionalRegions ?? [])]
     return components.every(component => {
@@ -558,7 +559,8 @@ export class DetectionService {
         .filter(region => region.region === location)
         .flatMap(region => region.allowedComponents ?? [])
         .map(type => String(type))
-      return allowed.includes(String(component.component)) || allowed.includes(String(component.type))
+      return allowed.includes(String(component.component)) || allowed.includes(String(component.type)) ||
+        (templateEquivalent ? allowed.includes(templateEquivalent(String(component.type))) : false)
     })
   }
 
@@ -575,9 +577,10 @@ export class DetectionService {
     url: string,
     components: DetectedComponent[],
     pageMetadata: PageMetadata,
-    websiteId?: string
+    websiteId?: string,
+    templateEquivalent?: (type: string) => string
   ): Promise<DetectedPageTemplate> {
-    const deterministic = this.selectPageTemplate(pageSummary, url, components)
+    const deterministic = this.selectPageTemplate(pageSummary, url, components, templateEquivalent)
 
     // Evidence is what detection actually found: the page's own title and
     // description, and the component types on the page.
@@ -598,7 +601,7 @@ export class DetectionService {
     }
 
     const accepted = pageSummary.templates.find(template => template.templateKey === answer.value)
-    if (!accepted || !isTemplateRouteEligible(accepted, url) || !this.templateAllowsDetectedComponents(accepted, components)) {
+    if (!accepted || !isTemplateRouteEligible(accepted, url) || !this.templateAllowsDetectedComponents(accepted, components, templateEquivalent)) {
       return deterministic
     }
 
@@ -680,7 +683,8 @@ export class DetectionService {
   private selectPageTemplate(
     pageSummary: DetectionPromptPayload['pageSummary'],
     url: string,
-    components: DetectedComponent[] = []
+    components: DetectedComponent[] = [],
+    templateEquivalent?: (type: string) => string
   ): DetectedPageTemplate {
     const path = (() => {
       try {
@@ -745,7 +749,7 @@ export class DetectionService {
           (
             candidate.canOverrideComponentCompatibility ||
             components.length === 0 ||
-            this.templateAllowsDetectedComponents(candidate.template, components)
+            this.templateAllowsDetectedComponents(candidate.template, components, templateEquivalent)
           )
         )
         .sort((a, b) => b.score - a.score)
@@ -764,7 +768,7 @@ export class DetectionService {
       !isRootPath &&
       components.length > 0 &&
       (selectedTemplate.isHomeEligible || !selectedByRouteHint) &&
-      !this.templateAllowsDetectedComponents(selectedTemplate, components)
+      !this.templateAllowsDetectedComponents(selectedTemplate, components, templateEquivalent)
     ) {
       throw new Error(`Selected template ${selectedTemplate.templateKey} is incompatible with detected component regions for ${url}`)
     }
@@ -865,7 +869,8 @@ export class DetectionService {
       preFlightFetch,
       client,
       tasks,
-      failedSections
+      failedSections,
+      catalogueOverride: options.catalogueOverride
     })
     for (const result of sectionResults) {
       artifacts.push(result.artifact)
@@ -891,6 +896,7 @@ export class DetectionService {
       model: endpointModel,
       provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
     })).pageSummary
+    const catalogueOverride = options.catalogueOverride
     const components = aggregateSectionArtifacts(tasks, artifacts)
     if (checkpointSession && checkpointService) {
       for (const artifact of artifacts) {
@@ -952,7 +958,7 @@ export class DetectionService {
     // fetched page takes, and beside the only other decision-model call in this
     // file, so both stay visible to the same reader.
     await this.recordIsInternalFromContent(url, pageMetadata, components, options.websiteId)
-    const pageTemplate = await this.selectPageTemplateWithModel(pageSummary, url, components, pageMetadata, options.websiteId)
+    const pageTemplate = await this.selectPageTemplateWithModel(pageSummary, url, components, pageMetadata, options.websiteId, catalogueOverride?.templateEquivalent)
     const accuracy = components.length === 0
       ? 0
       : Math.min(1, components.filter(component => component.confidence >= ConfidenceConfig.highConfidence).length / Math.min(components.length, 10))

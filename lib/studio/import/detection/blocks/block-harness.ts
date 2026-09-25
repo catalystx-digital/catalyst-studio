@@ -12,6 +12,7 @@ import { buildBlockInput } from './block-input'
 import { pickBlockTypes, selectBlockCandidates } from './block-pick'
 import { extractBlock } from './block-extract'
 import { inferLocationFromType } from '../response-parser'
+import type { BlockCatalogueOverride } from './block-catalogue'
 
 // Blocks cost far less than section slices; allow long pages while bounding runaway fragmentation.
 const MAX_BLOCKS_PER_PAGE = 150
@@ -26,7 +27,8 @@ export async function runBlockHarness({
   preFlightFetch,
   client,
   tasks,
-  failedSections
+  failedSections,
+  catalogueOverride
 }: {
   url: string
   options: ImportDetectionOptions
@@ -38,6 +40,7 @@ export async function runBlockHarness({
   client: ReturnType<typeof createLLMClient>
   tasks: DetectionSectionTask[]
   failedSections: Array<{ task: DetectionSectionTask; error: unknown }>
+  catalogueOverride?: BlockCatalogueOverride
 }): Promise<SectionProcessingResult[]> {
   const { checkpointSession, checkpointService, globalSectionCache, onProgress } = options
   const html = webTools.getRawHtml(preFlightFetch.handle)
@@ -67,7 +70,7 @@ export async function runBlockHarness({
   }
   const assignLocations = (artifact: SectionExtractionArtifact) => {
     for (const component of artifact.components) {
-      component.location = inferLocationFromType(component.type)
+      component.location = catalogueOverride ? catalogueOverride.location(component.type, component.content as Record<string, unknown>) as typeof component.location : inferLocationFromType(component.type)
     }
   }
   tasks.push(...blocks.map(block => ({
@@ -92,13 +95,13 @@ export async function runBlockHarness({
       const blockInput = buildBlockInput({ html, block, bgImageMap })
       const input = {
         ...blockInput,
-        selection: selectBlockCandidates(blockInput, url),
+        selection: selectBlockCandidates(blockInput, url, catalogueOverride),
         sectionKey: tasks[index].sectionKey,
         url,
         finalUrl,
         websiteId: options.websiteId
       }
-      const { allowedTypes, source, topChoices, issues } = await pickBlockTypes(input, input.selection)
+      const { allowedTypes, source, topChoices, issues } = await pickBlockTypes(input, input.selection, catalogueOverride)
       const pick = { allowedTypes, source, topChoices, issues: [...new Set([...issues, ...cut.issues])] }
       return { input, pick, error: undefined }
     } catch (error) {
@@ -159,7 +162,8 @@ export async function runBlockHarness({
           endpointModel,
           effectiveMaxTokens,
           telemetry,
-          confidenceThreshold: options.confidenceThreshold
+          confidenceThreshold: options.confidenceThreshold,
+          catalogueOverride
         })
         return fresh.artifact
       }

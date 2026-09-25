@@ -461,19 +461,24 @@ export function buildDetectionPrompt(
     sections.push(complianceSection)
   }
 
-  sections.push(componentSection)
-  if (subcomponentSection) {
+  sections.push(options.catalogueContractOverride ?? componentSection)
+  if (!options.catalogueContractOverride && subcomponentSection) {
     sections.push(subcomponentSection)
   }
   sections.push(ORDERING_RULES_SECTION)
-  sections.push(CONTENT_EXTRACTION_SECTION)
-  sections.push(VALUE_OBJECT_OUTPUT_SECTION)
-  sections.push(CONTENT_REFERENCE_RULES_SECTION)
+  const legacyRules = (section: string): string => {
+    if (!options.catalogueContractOverride || !options.omitCatalogueRules?.length) return section
+    const obsolete = options.omitCatalogueRules.map(type => new RegExp(`(^|[^\\w-])${type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\\w-])`))
+    return section.split(PROMPT_NEWLINE).filter(line => !line.startsWith('- ') || !obsolete.some(rule => rule.test(line))).join(PROMPT_NEWLINE)
+  }
+  sections.push(legacyRules(CONTENT_EXTRACTION_SECTION))
+  sections.push(legacyRules(VALUE_OBJECT_OUTPUT_SECTION))
+  sections.push(legacyRules(CONTENT_REFERENCE_RULES_SECTION))
   if (mode === 'full') {
     sections.push(FULL_PAGE_COVERAGE_SECTION)
     sections.push(CRITICAL_COMPLETENESS_SECTION)
   }
-  sections.push(FORBIDDEN_FIELDS_SECTION)
+  sections.push(legacyRules(FORBIDDEN_FIELDS_SECTION))
   sections.push(PAGE_METADATA_SECTION)
   if (mode === 'full') {
     sections.push(buildRequiredReturnSection(options.pageSummary))
