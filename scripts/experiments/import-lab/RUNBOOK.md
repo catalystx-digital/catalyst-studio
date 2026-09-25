@@ -74,6 +74,17 @@ For other page sets, eval.ts arms --arms blocks-production --run RUN --yes-spend
 
 ## 3. Picking and families
 
+To measure family filling on one development page, dry plan both arms first. Each plan saves its call list and `run.json`. A run without `--dry-run` uses paid decision and fill calls; use a fresh run ID for each attempt.
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/run-arm.ts --page PAGE --arm family-fill --run family-preview --dry-run
+node --import tsx scripts/experiments/import-lab/run-arm.ts --page PAGE --arm blocks-production --run production-preview --dry-run
+node --import tsx scripts/experiments/import-lab/run-arm.ts --page PAGE --arm family-fill --run family-r1
+node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs
+~~~
+
+Compare `family-fill--family-r1--stick2-family-C.json` and the matching `blocks-production` stick2 score in `labels/PAGE/scores-stick/`. The family arm passes set C descriptions, schema contract, validator and location function into the production blocks harness. Paid runs re-render the saved HTML. The family arm rejects held-out pages. `run.json` records the effective configuration, source and prompt hashes, and override identity; `comparisonKey` changes with the override.
+
 ~~~powershell
 node --import tsx scripts/experiments/import-lab/eval.ts arms --arms jev-pick --run pick-r1 --dry-run
 node --import tsx scripts/experiments/import-lab/eval.ts arms --arms jev-pick --run family-r1 --families scripts/experiments/import-lab/component-families.json --family-set A --dry-run

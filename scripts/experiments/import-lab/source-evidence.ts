@@ -72,6 +72,8 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
       if(parentPicture){parentPicture.addresses.push(...addresses);parentPicture.alt ||= a.alt||'';const box=size(a,g);parentPicture.width=Math.max(parentPicture.width||0,box.width||0)||null;parentPicture.height=Math.max(parentPicture.height||0,box.height||0)||null}
       else if(tag==='img')pushImage({addresses:[...new Set(addresses)],...size(a,g),alt:a.alt||'',kind:'image',clonedCarouselCopy:cloned})
     }
+    // Heading text comes from visible text nodes; an image's alt stays in
+    // sourceText for C7 and the image stays available to C5.
     if(!imageOnly&&!excludedText.has(node)&&(/^h[1-6]$/.test(tag)||a.role==='heading')){const value=normalizeText(visibleText(node));if(value)headings.push(value)}
     if(!imageOnly&&tag==='a') {const url=absoluteUrl(a.href||'',pageUrl,'link'),label=normalizeText(visibleText(node));if(url&&!links.some(link=>link.url===url&&link.label===label))links.push({url,label})}
     const childImages=new Set((g?.children||[]).flatMap(function collect(child):string[]{return [...(child.evidence?.images||[]),...(child.children||[]).flatMap(collect)]}))

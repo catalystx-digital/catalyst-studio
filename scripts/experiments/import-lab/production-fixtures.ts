@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { comparisonSnapshot, comparisonBlocks } from './phase3-fixtures'
-import { dataRoot, saveSnapshot, writeJson, readJson } from './storage'
+import { dataRoot, saveSnapshot, writeJson, readJson, digest } from './storage'
 import { runArm } from './run-arm'
 import { runtimeRequire } from './runtime'
 
@@ -50,6 +50,17 @@ async function verify() {
   const record = await runArm({ page, arm: 'blocks-production', run: mode, dryRun: mode === 'dry' }, { decision, llm, cut: async () => { cuts++; return { blocks, issues: [], javascriptEnabled: true, anchorResolutionShare: 1 } } })
   const directory = path.join(root, 'arms', page, 'blocks-production', mode)
   const calls = await Promise.all((await fs.readdir(path.join(directory, 'calls'))).map(file => readJson(path.join(directory, 'calls', file))))
+  if (mode === 'complete') {
+    // Hash the full recorded bodies, including both system messages and every decision option.
+    assert.deepEqual(calls.map(call => digest(JSON.stringify(call.request))), [
+      '9fbe385545df7255681dee5ea62d7690be54600e4b439217fafefa6bea336039',
+      '6938edffcec80a2942b8ebd7fdf4a698ce6d73ba5c64063cf1e79f60ca455dcc',
+      '9e87f4b509b158fa959a7b50b4bec175df0d1e52144c642094832cf8d991f536',
+      'b4a575ab46659cea32737719824bdffb6dbf1740f95920f91acbb0f2029a2981',
+      '6acf838d5c46b2cebf047e494b4155b31b31a7c6da24028fe74c4a216c55f5ef',
+      '560f07556641b7c8dc5be77a94b987b920a0183383eb26a40302867539f987a6'
+    ])
+  }
   assert.equal(record.replayReady, true)
   assert.equal(record.stylingReplay.rebuilt, true)
   assert.deepEqual((await readJson(path.join(directory, 'run.json'))).stylingReplay, record.stylingReplay)
