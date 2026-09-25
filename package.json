@@ -165,7 +165,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@aws-sdk/lib-storage": "3.1136.0",
+    "@aws-sdk/lib-storage": "3.1137.0",
     "@chromatic-com/storybook": "^5.3.1",
     "@eslint/eslintrc": "^3",
     "@paralleldrive/cuid2": "^3.3.0",
@@ -208,7 +208,7 @@
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
     "tar": "^7.5.22",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   },
   "overrides": {
