@@ -65,6 +65,14 @@ test('component resources cover nested media, links, plain image URLs and HTML f
   expect(r.images.map(v=>v.url)).toEqual(['https://example.com/garden.jpg','https://example.com/new.webp','https://example.com/embedded.png'])
   expect(r.links.map(v=>v.url)).toEqual(['https://example.com/register','https://example.com/read'])
 })
+test.each(['content.links[0].children[0].url', 'content.items[0].links[0].children[0].url'])(
+  'nested SVG link %s stays a link', path => {
+    const evidence = extractPageEvidence('', base)
+    const result = componentResources([field('/details.svg', path)], evidence)
+    expect(result.links).toEqual([{ url: 'https://example.com/details.svg', region: 'main' }])
+    expect(result.images).toEqual([])
+  }
+)
 test('resource comparison uses unique URLs, reports missing and invented, and handles empty sets',()=>{
   const r=(url:string)=>({url,region:'main' as const})
   const result=measureResources([r('a'),r('a'),r('b')],[r('b'),r('c'),r('c')])

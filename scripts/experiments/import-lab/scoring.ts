@@ -1,5 +1,6 @@
 import { componentStrings, componentResources, extractPageEvidence, isHumanText, measureTextKept, measureTextNotFound, normalizeText, containsPhrase, wordShingles, TEXT_COVERAGE_THRESHOLD, absoluteUrl, type Component, type Field } from './metrics'
 import { familyOf, type FamilySet } from './families'
+import { familySchemas } from './family-schemas'
 import { sha, type Block, type FamilyLabel } from './labels'
 import type { SourceEvidence } from './source-evidence'
 import { fallbackEvidence } from './source-evidence'
@@ -48,11 +49,15 @@ export function matchComponents(blocks: Block[], components: Component[], baseUr
   return {matches,extra:matches.filter(m=>!m.primaryBlockId).map(m=>m.componentIndex),merged:matches.filter(m=>m.blockIds.length>1).map(m=>({componentIndex:m.componentIndex,blockIds:m.blockIds}))}
 }
 export function countItems(components: Component[], itemKind: string | null): { count: number | null; paths: string[]; reason: string } {
-  if(!itemKind)return {count:null,paths:[],reason:'No collection specified'}
+  if(!itemKind&&!components.some(component=>Object.hasOwn(familySchemas,component.type)&&Array.isArray((component.content as any)?.items)))return {count:null,paths:[],reason:'No collection specified'}
   const aliases:Record<string,string[]>= {card:['cards'],cards:['cards'],post:['posts','items','articles'],posts:['posts','items','articles'],article:['articles','posts','items'],articles:['articles','posts','items'],news:['items','articles','posts'],slide:['slides'],slides:['slides'],link:['links','items'],links:['links','items'],item:['items'],items:['items'],testimonial:['testimonials','items'],testimonials:['testimonials','items'],logo:['logos','items'],logos:['logos','items'],feature:['features','items'],features:['features','items']}
-  const keys=aliases[itemKind.toLowerCase()]||[itemKind]
+  const keys=itemKind ? aliases[itemKind.toLowerCase()]||[itemKind] : []
   const candidates:Array<{length:number;path:string;component:number}>=[]
   components.forEach((component,index)=>{
+    if (Object.hasOwn(familySchemas,component.type) && Array.isArray((component.content as any)?.items)) {
+      candidates.push({length:(component.content as any).items.length,path:'content.items',component:index})
+      return
+    }
     const walk=(value:unknown,prefix:string)=>{
       if(!value||typeof value!=='object'||Array.isArray(value))return
       for(const [key,item] of Object.entries(value)) {
@@ -111,7 +116,7 @@ export function checkContent(block:Block,label:FamilyLabel,components:Component[
     C3:{passed:missingHeadings.length===0,expected:source.headings,produced:source.headings.filter(h=>!missingHeadings.includes(h)),detail:missingHeadings.join('; ')},
     C4:{passed:!missingLinks.length&&!missingLabels.length,expected:source.links,produced:resources.links.map(l=>l.url),detail:`Missing targets: ${missingLinks.map(l=>l.url).join(', ')}; labels: ${missingLabels.map(l=>l.label).join(', ')}`},
     C5:{passed:missingImages.length===0,expected:contentImages,produced:resources.images.map(i=>i.url),detail:`Missing ${missingImages.length} of ${contentImages.length} groups`},
-    C6:{passed:label.itemCount===null||!label.itemKind||item.count===null?null:item.count===label.itemCount,expected:label.itemCount,produced:item.count,detail:label.itemCount!==null&&(!label.itemKind||item.count===null)?'structure-unknown: '+item.reason:item.reason,structureUnknown:label.itemCount!==null&&(!label.itemKind||item.count===null)},
+    C6:{passed:label.itemCount===null||item.count===null?null:item.count===label.itemCount,expected:label.itemCount,produced:item.count,detail:label.itemCount!==null&&item.count===null?'structure-unknown: '+item.reason:item.reason,structureUnknown:label.itemCount!==null&&item.count===null},
     C7:{passed:totalCharacters?notFoundCharacters/totalCharacters<=0.05:true,expected:{maximumShare:0.05},produced:{notFoundCharacters,totalCharacters,altExemptCharacters:alt.reduce((n,f)=>n+normalizeText(f.value).length,0),moved},detail:notFound.map(f=>f.path).join(', ')}
   }
 }

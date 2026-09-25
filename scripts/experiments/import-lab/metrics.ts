@@ -56,7 +56,7 @@ export function absoluteUrl(value: string, base: string, kind: 'image' | 'link')
   } catch { return null }
 }
 export function componentRegion(component: Component): Region {
-  const region = component.location || component.metadata?.region
+  const region = component.placement || component.location || component.metadata?.region
   if (region === 'header' || region === 'footer') return region
   if (component.type === 'navbar' || component.type === 'footer') return component.type === 'navbar' ? 'header' : 'footer'
   return 'main'
@@ -68,7 +68,7 @@ export function componentStrings(components: Component[]): Field[] {
       if (typeof value === 'string') result.push({ value, path, componentType: component.type, componentIndex, region: componentRegion(component) })
       else if (Array.isArray(value)) value.forEach((item, i) => walk(item, path + '[' + i + ']'))
       else if (value && typeof value === 'object') Object.entries(value).forEach(([key, item]) => {
-        if (!['metadata','type','component','id','location','region','confidence'].includes(key)) walk(item, path ? path + '.' + key : key)
+        if (!['metadata','settings','type','component','id','location','region','confidence'].includes(key)) walk(item, path ? path + '.' + key : key)
       })
     }
     for (const key of ['content','props'] as const) walk(component[key], key)
@@ -81,7 +81,7 @@ export function isHumanText(field: Field, minimumLength = 12): boolean {
   if (/^(?:id|.*Id|slug|type|component|componentType|variant|layout|size|align|alignment|position|region|location|class|className|classes|color|.*Color|style|theme|icon|font|fontFamily|weight|target|rel|mediaType|url|href|src|srcset|path|originalUrl|canonicalUrl)$/i.test(key)) return false
   if (/^(?:https?:|mailto:|tel:|data:|\/|#|rgb\(|rgba\(|hsl\(|var\(|[a-z]+:\/\/)/i.test(text)) return false
   if (/^[a-f0-9-]{12,}$/i.test(text) || /^\S+@\S+\.\S+$/.test(text)) return false
-  if (/^(?:title|heading|subheading|description|text|body|bodyHtml|html|content|label|alt|caption|quote|name|placeholder|value|summary|copyright)$/i.test(key)) return true
+  if (/^(?:eyebrow|intro|subtitle|title|heading|subheading|description|text|body|bodyHtml|html|content|label|alt|caption|quote|name|placeholder|value|summary|copyright)$/i.test(key)) return true
   // Unknown fields need prose evidence; token-like identifiers and class lists are excluded.
   return /\s/u.test(text) && !text.split(/\s+/).every(word => /[_:]/.test(word) || /^[a-z]+-/.test(word)) && /\p{L}/u.test(text)
 }
@@ -209,7 +209,7 @@ export function componentResources(fields: Field[], evidence: Evidence): {images
     const knownImage = evidence.images.some(item => item.url === absoluteUrl(field.value,evidence.baseUrl,'image'))
     const imagePath = /(?:image|photo|picture|logo|background|poster|thumbnail|media).*(?:url|src|originalurl)$|(?:^|\.)(?:image|src|imageurl|backgroundimage|thumbnail|poster)$/.test(path)
     const imageValue = /\.(?:png|jpe?g|gif|webp|svg|avif|ico)(?:[?#]|$)/i.test(field.value)
-    const linkPath = /(?:^|\.)(?:href|path|link|action|canonicalurl)$/.test(path) || /(?:^|\.)(?:href|link|action)\.url$/.test(path)
+    const linkPath = /(?:^|\.)(?:href|path|link|action|canonicalurl)$/.test(path) || /(?:^|\.)(?:href|link|action|links(?:\[\d+\])?)\.url$/.test(path) || /(?:^|\.)links\[\d+\](?:\.children\[\d+\])*\.url$/.test(path)
     const videoValue = /\.(?:mp4|webm|mov|mp3|wav|ogg)(?:[?#]|$)/i.test(field.value)
     const kind = linkPath ? 'links' : !videoValue && (knownImage || imagePath || imageValue) ? 'images' : /(?:^|\.)(?:url)$/.test(path) && !videoValue ? 'links' : null
     if (kind) { const url = absoluteUrl(field.value,evidence.baseUrl,kind === 'images' ? 'image' : 'link'); if(url) result[kind].push({url,region:field.region}) }

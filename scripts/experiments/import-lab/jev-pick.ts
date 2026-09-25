@@ -32,18 +32,12 @@ export async function runPick(page: string, directory: string, dryRun: boolean, 
     const decisions = runtimeRequire('@/lib/studio/decisions') as typeof import('@/lib/studio/decisions')
     const config = decisions.getDecisionConfig()
     const families = options.families ? await loadFamilies(options.families, options.familySet!) : undefined
+    const catalogueOverride = families ? { types: Object.fromEntries(families.entries.map(entry => [entry.type, entry.description])) } : undefined
     record.catalogue = await blockCatalogue()
     record.models = { decision: config.modelId }
     if (families) record.families = families
     const question = decisions.getQuestion('import.block.component')
     if (question.shape !== 'choice') throw new Error('Production block question is not a choice')
-    // askPanel resolves registered question IDs internally; passing options would require changing the shared decision API.
-    if (families) {
-      const original = { criteria: question.criteria, instructions: question.instructions }
-      question.criteria = Object.fromEntries(families.entries.map(entry => [entry.type, entry.description]))
-      question.instructions = question.instructions.replace('catalogue page-level component type', 'component family')
-      restore.push(() => Object.assign(question, original))
-    }
     restore.push(replayTransport(snapshot, recorder, [config.baseUrl.replace(/\/$/, '') + '/alpha/decisions']))
     if (!dryRun) {
       const client = fixtures?.decision ?? decisions.createDecisionClient()
@@ -51,7 +45,7 @@ export async function runPick(page: string, directory: string, dryRun: boolean, 
       restore.push(() => decisions.setDecisionClient(null))
     }
     const { buildBlockInput } = runtimeRequire('@/lib/studio/import/detection/blocks/block-input') as typeof import('@/lib/studio/import/detection/blocks/block-input')
-    const { pickBlockTypes, renderPickEvidence } = runtimeRequire('@/lib/studio/import/detection/blocks/block-pick') as typeof import('@/lib/studio/import/detection/blocks/block-pick')
+    const { pickBlockTypes, renderPickEvidence, selectBlockCandidates } = runtimeRequire('@/lib/studio/import/detection/blocks/block-pick') as typeof import('@/lib/studio/import/detection/blocks/block-pick')
     const replay = createReplayTools(snapshot)
     await replay.fetchOutline({ url: snapshot.manifest.url })
     record.stylingReplay = replay.styling
@@ -64,10 +58,11 @@ export async function runPick(page: string, directory: string, dryRun: boolean, 
       const input = buildBlockInput({ html: snapshot.html, bgImageMap, block: block as import('@/lib/studio/import/detection/blocks/block-cutter').Block })
       if (dryRun) {
         const evidence = renderPickEvidence(input)
-        await recorder.call('decision', await decisionRequest(config.modelId, evidence.state, [question, decisions.getQuestion('import.block.multiple')]), async () => { throw new Error('Dry run called a client') }, { blockId: block.id })
+        const effectiveQuestion = catalogueOverride ? { ...question, criteria: catalogueOverride.types, instructions: question.instructions.replace('catalogue page-level component type', 'component family') } : question
+        await recorder.call('decision', await decisionRequest(config.modelId, evidence.state, [effectiveQuestion, decisions.getQuestion('import.block.multiple')]), async () => { throw new Error('Dry run called a client') }, { blockId: block.id })
         return
       }
-      const result = await pickBlockTypes({ ...input, url: snapshot.manifest.url })
+      const result = await pickBlockTypes({ ...input, url: snapshot.manifest.url }, selectBlockCandidates(input, snapshot.manifest.url, catalogueOverride), catalogueOverride)
       if (result.source !== 'model') throw new Error('Production decision used ' + result.source + ': ' + result.issues.join('; '))
       const component = result.answer['import.block.component'], multiple = result.answer['import.block.multiple']
       const distribution = component.distribution!
