@@ -4,6 +4,7 @@ import type { ComponentCatalogSummary } from '@/lib/studio/ai/component-catalog'
 import type { PromptSchemaSummary } from '@/lib/studio/ai/prompt-schema-builder'
 import type { PromptContractBundle } from '@/lib/studio/ai/prompt-contract-builder'
 import { ComponentCategory } from '@/lib/studio/components/cms/_core/types'
+import { createDetectionTelemetry } from '@/lib/studio/import/telemetry/detection-telemetry'
 
 describe('detection prompt sub-component coverage', () => {
   it('includes SUBCOMPONENTS section with card-item schema', () => {
@@ -362,6 +363,24 @@ describe('detection prompt sub-component coverage', () => {
 })
 
 describe('catalog detection prompt candidate filtering', () => {
+  it('caches identical overrides and separates different override rules and contracts', async () => {
+    const telemetry = createDetectionTelemetry({ url: 'https://example.com/cache-fixture', logger: { log: jest.fn(), warn: jest.fn() } })
+    const build = (contract?: string, omitRules?: string[]) => buildDetectionPromptFromCatalog({
+      telemetry, pageUrl: 'https://example.com/cache-fixture', mode: 'section',
+      model: 'cache-fixture', provider: 'cache-fixture',
+      catalogueContractOverride: contract, omitCatalogueRules: omitRules
+    })
+    await build('=== CACHE FAMILY A ===', ['footer'])
+    await build('=== CACHE FAMILY A ===', ['footer'])
+    await build('=== CACHE FAMILY B ===', ['footer'])
+    await build('=== CACHE FAMILY A ===', ['timeline'])
+    await build()
+    await build()
+    await build(undefined, ['footer'])
+    expect(telemetry.getPhaseRecords().filter(record => record.phase === 'prompt_build').map(record => record.metadata?.fromCache))
+      .toEqual([false, true, false, false, false, true, true])
+  })
+
   it('narrows the prompt by URL while keeping route-relevant components', async () => {
     const full = await buildDetectionPromptFromCatalog()
     const contact = await buildDetectionPromptFromCatalog({ pageUrl: 'https://example.com/contact' })

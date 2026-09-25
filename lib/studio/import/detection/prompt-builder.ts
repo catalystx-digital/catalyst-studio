@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { DetectionPromptPayload } from './types'
 import type { DetectionTelemetry } from '../telemetry/detection-telemetry'
 import { filterPageContentCandidateTypes } from './candidate-types'
@@ -28,6 +29,8 @@ interface BuildDetectionPromptOptions {
   mode?: 'full' | 'section'
   model?: string
   provider?: string
+  catalogueContractOverride?: string
+  omitCatalogueRules?: string[]
 }
 
 const PROMPT_CACHE_TTL_MS = 60_000
@@ -317,7 +320,7 @@ async function resolveSummaries(telemetry?: DetectionTelemetry): Promise<Summari
 export async function buildDetectionPromptFromCatalog(
   options: BuildDetectionPromptOptions = {}
 ): Promise<DetectionPromptPayload> {
-  const { telemetry, pageUrl, candidateTypes, mode = 'full', model = 'default', provider = 'default' } = options
+  const { telemetry, pageUrl, candidateTypes, mode = 'full', model = 'default', provider = 'default', catalogueContractOverride, omitCatalogueRules } = options
   const {
     componentCatalog,
     pageCatalog,
@@ -336,9 +339,12 @@ export async function buildDetectionPromptFromCatalog(
     candidateTypes ? new Set(candidateTypes) : collectCandidateTypes(pageUrl, fullComponentSummary)
   )
   const { componentSummary, schemaSummary, contractBundle, selectedTypes } = filtered
-  const promptCacheKey = selectedTypes
+  const basePromptCacheKey = selectedTypes
     ? `${cacheKey}|mode:${mode}|model:${model}|provider:${provider}|candidates:${Array.from(selectedTypes).sort().join(',')}`
     : `${cacheKey}|mode:${mode}|model:${model}|provider:${provider}`
+  const promptCacheKey = catalogueContractOverride === undefined
+    ? basePromptCacheKey
+    : `${basePromptCacheKey}|override:${createHash('sha256').update(JSON.stringify([catalogueContractOverride, omitCatalogueRules])).digest('hex')}`
   const cachedPrompt = promptCache.get(promptCacheKey)
   const promptCacheHit = Boolean(cachedPrompt && Date.now() - cachedPrompt.timestamp < PROMPT_CACHE_TTL_MS)
 
@@ -367,7 +373,9 @@ export async function buildDetectionPromptFromCatalog(
       contractBundle,
       pagePrompt,
       pageSummary,
-      mode
+      mode,
+      catalogueContractOverride,
+      omitCatalogueRules
     })
     return { prompt, pagePromptLength: pagePrompt.length }
   }

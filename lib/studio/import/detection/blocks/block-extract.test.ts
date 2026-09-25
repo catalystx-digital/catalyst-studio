@@ -11,7 +11,7 @@ jest.mock('@/lib/studio/import/openrouter-models', () => ({ getReasoningConfig: 
 jest.mock('../prompt-builder', () => ({
   buildDetectionPromptFromCatalog: jest.fn(async ({ candidateTypes }) => ({
     prompt: 'Fixture contracts',
-    components: candidateTypes.map((type: string) => ({ type, confidence: 0.9 })),
+    components: (candidateTypes || []).map((type: string) => ({ type, confidence: 0.9 })),
     pageSummary: { templates: [], homeEligibleTemplates: [] }
   }))
 }))
@@ -48,6 +48,42 @@ const invalid = JSON.stringify({ sectionKey: 'block:1', components: 'invalid' })
 const response = (content: string, finish_reason = 'stop') => ({
   choices: [{ finish_reason, message: { content } }],
   usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.001 }
+})
+
+test('family override accepts an uppercase type in one call using the shared parser', async () => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', pageMetadata: 'bogus', components: [
+      { component: 'CUSTOM-FAMILY', confidence: 0.95, content: { heading: 'Fixture copy' } },
+      { component: 'unknown', confidence: 0.1, content: {} }
+    ]
+  }) + ' trailing text'))
+  const input = args(create)
+  input.allowedTypes = ['custom-family']
+  const result = await extractBlock({ ...input, catalogueOverride: {
+    types: { 'custom-family': 'A custom family' }, contract: 'Fixture family contract', omitRules: [],
+    validateContent: (_type, content) => content,
+    location: () => 'main', templateEquivalent: () => 'text-block'
+  } })
+  expect(create).toHaveBeenCalledTimes(1)
+  expect(result.artifact.components).toMatchObject([{ type: 'custom-family', content: { heading: 'Fixture copy' } }])
+  expect(result.artifact.pageMetadata).toBeUndefined()
+  expect(result.artifact.parserRepairs).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'drop_trailing_characters' })]))
+})
+
+test('family override rejects an unpicked family through the production repair path', async () => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'hero', confidence: 0.95, content: { heading: 'Fixture copy' } }]
+  })))
+  const input = args(create)
+  input.allowedTypes = ['content']
+  await expect(extractBlock({ ...input, catalogueOverride: {
+    types: { content: 'Editorial text', hero: 'Page introduction' },
+    contract: 'Fixture family contract', omitRules: [],
+    validateContent: (_type, content) => content,
+    location: () => 'main', templateEquivalent: () => 'text-block'
+  } })).rejects.toMatchObject({ debug: { requestCount: 2, stage: 'validation' } })
+  expect(create).toHaveBeenCalledTimes(2)
+  expect(create.mock.calls[1][0].messages[3].content).toContain('Allowed component types: content')
 })
 
 afterEach(() => jest.useRealTimers())

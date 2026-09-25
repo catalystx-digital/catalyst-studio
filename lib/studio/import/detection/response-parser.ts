@@ -44,6 +44,7 @@ interface ParseSectionDetectionInput {
   confidenceThreshold: number
   allowMissingSectionKey?: boolean
   isolateInvalidComponents?: boolean
+  validateContent?: typeof validateDetectedComponentContent
 }
 
 interface ParseSectionDetectionOutput {
@@ -133,7 +134,8 @@ export function parseSectionDetectionResponse({
   url,
   confidenceThreshold,
   allowMissingSectionKey = false,
-  isolateInvalidComponents = false
+  isolateInvalidComponents = false,
+  validateContent
 }: ParseSectionDetectionInput): ParseSectionDetectionOutput {
   const parserRepairs: ParserRepairNote[] = []
   const raw = parseFirstJsonValue(rawResponse, count => parserRepairs.push({
@@ -163,7 +165,7 @@ export function parseSectionDetectionResponse({
     availableComponents,
     confidenceThreshold,
     url,
-    { isolateInvalidContent: isolateInvalidComponents }
+    { isolateInvalidContent: isolateInvalidComponents, validateContent }
   )
 
   parserRepairs.push(...parsedComponents.parserRepairs)
@@ -253,7 +255,7 @@ function parseComponentsArrayDetailed(
   availableComponents: ComponentPattern[],
   confidenceThreshold: number,
   pageUrl?: string,
-  options: { isolateInvalidContent?: boolean } = {}
+  options: { isolateInvalidContent?: boolean; validateContent?: typeof validateDetectedComponentContent } = {}
 ): { components: DetectedComponent[]; invalidComponents: InvalidDetectedComponent[]; parserRepairs: ParserRepairNote[] } {
   normalizeInternalLinkPageIds(parsed)
   const validComponents: DetectedComponent[] = []
@@ -310,7 +312,7 @@ function parseComponentsArrayDetailed(
     }
     let validatedContent: Record<string, unknown>
     try {
-      validatedContent = validateDetectedComponentContent({
+      validatedContent = (options.validateContent ?? validateDetectedComponentContent)({
         index,
         componentName,
         canonicalType: pattern.type,
@@ -318,6 +320,13 @@ function parseComponentsArrayDetailed(
         pageUrl
       })
     } catch (error) {
+      if (options.validateContent) {
+        const issues = (error as { issues?: Array<{ path?: Array<string | number>; code?: string }> })?.issues
+        const rendered = issues?.length
+          ? issues.slice(0, 5).map(issue => `${issue.path?.join('.') || 'content'}:${issue.code || 'invalid'}`).join('; ') + (issues.length > 5 ? `; ... ${issues.length - 5} more` : '')
+          : (error instanceof Error ? error.message : String(error)).slice(0, 500)
+        error = new Error(`Detection response components[${index}].content is invalid for component "${componentName}" (${pattern.type}): ${rendered}`)
+      }
       if (options.isolateInvalidContent) {
         const duplicateEmptyCardGridRepair = getDuplicateEmptyCardGridRepair({
           index,

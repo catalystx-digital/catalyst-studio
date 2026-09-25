@@ -4,6 +4,7 @@ import type { ResourcesSummary, RedirectInfo } from '../services/web-tools'
 import type { ProgressCallback } from '../types/progress.types'
 import type { CheckpointSession, IImportCheckpointService } from '../types/checkpoint.types'
 import type { GlobalSectionArtifactCache } from './global-section-cache'
+import type { BlockCatalogueOverride } from './blocks/block-catalogue'
 
 export {} // ensure this file is treated as a module
 
@@ -168,6 +169,7 @@ export interface ImportDetectionTimingBreakdown {
 }
 
 export interface ImportDetectionOptions {
+  catalogueOverride?: BlockCatalogueOverride
   model?: string
   apiKey?: string
   baseUrl?: string

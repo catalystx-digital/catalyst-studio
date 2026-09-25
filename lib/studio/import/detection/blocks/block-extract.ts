@@ -16,6 +16,7 @@ import {
 import type { DetectionTelemetry } from '@/lib/studio/import/telemetry/detection-telemetry'
 import { buildDetectionPromptFromCatalog } from '../prompt-builder'
 import { parseSectionDetectionResponse } from '../response-parser'
+import type { BlockCatalogueOverride } from './block-catalogue'
 import type { BlockInput } from './block-input'
 import type { selectBlockCandidates } from './block-pick'
 
@@ -34,7 +35,8 @@ export async function extractBlock({
   endpointModel,
   effectiveMaxTokens,
   telemetry,
-  confidenceThreshold = ConfidenceConfig.detection
+  confidenceThreshold = ConfidenceConfig.detection,
+  catalogueOverride
 }: {
   blockInput: BlockInput & { url: string; finalUrl?: string }
   allowedTypes: string[]
@@ -45,18 +47,26 @@ export async function extractBlock({
   effectiveMaxTokens: number
   telemetry: DetectionTelemetry
   confidenceThreshold?: number
+  catalogueOverride?: BlockCatalogueOverride
 }) {
   const started = Date.now()
   const { url, sectionKey, block } = blockInput
   const { prompt, components, pageSummary } = await buildDetectionPromptFromCatalog({
     telemetry,
     pageUrl: url,
-    candidateTypes: allowedTypes,
+    candidateTypes: catalogueOverride ? undefined : allowedTypes,
+    catalogueContractOverride: catalogueOverride?.contract,
+    omitCatalogueRules: catalogueOverride?.omitRules,
     mode: DetectionConfig.sectionPromptMode,
     model: endpointModel,
     provider: OpenRouterConfig.baseUrl + '|' + (ModelConfig.allowedProvider || 'any')
   })
-  const actual = components.map(component => component.type).sort()
+  const availableComponents = catalogueOverride
+    ? Object.entries(catalogueOverride.types)
+      .filter(([type]) => allowedTypes.includes(type))
+      .map(([type, description]) => ({ type, description, confidence: 1 }))
+    : components
+  const actual = availableComponents.map(component => component.type).sort()
   if (JSON.stringify([...new Set(allowedTypes)].sort()) !== JSON.stringify(actual)) {
     throw new Error('Requested types differ from rendered production contracts')
   }
@@ -72,20 +82,7 @@ export async function extractBlock({
     resourcesSummary: blockInput.resourcesSummary,
     nodes: blockInput.nodes
   }
-  const messages: ChatCompletionMessageParam[] = [
-    {
-      role: 'system',
-      content: [
-        'You are a section extraction engine.',
-        'Return only valid JSON with fields "sectionKey", "components", and optional "pageMetadata".',
-        'Do not call tools. Do not include markdown, commentary, analysis, or trailing text.',
-        'Extract only the provided section JSON. Keep components in visible DOM order.'
-      ].join('\n')
-    },
-    {
-      role: 'system',
-      content: [
-        prompt,
+  const harnessRules = [
         '=== SECTION HARNESS RULES ===',
         'The sectionKey field must be exactly: ' + sectionKey,
         'Allowed component types: ' + actual.join(', '),
@@ -103,6 +100,22 @@ export async function extractBlock({
           : 'Use content-feed for real news, blog, article, story, media, press, dated, or chronological teaser listings; never use card-grid for those editorial feeds.',
         'When nodes include bgColor evidence for a visible component surface, preserve that source CSS color in the component style fields supported by its schema; do not infer colors from brand palette.',
         'If no registered component can truthfully represent the section, return components: [].'
+  ]
+  const messages: ChatCompletionMessageParam[] = [
+    {
+      role: 'system',
+      content: [
+        'You are a section extraction engine.',
+        'Return only valid JSON with fields "sectionKey", "components", and optional "pageMetadata".',
+        'Do not call tools. Do not include markdown, commentary, analysis, or trailing text.',
+        'Extract only the provided section JSON. Keep components in visible DOM order.'
+      ].join('\n')
+    },
+    {
+      role: 'system',
+      content: [
+        prompt,
+        ...harnessRules.filter(rule => !catalogueOverride || !catalogueOverride.omitRules.some(fragment => rule.includes(fragment)))
       ].join('\n\n')
     },
     {
@@ -205,10 +218,11 @@ export async function extractBlock({
         const parsed = parseSectionDetectionResponse({
           rawResponse,
           sectionKey,
-          availableComponents: components,
+          availableComponents,
           url,
           confidenceThreshold,
-          allowMissingSectionKey: false
+          allowMissingSectionKey: false,
+          ...(catalogueOverride ? { validateContent: ({ canonicalType, content }: { canonicalType: string; content: Record<string, unknown> }) => catalogueOverride.validateContent(canonicalType, content) } : {})
         })
         return {
           artifact: {
