@@ -21,6 +21,28 @@ export function fallbackEvidence(block:Block,pageUrl:string,issue:string):Source
   const sourceText=normalizeText(block.text)
   return {text:sourceText.length>=12?[{text:sourceText,region:block.region}]:[],headings:block.headings.map(normalizeText),links:[...new Set(block.links.map(url=>absoluteUrl(url,pageUrl,'link')).filter((url):url is string=>!!url))].map(url=>({url,label:''})),images:block.images.map((address,id)=>({id,addresses:[absoluteUrl(address,pageUrl,'image')||address],width:null,height:null,alt:'',kind:'image'})),wordCount:sourceText.split(/\s+/).filter(Boolean).length,sourceText,baseUrl:pageUrl,issue}
 }
+
+// A saved fill request is the only source for a production block that was cut
+// during the paid render but is absent from the earlier saved label geometry.
+export function inputEvidence(payload:{nodes?:Array<{tag?:string;text?:string;attrs?:Record<string,string>;bgImage?:string}>;role?:string},pageUrl:string):SourceEvidence {
+  const region:Region=payload.role==='header'||payload.role==='footer'?payload.role:'main'
+  const text:SourceEvidence['text']=[],headings:string[]=[],links:SourceEvidence['links']=[],images:ImageGroup[]=[]
+  const sourceText:string[]=[]
+  for(const node of payload.nodes||[]) {
+    const value=normalizeText(node.text||'')
+    if(value){text.push({text:value,region});sourceText.push(value)}
+    if(/^h[1-6]$/.test(node.tag||'')&&value)headings.push(value)
+    const attrs=node.attrs||{}
+    if(node.tag==='a'){
+      const url=absoluteUrl(attrs.href||'',pageUrl,'link')
+      if(url)links.push({url,label:value})
+    }
+    if(attrs.alt)sourceText.push(normalizeText(attrs.alt))
+    const addresses=[...oneUrl(attrs.src,pageUrl),...srcsetUrls(attrs.srcset,pageUrl),...oneUrl(node.bgImage,pageUrl)]
+    if(addresses.length)images.push({id:images.length,addresses:[...new Set(addresses)],width:Number(attrs.width)||null,height:Number(attrs.height)||null,alt:attrs.alt||'',kind:node.bgImage?'background':'image'})
+  }
+  return {text,headings:[...new Set(headings)],links,images,wordCount:text.reduce((n,item)=>n+item.text.split(/\s+/).length,0),sourceText:normalizeText(sourceText.join(' ')),baseUrl:pageUrl}
+}
 export function blockEvidence(html:string, stylesheets:string[], block:Block, geometry:unknown, pageUrl:string, includeDecorative=false):SourceEvidence {
   if (!geometry || typeof geometry!=='object' || !('tree' in geometry)) throw new Error('Missing geometry.json')
   if (!(block.sourceAnchors?.length||block.anchor) || !block.anchorResolved) {

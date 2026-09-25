@@ -83,6 +83,21 @@ Each new arm writes components.json, run.json and one calls/*.json per model/dec
 
 ## Offline checks (PowerShell; FREE)
 
+To plan targeted repairs over saved development runs without a model call or new files:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts repair --arm blocks-production --runs a-r1 --dry-run
+~~~
+
+After reviewing the aggregate plan, `--yes-spend` instead of `--dry-run` writes `blocks-production+repair` with the same run IDs. `family-fill` writes `family-fill+repair`. Each incomplete section gets one fill-model call based on its saved request and verifier gaps; a reply is kept only when missing items fall, invented text does not rise, and component types stay the same. Existing repair runs are never overwritten. `--held-out` selects held-out runs and prints only an overall call count.
+
+Compare two complete runs per arm and one held-out run with set C on both sides:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate blocks-production+repair --runs a-r1,a-r2 --held-out-runs a-r1 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline family-fill --candidate family-fill+repair --runs a-r1,a-r2 --held-out-runs a-r1 --family-set C
+~~~
+
 Use installed dependencies and Chromium. The preload blocks environment-file reads and outbound connections, allowing explicit loopback requests for local tests. Tests use invented inputs and fake clients and clean their temporary directories. Run one Jest path at a time.
 
 ~~~powershell

@@ -26,6 +26,133 @@ export const STALL_TIMEOUT_MS = 120_000
 export const INFRASTRUCTURE_RETRIES = 2
 export const PROVIDER_ERROR_RETRIES = 4
 
+class BlockReplyTruncationError extends Error {}
+
+export function assertCompleteBlockReply(rawResponse: string, finishReason: string) {
+  const completion = detectIncompleteJson(rawResponse)
+  if (finishReason === 'length' || (!completion.isComplete && completion.reason !== 'parse_error')) {
+    throw new BlockReplyTruncationError('Reply truncated: ' + (completion.reason || finishReason))
+  }
+}
+
+export type BlockReplyState = {
+  requestCount: number
+  rawResponse: string
+  finishReason: string
+  stage: DetectionFailureDebug['stage']
+  repairDebug: Partial<DetectionFailureDebug>
+}
+
+// The fill and lab repair paths share the same request, retry, and validation loop.
+export async function runBlockReply<TRequest, TParsed>({
+  messages, createRequest, call, measureCall, validate, onResponse, sectionKey, allowedTypes, state,
+  stallTimeoutMs = STALL_TIMEOUT_MS,
+  infrastructureRetries = INFRASTRUCTURE_RETRIES,
+  providerErrorRetries = PROVIDER_ERROR_RETRIES,
+  validationRetries = 1
+}: {
+  messages: ChatCompletionMessageParam[]
+  createRequest: (messages: ChatCompletionMessageParam[]) => TRequest | Promise<TRequest>
+  call: (request: TRequest, signal: AbortSignal, attempt: number, repair: boolean) => Promise<ChatCompletion>
+  measureCall?: (operation: () => Promise<ChatCompletion>, attempt: number, repair: boolean) => Promise<ChatCompletion>
+  validate: (rawResponse: string) => TParsed
+  onResponse?: (response: ChatCompletion) => void
+  sectionKey: string
+  allowedTypes: string[]
+  state: BlockReplyState
+  stallTimeoutMs?: number
+  infrastructureRetries?: number
+  providerErrorRetries?: number
+  validationRetries?: number
+}): Promise<TParsed> {
+  let infrastructureRetryCount = 0
+  let providerErrorRetryCount = 0
+  for (let repair = 0; ; repair++) {
+    const request = await createRequest(messages)
+    for (;;) {
+      const controller = new AbortController()
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let timedOut = false
+      let truncated = false
+      let providerResponseError = false
+      try {
+        state.stage = 'llm_call'
+        state.requestCount++
+        const operation = () => Promise.race([
+          call(request, controller.signal, state.requestCount, repair > 0),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              timedOut = true
+              controller.abort()
+              reject(new Error('Call timeout after ' + stallTimeoutMs + 'ms'))
+            }, stallTimeoutMs)
+          })
+        ])
+        const response = await (measureCall ? measureCall(operation, state.requestCount, repair > 0) : operation())
+        onResponse?.(response)
+        const choice = response.choices?.[0]
+        if (!choice) {
+          const providerError = (response as ChatCompletion & { error?: { message?: string; code?: number | string } }).error
+          const providerCode = Number(providerError?.code)
+          providerResponseError = providerError?.code == null || (Number.isFinite(providerCode) && (providerCode === 429 || providerCode >= 500))
+          throw new Error(providerError
+            ? 'Block extraction provider error' + (providerError.code != null ? ' (' + providerError.code + ')' : '') + (providerError.message ? ': ' + providerError.message : '')
+            : 'Block extraction response must include choices[0]')
+        }
+        state.rawResponse = choice.message?.content || ''
+        state.finishReason = choice.finish_reason || 'unknown'
+        try { assertCompleteBlockReply(state.rawResponse, state.finishReason) }
+        catch (error) {
+          if (error instanceof BlockReplyTruncationError) {
+            truncated = true
+            state.stage = 'output_limit'
+          }
+          throw error
+        }
+        break
+      } catch (error) {
+        const timeout = timedOut || (error instanceof Error && ['APIConnectionTimeoutError', 'TimeoutError'].includes(error.name))
+        if ((timeout || truncated) && infrastructureRetryCount < infrastructureRetries) {
+          infrastructureRetryCount++
+          continue
+        }
+        const providerHttpError = error instanceof APIError && (error.status === 429 || (error.status != null && error.status >= 500))
+        if ((providerResponseError || providerHttpError) && providerErrorRetryCount < providerErrorRetries) {
+          providerErrorRetryCount++
+          if (timer) clearTimeout(timer)
+          await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** (providerErrorRetryCount - 1)))
+          continue
+        }
+        throw error
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
+    try {
+      state.stage = 'validation'
+      return validate(state.rawResponse)
+    } catch (error) {
+      if (repair >= validationRetries) throw error
+      const message = error instanceof Error ? error.message : String(error)
+      const capped = capRepairPreviousJson(state.rawResponse)
+      state.repairDebug = { repairPromptCapped: capped.capped, repairPromptPreviousJsonChars: capped.chars }
+      messages.push({
+        role: 'user',
+        content: [
+          'Your previous JSON failed strict validation.',
+          'Validation error: ' + message,
+          'Validation path: ' + (extractValidationPath(message) || 'unknown'),
+          'The sectionKey must remain exactly ' + sectionKey + '.',
+          'Allowed component types: ' + allowedTypes.join(', '),
+          'Repair schema shape and component names only. Do not invent content. Return only JSON.',
+          capped.capped ? 'Previous JSON excerpt (capped to ' + capped.chars + ' chars):' : 'Previous JSON:',
+          capped.text
+        ].join('\n')
+      })
+    }
+  }
+}
+
 export async function extractBlock({
   blockInput,
   allowedTypes,
@@ -124,151 +251,65 @@ export async function extractBlock({
     }
   ]
   const usage: TokenUsage = {}
-  let requestCount = 0
-  let infrastructureRetries = 0
-  let providerErrorRetries = 0
-  let rawResponse = ''
-  let finishReason = ''
-  let stage: DetectionFailureDebug['stage'] = 'llm_call'
-  let repairDebug: Partial<DetectionFailureDebug> = {}
+  const state: BlockReplyState = { requestCount: 0, rawResponse: '', finishReason: '', stage: 'llm_call', repairDebug: {} }
   try {
-    for (let repair = 0; ; repair++) {
-      const reasoning = await getReasoningConfig(endpointModel)
-      const request = {
-        model: endpointModel,
-        messages: [...messages],
-        temperature: ModelConfig.temperature.detection,
-        max_tokens: clampCompletionTokens(endpointModel, messages, effectiveMaxTokens),
-        response_format: { type: 'json_object' as const },
-        ...(reasoning ? { reasoning } : {})
-      }
-      applyAllowedProviders(request)
-      for (;;) {
-        const controller = new AbortController()
-        let timer: ReturnType<typeof setTimeout> | undefined
-        let timedOut = false
-        let truncated = false
-        let providerResponseError = false
-        try {
-          stage = 'llm_call'
-          requestCount++
-          const response: ChatCompletion = await telemetry.timePhase('llm_call', () => Promise.race([
-            client.chat.completions.create(request, { signal: controller.signal, maxRetries: 0 }),
-            new Promise<never>((_, reject) => {
-              timer = setTimeout(() => {
-                timedOut = true
-                controller.abort()
-                reject(new Error('Call timeout after ' + STALL_TIMEOUT_MS + 'ms'))
-              }, STALL_TIMEOUT_MS)
-            })
-          ]), response => ({
-            sectionKey,
-            sectionOrder: block.order - 1,
-            role: block.region,
-            attempt: requestCount,
-            repair: repair > 0,
-            totalTokens: response?.usage?.total_tokens ?? 0,
-            promptTokens: response?.usage?.prompt_tokens ?? 0,
-            completionTokens: response?.usage?.completion_tokens ?? 0
-          }))
-          const responseUsage = response.usage as (TokenUsage & { cost?: number }) | undefined
-          usage.prompt_tokens = (usage.prompt_tokens ?? 0) + (responseUsage?.prompt_tokens ?? 0)
-          usage.completion_tokens = (usage.completion_tokens ?? 0) + (responseUsage?.completion_tokens ?? 0)
-          usage.total_tokens = (usage.total_tokens ?? 0) + (responseUsage?.total_tokens ?? 0)
-          usage.reasoning_tokens = (usage.reasoning_tokens ?? 0) + (responseUsage?.reasoning_tokens ?? 0)
-          usage.total_cost = (usage.total_cost ?? 0) + (responseUsage?.total_cost ?? responseUsage?.cost ?? 0)
-          const choice = response.choices?.[0]
-          if (!choice) {
-            const providerError = (response as ChatCompletion & { error?: { message?: string; code?: number | string } }).error
-            const providerCode = Number(providerError?.code)
-            providerResponseError = providerError?.code == null || (Number.isFinite(providerCode) && (providerCode === 429 || providerCode >= 500))
-            throw new Error(providerError
-              ? 'Block extraction provider error' + (providerError.code != null ? ' (' + providerError.code + ')' : '') + (providerError.message ? ': ' + providerError.message : '')
-              : 'Block extraction response must include choices[0]')
-          }
-          rawResponse = choice.message?.content || ''
-          finishReason = choice.finish_reason || 'unknown'
-          const completion = detectIncompleteJson(rawResponse)
-          truncated = finishReason === 'length' || (!completion.isComplete && completion.reason !== 'parse_error')
-          if (truncated) {
-            stage = 'output_limit'
-            throw new Error('Reply truncated: ' + (completion.reason || finishReason))
-          }
-          break
-        } catch (error) {
-          const timeout = timedOut || (error instanceof Error && ['APIConnectionTimeoutError', 'TimeoutError'].includes(error.name))
-          if ((timeout || truncated) && infrastructureRetries < INFRASTRUCTURE_RETRIES) {
-            infrastructureRetries++
-            continue
-          }
-          const providerHttpError = error instanceof APIError && (error.status === 429 || (error.status != null && error.status >= 500))
-          if ((providerResponseError || providerHttpError) && providerErrorRetries < PROVIDER_ERROR_RETRIES) {
-            providerErrorRetries++
-            if (timer) clearTimeout(timer)
-            await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** (providerErrorRetries - 1)))
-            continue
-          }
-          throw error
-        } finally {
-          if (timer) clearTimeout(timer)
+    const parsed = await runBlockReply({
+      messages, sectionKey, allowedTypes: actual, state,
+      createRequest: async currentMessages => {
+        const reasoning = await getReasoningConfig(endpointModel)
+        const request = {
+          model: endpointModel,
+          messages: [...currentMessages],
+          temperature: ModelConfig.temperature.detection,
+          max_tokens: clampCompletionTokens(endpointModel, currentMessages, effectiveMaxTokens),
+          response_format: { type: 'json_object' as const },
+          ...(reasoning ? { reasoning } : {})
         }
-      }
-      try {
-        stage = 'validation'
-        const parsed = parseSectionDetectionResponse({
-          rawResponse,
-          sectionKey,
-          availableComponents,
-          url,
-          confidenceThreshold,
-          allowMissingSectionKey: false,
-          ...(catalogueOverride ? { validateContent: ({ canonicalType, content }: { canonicalType: string; content: Record<string, unknown> }) => catalogueOverride.validateContent(canonicalType, content) } : {})
-        })
-        return {
-          artifact: {
-            ...parsed,
-            sectionOrder: block.order - 1,
-            durationMs: Date.now() - started
-          },
-          pageSummary,
-          usage,
-          requestCount,
-          debug: { model: endpointModel, stage, rawResponse, rawResponseLength: rawResponse.length, finishReason, usage, requestCount, ...repairDebug }
-        }
-      } catch (error) {
-        if (repair > 0) throw error
-        const message = error instanceof Error ? error.message : String(error)
-        const capped = capRepairPreviousJson(rawResponse)
-        repairDebug = { repairPromptCapped: capped.capped, repairPromptPreviousJsonChars: capped.chars }
-        messages.push({
-          role: 'user',
-          content: [
-            'Your previous JSON failed strict validation.',
-            'Validation error: ' + message,
-            'Validation path: ' + (extractValidationPath(message) || 'unknown'),
-            'The sectionKey must remain exactly ' + sectionKey + '.',
-            'Allowed component types: ' + actual.join(', '),
-            'Repair schema shape and component names only. Do not invent content. Return only JSON.',
-            capped.capped ? 'Previous JSON excerpt (capped to ' + capped.chars + ' chars):' : 'Previous JSON:',
-            capped.text
-          ].join('\n')
-        })
-      }
+        applyAllowedProviders(request)
+        return request
+      },
+      call: (request, signal) => client.chat.completions.create(request, { signal, maxRetries: 0 }),
+      measureCall: (operation, attempt, repair) => telemetry.timePhase('llm_call',
+        operation,
+        response => ({
+          sectionKey, sectionOrder: block.order - 1, role: block.region, attempt, repair,
+          totalTokens: response?.usage?.total_tokens ?? 0,
+          promptTokens: response?.usage?.prompt_tokens ?? 0,
+          completionTokens: response?.usage?.completion_tokens ?? 0
+        })),
+      onResponse: response => {
+        const responseUsage = response.usage as (TokenUsage & { cost?: number }) | undefined
+        usage.prompt_tokens = (usage.prompt_tokens ?? 0) + (responseUsage?.prompt_tokens ?? 0)
+        usage.completion_tokens = (usage.completion_tokens ?? 0) + (responseUsage?.completion_tokens ?? 0)
+        usage.total_tokens = (usage.total_tokens ?? 0) + (responseUsage?.total_tokens ?? 0)
+        usage.reasoning_tokens = (usage.reasoning_tokens ?? 0) + (responseUsage?.reasoning_tokens ?? 0)
+        usage.total_cost = (usage.total_cost ?? 0) + (responseUsage?.total_cost ?? responseUsage?.cost ?? 0)
+      },
+      validate: rawResponse => parseSectionDetectionResponse({
+        rawResponse, sectionKey, availableComponents, url, confidenceThreshold,
+        allowMissingSectionKey: false,
+        ...(catalogueOverride ? { validateContent: ({ canonicalType, content }: { canonicalType: string; content: Record<string, unknown> }) => catalogueOverride.validateContent(canonicalType, content) } : {})
+      })
+    })
+    return {
+      artifact: { ...parsed, sectionOrder: block.order - 1, durationMs: Date.now() - started },
+      pageSummary, usage, requestCount: state.requestCount,
+      debug: { model: endpointModel, stage: state.stage, rawResponse: state.rawResponse, rawResponseLength: state.rawResponse.length, finishReason: state.finishReason, usage, requestCount: state.requestCount, ...state.repairDebug }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new DetectionFailureError(message, {
       model: endpointModel,
-      stage,
+      stage: state.stage,
       sectionKey,
       sectionOrder: block.order - 1,
-      rawResponse,
-      rawResponseLength: rawResponse.length,
-      finishReason,
+      rawResponse: state.rawResponse,
+      rawResponseLength: state.rawResponse.length,
+      finishReason: state.finishReason,
       usage,
-      requestCount,
+      requestCount: state.requestCount,
       validationPath: extractValidationPath(message),
-      ...repairDebug
+      ...state.repairDebug
     })
   }
 }

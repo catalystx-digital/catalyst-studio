@@ -5,6 +5,10 @@ import path from 'node:path'
 import { buildComparison, generateComparison, type ComparisonPage, type ComparisonRun } from './compare'
 import { parseEval } from './eval'
 import { stickScoreName } from './stick-version'
+import { block, component, fixtureHtml } from './phase2-fixtures'
+import { digest } from './storage'
+import { sha } from './labels'
+import { scorePage } from './score'
 
 const runs=['c-r1','c-r2']
 const row=(correct:boolean, failedChecks:string[]=correct?[]:['C2'], key='stats', pick='stats')=>({id:'b',ignored:false,verdict:correct?'correct':'right type, content incomplete',failedChecks,acceptableFamilies:[key],producedFamilies:[pick]})
@@ -126,13 +130,13 @@ test('saved-data command writes only aggregate held-out output',async()=>{
     for(let i=0;i<4;i++)manifest['development-'+i]={url:`https://made-up-${i}.example/`,kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}
     manifest.hidden={url:'https://held-up.example/',kind:'home',siteKind:'saas',heldOut:true,renderWithJavaScript:false,notes:''}
     await fs.writeFile(path.join(root,'pages.json'),JSON.stringify(manifest))
-    for(const pageName of Object.keys(manifest))for(const arm of ['blocks-production','family-fill'])for(const run of (pageName==='hidden'?['c-r1']:runs)){
+    for(const pageName of Object.keys(manifest))for(const arm of ['blocks-production','family-fill','blocks-production+repair','family-fill+repair'])for(const run of (pageName==='hidden'?['c-r1']:runs)){
       const runDir=path.join(root,'arms',pageName,arm,run),scoreDir=path.join(root,'labels',pageName,'scores-stick')
       await fs.mkdir(runDir,{recursive:true});await fs.mkdir(scoreDir,{recursive:true})
       await fs.writeFile(path.join(runDir,'run.json'),JSON.stringify({status:'complete',blockCount:10,wallClockSeconds:2,failures:[]}))
-      const rows=sample(arm==='family-fill'?8:5).rows.map((row,i)=>({...row,id:`block-${i+1}`,order:i+1,componentIndices:[i]}))
+      const rows=sample(arm==='family-fill'?8:arm.endsWith('+repair')?9:5).rows.map((row,i)=>({...row,id:`block-${i+1}`,order:i+1,componentIndices:[i]}))
       if(arm==='family-fill'&&pageName!=='hidden')Object.assign(rows[1],{acceptableFamilies:['pricing'],producedFamilies:['collection'],failedChecks:['C1'],verdict:'wrong type'})
-      const score=pageName==='hidden'?{accuracy:{correct:arm==='family-fill'?8:7,total:10},rows:[{private:'invented-private-marker'}]}:{rows,extra:[]}
+      const score=pageName==='hidden'?{accuracy:{correct:arm==='family-fill'?8:arm.endsWith('+repair')?9:7,total:10},rows:[{private:'invented-private-marker'}]}:{rows,extra:[]}
       await fs.writeFile(path.join(scoreDir,stickScoreName(arm,run,'C')+'.json'),JSON.stringify(score))
       if(pageName!=='hidden'){
         await fs.writeFile(path.join(root,'labels',pageName,'answer-sheet-v2.json'),JSON.stringify({entries:rows.map(row=>({blockId:row.id,order:row.order,label:{multiple:false}}))}))
@@ -156,5 +160,45 @@ test('saved-data command writes only aggregate held-out output',async()=>{
     expect(result.folded.accuracy).toBeGreaterThan(result.candidate.accuracy)
     expect(result.folded.flips.pricing).toBeGreaterThan(0)
     expect(parseEval(['compare','--baseline','blocks-production','--candidate','family-fill','--runs','c-r1,c-r2','--held-out-runs','c-r1','--family-set','C']).command).toBe('compare')
+    for(const baseline of ['blocks-production','family-fill']){
+      const candidate=baseline+'+repair'
+      const args=['compare','--baseline',baseline,'--candidate',candidate,'--runs','c-r1,c-r2','--held-out-runs','c-r1','--family-set','C']
+      expect(parseEval(args).candidate).toBe(candidate)
+      const repaired=await generateComparison(root,{...options,baseline,candidate})
+      expect(repaired.candidate.accuracy).toBeGreaterThan(repaired.baseline.accuracy)
+    }
+  }finally{await fs.rm(root,{recursive:true,force:true})}
+})
+
+test.each([['blocks-production','blocks-production+repair'],['family-fill','family-fill+repair']])('uncached set C comparison scores %s against %s',async(baseline,candidate)=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'comparison-uncached-'))
+  try{
+    const manifest={development:{url:'https://invented-dev.example/',kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''},hidden:{url:'https://invented-hidden.example/',kind:'home',siteKind:'saas',heldOut:true,renderWithJavaScript:false,notes:''}}
+    await fs.writeFile(path.join(root,'pages.json'),JSON.stringify(manifest))
+    for(const page of Object.keys(manifest)){
+      const labelDir=path.join(root,'labels',page),pageDir=path.join(root,'pages',page)
+      await fs.mkdir(labelDir,{recursive:true});await fs.mkdir(pageDir,{recursive:true})
+      const proposal={version:1,page,snapshotSha256:digest(fixtureHtml),finalUrl:manifest[page as keyof typeof manifest].url,javascriptEnabled:false,renderedHeight:300,viewportWidth:1440,blocks:[block()],issues:[],status:'complete'}
+      await fs.writeFile(path.join(labelDir,'blocks.json'),JSON.stringify(proposal))
+      await fs.writeFile(path.join(labelDir,'answer-sheet-v2.json'),JSON.stringify({version:2,page,heldOut:page==='hidden',snapshotSha256:proposal.snapshotSha256,proposalSha256:sha(proposal),familySet:'C',entries:[{blockId:'hero',order:1,status:'agreed',label:{family:'hero',acceptableFamilies:['hero'],multiple:false,familiesInOrder:[],placement:'main',ignore:false,ignoreReason:'',itemCount:null,itemKind:null,decorativeImages:[],reason:{a:'fixture',b:'fixture'}}}]}))
+      await fs.writeFile(path.join(labelDir,'geometry.json'),JSON.stringify({tree:{anchorKey:'body',children:[]}}))
+      await fs.writeFile(path.join(pageDir,'page.html'),fixtureHtml)
+      await fs.writeFile(path.join(pageDir,'stylesheets.json'),'[]')
+      for(const arm of [baseline,candidate])for(const run of (page==='hidden'?['c-r1']:runs)){
+        const dir=path.join(root,'arms',page,arm,run);await fs.mkdir(dir,{recursive:true})
+        await fs.writeFile(path.join(dir,'run.json'),JSON.stringify({status:'complete',snapshotSha256:proposal.snapshotSha256,blockCount:1,failures:[]}))
+        await fs.writeFile(path.join(dir,'components.json'),JSON.stringify([component]))
+      }
+    }
+    const result=await generateComparison(root,{baseline,candidate,runs,heldOutRuns:['c-r1'],familySet:'C'})
+    expect(result.heldOut).toEqual({baseline:expect.any(Number),candidate:expect.any(Number)})
+    for(const arm of [baseline,candidate])for(const page of ['development','hidden'])for(const run of (page==='hidden'?['c-r1']:runs)){
+      const file=path.join(root,'labels',page,'scores-stick',stickScoreName(arm,run,'C')+'.json')
+      const score=JSON.parse(await fs.readFile(file,'utf8'))
+      expect(score.familySet).toBe('C')
+      if(page==='hidden')expect(Object.keys(score).sort()).toEqual(['accuracy','familySet','name','status','version'])
+    }
+    const componentFile=path.join(root,'arms','development',candidate,'c-r1','components.json')
+    await expect(scorePage('development',{components:componentFile,name:'family-fill+other--c-r1--stick2',familySet:'C',root})).rejects.toThrow('Invalid repair arm score name')
   }finally{await fs.rm(root,{recursive:true,force:true})}
 })

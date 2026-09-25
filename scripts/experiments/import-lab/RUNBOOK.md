@@ -92,9 +92,23 @@ node --import tsx scripts/experiments/import-lab/eval.ts arms --arms jev-pick --
 
 Picking uses production's block input, evidence, registered questions and choice handling. It needs the live decision settings above; replace --dry-run with --yes-spend for **INTERNET + PAID** decisions. Family mode substitutes family options and type/family wording in the production question. Repeat with B. jev-pick.ts --page PAGE --run RUN accepts the same family flags directly. Family scoring groups saved probabilities for **FREE**; it does not make new choices.
 
-## 4. Historical results
+## 4. Targeted repair over saved runs
 
-Section replay and repair commands have been removed. Saved results remain readable for measurement, scoring and summaries.
+The repair command checks each saved section against source evidence. Verified sections are copied. Each incomplete section gets one call using the source arm's saved fill request and model; only a reply with fewer missing items, no more invented text, and the same component types is kept. The new arm uses the original run ID. Existing repair run directories are never overwritten.
+
+~~~powershell
+$env:IMPORT_LAB_ROOT = 'C:/projects/catalystx/import-lab-data'
+node --import tsx scripts/experiments/import-lab/eval.ts repair --arm blocks-production --runs a-r1 --dry-run
+# Only after reviewing the plan and supplying credentials in the calling environment:
+node --import tsx scripts/experiments/import-lab/eval.ts repair --arm blocks-production --runs a-r1 --yes-spend
+~~~
+
+Use `--arm family-fill` for `family-fill+repair`. `--held-out` selects held-out runs; its command output is aggregate only. Compare paired runs with set C on both sides:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate blocks-production+repair --runs a-r1,a-r2 --held-out-runs a-r1 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline family-fill --candidate family-fill+repair --runs a-r1,a-r2 --held-out-runs a-r1 --family-set C
+~~~
 
 ## 5. Offline scoring and summaries
 

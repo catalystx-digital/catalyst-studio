@@ -1,4 +1,4 @@
-Use briefs 01 through 25 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
+Use the numbered briefs in order to rebuild this lab. Brief 27 covers the targeted repair arm over saved runs. Keep the originals unchanged; add a new numbered brief for later work.
 
 These briefs were given to a coding agent with no internet, no paid calls and no secrets. The agent could read saved local evidence, use invented fixtures and run offline checks. Real site names and page content must stay out of source files and new briefs. The owner runs any internet or paid evaluation stages separately.
 
