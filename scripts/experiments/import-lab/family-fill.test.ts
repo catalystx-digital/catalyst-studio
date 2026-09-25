@@ -70,6 +70,15 @@ test.each(['valid-repair','invalid-twice'])('family fill runs with invented offl
   } finally {fs.rmSync(root,{recursive:true,force:true})}
 },130000)
 
+test('family fill retains required site-header and site-footer through the production importer',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'import-lab-family-regions-'))
+  try {
+    const result=spawnSync(process.execPath,['--import','tsx',path.join(__dirname,'family-fill-fixtures.ts'),'required-regions'],{cwd:path.resolve(__dirname,'../../..'),encoding:'utf8',windowsHide:true,maxBuffer:8000000,timeout:120000,env:{...process.env,IMPORT_LAB_ROOT:root,IMPORT_MODEL_CHAIN:'test/dummy',SKIP_DB_SETUP:'true',NODE_OPTIONS:'--require='+JSON.stringify(path.join(__dirname,'offline-guard.cjs'))}})
+    if(result.status!==0)throw new Error(result.stdout+'\n'+result.stderr)
+    expect(result.stdout).toContain('PASS family-fill required header and footer through production importer')
+  } finally {fs.rmSync(root,{recursive:true,force:true})}
+},130000)
+
 test('family and production share block payloads and request settings; only catalogue messages differ',()=>{
   const familyRoot=fs.mkdtempSync(path.join(os.tmpdir(),'import-lab-family-side-'))
   const productionRoot=fs.mkdtempSync(path.join(os.tmpdir(),'import-lab-production-side-'))
