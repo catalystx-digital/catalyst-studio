@@ -205,7 +205,7 @@
     "postcss": "^8.5.28",
     "shadcn": "^4.21.0",
     "storybook": "^10.0.1",
-    "tailwindcss": "^3.4.19",
+    "tailwindcss": "^4.3.3",
     "tailwindcss-animate": "^1.0.7",
     "tar": "^7.5.22",
     "tsx": "^4.23.13",
