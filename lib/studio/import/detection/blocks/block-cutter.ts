@@ -125,6 +125,8 @@ const meaningfulChildren = (node: Geometry) => node.children.filter(eligible)
 
 const hasOwnText = (node: Geometry) => Boolean(node.ownTextLength)
 
+const collapsed = (node: Geometry) => node.meaningful && node.box.width > 0 && node.box.height === 0
+
 function eligible(node: Geometry): boolean {
   return node.visible && node.box.height > 0 && node.box.width > 0 &&
     (node.meaningful || hasOwnText(node) || node.children.some(eligible))
@@ -304,7 +306,7 @@ export function proposeGeometry(root: Geometry): Geometry[] {
     return [root]
   }
   const children = meaningfulChildren(root)
-  if (children.length === 1) {
+  if (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed))) {
     return proposeGeometry(children[0])
   }
   if (root.box.height <= (root.region === 'header' ? MAX_HEADER_HEIGHT : TALL_BLOCK) || children.length < 2) {
@@ -334,9 +336,11 @@ export function childCandidates(node: Geometry): Geometry[] {
   if (hasOwnText(node) || atomicTags.has(node.tag)) {
     return []
   }
-  let children = meaningfulChildren(node)
-  while (children.length === 1 && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
-    children = meaningfulChildren(children[0])
+  let root = node
+  let children = meaningfulChildren(root)
+  while (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed)) && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
+    root = children[0]
+    children = meaningfulChildren(root)
   }
   const rows = groupRows(children)
   return rows.length >= 2 ? rows : []

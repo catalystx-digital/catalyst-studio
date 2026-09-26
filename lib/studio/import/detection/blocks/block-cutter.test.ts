@@ -37,6 +37,38 @@ test('single wrappers descend but a container at 700px is retained', () => {
   expect(keys(proposeGeometry(geometry('wrapper', 0, 900, 1440, [band])))).toEqual(['band'])
   expect(keys(childCandidates(band))).toEqual(['a', 'b'])
 })
+test('collapsed FAQ answers keep five 200px items as blocks instead of questions', () => {
+  const items = Array.from({ length: 5 }, (_, i) => {
+    const y = i * 200
+    const question = text('question-' + i, y, 60)
+    const answer = geometry('answer-' + i, y + 60, 0, 800, [], { visible: false, meaningful: true })
+    return geometry('item-' + i, y, 200, 800, [question, answer])
+  })
+  expect(keys(proposeGeometry(geometry('list', 0, 1000, 800, items)))).toEqual(items.map(item => item.key))
+})
+test('a tall body with a collapsed drawer still descends into its content wrapper', () => {
+  const content = geometry('content', 0, 900, 800, [text('first', 0, 450), text('second', 450, 450)])
+  const drawer = geometry('drawer', 0, 0, 300, [], { visible: false, meaningful: true })
+  const body = geometry('body', 0, 900, 1000, [content, drawer])
+  expect(keys(proposeGeometry(body))).toEqual(['first', 'second'])
+  expect(keys(childCandidates(body))).toEqual(['first', 'second'])
+})
+test('a display:none-like 0x0 sibling still lets its wrapper descend', () => {
+  const content = geometry('content', 0, 300, 800, [text('question', 0, 60)])
+  const hidden = geometry('hidden', 0, 0, 0, [], { visible: false, meaningful: true })
+  expect(keys(proposeGeometry(geometry('wrapper', 0, 300, 800, [content, hidden])))).toEqual(['question'])
+})
+test('a zero-height wrapper with only an absolutely positioned image stays ineligible before and after', () => {
+  const image = geometry('image', 0, 100, 100, [], { tag: 'img' })
+  const wrapper = geometry('wrapper', 0, 0, 100, [image])
+  expect(proposeGeometry(wrapper)).toEqual([])
+  expect(childCandidates(wrapper)).toEqual([])
+})
+test('child candidates stop at an item with a collapsed answer', () => {
+  const content = geometry('content', 0, 300, 800, [text('first', 0, 150), text('second', 150, 150)])
+  const answer = geometry('answer', 300, 0, 800, [], { visible: false, meaningful: true })
+  expect(childCandidates(geometry('item', 0, 300, 800, [content, answer]))).toEqual([])
+})
 test('a row of four tiles stays one block and never splits into its columns', () => {
   const tiles = Array.from({ length: 4 }, (_, i) => geometry('tile' + i, 0, 200, 250, [], { box: { x: i * 280, y: 0, width: 250, height: 200 } }))
   const root = geometry('tiles', 0, 200, 1170, tiles)
