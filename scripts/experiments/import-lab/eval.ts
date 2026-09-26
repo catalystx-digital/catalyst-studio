@@ -13,13 +13,16 @@ import { readSavedResults, callTotals, median, type SavedResult } from './summar
 import { stickScoreName } from './stick-version'
 import { generateAccuracy } from './accuracy'
 import { checkLeaks } from './leak-check'
+import { generateComparison } from './compare'
+import { verifySavedRuns } from './verify'
+import { repairSavedRuns } from './repair'
 
-interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; model?:string; provider:DraftProvider; onlyFailed?:boolean;out?:string;a?:string;b?:string;c?:string;round?:1|2 }
+interface EvalOptions extends FamilyOptions { command:string; run:string; arms:string[]; arm?:string; runs:string[]; roots:string[]; concurrency:number; dryRun:boolean; yesSpend:boolean; heldOut:boolean; model?:string; provider:DraftProvider; onlyFailed?:boolean;out?:string;a?:string;b?:string;c?:string;round?:1|2;baseline?:string;candidate?:string;heldOutRuns:string[] }
 interface Task {page:string;stage:string;script:string;args:string[];existing:boolean;paid:boolean;internet:boolean;calls:number|null;cost:number|null;source?:'answer-sheet.json'|'blocks.json';reason?:string}
 export function parseEval(argv:string[]): EvalOptions {
-  const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed']
-  const allowed=[...flags,'--families','--family-set','--catalogue','--set','--out','--a','--b','--c','--run','--arms','--arm','--runs','--root','--concurrency','--model','--provider','--round'],roots:string[]=[]
-  if(!['blocks','arms','score','summary','snapshot','draft','merge','review','accuracy','leak-check'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|merge|review|accuracy|leak-check')
+  const [command,...args]=argv, values:Record<string,string>={}, flags=['--dry-run','--yes-spend','--only-failed','--held-out']
+  const allowed=[...flags,'--families','--family-set','--catalogue','--set','--out','--a','--b','--c','--run','--arms','--arm','--runs','--root','--concurrency','--model','--provider','--round','--baseline','--candidate','--held-out-runs'],roots:string[]=[]
+  if(!['blocks','arms','score','summary','snapshot','draft','merge','review','accuracy','verify','repair','leak-check','compare'].includes(command))throw new Error('Use eval.ts blocks|arms|score|summary|snapshot|draft|merge|review|accuracy|verify|repair|leak-check|compare')
   for(let i=0;i<args.length;i++) { const key=args[i];if(!allowed.includes(key)||(key in values&&key!=='--root'))throw new Error('Unknown or duplicate option: '+key);if(flags.includes(key))values[key]='true';else{if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing value: '+key);const value=args[++i];if(key==='--root')roots.push(value);else values[key]=value} }
   const positive=(key:string,fallback:number,min=1)=>{const n=values[key]===undefined?fallback:Number(values[key]);if(!Number.isSafeInteger(n)||n<min)throw new Error(key+' must be an integer of at least '+min);return n}
   const families=values['--catalogue']||values['--families']||(['draft','score'].includes(command)?path.join(__dirname,'component-families.json'):undefined)
@@ -27,7 +30,8 @@ export function parseEval(argv:string[]): EvalOptions {
   const provider=(values['--provider']||'openrouter') as DraftProvider
   if(!['openrouter','claude-cli','codex-cli'].includes(provider)||values['--provider']&&command!=='draft')throw new Error('--provider applies to draft and must be openrouter, claude-cli or codex-cli')
   if(command==='draft'&&positive('--concurrency',1)>4)throw new Error('--concurrency must be at most 4 for draft')
-  if(command!=='accuracy')validateFamilyOptions({families,familySet})
+  if(!['accuracy','compare'].includes(command)&&!(command==='arms'&&values['--family-set']&&!values['--families']&&values['--arms']==='family-fill'))validateFamilyOptions({families,familySet})
+  if(command==='arms'&&values['--arms']==='family-fill'&&values['--family-set']&&!['C','D'].includes(values['--family-set']))throw new Error('Family fill needs --family-set C or D')
   if(command==='accuracy'&&values['--families'])throw new Error('Accuracy uses --family-set without --families')
   if(values['--families']&&!['score','arms','summary'].includes(command))throw new Error('Family flags apply to score, arms or summary')
   if(values['--catalogue']&&command!=='draft')throw new Error('--catalogue applies to draft')
@@ -35,8 +39,16 @@ export function parseEval(argv:string[]): EvalOptions {
   if(command==='merge'&&(!values['--a']||!values['--b']))throw new Error('Merge needs --a and --b')
   if(roots.length&&command!=='leak-check')throw new Error('--root applies to leak-check')
   const runs=values['--runs']?.split(',').map(identifier)||[]
+  const heldOutRuns=values['--held-out-runs']?.split(',').map(identifier)||[]
   if(new Set(runs).size!==runs.length)throw new Error('Duplicate run')
+  if(new Set(heldOutRuns).size!==heldOutRuns.length)throw new Error('Duplicate held-out run')
+  const pair=values['--baseline']+'|'+values['--candidate']
+  if(command==='compare'&&(!['blocks-production|family-fill','blocks-production|blocks-production+repair','family-fill|family-fill+repair'].includes(pair)||runs.length!==2||heldOutRuns.length!==1||!['C','D'].includes(familySet||'')))throw new Error('Compare needs a supported baseline/candidate pair, two --runs, one --held-out-runs and --family-set C or D')
+  if(command!=='compare'&&(values['--baseline']||values['--candidate']||values['--held-out-runs']))throw new Error('Comparison options apply to compare')
   if(command==='accuracy'&&(!values['--arm']||![1,2,4].includes(runs.length)))throw new Error('Accuracy needs --arm and one, two or four --runs')
+  if(command==='verify'&&(!values['--arm']||!runs.length))throw new Error('Verify needs --arm and --runs')
+  if(command==='repair'&&(!['blocks-production','family-fill'].includes(values['--arm'])||!runs.length||!!values['--dry-run']===!!values['--yes-spend']))throw new Error('Repair needs --arm blocks-production|family-fill, --runs, and exactly one of --dry-run or --yes-spend')
+  if(values['--held-out']&&command!=='repair')throw new Error('--held-out applies to repair')
   if(command==='score'&&values['--runs']&&(!values['--arm']||!runs.length))throw new Error('Score needs --arm with --runs')
   if(values['--round']&&(command!=='review'||!['1','2'].includes(values['--round'])))throw new Error('--round applies to review and must be 1 or 2')
   const arms=values['--arms']?.split(',').map(identifier)||[]
@@ -44,7 +56,7 @@ export function parseEval(argv:string[]): EvalOptions {
   if(values['--families']&&command==='arms'&&(arms.some(arm=>arm!=='jev-pick')))throw new Error('Family picking applies only to jev-pick')
   if(arms.some(arm=>![...ARMS,'jev-pick'].includes(arm)))throw new Error('Unknown arm')
   if(new Set(arms).size!==arms.length)throw new Error('Duplicate arm')
-  return {families,familySet,command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],model:values['--model'],provider,onlyFailed:!!values['--only-failed'],out:values['--out'],a:values['--a'],b:values['--b'],c:values['--c'],round:values['--round']?Number(values['--round']) as 1|2:undefined}
+  return {families,familySet,command,run:identifier(values['--run']||'r1'),arms,arm:values['--arm']?identifier(values['--arm']):undefined,runs,heldOutRuns,baseline:values['--baseline'],candidate:values['--candidate'],roots,concurrency:positive('--concurrency',1),dryRun:!!values['--dry-run'],yesSpend:!!values['--yes-spend'],heldOut:!!values['--held-out'],model:values['--model'],provider,onlyFailed:!!values['--only-failed'],out:values['--out'],a:values['--a'],b:values['--b'],c:values['--c'],round:values['--round']?Number(values['--round']) as 1|2:undefined}
 }
 export function estimate(history:SavedResult[], arm:string) {
   const rows=history.filter(r=>r.arm===arm&&r.calls.length)
@@ -103,7 +115,7 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     }
     if(options.command==='arms') {
       for(const arm of options.arms) {
-        const args=['--page',page,'--arm',arm,'--run',options.run,...familyArgs]
+        const args=['--page',page,'--arm',arm,'--run',options.run,...familyArgs,...(arm==='family-fill'&&options.familySet&&!options.families?['--family-set',options.familySet]:[])]
         await add(page,'arms','run-arm.ts',args,path.join(arms,options.families?'jev-pick@families-'+options.familySet:arm,options.run),true,true,arm)
       }
     }
@@ -153,6 +165,13 @@ async function draftHistory():Promise<SavedResult[]> {
   return history
 }
 export async function evaluate(options:EvalOptions) {
+  if(options.command==='repair'){
+    try {await repairSavedRuns({arm:options.arm as 'blocks-production'|'family-fill',runs:options.runs,heldOut:options.heldOut,dryRun:options.dryRun,yesSpend:options.yesSpend})}
+    catch(error){if(options.heldOut)throw new Error('Held-out repair failed');throw error}
+    return []
+  }
+  if(options.command==='verify'){const result=await verifySavedRuns({arm:options.arm!,runs:options.runs});if(result.mismatches.length)process.exitCode=1;return []}
+  if(options.command==='compare'){await generateComparison(dataRoot(),{baseline:options.baseline!,candidate:options.candidate!,runs:options.runs,heldOutRuns:options.heldOutRuns,familySet:options.familySet!});return []}
   if(options.command==='accuracy'){await generateAccuracy(dataRoot(),{arm:options.arm!,runs:options.runs,familySet:options.familySet});return []}
   if(options.command==='leak-check'){process.exitCode=await checkLeaks([dataRoot(),...options.roots]);return []}
   if(options.families)await loadFamilies(options.families,options.familySet!)

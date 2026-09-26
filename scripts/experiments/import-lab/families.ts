@@ -6,6 +6,12 @@ import type { Pick } from './pick-score'
 
 export interface FamilyOptions { families?: string; familySet?: string }
 export interface FamilySet { set: string; sha256: string; entries: Array<{type:string;description:string;types:string[]}>; byType: Record<string,string> }
+export const foldedFamilies=['stats','testimonials','pricing','logo-strip'] as const
+export const foldFamily=(name:string)=>foldedFamilies.includes(name as typeof foldedFamilies[number])?'collection':name
+export function labelForFamilySet<T extends {family?:string|null;acceptableFamilies?:string[];familiesInOrder?:string[]}>(label:T,set:string):T {
+  if(set!=='D')return label
+  return {...label,family:label.family==null?label.family:foldFamily(label.family),acceptableFamilies:label.acceptableFamilies?.map(foldFamily),familiesInOrder:label.familiesInOrder?.map(foldFamily)}
+}
 export function validateFamilyOptions(options:FamilyOptions) {
   if(Boolean(options.families)!==Boolean(options.familySet))throw new Error('Use --families and --family-set together')
   if(options.familySet&&!/^[A-Za-z][A-Za-z0-9_-]*$/.test(options.familySet))throw new Error('Invalid family set name')

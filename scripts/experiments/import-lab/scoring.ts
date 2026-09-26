@@ -1,9 +1,9 @@
 import { componentStrings, componentResources, extractPageEvidence, isHumanText, measureTextKept, measureTextNotFound, normalizeText, containsPhrase, wordShingles, TEXT_COVERAGE_THRESHOLD, absoluteUrl, type Component, type Field } from './metrics'
-import { familyOf, type FamilySet } from './families'
+import { familyOf, foldFamily, foldedFamilies, labelForFamilySet, type FamilySet } from './families'
 import { familySchemas } from './family-schemas'
 import { sha, type Block, type FamilyLabel } from './labels'
 import type { SourceEvidence } from './source-evidence'
-import { fallbackEvidence } from './source-evidence'
+import { contentImage, fallbackEvidence } from './source-evidence'
 import { createRequire } from 'node:module'
 const {parseFragment}=createRequire(__filename)('parse5') as typeof import('parse5')
 const verdicts=['correct','right type, content incomplete','wrong type','missed','should have been ignored','unsettled'] as const
@@ -12,7 +12,7 @@ interface Check { passed: boolean | null; expected: unknown; produced: unknown; 
 interface BlockScore { id: string; order: number; description: string; acceptableFamilies: string[]; producedFamilies: string[]; producedTypes: string[]; componentIndices: number[]; verdict: Verdict; checks: Record<'C1'|'C2'|'C3'|'C4'|'C5'|'C6'|'C7',Check>; failedChecks: string[]; split: boolean; splitAllowed: boolean; merged: boolean; ignored: boolean; structuralErrors: string[] }
 export interface V2Sheet {version:2;page:string;heldOut?:boolean;snapshotSha256:string;proposalSha256:string;blocks?:Block[];familySet:string;entries:Array<{blockId:string;order:number;status:string;label:Record<string,unknown>}>}
 const hasDispute=(value:unknown):boolean=>!!value&&typeof value==='object'&&(('disputed' in value&&value.disputed===true)||Object.values(value).some(hasDispute))
-const familyName=(type:string,families:FamilySet)=>families.entries.some(entry=>entry.type===type)?type:familyOf(type,families)
+const familyName=(type:string,families:FamilySet)=>families.entries.some(entry=>entry.type===type)?type:families.set==='D'&&foldedFamilies.includes(type as typeof foldedFamilies[number])?foldFamily(type):familyOf(type,families)
 const includesText=containsPhrase
 const HEADING_KEYS=new Set(['title','heading','headline','subheading','subtitle','eyebrow','name','question'])
 const lastKey=(field:Field)=>field.path.split('.').pop()!.replace(/\[\d+\]/g,'')
@@ -73,14 +73,15 @@ export function countItems(components: Component[], itemKind: string | null): { 
   return {count:candidates.reduce((sum,c)=>sum+c.length,0),paths:candidates.map(c=>c.path),reason:'Counted explicit collections'}
 }
 const emptyEvidence=(block:Block,baseUrl:string):SourceEvidence=>fallbackEvidence(block,baseUrl,'Saved page evidence was not supplied')
-function unionEvidence(evidence:SourceEvidence[]):SourceEvidence {
-  return {text:evidence.flatMap(e=>e.text),headings:evidence.flatMap(e=>e.headings),links:evidence.flatMap(e=>e.links),images:evidence.flatMap(e=>e.images),wordCount:evidence.reduce((n,e)=>n+e.wordCount,0),sourceText:evidence.map(e=>e.sourceText).join(' ')}
+export function unionEvidence(evidence:SourceEvidence[]):SourceEvidence {
+  return {text:evidence.flatMap(e=>e.text),headings:evidence.flatMap(e=>e.headings),links:evidence.flatMap(e=>e.links),images:evidence.flatMap(e=>e.images),wordCount:evidence.reduce((n,e)=>n+e.wordCount,0),sourceText:evidence.map(e=>e.sourceText).join(' '),baseUrl:evidence[0]?.baseUrl}
 }
-export function checkContent(block:Block,label:FamilyLabel,components:Component[],baseUrl:string,families:FamilySet,source:SourceEvidence=emptyEvidence(block,baseUrl),pageSource=''):BlockScore['checks'] {
+export function matchedBlockEvidence(block:Block,blocks:Block[],indices:number[],matches:ReturnType<typeof matchComponents>['matches'],evidence:SourceEvidence[],baseUrl:string) {
+  const blockIds=new Set(indices.flatMap(i=>matches[i].blockIds))
+  return unionEvidence(blocks.filter(b=>blockIds.has(b.id)||b.id===block.id).map(b=>evidence[blocks.indexOf(b)]||emptyEvidence(b,baseUrl)))
+}
+export function checkVisibleContent(source:SourceEvidence,components:Component[],baseUrl:string,region:Block['region'],decorativeImages:string[]=[],pageSource='') {
   const fields=componentStrings(components), human=fields.filter(field=>isHumanText(field,1))
-  const producedFamilies=components.map(c=>familyName(c.type,families))
-  const remaining=[...label.familiesInOrder]
-  const rightType=label.multiple?producedFamilies.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:producedFamilies.some(name=>label.acceptableFamilies.includes(name))
   const missingRuns=components.length>1?(()=>{
     const words=(value:string)=>normalizeText(value).match(/[\p{L}\p{N}]+/gu)||[]
     const available=new Map<string,number>()
@@ -95,34 +96,44 @@ export function checkContent(block:Block,label:FamilyLabel,components:Component[
   })():source.text.filter(run=>!components.some(component=>measureTextKept([run],componentStrings([component])).scores[0]?.kept))
   const headingFields=[...fields.filter(f=>HEADING_KEYS.has(lastKey(f))).map(f=>f.value),...fields.filter(f=>/<[a-z][\s\S]*>/i.test(f.value)).flatMap(f=>htmlHeadings(f.value))]
   const missingHeadings=source.headings.filter(h=>!phrasePresent(headingFields,h))
-  const resources=componentResources(fields,{...extractPageEvidence('',baseUrl),images:source.images.flatMap(group=>group.addresses.map(url=>({url,region:block.region})))})
+  const resources=componentResources(fields,{...extractPageEvidence('',baseUrl),images:source.images.flatMap(group=>group.addresses.map(url=>({url,region})))})
   const outputLinks=new Set(resources.links.map(item=>absoluteUrl(item.url,baseUrl,'link')).filter(Boolean))
   const missingLinks=source.links.filter(link=>!outputLinks.has(absoluteUrl(link.url,baseUrl,'link')))
   const humanByComponent=components.map((_,index)=>fields.filter(f=>f.componentIndex===index&&(isHumanText(f,1)||/^\S+@\S+\.\S+$/.test(f.value)||/^\+?[\d\s().-]{3,}$/.test(f.value))).map(f=>normalizeText(f.value)).join(' '))
   const missingLabels=source.links.filter(link=>link.label&&!source.headings.some(h=>normalizeText(h)===normalizeText(link.label))&&!phrasePresent(humanByComponent,link.label))
   const outputImages=new Set(resources.images.map(item=>absoluteUrl(item.url,baseUrl,'image')).filter(Boolean))
-  const decorations=new Set((label.decorativeImages||[]).map(address=>absoluteUrl(address,baseUrl,'image')))
-  const contentImages=source.images.filter(group=>!group.addresses.some(address=>decorations.has(absoluteUrl(address,baseUrl,'image'))))
+  const decorations=new Set(decorativeImages.map(address=>absoluteUrl(address,baseUrl,'image')))
+  const contentImages=source.images.filter(group=>contentImage(group)&&!group.addresses.some(address=>decorations.has(absoluteUrl(address,baseUrl,'image'))))
   const missingImages=contentImages.filter(group=>!group.addresses.some(address=>outputImages.has(absoluteUrl(address,baseUrl,'image'))))
-  const item=countItems(components,label.itemKind)
   const alt=human.filter(f=>lastKey(f).toLowerCase()==='alt'),subject=human.filter(f=>lastKey(f).toLowerCase()!=='alt')
   const notFound=measureTextNotFound(subject,source.sourceText).notFound
   const totalCharacters=subject.reduce((n,f)=>n+normalizeText(f.value).length,0)
   const notFoundCharacters=notFound.reduce((n,f)=>n+normalizeText(f.value).length,0)
   const moved=notFound.filter(f=>pageSource&&measureTextNotFound([f],pageSource).notFound.length===0).map(f=>f.path)
-  return {
-    C1:{passed:components.length?rightType:false,expected:label.multiple?label.familiesInOrder:label.acceptableFamilies,produced:producedFamilies,detail:components.length?(rightType?'Right family':'Wrong family'):'No matched component'},
+  const checks={
     C2:{passed:missingRuns.length===0,expected:source.text.length,produced:source.text.length-missingRuns.length,detail:missingRuns.map(run=>run.text).join('; ')},
     C3:{passed:missingHeadings.length===0,expected:source.headings,produced:source.headings.filter(h=>!missingHeadings.includes(h)),detail:missingHeadings.join('; ')},
     C4:{passed:!missingLinks.length&&!missingLabels.length,expected:source.links,produced:resources.links.map(l=>l.url),detail:`Missing targets: ${missingLinks.map(l=>l.url).join(', ')}; labels: ${missingLabels.map(l=>l.label).join(', ')}`},
     C5:{passed:missingImages.length===0,expected:contentImages,produced:resources.images.map(i=>i.url),detail:`Missing ${missingImages.length} of ${contentImages.length} groups`},
-    C6:{passed:label.itemCount===null||item.count===null?null:item.count===label.itemCount,expected:label.itemCount,produced:item.count,detail:label.itemCount!==null&&item.count===null?'structure-unknown: '+item.reason:item.reason,structureUnknown:label.itemCount!==null&&item.count===null},
     C7:{passed:totalCharacters?notFoundCharacters/totalCharacters<=0.05:true,expected:{maximumShare:0.05},produced:{notFoundCharacters,totalCharacters,altExemptCharacters:alt.reduce((n,f)=>n+normalizeText(f.value).length,0),moved},detail:notFound.map(f=>f.path).join(', ')}
+  }
+  return {checks,missing:{text:missingRuns.map(run=>run.text),links:source.links.filter(link=>missingLinks.includes(link)||missingLabels.includes(link)),images:missingImages.map(group=>group.addresses)},invented:notFound.map(field=>field.value)}
+}
+export function checkContent(block:Block,label:FamilyLabel,components:Component[],baseUrl:string,families:FamilySet,source:SourceEvidence=emptyEvidence(block,baseUrl),pageSource=''):BlockScore['checks'] {
+  label=labelForFamilySet(label,families.set)
+  const producedFamilies=components.map(c=>familyName(c.type,families))
+  const remaining=[...label.familiesInOrder]
+  const rightType=label.multiple?producedFamilies.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:producedFamilies.some(name=>label.acceptableFamilies.includes(name))
+  const item=countItems(components,label.itemKind)
+  return {
+    C1:{passed:components.length?rightType:false,expected:label.multiple?label.familiesInOrder:label.acceptableFamilies,produced:producedFamilies,detail:components.length?(rightType?'Right family':'Wrong family'):'No matched component'},
+    ...checkVisibleContent(source,components,baseUrl,block.region,label.decorativeImages||[],pageSource).checks,
+    C6:{passed:label.itemCount===null||item.count===null?null:item.count===label.itemCount,expected:label.itemCount,produced:item.count,detail:label.itemCount!==null&&item.count===null?'structure-unknown: '+item.reason:item.reason,structureUnknown:label.itemCount!==null&&item.count===null}
   }
 }
 export function scoreSheet(sheet:V2Sheet,components:Component[],baseUrl:string,options:{families:FamilySet;blocks:Block[];evidence?:SourceEvidence[];pageSource?:string;allMissed?:boolean}) {
   if(sheet?.version!==2||!Array.isArray(sheet.entries))throw new Error('Expected a version-2 answer sheet (answer-sheet-v2.json); version-1 sheets cannot be scored')
-  if(sheet.familySet!==options.families.set)throw new Error('Answer sheet and scoring family sets differ')
+  if(sheet.familySet!==options.families.set&&!(sheet.familySet==='C'&&options.families.set==='D'))throw new Error('Answer sheet and scoring family sets differ')
   if(!Array.isArray(components)||components.some(c=>!c||typeof c.type!=='string'))throw new Error('Expected a JSON array of components, each with a string type')
   components.forEach(c=>familyName(c.type,options.families))
   if(sheet.entries.length!==options.blocks.length||sheet.entries.some((entry,index)=>entry.blockId!==options.blocks[index].id))throw new Error('Version-2 answer sheet and block proposal differ')
@@ -133,9 +144,8 @@ export function scoreSheet(sheet:V2Sheet,components:Component[],baseUrl:string,o
     const produced=indices.map(i=>components[i]),types=produced.map(c=>c.type),mapped=types.map(type=>familyName(type,options.families))
     const unsettled=hasDispute(entry.label)
     if(!unsettled&&(!entry.label||typeof entry.label!=='object'))throw new Error('Missing version-2 label: '+block.id)
-    const label=entry.label as unknown as FamilyLabel
-    const blockIds=new Set(indices.flatMap(i=>matching.matches[i].blockIds))
-    const source=unionEvidence(options.blocks.filter(b=>blockIds.has(b.id)||b.id===block.id).map(b=>options.evidence?.[options.blocks.indexOf(b)]||emptyEvidence(b,baseUrl)))
+    const label=labelForFamilySet(entry.label as unknown as FamilyLabel,options.families.set)
+    const source=matchedBlockEvidence(block,options.blocks,indices,matching.matches,options.evidence||[],baseUrl)
     const checks=unsettled?Object.fromEntries(['C1','C2','C3','C4','C5','C6','C7'].map(name=>[name,{passed:null,expected:null,produced:null,detail:'Unsettled label'}])) as BlockScore['checks']:checkContent(block,label,produced,baseUrl,options.families,source,options.pageSource)
     if(!unsettled&&(!indices.length||label.ignore))for(const check of Object.values(checks)){check.passed=null;check.structureUnknown=false;check.detail=label.ignore?'Ignored block':'No matched component'}
     const failedChecks=Object.entries(checks).filter(([,check])=>check.passed===false).map(([name])=>name)

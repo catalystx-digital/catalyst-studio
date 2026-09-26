@@ -4,7 +4,7 @@ export interface BlockCatalogueOverride {
   contract: string
   omitRules: string[]
   validateContent: (type: string, content: Record<string, unknown>) => Record<string, unknown>
-  location: (type: string, content: Record<string, unknown>) => 'header' | 'main' | 'sidebar' | 'footer'
-  /** First production type in set C; used only for page-template compatibility. */
+  location: (type: string, content: Record<string, unknown>) => 'header' | 'hero' | 'main' | 'footer'
+  /** Production type used by override-only required-role checks and template assembly. */
   templateEquivalent: (family: string) => string
 }

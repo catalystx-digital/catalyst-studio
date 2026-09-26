@@ -132,6 +132,28 @@ test('incomplete JSON with a stop finish reason also retries unchanged', async (
   expect(create.mock.calls[0][0]).toEqual(create.mock.calls[1][0])
 })
 
+test('non-string provider content fails at llm_call without a truncation retry', async () => {
+  const create = jest.fn().mockResolvedValue({
+    choices: [{ finish_reason: 'stop', message: { content: [] } }]
+  })
+  await expect(extractBlock(args(create))).rejects.toMatchObject({
+    message: 'jsonStr.trim is not a function',
+    debug: { requestCount: 1, stage: 'llm_call' }
+  })
+  expect(create).toHaveBeenCalledTimes(1)
+})
+
+test('a valid reply after non-string provider content is never requested', async () => {
+  const create = jest.fn()
+    .mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: [] } }] })
+    .mockResolvedValueOnce(response(valid))
+  await expect(extractBlock(args(create))).rejects.toMatchObject({
+    message: 'jsonStr.trim is not a function',
+    debug: { requestCount: 1, stage: 'llm_call' }
+  })
+  expect(create).toHaveBeenCalledTimes(1)
+})
+
 const providerError = {
   id: 'fixture-response',
   error: { message: 'Upstream server error', code: 502, metadata: { error_type: 'provider_unavailable' } }

@@ -1,4 +1,4 @@
-Use briefs 01 through 23 in order to rebuild this lab. Keep the originals unchanged; add a new numbered brief for later work.
+Use the numbered briefs in order to rebuild this lab. Brief 27 covers the targeted repair arm over saved runs. Keep the originals unchanged; add a new numbered brief for later work.
 
 These briefs were given to a coding agent with no internet, no paid calls and no secrets. The agent could read saved local evidence, use invented fixtures and run offline checks. Real site names and page content must stay out of source files and new briefs. The owner runs any internet or paid evaluation stages separately.
 
@@ -32,6 +32,12 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 21 | [Checker fixes from the second check](21-checker-fixes-round2.md) | Keep image-alt-only logo headings out of C3 and draw stick checks only from settled verdicts, using current scores when answers are saved. | The founder's second spot-check agreed on 13 of 30; evidence supported the checker in most cases, with these two exceptions. |
 | 22 | [Family schemas and fill arm](22-family-fill-arm.md) | Add strict schemas for 15 families and a lab-only family fill arm using production cutting and picking. | Compare generic family filling with production's overlapping component fills on the same saved pages. |
 | 23 | [Fair family comparison](23-fair-family-comparison.md) | Use one production blocks path with an optional catalogue override in `lib/studio/import/detection/blocks/` and minimum web-detection wiring. | The first family fill arm had different execution and acceptance rules, so its comparison was uncontrolled. |
+| 24 | [Family go / no-go screen](24-go-no-go.md) | Compare paired family and production stick scores with site, check, noise and held-out gates. | The founder needs one decision screen for the 15 families. |
+| 25 | [Family required-section fix](25-family-drop-fix.md) | Apply the override's production-equivalent type when checking required header and footer blocks. | A valid family header was parsed but rejected by a production-only type check. |
+| 26 | [Automatic block verification](26-block-verification.md) | Check imported development sections for missing text, links and images or invented text using source evidence alone. | A runtime check is needed before a targeted repair call can list missing content. |
+| 27 | [Targeted repair](27-targeted-repair.md) | Repair only sections with measured missing or invented content. | The verifier identified content gaps after import. |
+| 28 | [Family fairness gaps](28-family-fairness-gaps.md) | Validate family links with production SmartLink rules and place families as their production equivalents for template assembly. | Final ruling removed family-only link, settings and media repairs; saved development comparisons showed four generic-template region failures. |
+| 29 | [Fold to eleven families](29-fold-to-eleven.md) | Add set D with 11 families, fold four kinds into collection, and score historical set-C labels under D. | Gate G3 found 33.2% folded development accuracy against 32.9% for set C, with only 0–1.7% confusion for the folded families. |
 
 ## Removed after the decisions
 

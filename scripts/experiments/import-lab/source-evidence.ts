@@ -7,7 +7,7 @@ const { parse } = createRequire(__filename)('parse5') as typeof import('parse5')
 type Node = {tagName?:string;nodeName?:string;value?:string;attrs?:Array<{name:string;value:string}>;childNodes?:Node[]}
 type GeometryNode = {anchorKey?:string|null;box?:Box;evidence?:{images?:string[]};children?:GeometryNode[]}
 export interface ImageGroup {id?:number;addresses:string[]; width:number|null; height:number|null; alt?:string; kind:'image'|'background';clonedCarouselCopy?:boolean}
-export interface SourceEvidence {text:Array<{text:string;region:Region}>; headings:string[]; links:Array<{url:string;label:string}>; images:ImageGroup[]; wordCount:number; sourceText:string; issue?:string}
+export interface SourceEvidence {text:Array<{text:string;region:Region}>; headings:string[]; links:Array<{url:string;label:string}>; images:ImageGroup[]; wordCount:number; sourceText:string; baseUrl?:string; issue?:string}
 const attrs=(node:Node)=>Object.fromEntries((node.attrs||[]).map(a=>[a.name,a.value]))
 const elements=(node:Node)=>(node.childNodes||[]).filter(n=>n.tagName)
 const descendants=(node:Node):Node[]=>[node,...(node.childNodes||[]).flatMap(descendants)]
@@ -16,10 +16,32 @@ const rawText=(node:Node):string=>node.nodeName==='#text'?node.value||'':(node.c
 const oneUrl=(value:string|undefined,base:string)=>value?[absoluteUrl(value,base,'image')].filter((url):url is string=>!!url):[]
 const srcsetUrls=(value:string|undefined,base:string)=>value?value.replace(/data:[^\s]+(?:\s+\S+)?/gi,'').split(',').flatMap(part=>oneUrl(part.trim().split(/\s+/)[0],base)):[]
 const size=(a:Record<string,string>,g?:GeometryNode)=>({width:Math.max(Number(a.width)||0,g?.box?.width||0)||null,height:Math.max(Number(a.height)||0,g?.box?.height||0)||null})
-const counted=(group:ImageGroup)=>!((group.width===1&&group.height===1)||(group.width!==null&&group.height!==null&&group.width<16&&group.height<16))
+export const contentImage=(group:ImageGroup)=>!group.clonedCarouselCopy&&!((group.width===1&&group.height===1)||(group.width!==null&&group.height!==null&&group.width<16&&group.height<16))
 export function fallbackEvidence(block:Block,pageUrl:string,issue:string):SourceEvidence {
   const sourceText=normalizeText(block.text)
-  return {text:sourceText.length>=12?[{text:sourceText,region:block.region}]:[],headings:block.headings.map(normalizeText),links:[...new Set(block.links.map(url=>absoluteUrl(url,pageUrl,'link')).filter((url):url is string=>!!url))].map(url=>({url,label:''})),images:block.images.map((address,id)=>({id,addresses:[absoluteUrl(address,pageUrl,'image')||address],width:null,height:null,alt:'',kind:'image'})),wordCount:sourceText.split(/\s+/).filter(Boolean).length,sourceText,issue}
+  return {text:sourceText.length>=12?[{text:sourceText,region:block.region}]:[],headings:block.headings.map(normalizeText),links:[...new Set(block.links.map(url=>absoluteUrl(url,pageUrl,'link')).filter((url):url is string=>!!url))].map(url=>({url,label:''})),images:block.images.map((address,id)=>({id,addresses:[absoluteUrl(address,pageUrl,'image')||address],width:null,height:null,alt:'',kind:'image'})),wordCount:sourceText.split(/\s+/).filter(Boolean).length,sourceText,baseUrl:pageUrl,issue}
+}
+
+// A saved fill request is the only source for a production block that was cut
+// during the paid render but is absent from the earlier saved label geometry.
+export function inputEvidence(payload:{nodes?:Array<{tag?:string;text?:string;attrs?:Record<string,string>;bgImage?:string}>;role?:string},pageUrl:string):SourceEvidence {
+  const region:Region=payload.role==='header'||payload.role==='footer'?payload.role:'main'
+  const text:SourceEvidence['text']=[],headings:string[]=[],links:SourceEvidence['links']=[],images:ImageGroup[]=[]
+  const sourceText:string[]=[]
+  for(const node of payload.nodes||[]) {
+    const value=normalizeText(node.text||'')
+    if(value){text.push({text:value,region});sourceText.push(value)}
+    if(/^h[1-6]$/.test(node.tag||'')&&value)headings.push(value)
+    const attrs=node.attrs||{}
+    if(node.tag==='a'){
+      const url=absoluteUrl(attrs.href||'',pageUrl,'link')
+      if(url)links.push({url,label:value})
+    }
+    if(attrs.alt)sourceText.push(normalizeText(attrs.alt))
+    const addresses=[...oneUrl(attrs.src,pageUrl),...srcsetUrls(attrs.srcset,pageUrl),...oneUrl(node.bgImage,pageUrl)]
+    if(addresses.length)images.push({id:images.length,addresses:[...new Set(addresses)],width:Number(attrs.width)||null,height:Number(attrs.height)||null,alt:attrs.alt||'',kind:node.bgImage?'background':'image'})
+  }
+  return {text,headings:[...new Set(headings)],links,images,wordCount:text.reduce((n,item)=>n+item.text.split(/\s+/).length,0),sourceText:normalizeText(sourceText.join(' ')),baseUrl:pageUrl}
 }
 export function blockEvidence(html:string, stylesheets:string[], block:Block, geometry:unknown, pageUrl:string, includeDecorative=false):SourceEvidence {
   if (!geometry || typeof geometry!=='object' || !('tree' in geometry)) throw new Error('Missing geometry.json')
@@ -49,7 +71,7 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
   const extracted=extractPageEvidence(html,pageUrl,stylesheets,{document:doc,roots,visibility:{...visibility,isHidden:(node:Node)=>isHidden(node)||excludedText.has(node)}})
   const headings:string[]=[],links:SourceEvidence['links']=[],images:ImageGroup[]=[]
   const seenImages=new Set<string>()
-  const pushImage=(group:ImageGroup)=>{group.addresses=[...new Set(group.addresses)];const signature=[...group.addresses].sort().join('|');if(group.addresses.length&&(includeDecorative||counted(group)&&!group.clonedCarouselCopy)&&(includeDecorative||!seenImages.has(signature))){seenImages.add(signature);images.push({...group,id:images.length})}}
+  const pushImage=(group:ImageGroup)=>{group.addresses=[...new Set(group.addresses)];const signature=[...group.addresses].sort().join('|');if(group.addresses.length&&(includeDecorative||contentImage(group))&&(includeDecorative||!seenImages.has(signature))){seenImages.add(signature);images.push({...group,id:images.length})}}
   const walk=(node:Node,path:number[],parentPicture?:{addresses:string[];width:number|null;height:number|null;alt:string},cloned=false,imageOnly=false)=>{
     const a=attrs(node)
     cloned=cloned||/\b(?:swiper-slide-duplicate|slick-cloned|clone|cloned)\b/i.test(a.class||'')
@@ -87,5 +109,5 @@ export function blockEvidence(html:string, stylesheets:string[], block:Block, ge
   const collectAttributes=(node:Node)=>{if(excluded.has(node.tagName||'')||isHidden(node)||excludedText.has(node))return;const a=attrs(node);attributes.push(...['alt','title','aria-label'].map(key=>a[key]).filter(Boolean));node.childNodes?.forEach(collectAttributes)}
   roots.forEach(collectAttributes)
   const sourceText=[...extracted.visibleText,...attributes].join(' ')
-  return {text:extracted.text,headings:[...new Set(headings)],links,images,wordCount:extracted.visibleText.flatMap(run=>run.split(/\s+/).filter(Boolean)).length,sourceText:normalizeText(sourceText)}
+  return {text:extracted.text,headings:[...new Set(headings)],links,images,wordCount:extracted.visibleText.flatMap(run=>run.split(/\s+/).filter(Boolean)).length,sourceText:normalizeText(sourceText),baseUrl:pageUrl}
 }

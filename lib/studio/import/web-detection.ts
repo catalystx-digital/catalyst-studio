@@ -897,7 +897,7 @@ export class DetectionService {
       provider: `${OpenRouterConfig.baseUrl}|${ModelConfig.allowedProvider || 'any'}`
     })).pageSummary
     const catalogueOverride = options.catalogueOverride
-    const components = aggregateSectionArtifacts(tasks, artifacts)
+    const components = aggregateSectionArtifacts(tasks, artifacts, catalogueOverride?.templateEquivalent)
     if (checkpointSession && checkpointService) {
       for (const artifact of artifacts) {
         if (!artifact.requiredSectionEmpty || !artifact.satisfiedBySectionKey) {

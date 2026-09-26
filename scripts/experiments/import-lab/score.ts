@@ -8,17 +8,26 @@ import { extractPageEvidence, type Component } from './metrics'
 import { blockEvidence } from './source-evidence'
 import type { V2Sheet } from './scoring'
 import { stickScoreName } from './stick-version'
+import { loadPages } from './pages'
+function scoreName(value:string) {
+  if(value.includes('+')) {
+    if(!/^(?:blocks-production|family-fill)\+repair--[a-zA-Z0-9_][a-zA-Z0-9_@.-]{0,239}--stick2-family-[A-Z]$/.test(value))throw new Error('Invalid repair arm score name')
+    return value
+  }
+  return slug(value)
+}
 export function runIsMissed(record:{failures?:Array<{stage?:string}>}|null,components:Component[]|null) {
   return !record||!components||record.failures?.some(f=>f.stage==='run')===true
 }
 async function performScorePage(page:string,options:ScoreOptions,families:FamilySet) {
-  const directory=labelDirectory(page),sheet=await readJson<V2Sheet>(path.join(directory,'answer-sheet-v2.json')),proposal=await readJson<Proposal>(path.join(directory,'blocks.json'))
+  const root=options.root||dataRoot(),directory=options.root?path.join(root,'labels',slug(page)):labelDirectory(page),sheet=await readJson<V2Sheet>(path.join(directory,'answer-sheet-v2.json')),proposal=await readJson<Proposal>(path.join(directory,'blocks.json'))
+  const heldOut=(options.root?(await readJson<Record<string,{heldOut?:boolean}>>(path.join(root,'pages.json')))[page]?.heldOut:(await loadPages(false))[page]?.heldOut)===true||sheet.heldOut===true
   if(sheet.version!==2)throw new Error('Expected a version-2 answer sheet (answer-sheet-v2.json)')
   const sourceBlocks=sheet.blocks||proposal.blocks
   if(sheet.snapshotSha256!==proposal.snapshotSha256||sheet.proposalSha256!==sha({...proposal,blocks:sourceBlocks}))throw new Error('Answer sheet and snapshot differ')
   const geometry=await optionalJson(path.join(directory,'geometry.json'))
   if(!geometry)throw new Error('Missing geometry.json for '+page)
-  const html=await fs.readFile(path.join(dataRoot(),'pages',page,'page.html'),'utf8')
+  const html=await fs.readFile(path.join(root,'pages',page,'page.html'),'utf8')
   if(digest(html)!==sheet.snapshotSha256)throw new Error('Saved page HTML snapshot checksum differs from answer sheet and proposal')
   const scores=path.join(directory,'scores-stick')
   let source: {evidence:ReturnType<typeof blockEvidence>[];pageSource:string}|undefined
@@ -27,15 +36,16 @@ async function performScorePage(page:string,options:ScoreOptions,families:Family
     if(record&&record.snapshotSha256!==sheet.snapshotSha256)throw new Error('Run snapshot checksum differs from answer sheet and proposal: '+name)
     const components=await optionalJson<Component[]>(componentFile)
     const allMissed=runIsMissed(record,components)
-    const file=path.join(scores,slug(name)+'.json')
-    if(await optionalJson(file)){if(!sheet.heldOut)console.log('Saved score kept: '+name);return}
-    if(!source){const stylesheets=await readJson<string[]>(path.join(dataRoot(),'pages',page,'stylesheets.json'));source={evidence:sourceBlocks.map(block=>blockEvidence(html,stylesheets,block,geometry,proposal.finalUrl)),pageSource:extractPageEvidence(html,proposal.finalUrl,stylesheets).visibleText.join(' ')}}
-    const result={...scoreSheet(sheet,allMissed?[]:components!,proposal.finalUrl,{families,blocks:sourceBlocks,...source,allMissed}),name,status:'complete',familySet:families.set,familySha256:families.sha256,...(record?{run:record}:{})}
+    const file=path.join(scores,scoreName(name)+'.json')
+    if(await optionalJson(file)){if(!heldOut)console.log('Saved score kept: '+name);return}
+    if(!source){const stylesheets=await readJson<string[]>(path.join(root,'pages',page,'stylesheets.json'));source={evidence:sourceBlocks.map(block=>blockEvidence(html,stylesheets,block,geometry,proposal.finalUrl)),pageSource:extractPageEvidence(html,proposal.finalUrl,stylesheets).visibleText.join(' ')}}
+    const measured=scoreSheet(sheet,allMissed?[]:components!,proposal.finalUrl,{families,blocks:sourceBlocks,...source,allMissed})
+    const result=heldOut?{version:measured.version,name,status:'complete',familySet:families.set,accuracy:measured.accuracy}:{...measured,name,status:'complete',familySet:families.set,familySha256:families.sha256,...(record?{run:record}:{})}
     await saveNewScore(file,result)
-    if(!sheet.heldOut)console.log(name+': '+result.counts.correct+' correct; '+result.counts['right type, content incomplete']+' right family incomplete; '+result.counts.missed+' missed')
+    if(!heldOut)console.log(name+': '+measured.counts.correct+' correct; '+measured.counts['right type, content incomplete']+' right family incomplete; '+measured.counts.missed+' missed')
   }
   if(options.allRuns){
-    const folder=path.join(dataRoot(),'arms',page,'blocks-production')
+    const folder=path.join(root,'arms',page,'blocks-production')
     for(const run of await directories(folder)){
       const runFolder=path.join(folder,run)
       await save(stickScoreName('blocks-production',run,families.set),path.join(runFolder,'components.json'))
@@ -57,4 +67,4 @@ async function saveNewScore(file:string,value:unknown) {
   try { await fs.writeFile(file,JSON.stringify(value,null,2)+'\n',{flag:'wx'}) }
   catch(error) { if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;console.log('Saved score kept: '+path.basename(file)) }
 }
-interface ScoreOptions extends FamilyOptions {components?:string;name?:string;allRuns?:boolean}
+interface ScoreOptions extends FamilyOptions {components?:string;name?:string;allRuns?:boolean;root?:string}

@@ -15,26 +15,32 @@ export interface SectionExtractionArtifact {
   extractionFailed?: boolean
 }
 
-function satisfiesRequiredRole(task: DetectionSectionTask, artifact: SectionExtractionArtifact): boolean {
+function satisfiesRequiredRole(
+  task: DetectionSectionTask,
+  artifact: SectionExtractionArtifact,
+  templateEquivalent?: (type: string) => string
+): boolean {
   if (task.role === 'header') {
-    return artifact.components.some(component => component.type === 'navbar')
+    return artifact.components.some(component => (templateEquivalent ? templateEquivalent(component.type) : component.type) === 'navbar')
   }
   if (task.role === 'footer') {
-    return artifact.components.some(component => component.type === 'footer')
+    return artifact.components.some(component => (templateEquivalent ? templateEquivalent(component.type) : component.type) === 'footer')
   }
   return artifact.components.length > 0
 }
 
 function findRequiredRoleSatisfaction(
   task: DetectionSectionTask,
-  artifacts: SectionExtractionArtifact[]
+  artifacts: SectionExtractionArtifact[],
+  templateEquivalent?: (type: string) => string
 ): SectionExtractionArtifact | undefined {
-  return artifacts.find(artifact => artifact.sectionKey !== task.sectionKey && satisfiesRequiredRole(task, artifact))
+  return artifacts.find(artifact => artifact.sectionKey !== task.sectionKey && satisfiesRequiredRole(task, artifact, templateEquivalent))
 }
 
 export function aggregateSectionArtifacts(
   tasks: DetectionSectionTask[],
-  artifacts: SectionExtractionArtifact[]
+  artifacts: SectionExtractionArtifact[],
+  templateEquivalent?: (type: string) => string
 ): DetectedComponent[] {
   const byKey = new Map(artifacts.map(artifact => [artifact.sectionKey, artifact]))
   const missing = tasks.filter(task => task.required && !byKey.has(task.sectionKey))
@@ -52,7 +58,7 @@ export function aggregateSectionArtifacts(
       ? artifacts.filter(candidate => tasks.some(regionTask => regionTask.role === task.role && regionTask.sectionKey === candidate.sectionKey))
       : artifacts
     if (!artifact || (artifact.components.length > 0 &&
-      (!isBlock || satisfiesRequiredRole(task, artifact)))) {
+      (!isBlock || satisfiesRequiredRole(task, artifact, templateEquivalent)))) {
       continue
     }
     if (artifact.extractionFailed) {
@@ -62,7 +68,7 @@ export function aggregateSectionArtifacts(
       // caller already has the section's own error. Drop the region, keep the page.
       continue
     }
-    const satisfiedBy = findRequiredRoleSatisfaction(task, regionArtifacts)
+    const satisfiedBy = findRequiredRoleSatisfaction(task, regionArtifacts, templateEquivalent)
     if (satisfiedBy) {
       if (!isBlock || artifact.components.length === 0) {
         artifact.requiredSectionEmpty = true

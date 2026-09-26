@@ -1,6 +1,26 @@
 # How other tools model page content, and a proposed importer catalogue
 
-**Status: approved by the founder at gate G1 (2026-09-24).** Set `C` in `scripts/experiments/import-lab/component-families.json` is the mapping. Nothing in the app changes until the offline proof (Phase C) and a founder go.
+**Current decision: GO at gate G3 (2026-09-26).** The founder folded `stats`, `testimonials`, `pricing` and `logo-strip` into `collection`. Set `D` is the 11-family mapping for later runs. Jev confused each specialist family with collection only 0–1.7% of the time, and the folded development re-score was 33.2% against 32.9% for set C. Set C and the research below remain as the historical G1 catalogue and comparison.
+
+## Set D: 11 families
+
+| Family | One-line rule |
+| --- | --- |
+| Site header | Global identity and navigation at the top of the page. |
+| Site footer | Site-wide links, legal text and contact details at the bottom. |
+| Local navigation | Links within this page or section, such as breadcrumbs or a side menu. |
+| Hero | The prominent page introduction or opening banner. |
+| Content | Mainly editorial text and supporting information, without repeated sibling items. |
+| Collection | Repeated cards, posts, events, numbers, quotes, prices or logos; `settings.itemKind` is `card`, `stat`, `quote`, `price` or `logo`. |
+| Disclosure | Content revealed by an accordion or tabs. |
+| CTA | A short prompt toward an action without form fields. |
+| Form | A section with fields the visitor fills in. |
+| Table | Structured rows, comparisons or charts. |
+| Media | Images, video or maps make up most of the section. |
+
+Collection keeps the shared Item shape: a stat uses `title` for the value and `body` for its label; a quote uses `body` for the quotation, `title` for the name and `subtitle` for the role; a price uses `meta` for price and period plus `links`; a logo can use `media` alone. Set C's 15-family mapping remains unchanged for old answer keys and the G3 comparison.
+
+**Historical status: approved at gate G1 (2026-09-24).** Set `C` in `scripts/experiments/import-lab/component-families.json` was the mapping proposed for Phase C.
 
 Gate G1 decisions:
 - The 15 families below are approved.

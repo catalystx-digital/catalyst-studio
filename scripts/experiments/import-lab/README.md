@@ -8,9 +8,9 @@ Measure production detection against saved snapshots and reviewed blocks. Start 
 | --- | --- |
 | blocks-production | Production DetectionService with the blocks harness: production cutting, decisions, fills, retries and assembly. No post-detection repair. |
 | jev-pick | Production block input, questions, evidence and selection against reviewed labels, including family mode. |
-| family-fill | The same production blocks harness with an optional catalogue override for 15 family schemas. |
+| family-fill | The same production blocks harness with a catalogue override for 11 set-D family schemas by default. |
 
-`family-fill` uses family set C through `catalogueOverride`. Both arms use production decision resolution, prompt assembly, response parsing, cutting, scheduling, retries, validation gates, assembly and logical-call recording. Family template compatibility uses the first production type listed for each family in set C; other template rules remain production rules. Dry runs use saved geometry to plan one decision and one fill per block; their call lists and `run.json` are saved. Compare `components.json` with `blocks-production` using `score.ts --page PAGE --all-runs`; stick2 scores are under `labels/PAGE/scores-stick/`.
+`family-fill` uses family set D by default; `--family-set C` reproduces the historical 15-family arm. `run.json` records the selected set and its catalogue hash. Both arms use production decision resolution, prompt assembly, response parsing, cutting, scheduling, retries, validation gates, assembly and logical-call recording. Family placement and template compatibility use the first production type listed for each selected family; other template rules remain production rules. Dry runs use saved geometry to plan one decision and one fill per block; their call lists and `run.json` are saved. Compare `components.json` with `blocks-production` using `score.ts --page PAGE --all-runs`; stick2 scores are under `labels/PAGE/scores-stick/`.
 
 Removed arms remain visible in summaries as “arm removed from the tool”; their saved runs and scores stay readable. Production helpers are imported normally; no source text is rewritten.
 
@@ -22,11 +22,19 @@ Snapshot, replay, labels, review, scoring, family scoring, evaluation, summaries
 
 ## Accuracy stick
 
-`score.ts --page PAGE --all-runs` reads `answer-sheet-v2.json` and derives expected text, headings, links and image groups from saved HTML and geometry. C1 accepts a split when any produced family is acceptable for a non-multiple block; content checks still judge losses. C2 text runs; C3 headings; C4 links; C5 content images after excluding labelled decorations; C6 labelled item count when the collection can be found; C7 invented human text. Screen-reader-only and `aria-hidden="true"` text is excluded from source text and link labels, but link targets still count. Ignored and unsettled labels stay outside the accuracy denominator, with unsettled sections counted separately. Scores go to `labels/<page>/scores-stick/` as `<arm>--<run>--stick2-family-C.json`. Old stick1 files remain separate. A component spanning blocks is checked against the union of those blocks' source evidence, so content in the wrong one of those blocks can still pass a content check.
+`score.ts --page PAGE --all-runs` reads `answer-sheet-v2.json` and derives expected text, headings, links and image groups from saved HTML and geometry. C1 accepts a split when any produced family is acceptable for a non-multiple block; content checks still judge losses. Set-D scoring folds set-C key families in `family`, `acceptableFamilies` and `familiesInOrder` into collection without changing saved labels. C2 text runs; C3 headings; C4 links; C5 content images after excluding labelled decorations; C6 labelled item count when the collection can be found; C7 invented human text. Screen-reader-only and `aria-hidden="true"` text is excluded from source text and link labels, but link targets still count. Ignored and unsettled labels stay outside the accuracy denominator, with unsettled sections counted separately. Scores go to `labels/<page>/scores-stick/` as `<arm>--<run>--stick2-family-<set>.json`. Old stick1 files remain separate. A component spanning blocks is checked against the union of those blocks' source evidence, so content in the wrong one of those blocks can still pass a content check.
 
 ## Accuracy report
 
 Run `node --import tsx scripts/experiments/import-lab/eval.ts score --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`, then `node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2,a-r3,a-r4 --family-set C`. The report names development pages skipped for missing runs and gives only an aggregate held-out skip count. It writes the latest `reports/ACCURACY.md` and `reports/accuracy.json` under `IMPORT_LAB_ROOT` and archives previous copies.
+
+Run `node --import tsx scripts/experiments/import-lab/eval.ts verify --arm blocks-production --runs a-r1,a-r2` to check each scored development section using source evidence and produced components. It writes new `labels/<page>/verify/<arm>--<run>.json` files without overwriting existing ones. Then rerun `eval.ts accuracy` for the same arm and runs to include the automatic completeness and stick agreement counts in `ACCURACY.md`. The command exits with status 1 if any content-check identity disagrees with the stick; headings are reported separately.
+
+## Family go / no-go comparison
+
+With all saved runs present, run `node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate family-fill --runs c-r1,c-r2 --held-out-runs c-r1 --family-set C`. This offline command writes `reports/COMPARE.md` and `reports/compare.json` under `IMPORT_LAB_ROOT`. It scores missing stick files without making model calls; held-out output contains only overall accuracy per arm.
+
+Gate G3 chose set D for later family-fill runs. `eval.ts accuracy` and `eval.ts compare` accept `--family-set D`; `score.ts --family-set D` writes new set-D stick scores while retaining set-C scores and answer keys.
 
 ## Site-name leak check
 
@@ -76,6 +84,21 @@ Data lives in ignored repo-root .import-lab/ or IMPORT_LAB_ROOT. Real addresses 
 Each new arm writes components.json, run.json and one calls/*.json per model/decision invocation. Calls contain request, response, raw reply, usage, cost, latency and status; unknown usage/cost stays null. Transport attempts are attached to that call. Run records include wall-clock seconds, calls, retries, failures, settings and source hashes. Conditional page-level decisions and retries are identified in dry plans.
 
 ## Offline checks (PowerShell; FREE)
+
+To plan targeted repairs over saved development runs without a model call or new files:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts repair --arm blocks-production --runs a-r1 --dry-run
+~~~
+
+After reviewing the aggregate plan, `--yes-spend` instead of `--dry-run` writes `blocks-production+repair` with the same run IDs. `family-fill` writes `family-fill+repair`. Each incomplete section gets one fill-model call based on its saved request and verifier gaps; a reply is kept only when missing items fall, invented text does not rise, and component types stay the same. Existing repair runs are never overwritten. `--held-out` selects held-out runs and prints only an overall call count.
+
+Compare two complete runs per arm and one held-out run with set C on both sides:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate blocks-production+repair --runs a-r1,a-r2 --held-out-runs a-r1 --family-set C
+node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline family-fill --candidate family-fill+repair --runs a-r1,a-r2 --held-out-runs a-r1 --family-set C
+~~~
 
 Use installed dependencies and Chromium. The preload blocks environment-file reads and outbound connections, allowing explicit loopback requests for local tests. Tests use invented inputs and fake clients and clean their temporary directories. Run one Jest path at a time.
 
