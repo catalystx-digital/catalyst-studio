@@ -559,7 +559,8 @@ function validateDetectedComponentContent({
   if (validation && !validation.success) {
     const rendered = validation.error.issues.slice(0, 5).map(issue => {
       const field = issue.path.length > 0 ? issue.path.join('.') : 'content'
-      return `${field}:${issue.code}`
+      const received = issue.code === 'invalid_enum_value' ? `=${String(issue.received).slice(0, 40)}` : ''
+      return `${field}:${issue.code}${received}`
     })
     const remainder = validation.error.issues.length > rendered.length ? `; ... ${validation.error.issues.length - rendered.length} more` : ''
     throw new Error(

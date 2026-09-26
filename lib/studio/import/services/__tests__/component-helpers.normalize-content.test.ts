@@ -1,4 +1,4 @@
-import { extractComponentPayload } from '../page-builder/component-helpers'
+import { extractComponentPayload, normalizeComponentContent } from '../page-builder/component-helpers'
 import {
   consumeNormalizationWarnings,
   getNormalizationWarningSeverity,
@@ -120,6 +120,39 @@ it('parses srcset-shaped values from non-srcset image fields', () => {
 describe('normalizeComponentContent through extractComponentPayload', () => {
   beforeEach(() => {
     consumeNormalizationWarnings()
+  })
+
+  it.each([
+    ['Yearly', 'annual'],
+    ['per month', 'monthly'],
+    ['/yr', 'annual'],
+    ['p.a.', 'annual'],
+    ['p.m.', 'monthly'],
+    ['One-off', 'one-time'],
+    ['12 months', 'annual'],
+    ['  PER   ANNUM... ', 'annual'],
+    [' / mo. ', 'monthly'],
+    ['fortnight', 'fortnight'],
+    ['weekly', 'weekly']
+  ])('normalizes pricing period %s to %s without changing other plan fields', (period, expected) => {
+    const plan = {
+      id: 'starter', name: 'Starter', description: 'For a small team',
+      price: 12, currency: 'AUD', period, features: ['Support'], highlighted: true
+    }
+    const content = { title: 'Plans', plans: [plan], showComparison: false }
+
+    const result = normalizeComponentContent(content, { parentCanonicalType: 'pricing-table' })
+
+    expect(result.content).toEqual({ ...content, plans: [{ ...plan, period: expected }] })
+    expect(result.warnings).toEqual([])
+    expect(content.plans[0].period).toBe(period)
+  })
+
+  it('leaves non-string pricing periods for schema validation', () => {
+    const plan = { id: 'starter', period: 12, name: 'Starter' }
+    const result = normalizeComponentContent({ plans: [plan] }, { parentCanonicalType: 'pricing-table' })
+
+    expect(result.content.plans).toEqual([plan])
   })
 
   it('keeps normalized content on the canonical payload instead of props mirrors', () => {

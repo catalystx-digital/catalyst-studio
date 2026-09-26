@@ -61,6 +61,7 @@ const patterns: ComponentPattern[] = [
   { type: 'video-embed', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'accordion', category: 'content', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'statistics', category: 'data', confidence: 0.9, keywords: [], patterns: [] },
+  { type: 'pricing-table', category: 'pricing', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'footer', category: 'navigation', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'team-grid', category: 'about', confidence: 0.9, keywords: [], patterns: [] },
   { type: 'logo-cloud', category: 'social-proof', confidence: 0.9, keywords: [], patterns: [] },
@@ -1116,6 +1117,31 @@ describe('parseComponentsArray strict contract', () => {
 })
 
 describe('parseSectionDetectionResponse', () => {
+  const parsePricingPeriod = (period: string) => parseSectionDetectionResponse({
+    rawResponse: JSON.stringify({
+      sectionKey: 'main',
+      components: [{
+        component: 'pricing-table', confidence: 0.9,
+        content: { plans: [{ id: 'starter', name: 'Starter', price: 12, currency: 'AUD', period, features: ['Support'] }] }
+      }]
+    }),
+    sectionKey: 'main', availableComponents: patterns, url: 'https://example.com/', confidenceThreshold: 0.25
+  })
+
+  it('validates a pricing table with a year billing period', () => {
+    expect(parsePricingPeriod('year').components[0].content.plans[0].period).toBe('annual')
+  })
+
+  it('reports an unknown pricing period with its rejected value', () => {
+    expect(() => parsePricingPeriod('fortnight')).toThrow('period:invalid_enum_value=fortnight')
+  })
+
+  it('limits rejected pricing values in the diagnostic to 40 characters', () => {
+    const period = 'x'.repeat(50)
+    expect(() => parsePricingPeriod(period)).toThrow(`period:invalid_enum_value=${'x'.repeat(40)}`)
+    expect(() => parsePricingPeriod(period)).not.toThrow(`period:invalid_enum_value=${period}`)
+  })
+
   it.each([' trailing text', ' {"second":true}', ' {"unfinished":', ' "unterminated'])('parses the complete first section value before %s', tail => {
     const text = 'Braces } ] and quote " plus slash \\ stay inside the string'
     const parsed = parseSectionDetectionResponse({
