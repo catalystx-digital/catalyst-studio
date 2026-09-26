@@ -193,6 +193,21 @@ describe('Footer Component', () => {
     expect(screen.getByRole('contentinfo')).toHaveClass('custom-footer');
   });
 
+  it('uses a light theme and dark text on a light custom background', () => {
+    render(<Footer {...defaultProps} content={{ ...defaultProps.content, backgroundColor: '#eeeeee' }} />);
+
+    const footer = screen.getByRole('contentinfo');
+    expect(footer).toHaveStyle({ backgroundColor: '#eeeeee' });
+    expect(footer).toHaveClass('theme-light', 'text-gray-900');
+    expect(footer).not.toHaveClass('theme-dark', 'text-white');
+  });
+
+  it('keeps a dark theme for an unresolved custom background', () => {
+    render(<Footer {...defaultProps} content={{ ...defaultProps.content, backgroundColor: 'var(--x)' }} />);
+
+    expect(screen.getByRole('contentinfo')).toHaveClass('theme-dark', 'text-white');
+  });
+
   it('applies imported background color and resolves nested media logo references', () => {
     render(
       <Footer
@@ -213,6 +228,7 @@ describe('Footer Component', () => {
     );
 
     expect(screen.getByRole('contentinfo')).toHaveStyle({ backgroundColor: '#300a44' });
+    expect(screen.getByRole('contentinfo')).toHaveClass('theme-dark', 'text-white');
     expect(screen.getByRole('img', { name: 'Example Agency Digital' })).toHaveAttribute(
       'src',
       'https://example.com/example-agency-logo-full-inline-white.svg',

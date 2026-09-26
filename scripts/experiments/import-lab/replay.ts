@@ -27,7 +27,7 @@ export function createReplayTools(snapshot: Snapshot, web?: WebFetchTools) {
       const bgImageMap = extractBackgroundImages(snapshot.html)
       snapshot.stylesheets.forEach((css, index) => {
         parseCssForBackgroundImages(css, bgImageMap.byClass, bgImageMap.byId, mapPaired ? urls[index] : baseUrl)
-        parseCssForBackgroundColors(css, bgImageMap.bgColorByClass, bgImageMap.bgColorById)
+        parseCssForBackgroundColors(css, bgImageMap.bgColorByClass, bgImageMap.bgColorById, bgImageMap.bgColorByClassSet)
         parseCssForHiddenSelectors(css, bgImageMap.hiddenByClass, bgImageMap.hiddenById)
       })
       // Replay seeds the production cache so its accessors remain unchanged.
