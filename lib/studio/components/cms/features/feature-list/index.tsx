@@ -21,7 +21,7 @@ import {
   cmsHeading,
   shouldShowDevEmptyState,
 } from '../../_ui';
-import type { FeatureListProps, FeatureListContent } from './feature-list.types';
+import type { FeatureListProps } from './feature-list.types';
 import { resolveCmsIcon } from '../../_utils/icon-resolver';
 
 interface NormalizedFeatureListItem {
@@ -116,14 +116,6 @@ function normalizeItems(items: unknown): NormalizedFeatureListItem[] {
 
 export type { FeatureListProps, FeatureListContent } from './feature-list.types';
 
-const LAYOUT_CLASS_MAP: Record<NonNullable<FeatureListContent['layout']>, string> = {
-  vertical: cn('flex flex-col', dsSpacing.gap('lg')),
-  horizontal: cn(
-    'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-    dsSpacing.gap('lg'),
-  ),
-};
-
 class FeatureListBase extends BaseComponent<FeatureListProps> {
   protected renderComponent(): React.ReactNode {
     const {
@@ -142,7 +134,9 @@ class FeatureListBase extends BaseComponent<FeatureListProps> {
     }
 
     const resolvedLayout = layout === 'horizontal' ? 'horizontal' : 'vertical';
-    const containerClass = LAYOUT_CLASS_MAP[resolvedLayout];
+    const containerClass = resolvedLayout === 'horizontal'
+      ? cn('grid grid-cols-1 md:grid-cols-2', normalizedItems.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3', dsSpacing.gap('lg'))
+      : cn('flex flex-col', dsSpacing.gap('lg'));
 
     return (
       <CmsSection

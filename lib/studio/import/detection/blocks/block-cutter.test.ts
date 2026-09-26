@@ -80,6 +80,50 @@ test('a row of four tiles stays one block and never splits into its columns', ()
   expect(selected).toHaveLength(2)
   expect(keys(selected[0].members!)).toEqual(['tile0', 'tile1', 'tile2', 'tile3'])
 })
+
+test('a block records its widest meaningful row of four columns', () => {
+  const tiles = Array.from({ length: 4 }, (_, i) => geometry('tile' + i, 0, 200, 250, [], {
+    box: { x: i * 280, y: 0, width: 250, height: 200 }
+  }))
+  const block = cutRenderedPage(geometry('tiles', 0, 200, 1170, tiles))[0]
+  expect(block.columns).toBe(4)
+})
+
+test('a single-column block has no columns field', () => {
+  const block = cutRenderedPage(geometry('list', 0, 400, 1170, [text('first', 0, 200), text('second', 200, 200)]))[0]
+  expect(block).not.toHaveProperty('columns')
+})
+
+function cardWithBadges(key: string, x: number, y: number): Geometry {
+  const badges = Array.from({ length: 3 }, (_, i) => geometry(`${key}-badge${i}`, y + 50, 30, 50, [], {
+    box: { x: x + i * 70, y: y + 50, width: 50, height: 30 }
+  }))
+  return geometry(key, y, 200, 400, badges, { ownTextLength: 10, box: { x, y, width: 400, height: 200 } })
+}
+
+test('two cards with nested badge rows report two columns', () => {
+  const block = cutRenderedPage(geometry('cards', 0, 200, 1000, [cardWithBadges('a', 0, 0), cardWithBadges('b', 500, 0)]))[0]
+  expect(block.columns).toBe(2)
+})
+
+test('vertically stacked cards with inline badges have no columns', () => {
+  const block = cutRenderedPage(geometry('cards', 0, 420, 1000, [cardWithBadges('a', 0, 0), cardWithBadges('b', 0, 220)]))[0]
+  expect(block).not.toHaveProperty('columns')
+})
+
+test('a single-child wrapper descends to the inner item row', () => {
+  const inner = geometry('inner', 0, 200, 1000, [cardWithBadges('a', 0, 0), cardWithBadges('b', 500, 0)])
+  expect(cutRenderedPage(geometry('wrapper', 0, 200, 1000, [inner]))[0].columns).toBe(2)
+})
+
+test('merged blocks do not inherit a child column maximum', () => {
+  const first = geometry('first', 0, 200, 1170, [0, 1, 2].map(i => cardWithBadges(`card${i}`, i * 390, 0)), { tag: 'footer' })
+  const second = geometry('second', 200, 100, 1170, [], { tag: 'footer', ownTextLength: 10 })
+  const block = cutRenderedPage(geometry('body', 0, 300, 1170, [first, second]))[0]
+  expect(block.children[0].columns).toBe(3)
+  expect(block).not.toHaveProperty('columns')
+})
+
 test('2 x 2 feature grid inside a 550px container stays one block', () => {
   const cards = Array.from({ length: 4 }, (_, i) => geometry('card' + i, Math.floor(i / 2) * 275, 250, 500, [], { box: { x: (i % 2) * 600, y: Math.floor(i / 2) * 275, width: 500, height: 250 } }))
   const root = geometry('features', 0, 550, 1170, cards)

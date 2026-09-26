@@ -360,6 +360,29 @@ describe('MediaIngestService', () => {
     await fs.rm(tempDir, { recursive: true, force: true })
   })
 
+  it('keeps icon names and junk words while resolving relative icon paths', async () => {
+    const { service, repository } = createService()
+    const detection = buildDetection({
+      components: [{
+        component: 'feature-list', type: 'FeatureList', confidence: 0.9,
+        content: { items: [{ icon: 'check' }, { icon: 'img/a.png' }, { icon: 'icon-embed-x' }] }
+      }],
+      pageUrl: 'https://example.com/about'
+    })
+    ;(repository.resolveByOriginalUrl as jest.Mock).mockResolvedValue(null)
+    const downloadSpy = jest.spyOn(MediaIngestService.prototype as any, 'downloadToTemp')
+      .mockRejectedValue(new Error('fixture download failure'))
+
+    const result = await service.ingest({ websiteId: 'site-1', detectionResults: [detection], designTokens: null })
+
+    expect(downloadSpy).toHaveBeenCalledTimes(1)
+    expect(downloadSpy).toHaveBeenCalledWith('https://example.com/img/a.png', expect.any(String))
+    expect(result.detections[0].components?.[0].content).toEqual({
+      items: [{ icon: 'check' }, { icon: 'https://example.com/img/a.png' }, { icon: 'icon-embed-x' }]
+    })
+    expect(result.mediaAssets.map(asset => asset.originalUrl)).toEqual(['https://example.com/img/a.png'])
+  })
+
   it('skips ingestion for navigation href links', async () => {
     const { service, repository, storageProvider } = createService()
     const detection = buildDetection({

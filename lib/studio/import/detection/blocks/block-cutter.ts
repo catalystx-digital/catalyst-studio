@@ -29,6 +29,7 @@ export interface Block {
   sourceAnchors?: Anchor[]
   box: Box
   children: Block[]
+  columns?: number
   repeatedChildren?: Array<{ signature: string; count: number }>
   oversized: boolean
 }
@@ -227,6 +228,22 @@ function columnsOf(row: Geometry): Geometry[] {
   return []
 }
 
+function descendSingleChild(node: Geometry): { root: Geometry; children: Geometry[] } {
+  let root = node
+  let children = meaningfulChildren(root)
+  while (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed)) && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
+    root = children[0]
+    children = meaningfulChildren(root)
+  }
+  return { root, children }
+}
+
+function widestRowColumns(node: Geometry): number {
+  if (hasOwnText(node) || atomicTags.has(node.tag)) return 0
+  const { children } = descendSingleChild(node)
+  return Math.max(columnsOf(node).length, ...groupRows(children).map(row => columnsOf(row).length))
+}
+
 function mergeGridRows(rows: Geometry[]): Geometry[] {
   const merged: Geometry[] = []
   for (const row of rows) {
@@ -336,12 +353,7 @@ export function childCandidates(node: Geometry): Geometry[] {
   if (hasOwnText(node) || atomicTags.has(node.tag)) {
     return []
   }
-  let root = node
-  let children = meaningfulChildren(root)
-  while (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed)) && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
-    root = children[0]
-    children = meaningfulChildren(root)
-  }
+  const { children } = descendSingleChild(node)
   const rows = groupRows(children)
   return rows.length >= 2 ? rows : []
 }
@@ -440,11 +452,14 @@ export function cutRenderedPage(geometry: Geometry): Block[] {
         repeatedChildren: node.repeatedChildren || []
       }
     }
+    const columns = widestRowColumns(node)
+    delete block.columns
     return {
       ...block,
       region: node.region,
       box: node.box,
       oversized: node.box.height > UNDER_CUT_HEIGHT,
+      ...(columns >= 2 ? { columns } : {}),
       children: children ? childCandidates(node).map((n, i) => ({ ...build(n, false), order: i + 1 })) : []
     }
   }
@@ -468,13 +483,15 @@ export function cutRenderedPage(geometry: Geometry): Block[] {
 
 function mergeBlocks(a: Block, b: Block): Block {
   const x = Math.min(a.box.x, b.box.x), y = Math.min(a.box.y, b.box.y)
-  return {
+  const merged: Block = {
     ...a, id: 'merge-' + digest(a.id + '|' + b.id).slice(0, 16), anchor: null, anchorResolved: a.anchorResolved && b.anchorResolved,
     repeatedChildren: [...(a.repeatedChildren || []), ...(b.repeatedChildren || [])],
     sourceAnchors: [...(a.sourceAnchors || (a.anchor ? [a.anchor] : [])), ...(b.sourceAnchors || (b.anchor ? [b.anchor] : []))],
     box: { x, y, width: Math.max(a.box.x + a.box.width, b.box.x + b.box.width) - x, height: Math.max(a.box.y + a.box.height, b.box.y + b.box.height) - y },
     oversized: Math.max(a.box.y + a.box.height, b.box.y + b.box.height) - y > UNDER_CUT_HEIGHT, children: [a, b]
   }
+  delete merged.columns
+  return merged
 }
 
 const VIEWPORT_WIDTH = 1440

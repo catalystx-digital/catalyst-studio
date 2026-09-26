@@ -114,7 +114,7 @@ export function resolveCmsIcon(
       return resolveCmsIcon(fallback, { className });
     }
 
-    return createTextNode(trimmed.slice(0, 1).toUpperCase(), className);
+    return undefined;
   }
 
   if (fallback !== undefined) {

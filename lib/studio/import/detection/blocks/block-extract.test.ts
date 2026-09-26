@@ -50,6 +50,16 @@ const response = (content: string, finish_reason = 'stop') => ({
   usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.001 }
 })
 
+test('passes column geometry to the fill payload with one layout rule', async () => {
+  const create = jest.fn().mockResolvedValue(response(valid))
+  const input = args(create)
+  input.blockInput.block.columns = 4
+  await extractBlock(input)
+  const messages = create.mock.calls[0][0].messages
+  expect(JSON.parse(messages[2].content.split('Extract this single section:\n')[1]).columns).toBe(4)
+  expect(messages[1].content).toContain("`columns` is how many items sit side by side in this section's main row; use it only for a layout/columns field that arranges this section's repeated items (never for footer link groups, tables or responsive settings), and never above the schema's allowed maximum.")
+})
+
 test('family override accepts an uppercase type in one call using the shared parser', async () => {
   const create = jest.fn().mockResolvedValue(response(JSON.stringify({
     sectionKey: 'block:1', pageMetadata: 'bogus', components: [

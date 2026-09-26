@@ -157,6 +157,15 @@ describe('Component: FeatureList', () => {
     expect(gridContainer).toHaveClass('lg:grid-cols-3');
   });
 
+  it('uses four desktop columns for four or more horizontal items', () => {
+    render(<FeatureList {...mockProps} content={{
+      ...mockProps.content,
+      layout: 'horizontal',
+      items: [...mockProps.content.items, { title: 'Fourth benefit' }],
+    }} />);
+    expect(screen.getByTestId('feature-list-items')).toHaveClass('lg:grid-cols-4');
+  });
+
   it('handles missing optional props gracefully', () => {
     const minimalProps: FeatureListProps = {
       ...mockProps,

@@ -205,6 +205,7 @@ export async function extractBlock({
     role: selection.task.role,
     intent: selection.taxonomy.intent,
     intentEvidence: selection.taxonomy.evidence,
+    ...(block.columns !== undefined ? { columns: block.columns } : {}),
     stats: blockInput.stats,
     resourcesSummary: blockInput.resourcesSummary,
     nodes: blockInput.nodes
@@ -216,6 +217,7 @@ export async function extractBlock({
         'The component field must be exactly one allowed component type.',
         'Never emit generic wrappers such as section, container, wrapper, block, group, layout, or raw DOM/tag names.',
         'Do not invent copy, URLs, images, dates, categories, or placeholder content.',
+        '`columns` is how many items sit side by side in this section\'s main row; use it only for a layout/columns field that arranges this section\'s repeated items (never for footer link groups, tables or responsive settings), and never above the schema\'s allowed maximum.',
         'If this section contains project/case-study/client-work/latest-project tiles, use card-grid, not content-feed.',
         'One carousel, slider, tab panel, or responsive listing surface must become one component with nested items; never emit one top-level component per slide/card variant.',
         'Hidden or inactive slides/items marked by aria-hidden, hidden, data-active/current/index, carousel/slider classes, or responsive duplicate wrappers must not become separate top-level components.',

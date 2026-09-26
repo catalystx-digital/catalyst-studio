@@ -459,6 +459,9 @@ export class MediaIngestService {
       }
 
       const pushCandidate = (url: string, fieldPath: string, componentType?: string) => {
+        if (!this.isMediaField(fieldPath)) {
+          return
+        }
         const normalized = this.normalizeCandidateUrl(url, detection.pageUrl, pageOrigin)
         if (!normalized) {
           recordWarning({
@@ -467,9 +470,6 @@ export class MediaIngestService {
             fieldPath,
             componentType
           })
-          return
-        }
-        if (!this.isMediaField(fieldPath)) {
           return
         }
         if (!this.isProcessableUrl(normalized)) {
@@ -1234,6 +1234,9 @@ export class MediaIngestService {
       } catch {
         return null
       }
+    }
+    if (!/[/.]/.test(trimmed) && !/^[a-z][a-z\d+.-]*:/i.test(trimmed)) {
+      return null
     }
     if (pageUrl) {
       try {
