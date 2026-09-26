@@ -76,6 +76,7 @@ describe('LogoStrip', () => {
     );
     
     expect(screen.getByAltText('Test Company')).toBeInTheDocument();
+    expect(screen.getByAltText('Test Company').className).not.toContain('grayscale');
   });
 
   it('renders logos as links when link is provided', () => {

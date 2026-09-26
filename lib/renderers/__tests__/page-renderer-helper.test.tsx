@@ -255,6 +255,7 @@ describe('PageRendererHelper', () => {
 
     expect(html).not.toContain('page-header');
     expect(html).not.toContain('Imported Home');
+    expect(html).toMatch(/class="[^"]*cms-page-root[^"]*text-foreground[^"]*"/);
   });
 
   it('keeps the page title for non-imported pages', async () => {

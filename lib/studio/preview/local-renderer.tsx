@@ -1,7 +1,6 @@
 import React from 'react'
 import { notFound, redirect, unstable_rethrow } from 'next/navigation'
 import { PageRendererHelper } from '@/lib/renderers/page-renderer'
-import { isCmsScopedVariableAllowed } from '@/lib/design-system/cms-token-guardrails'
 import { prisma } from '@/lib/prisma'
 import { UrlResolver } from '@/lib/services/url-resolution/url-resolver'
 import {
@@ -134,33 +133,19 @@ function extractRedirectTarget(metadata: Record<string, unknown> | undefined): s
   return null
 }
 
-const CSS_VARIABLE_PATTERN = /^\s*--([^:]+):\s*([^;]+);/
-
 function buildScopedDesignSystemCss(css: string | null): string | null {
   if (!css) {
     return null
   }
 
-  const entries = css
-    .split('\n')
-    .map(line => line.trim())
-    .map(line => {
-      const match = line.match(CSS_VARIABLE_PATTERN)
-      if (!match) {
-        return null
-      }
-      const [, rawName, rawValue] = match
-      const name = rawName.startsWith('--') ? rawName.trim() : `--${rawName.trim()}`
-      const value = rawValue.trim()
-      return isCmsScopedVariableAllowed(name) ? `  ${name}: ${value};` : null
-    })
-    .filter((line): line is string => Boolean(line))
+  const hasDarkSet = css.includes('.dark {')
+  const scopedCss = css
+    .replace(':root {', '[data-design-system-scope="true"] {')
+    .replace('.dark {', '[data-design-system-scope="true"] :is(.dark,.theme-dark) {')
 
-  if (entries.length === 0) {
-    return null
-  }
-
-  return `[data-design-system-scope="true"] {\n${entries.join('\n')}\n}`
+  return hasDarkSet
+    ? scopedCss
+    : `${scopedCss}\n\n[data-design-system-scope="true"] :is(.dark,.theme-dark) {\n  --background: 0 0% 4%;\n  --foreground: 0 0% 100%;\n  --card: 0 0% 10%;\n  --card-foreground: 0 0% 100%;\n  --border: 0 0% 20%;\n  --muted: 240 5% 64.9%;\n  --muted-foreground: 240 5% 64.9%;\n}`
 }
 
 function formatResolverError(error: unknown, requestPath: string, websiteId: string): string {
@@ -509,7 +494,7 @@ export async function renderLocalWebsitePreview({ websiteId, slug, designConcept
     })
 
     return (
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground" data-design-system-scope="true">
         {scopedDesignSystemCss && (
           <style
             id="studio-local-preview-design-system"

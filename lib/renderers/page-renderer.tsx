@@ -325,7 +325,7 @@ function buildPageRootClasses(theme: ComponentTheme | undefined): string {
     'cms-page-root',
     'min-h-screen',
     'bg-background',
-    'text-text-primary',
+    'text-foreground',
     `theme-${normalizedTheme}`
   ]
     .filter(Boolean)
