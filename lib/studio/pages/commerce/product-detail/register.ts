@@ -24,7 +24,8 @@ const CORE_MAIN_COMPONENTS: ComponentType[] = [
   ComponentType.Reviews,
   ComponentType.Accordion,
   ComponentType.Tabs,
-  ComponentType.DataTable
+  ComponentType.DataTable,
+  ComponentType.HtmlBlock
 ]
 
 const OPTIONAL_CTA_COMPONENTS: ComponentType[] = Array.from(getCTAComponentTypes()) as ComponentType[]

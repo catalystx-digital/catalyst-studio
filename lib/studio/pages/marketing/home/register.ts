@@ -33,6 +33,7 @@ const MAIN_REGION_COMPONENTS: ComponentType[] = [
   ComponentType.TwoColumn,
   ComponentType.ImageGallery,
   ComponentType.TextBlock,
+  ComponentType.HtmlBlock,
   ComponentType.Accordion,
   ComponentType.ContactForm,
   ComponentType.SimpleForm,

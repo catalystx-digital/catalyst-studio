@@ -20,6 +20,7 @@ const OPTIONAL_MAIN_COMPONENTS: ComponentType[] = [
   ComponentType.FeatureGrid,
   ComponentType.TwoColumn,
   ComponentType.TextBlock,
+  ComponentType.HtmlBlock,
   ComponentType.VideoPlayer,
   ComponentType.ImageGallery,
   ComponentType.Testimonials,

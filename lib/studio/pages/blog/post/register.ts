@@ -18,6 +18,7 @@ const OPTIONAL_MAIN_COMPONENTS: ComponentType[] = [
   ComponentType.CTAButtonGroup,
   ComponentType.LogoCloud,
   ComponentType.TextBlock,
+  ComponentType.HtmlBlock,
   ComponentType.ContactInfo,
   ComponentType.SimpleForm
 ]
