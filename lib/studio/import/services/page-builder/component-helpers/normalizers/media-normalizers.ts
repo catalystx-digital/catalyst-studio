@@ -122,8 +122,9 @@ function normalizeGalleryImageEntry(
 
   const caption = readStringField(record, ['caption', 'description', 'subtitle'])
   const credit = readStringField(record, ['credit', 'attribution'])
-  const width = normalizeNumber(record.width ?? record.imageWidth ?? record.originalWidth)
-  const height = normalizeNumber(record.height ?? record.imageHeight ?? record.originalHeight)
+  const source = record.src && typeof record.src === 'object' && !Array.isArray(record.src) ? record.src : {}
+  const width = normalizeNumber(record.width ?? record.imageWidth ?? record.originalWidth ?? source.width)
+  const height = normalizeNumber(record.height ?? record.imageHeight ?? record.originalHeight ?? source.height)
   if (caption) image.caption = caption
   if (credit) image.credit = credit
   if (width !== undefined) image.width = width

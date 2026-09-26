@@ -979,7 +979,13 @@ export class MediaIngestService {
       if (match) {
         // Full media reference with mediaId
         if (match.mediaId) {
-          return { src: match.originalUrl, mediaId: match.mediaId, originalUrl: match.originalUrl }
+          return {
+            src: match.originalUrl,
+            mediaId: match.mediaId,
+            originalUrl: match.originalUrl,
+            ...(typeof match.width === 'number' ? { width: match.width } : {}),
+            ...(typeof match.height === 'number' ? { height: match.height } : {})
+          }
         }
         // URL-only resolution (download failed but we resolved relative → absolute)
         return match.originalUrl
@@ -1061,7 +1067,9 @@ export class MediaIngestService {
       mediaId: match.mediaId,
       mediaType: mediaType ?? 'image',
       url: match.originalUrl,
-      originalUrl: match.originalUrl
+      originalUrl: match.originalUrl,
+      ...(typeof record.width !== 'number' && typeof match.width === 'number' ? { width: match.width } : {}),
+      ...(typeof record.height !== 'number' && typeof match.height === 'number' ? { height: match.height } : {})
     }
   }
 

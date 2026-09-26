@@ -166,6 +166,56 @@ describe('MediaIngestService', () => {
     expect(JSON.stringify(result.detections[0].components?.[0].content)).not.toContain('"url":{"src"')
   })
 
+  it('copies ingested dimensions to media references without replacing existing dimensions', async () => {
+    const { service, repository } = createService()
+    const detection = buildDetection({
+      components: [
+        {
+          component: 'image-gallery',
+          type: 'image-gallery',
+          confidence: 0.9,
+          content: {
+            images: [
+              { src: { mediaId: 'detected:wide', mediaType: 'image', url }, alt: 'Wide image' },
+              { src: { mediaId: 'detected:fixed', mediaType: 'image', url, width: 900, height: 300 }, alt: 'Fixed image' },
+            ],
+            backgroundImage: url,
+          },
+        },
+      ],
+    })
+    ;(repository.resolveByOriginalUrl as jest.Mock).mockResolvedValue({
+      media: {
+        id: 'media-wide',
+        storageKey: 'site/wide.png',
+        contentType: 'image/png',
+        checksum: 'wide123',
+        width: 2000,
+        height: 500,
+      },
+    })
+
+    const result = await service.ingest({
+      websiteId: 'site-1',
+      detectionResults: [detection],
+      designTokens: null,
+    })
+
+    expect(result.detections[0].components?.[0].content).toEqual({
+      images: [
+        {
+          src: { mediaId: 'media-wide', mediaType: 'image', url, originalUrl: url, width: 2000, height: 500 },
+          alt: 'Wide image',
+        },
+        {
+          src: { mediaId: 'media-wide', mediaType: 'image', url, originalUrl: url, width: 900, height: 300 },
+          alt: 'Fixed image',
+        },
+      ],
+      backgroundImage: { src: url, mediaId: 'media-wide', originalUrl: url, width: 2000, height: 500 },
+    })
+  })
+
   it('preserves renderable canonical media references when only originalUrl is present', async () => {
     const { service, repository } = createService()
     const detection = buildDetection({
@@ -383,7 +433,9 @@ describe('MediaIngestService', () => {
       backgroundImage: {
         src: 'https://example.com/media/hero.jpg',
         mediaId: 'media-hero',
-        originalUrl: 'https://example.com/media/hero.jpg'
+        originalUrl: 'https://example.com/media/hero.jpg',
+        width: 1200,
+        height: 800
       }
     })
     expect(result.mediaAssets).toEqual([

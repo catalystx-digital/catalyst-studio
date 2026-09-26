@@ -87,8 +87,8 @@ function normalizeGalleryImage(image: GalleryImage): (GalleryImage & { url: stri
     ...image,
     url: normalized.src,
     alt: normalized.alt ?? image.alt,
-    width: image.width,
-    height: image.height,
+    width: image.width ?? (typeof image.src === 'object' && image.src !== null ? image.src.width : undefined),
+    height: image.height ?? (typeof image.src === 'object' && image.src !== null ? image.src.height : undefined),
   };
 }
 
@@ -121,6 +121,7 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
     MASONRY_VERTICAL_GAP_CLASS[spacing] ?? MASONRY_VERTICAL_GAP_CLASS.normal;
   const isCarousel = displayMode === 'carousel';
   const isMasonry = displayMode === 'masonry';
+  const isSingleImage = preparedImages.length === 1;
   const maxWidthClass =
     maxWidth === 'full'
       ? 'w-full'
@@ -131,13 +132,13 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
   const gridWrapperClass = isMasonry
     ? cn(
         'cms-gallery-collection w-full list-none p-0',
-        MASONRY_COLUMN_CLASSES[columns] ?? MASONRY_COLUMN_CLASSES[3],
+        isSingleImage ? 'columns-1' : MASONRY_COLUMN_CLASSES[columns] ?? MASONRY_COLUMN_CLASSES[3],
         masonryVerticalGapClass,
         masonryColumnGapClass,
       )
     : cn(
         'cms-gallery-collection grid w-full list-none p-0',
-        GRID_COLUMN_CLASSES[columns] ?? GRID_COLUMN_CLASSES[3],
+        isSingleImage ? 'grid-cols-1' : GRID_COLUMN_CLASSES[columns] ?? GRID_COLUMN_CLASSES[3],
         gridGapClass,
       );
 
@@ -179,10 +180,13 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
         <div
           className={gridWrapperClass}
           data-gallery-collection="grid"
-          data-columns={columns}
+          data-columns={isSingleImage ? 1 : columns}
         >
           {preparedImages.map((image, index) => {
             const ratio = resolveRatio(image);
+            const intrinsicWidth = typeof image.width === 'number' && Number.isFinite(image.width) && image.width > 0
+              ? image.width
+              : undefined;
             return (
               <figure
                 key={`${image.url}-${index}`}
@@ -190,7 +194,9 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
                   'cms-gallery-item group relative flex flex-col',
                   dsSpacing.gap('sm'),
                   isMasonry && 'break-inside-avoid',
+                  isSingleImage && 'mx-auto w-full',
                 )}
+                style={isSingleImage && intrinsicWidth ? { maxWidth: `${intrinsicWidth}px` } : undefined}
                 data-gallery-item
                 data-image-index={index}
                 data-interactive={enableLightbox ? 'true' : 'false'}
@@ -203,7 +209,9 @@ export const ImageGalleryServer: React.FC<ImageGalleryProps> = ({
                     src={image.url}
                     alt={sanitizeText(image.alt ?? '')}
                     fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    sizes={isSingleImage
+                      ? intrinsicWidth ? `min(100vw, ${intrinsicWidth}px)` : '100vw'
+                      : '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'}
                     loading={index < 2 ? 'eager' : 'lazy'}
                     className="h-full w-full object-cover"
                   />

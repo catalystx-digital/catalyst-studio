@@ -4,6 +4,12 @@ import '@testing-library/jest-dom';
 import { ImageGallery } from './index';
 import { ImageGalleryAdapter } from '../adapters';
 import { ComponentType, ComponentCategory } from '../../_core/types';
+import { MediaIngestService } from '@/lib/studio/import/services/media-ingest-service';
+import { normalizeComponentContent } from '@/lib/studio/import/services/page-builder/component-helpers';
+import type { ImportDetectionResult } from '@/lib/studio/import/web-detection';
+import type { MediaRepository } from '@/lib/studio/media/media-repository';
+import type { MediaStorageProvider } from '@/lib/studio/media/storage/media-storage-provider';
+import type { ImageGalleryContent } from './image-gallery.types';
 
 describe('ImageGallery Component', () => {
   const defaultProps = {
@@ -69,6 +75,103 @@ describe('ImageGallery Component', () => {
     expect(gallery?.className).toContain('grid-cols-1');
     expect(gallery?.className).toContain('sm:grid-cols-2');
     expect(gallery?.className).toContain('lg:grid-cols-3');
+  });
+
+  it.each(['grid', 'masonry'] as const)('renders one wide image at its natural ratio in one %s column', (displayMode) => {
+    const { container } = render(
+      <ImageGallery
+        {...defaultProps}
+        content={{
+          ...defaultProps.content,
+          displayMode,
+          images: [{ src: { mediaId: 'media-wide', mediaType: 'image', url: '/wide.jpg', width: 2000, height: 500 }, alt: 'Wide image' }],
+        }}
+      />,
+    );
+    const gallery = container.querySelector('[data-gallery-collection]');
+    const ratioWrapper = container.querySelector('[data-radix-aspect-ratio-wrapper]');
+
+    expect(gallery).toHaveAttribute('data-columns', '1');
+    expect(gallery).toHaveClass(displayMode === 'grid' ? 'grid-cols-1' : 'columns-1');
+    expect(gallery?.className).not.toMatch(/(?:sm|lg|xl):(?:grid-cols|columns)-[2-6]/);
+    expect(ratioWrapper).toHaveStyle({ paddingBottom: '25%' });
+    expect(container.querySelector('[data-gallery-item]')).toHaveStyle({ maxWidth: '2000px' });
+    expect(screen.getByAltText('Wide image')).toHaveAttribute('sizes', 'min(100vw, 2000px)');
+  });
+
+  it('preserves an ingested image ratio through content normalization and rendering', async () => {
+    const imageUrl = 'https://example.com/wide.jpg';
+    const repository = {
+      resolveByOriginalUrl: jest.fn().mockResolvedValue({
+        media: { id: 'media-wide', storageKey: 'site/wide.jpg', contentType: 'image/jpeg', checksum: 'wide', width: 2000, height: 500 },
+      }),
+      findByChecksum: jest.fn(),
+      createMediaAsset: jest.fn(),
+      upsertSourceLink: jest.fn(),
+    } as unknown as MediaRepository;
+    const storageProvider = {
+      put: jest.fn(),
+      get: jest.fn(),
+      delete: jest.fn(),
+      getPublicUrl: jest.fn(),
+      getSignedUrl: jest.fn(),
+    } as unknown as MediaStorageProvider;
+    const detection: ImportDetectionResult = {
+      components: [{
+        component: 'image-gallery',
+        type: 'image-gallery',
+        confidence: 0.9,
+        content: { images: [{ src: { mediaId: 'detected:wide', mediaType: 'image', url: imageUrl }, alt: 'Ingested wide image' }] },
+      }],
+      pageTemplate: { templateKey: 'gallery' },
+      processingTime: 100,
+      modelUsed: 'test-model',
+      pageUrl: 'https://example.com',
+    };
+    const service = new MediaIngestService({ repository, storageProvider, backend: 'FILE' });
+    const ingested = await service.ingest({ websiteId: 'site-1', detectionResults: [detection], designTokens: null });
+    const rewritten = ingested.detections[0].components?.[0].content as Record<string, unknown>;
+    const normalized = normalizeComponentContent(rewritten, { parentCanonicalType: 'image-gallery' });
+
+    expect(normalized.content.images).toEqual([expect.objectContaining({ width: 2000, height: 500 })]);
+    const { container } = render(<ImageGallery {...defaultProps} content={normalized.content as ImageGalleryContent} />);
+    expect(container.querySelector('[data-radix-aspect-ratio-wrapper]')).toHaveStyle({ paddingBottom: '25%' });
+  });
+
+  it('caps a single portrait at its intrinsic width', () => {
+    const { container } = render(
+      <ImageGallery {...defaultProps} content={{ ...defaultProps.content, images: [{ url: '/portrait.jpg', alt: 'Portrait', width: 200, height: 300 }] }} />,
+    );
+
+    expect(container.querySelector('[data-gallery-item]')).toHaveStyle({ maxWidth: '200px' });
+    expect(container.querySelector('[data-gallery-item]')).toHaveClass('mx-auto', 'w-full');
+    expect(screen.getByAltText('Portrait')).toHaveAttribute('sizes', 'min(100vw, 200px)');
+  });
+
+  it('keeps a single image full width when intrinsic width is unknown', () => {
+    const { container } = render(
+      <ImageGallery {...defaultProps} content={{ ...defaultProps.content, images: [{ url: '/unknown.jpg', alt: 'Unknown width' }] }} />,
+    );
+
+    expect(container.querySelector('[data-gallery-item]')).not.toHaveAttribute('style');
+    expect(screen.getByAltText('Unknown width')).toHaveAttribute('sizes', '100vw');
+  });
+
+  it.each([3, 4])('keeps %i dimensionless images at the default ratio and three columns', imageCount => {
+    const { container } = render(
+      <ImageGallery
+        {...defaultProps}
+        content={{
+          ...defaultProps.content,
+          images: Array.from({ length: imageCount }, (_, index) => ({ url: `/plain-${index + 1}.jpg`, alt: `Plain ${index + 1}` })),
+        }}
+      />,
+    );
+    const gallery = container.querySelector('[data-gallery-collection]');
+
+    expect(gallery).toHaveAttribute('data-columns', '3');
+    expect(gallery).toHaveClass('lg:grid-cols-3');
+    expect(container.querySelector('[data-radix-aspect-ratio-wrapper]')).toHaveStyle({ paddingBottom: '75%' });
   });
 
   it('renders carousel mode with navigation dots', () => {
