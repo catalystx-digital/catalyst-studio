@@ -92,6 +92,14 @@ export async function repairRuns(root:string,options:RepairOptions,fixture:Fixtu
     if(await optionalJson(path.join(targetDir,'run.json'))||await fs.stat(targetDir).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error}))throw new Error('Repair run already exists: '+page+'/'+run)
     const record=await readJson<any>(path.join(sourceDir,'run.json'))
     if(record.status==='dry-run'||record.fixture||!['complete','failed'].includes(record.status))throw new Error('Source run is unusable: '+page+'/'+run)
+    // A source run that aborted as a whole has nothing to repair; copy it so both arms score the page as missed.
+    if((record.failures||[]).some((failure:{stage?:string})=>failure.stage==='run')) {
+      if(!options.dryRun) {
+        await fs.mkdir(targetDir,{recursive:true})
+        for(const file of ['run.json','components.json'])await fs.copyFile(path.join(sourceDir,file),path.join(targetDir,file)).catch(error=>{if(error.code!=='ENOENT')throw error})
+      }
+      continue
+    }
     const confidenceThreshold=record.configuration?.confidence?.detection
     const perRequestMs=record.configuration?.extractionEndpoint?.timeoutMs
     const stallTimeoutMs=record.rules?.stallTimeoutMs
