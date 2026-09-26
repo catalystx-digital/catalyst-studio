@@ -70,6 +70,7 @@ export const CTASimpleDef = defineComponent({
   // LLM extraction directives
   directives: [
     'Use for compact standalone CTAs or utility banners (e.g., quick-exit links, hotline prompts) that render outside the main content flow, including pre-header strips and header utility rows.',
+    "Do not use when the section's main visual is an image; use two-column.",
     'When the strip appears above or alongside the navigation, set region="header" so it stays attached to the header stack. Header utility CTAs MUST output before the navbar component even if the DOM nests them later.',
     'When DOM shows the strip above nav/hero but the wrapper uses main tags, still force region="header" so styling stays scoped to the header stack. If no actionable button is present, emit a text-block banner in the header instead of dropping the alert.',
     'Trading-hours badges or status strips like "Shop today from 9AM" + "NOW OPEN" belong in cta-simple: capture the lead text in heading/body, include any inline badge text, and surface accompanying quick links (e.g., Getting Here) as either CTA buttons on the component or as a sibling feature-list.',

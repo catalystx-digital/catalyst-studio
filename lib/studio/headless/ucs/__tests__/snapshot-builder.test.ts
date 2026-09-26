@@ -675,6 +675,29 @@ describe('buildUcsSiteSnapshot', () => {
 })
 
 describe('enrichComponentFromShared', () => {
+  it('leaves all CTA types without a default gradient while retaining the hero default', () => {
+    const component = (type: string): ComponentInstance => ({
+      id: `${type}-fixture`,
+      type,
+      componentType: type as ComponentType,
+      parentId: null,
+      position: 0,
+      props: {},
+      content: {},
+      styles: {},
+      metadata: {}
+    })
+
+    for (const type of ['cta', 'cta-banner', 'cta-simple', 'cta-button-group']) {
+      const enriched = enrichComponentFromShared(component(type), [])
+      expect(enriched.props.className).toBeUndefined()
+      expect(String(enriched.props.className ?? '')).not.toContain('bg-gradient-to-r')
+    }
+    expect(enrichComponentFromShared(component('hero-banner'), []).props.className).toBe(
+      'relative overflow-hidden rounded-[2.5rem] border border-border/60 bg-background shadow-2xl px-6 py-20'
+    )
+  })
+
   it('preserves shared navbar row styles for preview rendering', () => {
     const component: ComponentInstance = {
       id: 'navbar-instance',
