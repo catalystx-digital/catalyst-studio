@@ -30,7 +30,8 @@ export function parseEval(argv:string[]): EvalOptions {
   const provider=(values['--provider']||'openrouter') as DraftProvider
   if(!['openrouter','claude-cli','codex-cli'].includes(provider)||values['--provider']&&command!=='draft')throw new Error('--provider applies to draft and must be openrouter, claude-cli or codex-cli')
   if(command==='draft'&&positive('--concurrency',1)>4)throw new Error('--concurrency must be at most 4 for draft')
-  if(!['accuracy','compare'].includes(command))validateFamilyOptions({families,familySet})
+  if(!['accuracy','compare'].includes(command)&&!(command==='arms'&&values['--family-set']&&!values['--families']&&values['--arms']==='family-fill'))validateFamilyOptions({families,familySet})
+  if(command==='arms'&&values['--arms']==='family-fill'&&values['--family-set']&&!['C','D'].includes(values['--family-set']))throw new Error('Family fill needs --family-set C or D')
   if(command==='accuracy'&&values['--families'])throw new Error('Accuracy uses --family-set without --families')
   if(values['--families']&&!['score','arms','summary'].includes(command))throw new Error('Family flags apply to score, arms or summary')
   if(values['--catalogue']&&command!=='draft')throw new Error('--catalogue applies to draft')
@@ -42,7 +43,7 @@ export function parseEval(argv:string[]): EvalOptions {
   if(new Set(runs).size!==runs.length)throw new Error('Duplicate run')
   if(new Set(heldOutRuns).size!==heldOutRuns.length)throw new Error('Duplicate held-out run')
   const pair=values['--baseline']+'|'+values['--candidate']
-  if(command==='compare'&&(!['blocks-production|family-fill','blocks-production|blocks-production+repair','family-fill|family-fill+repair'].includes(pair)||runs.length!==2||heldOutRuns.length!==1||familySet!=='C'))throw new Error('Compare needs a supported baseline/candidate pair, two --runs, one --held-out-runs and --family-set C')
+  if(command==='compare'&&(!['blocks-production|family-fill','blocks-production|blocks-production+repair','family-fill|family-fill+repair'].includes(pair)||runs.length!==2||heldOutRuns.length!==1||!['C','D'].includes(familySet||'')))throw new Error('Compare needs a supported baseline/candidate pair, two --runs, one --held-out-runs and --family-set C or D')
   if(command!=='compare'&&(values['--baseline']||values['--candidate']||values['--held-out-runs']))throw new Error('Comparison options apply to compare')
   if(command==='accuracy'&&(!values['--arm']||![1,2,4].includes(runs.length)))throw new Error('Accuracy needs --arm and one, two or four --runs')
   if(command==='verify'&&(!values['--arm']||!runs.length))throw new Error('Verify needs --arm and --runs')
@@ -114,7 +115,7 @@ export async function planEvaluation(options:EvalOptions,pages:PageManifest,hist
     }
     if(options.command==='arms') {
       for(const arm of options.arms) {
-        const args=['--page',page,'--arm',arm,'--run',options.run,...familyArgs]
+        const args=['--page',page,'--arm',arm,'--run',options.run,...familyArgs,...(arm==='family-fill'&&options.familySet&&!options.families?['--family-set',options.familySet]:[])]
         await add(page,'arms','run-arm.ts',args,path.join(arms,options.families?'jev-pick@families-'+options.familySet:arm,options.run),true,true,arm)
       }
     }

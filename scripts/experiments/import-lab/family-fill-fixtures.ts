@@ -35,7 +35,7 @@ async function verify(){
     decisions++
     const body=JSON.parse(String(init?.body))
     const types=Object.keys(body.questions['import.block.component'].criteria)
-    assert.equal(types.length,15)
+    assert.equal(types.length,11)
     const state=JSON.stringify(body.state)
     const chosen=requiredRegions?(/Block 1; region header/.test(state)?'site-header':/Block 3; region footer/.test(state)?'site-footer':'content'):'content'
     const probabilities=Object.fromEntries(types.map(type=>[type,type===chosen?0.99:0.01/(types.length-1)]))
@@ -63,6 +63,7 @@ async function verify(){
   assert.equal(dry.status,'dry-run');assert.deepEqual([dry.plan.decisionCalls,dry.plan.fillCalls],[3,3]);assert.equal(dry.plannedCallCount,6)
   assert.deepEqual(await fs.readdir(path.join(root,'arms',page,'family-fill')),['dry-fixture',...before])
   const familyRun=await readJson(path.join(directory,'run.json'))
+  assert.equal(familyRun.families.set,'D')
   assert.equal(typeof familyRun.configurationSha256,'string')
   assert.equal(typeof familyRun.promptSha256,'string')
   assert.equal(typeof familyRun.overrideSha256,'string')
@@ -82,10 +83,10 @@ async function verify(){
   for(let index=0;index<familyPlan.length;index++){
     const familyRequest={...familyPlan[index].request},productionRequest={...productionPlan[index].request}
     if(familyPlan[index].kind==='decision'){
-      assert.equal(Object.keys(familyRequest.options).length,15)
+      assert.equal(Object.keys(familyRequest.options).length,11)
       delete familyRequest.options
     }else{
-      assert.equal(familyRequest.allowedTypes.length,15)
+      assert.equal(familyRequest.allowedTypes.length,11)
       familyRequest.allowedTypes=productionRequest.allowedTypes
     }
     assert.deepEqual(familyRequest,productionRequest)

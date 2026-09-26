@@ -160,6 +160,7 @@ test('saved-data command writes only aggregate held-out output',async()=>{
     expect(result.folded.accuracy).toBeGreaterThan(result.candidate.accuracy)
     expect(result.folded.flips.pricing).toBeGreaterThan(0)
     expect(parseEval(['compare','--baseline','blocks-production','--candidate','family-fill','--runs','c-r1,c-r2','--held-out-runs','c-r1','--family-set','C']).command).toBe('compare')
+    expect(parseEval(['compare','--baseline','blocks-production','--candidate','family-fill','--runs','c-r1,c-r2','--held-out-runs','c-r1','--family-set','D']).familySet).toBe('D')
     for(const baseline of ['blocks-production','family-fill']){
       const candidate=baseline+'+repair'
       const args=['compare','--baseline',baseline,'--candidate',candidate,'--runs','c-r1,c-r2','--held-out-runs','c-r1','--family-set','C']
@@ -192,6 +193,9 @@ test.each([['blocks-production','blocks-production+repair'],['family-fill','fami
     }
     const result=await generateComparison(root,{baseline,candidate,runs,heldOutRuns:['c-r1'],familySet:'C'})
     expect(result.heldOut).toEqual({baseline:expect.any(Number),candidate:expect.any(Number)})
+    const resultD=await generateComparison(root,{baseline,candidate,runs,heldOutRuns:['c-r1'],familySet:'D'})
+    expect(resultD.heldOut).toEqual({baseline:expect.any(Number),candidate:expect.any(Number)})
+    expect(resultD.folded.accuracy).toBe(resultD.candidate.accuracy)
     for(const arm of [baseline,candidate])for(const page of ['development','hidden'])for(const run of (page==='hidden'?['c-r1']:runs)){
       const file=path.join(root,'labels',page,'scores-stick',stickScoreName(arm,run,'C')+'.json')
       const score=JSON.parse(await fs.readFile(file,'utf8'))

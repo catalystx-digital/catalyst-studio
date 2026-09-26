@@ -1,5 +1,5 @@
 {
-  "note": "A PROPOSAL used only by the import lab to test how much accuracy a simpler component list would give. It changes nothing in the product. Set A keeps banner, media-beside-text and call-to-action apart; set B merges them into one section type with layout options.",
+  "note": "An import-lab catalogue; it changes nothing in the product. A and B are early proposals. C is the historical 15-family set. D is the 11-family set chosen at gate G3, folding stats, testimonials, pricing and logo-strip into collection.",
   "sets": {
     "A": {
       "navigation": { "description": "Site or section navigation: top menu bar, side menu, breadcrumb trail.", "types": ["navbar", "sidemenu", "breadcrumbs"] },
@@ -50,6 +50,19 @@
       "stats": {"description":"Prominent numerical facts.","types":["statistics"]},
       "testimonials": {"description":"Quoted views and reviews.","types":["testimonials","reviews","quote-block"]},
       "pricing": {"description":"Prices and plan options.","types":["pricing-table","pricing-card"]},
+      "disclosure": {"description":"Content opened through controls.","types":["accordion","tabs"]},
+      "cta": {"description":"Prominent calls to action.","types":["cta-banner","cta-simple","cta-button-group"]},
+      "form": {"description":"Forms for contact or submission.","types":["cta-with-form","contact-form","simple-form"]},
+      "table": {"description":"Structured data and comparisons.","types":["data-table","chart","feature-comparison"]},
+      "media": {"description":"Images, video or maps as the main content.","types":["image-gallery","video-player","video-embed","location-map"]}
+    },
+    "D": {
+      "site-header": {"description":"Global site navigation and identity.","types":["navbar"]},
+      "site-footer": {"description":"Site-wide footer links and details.","types":["footer"]},
+      "local-nav": {"description":"Navigation within a section or page hierarchy.","types":["breadcrumbs","sidemenu"]},
+      "hero": {"description":"Prominent page introduction or banner.","types":["hero-banner","hero-simple","hero-minimal","hero-with-image","hero-video","hero-carousel","hero-split","article-header"]},
+      "content": {"description":"Editorial text and supporting information.","types":["text-block","html-block","two-column","about-section","feature-showcase","author-bio","blog-post","contact-info"]},
+      "collection": {"description":"Repeated cards, posts, events, numbers, quotes, prices or logos. Use itemKind for the item shape.","types":["card-grid","feature-grid","feature-list","team-grid","content-feed","blog-list","related-posts","timeline","statistics","testimonials","reviews","quote-block","pricing-table","pricing-card","logo-cloud"]},
       "disclosure": {"description":"Content opened through controls.","types":["accordion","tabs"]},
       "cta": {"description":"Prominent calls to action.","types":["cta-banner","cta-simple","cta-button-group"]},
       "form": {"description":"Forms for contact or submission.","types":["cta-with-form","contact-form","simple-form"]},

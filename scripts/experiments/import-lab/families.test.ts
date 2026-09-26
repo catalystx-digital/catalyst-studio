@@ -4,6 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { validateFamilies, familyPick, scoreDirectory } from './families'
+import catalogue from './component-families.json'
 import { scoreFixture as scoreSheet } from './phase2-fixtures'
 import { scorePicks, type Pick } from './pick-score'
 import { block, label, entry, sheet, component } from './phase2-fixtures'
@@ -19,6 +20,16 @@ test('every set covers exactly the catalogue; duplicate, missing and unknown err
   const duplicate=proposal();duplicate.sets.B.cards.types.push('hero');expect(()=>validateFamilies(duplicate,types)).toThrow(/B: duplicate types \[hero\]/)
   const missing=proposal();missing.sets.A.banner.types.pop();expect(()=>validateFamilies(missing,types)).toThrow('missing types [hero-split]')
   const unknown=proposal();unknown.sets.A.banner.types.push('invented-unknown');expect(()=>validateFamilies(unknown,types)).toThrow('unknown types [invented-unknown]')
+})
+
+test('set D maps all 50 types into eleven families while C stays historical',()=>{
+  const types=Object.values(catalogue.sets.C).flatMap(family=>family.types)
+  const sets=validateFamilies(catalogue,types)
+  expect(Object.keys(sets.D.byType)).toHaveLength(50)
+  expect(sets.D.entries).toHaveLength(11)
+  for(const type of ['statistics','testimonials','reviews','quote-block','pricing-table','pricing-card','logo-cloud'])expect(sets.D.byType[type]).toBe('collection')
+  expect(sets.C.entries).toHaveLength(15)
+  expect(sets.C.byType.statistics).toBe('stats')
 })
 test('near twin becomes right; other family stays wrong; checks and ignored blocks stay unchanged',()=>{
   const answer=sheet(),output={...component,type:'hero-split'},normal=scoreSheet(answer,[output],url),grouped=scoreSheet(answer,[output],url,{families:family()})
@@ -62,6 +73,8 @@ test('CLI validates paired flags and passes them to family arm plans and isolate
   const tasks=await planEvaluation(options,{garden:{url,kind:'home',siteKind:'saas',heldOut:false,renderWithJavaScript:false,notes:''}})
   expect(tasks[0].args).toEqual(expect.arrayContaining(['--families','families.json','--family-set','A']));expect(tasks[0].paid).toBe(true)
   expect(scoreDirectory('garden',{families:'families.json',familySet:'B'})).toContain('scores-family-B')
+  expect(parseEval(['accuracy','--arm','family-fill','--runs','c-r1,c-r2','--family-set','D']).familySet).toBe('D')
+  expect(parseEval(['arms','--arms','family-fill','--run','new-run','--family-set','C','--dry-run']).familySet).toBe('C')
 })
 test('offline family requests, fake client, dry CLI, post-hoc scores and source preservation',()=>{
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'import-lab-test-'))

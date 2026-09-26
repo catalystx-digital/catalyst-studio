@@ -11,7 +11,10 @@ import { runFamilyFill } from './family-fill'
 export const ARMS = ['blocks-production', 'jev-pick', 'family-fill'] as const
 interface RunOptions extends FamilyOptions { page: string; run: string; arm: string; dryRun: boolean }
 export async function runArm(options: RunOptions, fixtures?: RunFixtures) {
-  validateFamilyOptions(options)
+  if(options.arm==='family-fill') {
+    if(options.families)throw new Error('Family fill uses the built-in catalogue')
+    if(options.familySet&&!['C','D'].includes(options.familySet))throw new Error('Family fill needs --family-set C or D')
+  } else validateFamilyOptions(options)
   if (!ARMS.includes(options.arm as typeof ARMS[number])) throw new Error('Unknown arm: ' + options.arm)
   if (options.families && options.arm !== 'jev-pick') throw new Error('Family picking applies only to jev-pick')
   const arm = options.families ? 'jev-pick@families-' + options.familySet : options.arm
@@ -29,7 +32,7 @@ export async function runArm(options: RunOptions, fixtures?: RunFixtures) {
   try {
     if (options.arm === 'blocks-production') await runProductionBlocks(options.page, directory, options.dryRun, record, fixtures)
     else if (options.arm === 'jev-pick') await runPick(options.page, directory, options.dryRun, record, options, fixtures)
-    else await runFamilyFill(options.page,directory,options.dryRun,record,fixtures)
+    else await runFamilyFill(options.page,directory,options.dryRun,record,(options.familySet||'D') as 'C'|'D',fixtures)
   } catch (error) { record.status = 'failed'; record.failures.push({ stage: 'run', ...errorRecord(error) }) }
   finally {
     restoreConsole()

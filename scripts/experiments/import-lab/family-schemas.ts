@@ -20,13 +20,14 @@ const formFields = z.array(z.strictObject({label:z.string().optional(),type:z.st
 const settings = <T extends z.ZodRawShape>(shape:T) => z.strictObject({...section,settings:z.strictObject(shape).optional()})
 const columns = z.number().int().min(1).max(6)
 const position = z.enum(['none','background','left','right','below'])
+const collectionSettings = {layout:z.enum(['grid','list','bento','carousel','timeline']).optional(),columns:columns.optional(),itemStyle:z.enum(['card','plain','icon-left']).optional(),source:z.enum(['static','feed']).optional()}
 export const familySchemas: Record<string,z.ZodType> = {
   'site-header':settings({sticky:z.boolean().optional(),transparent:z.boolean().optional(),mobileMenuStyle:z.enum(['dropdown','drawer','full-screen']).optional()}),
   'site-footer':z.strictObject({...section,form:z.strictObject({fields:formFields,submitLabel:z.string().optional()}).optional(),settings:z.strictObject({columns:columns.optional(),tone:z.enum(['dark','light']).optional()}).optional()}),
   'local-nav':settings({kind:z.enum(['breadcrumb','vertical','toc']).optional()}),
   hero:settings({mediaPosition:position.optional(),mediaKind:z.enum(['image','video']).optional(),height:z.enum(['small','medium','large','full']).optional(),alignment:z.enum(['left','center','right']).optional(),slideshow:z.boolean().optional()}),
   content:settings({mediaPosition:position.optional(),textColumns:z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(),width:z.enum(['narrow','normal','wide','full']).optional()}),
-  collection:z.strictObject({...section,items:z.array(item).min(1),settings:z.strictObject({layout:z.enum(['grid','list','bento','carousel','timeline']).optional(),columns:columns.optional(),itemStyle:z.enum(['card','plain','icon-left']).optional(),source:z.enum(['static','feed']).optional()}).optional()}),
+  collection:z.strictObject({...section,items:z.array(item).min(1),settings:z.strictObject(collectionSettings).optional()}),
   'logo-strip':settings({layout:z.enum(['grid','marquee']).optional(),greyscale:z.boolean().optional()}),
   stats:settings({layout:z.enum(['grid','row']).optional(),emphasis:z.enum(['primary','secondary','plain']).optional()}),
   testimonials:settings({layout:z.enum(['single','grid','carousel']).optional(),showRating:z.boolean().optional()}),
@@ -41,6 +42,14 @@ export const familySchemas: Record<string,z.ZodType> = {
   media:settings({layout:z.enum(['single','grid','masonry','carousel']).optional(),aspectRatio:z.enum(['16:9','4:3','21:9','1:1','9:16']).optional(),lightbox:z.boolean().optional()})
 }
 export const familyJsonSchemas: Record<string,unknown> = Object.fromEntries(Object.entries(familySchemas).map(([name,schema])=>[name,z.toJSONSchema(schema)]))
+const { 'logo-strip': _logos, stats: _stats, testimonials: _testimonials, pricing: _pricing, ...sharedFamilySchemas } = familySchemas
+export const familySchemasD: Record<string,z.ZodType> = {
+  ...sharedFamilySchemas,
+  collection:z.strictObject({...section,items:z.array(item).min(1),settings:z.strictObject({...collectionSettings,itemKind:z.enum(['card','stat','quote','price','logo']).optional()}).optional()})
+}
+export const familyJsonSchemasD: Record<string,unknown> = Object.fromEntries(Object.entries(familySchemasD).map(([name,schema])=>[name,z.toJSONSchema(schema)]))
+export const familySchemasForSet = (set:'C'|'D') => set==='D'?familySchemasD:familySchemas
+export const familyJsonSchemasForSet = (set:'C'|'D') => set==='D'?familyJsonSchemasD:familyJsonSchemas
 
 const options = (type: string) => ({ parentCanonicalType: type })
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -97,8 +106,8 @@ function repairFamilyFields(type: string, content: Record<string, unknown>): Rec
 }
 
 /** Apply the same SmartLink requirements and field pruning as production, at every depth. */
-export function validateFamilyContent(type: string, content: Record<string, unknown>): Record<string, unknown> {
-  const result = familySchemas[type]?.safeParse(repairFamilyFields(type, content))
+export function validateFamilyContent(type: string, content: Record<string, unknown>, set:'C'|'D'='C'): Record<string, unknown> {
+  const result = familySchemasForSet(set)[type]?.safeParse(repairFamilyFields(type, content))
   if (!result?.success) throw new Error(result?.error.message ?? 'Unknown component family: ' + type)
   const parsed = result.data as Record<string, unknown>
   const parseLink = (value: Link): Record<string, unknown> => {

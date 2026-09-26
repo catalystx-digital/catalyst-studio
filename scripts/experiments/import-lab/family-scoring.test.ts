@@ -1,8 +1,9 @@
 /** @jest-environment node */
-import {checkContent} from './scoring'
-import {validateFamilies} from './families'
+import {checkContent,scoreSheet} from './scoring'
+import {labelForFamilySet,validateFamilies} from './families'
 import type {SourceEvidence} from './source-evidence'
 import {comparisonBlocks} from './phase3-fixtures'
+import catalogue from './component-families.json'
 
 const families=validateFamilies({sets:{C:{collection:{description:'Repeated items',types:['card-grid']}}}},['card-grid']).C
 const image='https://example.com/invented-picture.svg',target='https://example.com/invented-detail'
@@ -29,4 +30,21 @@ test('family item counts and sparse text, image-address links, and settings scor
   expect(checks.C6).toMatchObject({passed:true,produced:1})
   expect(checkContent(block,{...sparseLabel,itemKind:null},[sparse],'https://example.com/',families,sparseEvidence).C6).toMatchObject({passed:true,produced:1})
   expect(checks.C7.passed).toBe(true)
+})
+
+test('set D scores a historical stats label as collection; set C retains stats',()=>{
+  const types=Object.values(catalogue.sets.C).flatMap(family=>family.types)
+  const sets=validateFamilies(catalogue,types)
+  const block=comparisonBlocks()[0]
+  const historical={...label,family:'stats',acceptableFamilies:['stats'],familiesInOrder:['stats'],itemCount:null}
+  const output=[{type:'collection',content:{items:[{title:'42',body:'Invented count'}],settings:{itemKind:'stat'}}}]
+  expect(checkContent(block,historical,output,'https://example.com/',sets.D).C1).toMatchObject({passed:true,expected:['collection']})
+  expect(checkContent(block,historical,output,'https://example.com/',sets.C).C1).toMatchObject({passed:false,expected:['stats']})
+  const answer={version:2 as const,page:'invented',snapshotSha256:'fixture',proposalSha256:'fixture',familySet:'C',entries:[{blockId:block.id,order:block.order,status:'agreed',label:historical}]}
+  const matched=[{...output[0],content:{...output[0].content,heading:block.text}}]
+  expect(scoreSheet(answer,matched,'https://example.com/',{families:sets.D,blocks:[block]}).rows[0]).toMatchObject({acceptableFamilies:['collection'],checks:{C1:{passed:true}}})
+  expect(scoreSheet(answer,matched,'https://example.com/',{families:sets.C,blocks:[block]}).rows[0]).toMatchObject({acceptableFamilies:['stats'],checks:{C1:{passed:false}}})
+  const savedHistorical=[{...matched[0],type:'stats'}]
+  expect(scoreSheet(answer,savedHistorical,'https://example.com/',{families:sets.D,blocks:[block]}).rows[0]).toMatchObject({acceptableFamilies:['collection'],producedFamilies:['collection'],checks:{C1:{passed:true}}})
+  expect(labelForFamilySet({family:'stats',acceptableFamilies:['stats','pricing'],familiesInOrder:['stats','pricing']},'D')).toEqual({family:'collection',acceptableFamilies:['collection','collection'],familiesInOrder:['collection','collection']})
 })

@@ -4,9 +4,10 @@ import { readJson } from './storage'
 import { validatePages } from './pages'
 import { stickScoreName } from './stick-version'
 import { scorePage } from './score'
+import { foldFamily, foldedFamilies } from './families'
 
 const CHECKS=['C1','C2','C3','C4','C5','C6','C7'] as const
-const FOLDS=['stats','testimonials','pricing','logo-strip'] as const
+const FOLDS=foldedFamilies
 type Row={id:string;order?:number;ignored:boolean;verdict:string;failedChecks:string[];acceptableFamilies?:string[];producedFamilies?:string[];componentIndices?:number[];multiple?:boolean}
 export type ComparisonRun={rows:Row[];extra:unknown[];blockCount:number;dropped:number;seconds:number|null;cost:number|null;choices:Array<{id:string;top1:string;top3:string[]}>}
 export type ComparisonPage={id:string;site:string;siteKind:string;baseline:Record<string,ComparisonRun>;candidate:Record<string,ComparisonRun>}
@@ -35,8 +36,7 @@ function failure(run:ComparisonRun,check:string):Counts{const rows=scored(run);r
 function junk(run:ComparisonRun){return new Set(run.rows.filter(r=>r.ignored&&r.verdict==='should have been ignored').flatMap(r=>r.componentIndices||[])).size}
 function extraJunk(run:ComparisonRun):Counts{return {correct:run.extra.length+junk(run),total:scored(run).length}}
 function totals(pages:ComparisonPage[],arm:Arm,runs:string[]){const entries=pages.flatMap(p=>runs.map(r=>p[arm][r])),rows=entries.flatMap(scored);return {correct:rows.filter(r=>r.verdict==='correct').length,total:rows.length,extra:entries.reduce((n,r)=>n+r.extra.length,0),junk:entries.reduce((n,r)=>n+junk(r),0),dropped:entries.reduce((n,r)=>n+r.dropped,0),blocks:entries.reduce((n,r)=>n+r.blockCount,0),cost:entries.every(r=>r.cost!==null)?entries.reduce((n,r)=>n+r.cost!,0):null,seconds:entries.every(r=>r.seconds!==null)?entries.reduce((n,r)=>n+r.seconds!,0):null}}
-const fold=(name:string)=>FOLDS.includes(name as typeof FOLDS[number])?'collection':name
-function foldedRight(row:Row){const wanted=(row.acceptableFamilies||[]).map(fold),picked=(row.producedFamilies||[]).map(fold);if(row.multiple){const remaining=[...wanted];return picked.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0}return picked.some(p=>wanted.includes(p))}
+function foldedRight(row:Row){const wanted=(row.acceptableFamilies||[]).map(foldFamily),picked=(row.producedFamilies||[]).map(foldFamily);if(row.multiple){const remaining=[...wanted];return picked.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0}return picked.some(p=>wanted.includes(p))}
 const foldedCorrect=(row:Row)=>row.verdict==='correct'||row.failedChecks.includes('C1')&&row.failedChecks.every(c=>c==='C1')&&foldedRight(row)
 function foldedRate(run:ComparisonRun):Counts{const rows=scored(run);return {correct:rows.filter(foldedCorrect).length,total:rows.length}}
 function choices(pages:ComparisonPage[],runs:string[]){let top1=0,top3=0,top1Total=0,top3Total=0;for(const page of pages)for(const run of runs){const item=page.candidate[run],byId=new Map(scored(item).map(r=>[r.id,r]));for(const choice of item.choices){const row=byId.get(choice.id);if(!row)continue;top1Total++;if(row.acceptableFamilies?.includes(choice.top1))top1++;if(choice.top3.length===3){top3Total++;if(choice.top3.some(c=>row.acceptableFamilies?.includes(c)))top3++}}}return {top1,top3,top1Total,top3Total}}
@@ -56,9 +56,9 @@ export function buildComparison(pages:ComparisonPage[],heldOut:{baseline:number;
   const decision=Object.values(conditions).every(c=>c.passed)?'GO':'NO-GO',bad=Object.entries(conditions).filter(([,value])=>!value.passed).map(([key])=>key==='heldOut'?'held-out':`(${key})`)
   const baseTotals=totals(pages,'baseline',runs),candTotals=totals(pages,'candidate',runs)
   const same=pages.filter(page=>runs.every(run=>page.baseline[run].blockCount===page.candidate[run].blockCount))
-  const sameGain=same.length?gain(same):null,jev=choices(pages,runs),flips=foldFlips(pages,runs),foldRows=pages.flatMap(page=>runs.flatMap(run=>scored(page.candidate[run]))),folded={accuracy:metric(pages,'candidate',runs,foldedRate),correct:foldRows.filter(foldedCorrect).length,total:foldRows.length,...flips}
+  const sameGain=same.length?gain(same):null,jev=choices(pages,runs),flips=foldFlips(pages,runs),foldRows=pages.flatMap(page=>runs.flatMap(run=>scored(page.candidate[run]))),folded={accuracy:metric(pages,'candidate',runs,options.familySet==='D'?runRate:foldedRate),correct:foldRows.filter(options.familySet==='D'?(row=>row.verdict==='correct'):foldedCorrect).length,total:foldRows.length,...flips}
   const report=[
-    repaired?`${decision}: ${tenth(candidate)} in 10 sections correctly after repair, against ${tenth(baseline)} in 10 before repair (development pages).`:`${decision}: the 15 section families import ${tenth(candidate)} in 10 sections correctly, against ${tenth(baseline)} in 10 today (development pages).`,
+    repaired?`${decision}: ${tenth(candidate)} in 10 sections correctly after repair, against ${tenth(baseline)} in 10 before repair (development pages).`:`${decision}: the ${options.familySet==='D'?'11':'15'} section families import ${tenth(candidate)} in 10 sections correctly, against ${tenth(baseline)} in 10 today (development pages).`,
     `The difference is ${point(difference)} points (likely range ${point(gainInterval[0])} to ${point(gainInterval[1])}); it ${conditions.b.passed?'holds':'does not hold'} when any one website is left out.`,
     `Held-out pages: ${candidateName} ${tenth(heldOut.candidate)} in 10, ${baseName} ${tenth(heldOut.baseline)} in 10.`,
     '---',
@@ -73,8 +73,8 @@ export function buildComparison(pages:ComparisonPage[],heldOut:{baseline:number;
     `Cost and wall-clock: ${baseName} ${baseTotals.cost===null?'unknown':'$'+baseTotals.cost.toFixed(4)} / ${baseTotals.seconds===null?'unknown':baseTotals.seconds.toFixed(1)+'s'}, ${candidateName} ${candTotals.cost===null?'unknown':'$'+candTotals.cost.toFixed(4)} / ${candTotals.seconds===null?'unknown':candTotals.seconds.toFixed(1)+'s'} (${pages.length*runs.length} page-runs per arm).`,
     `Same block count: ${sameGain===null?'not measured':point(sameGain)+' points'} (${same.length}/${pages.length} pages).`,
     `Jev family choice: top-1 ${count(jev.top1,jev.top1Total)}, any top-3 ${count(jev.top3,jev.top3Total)}.`,
-    `Fold flips (key versus Jev top-1): ${FOLDS.map(name=>`${name} ${count(flips.flips[name],flips.eligible[name])}`).join('; ')}.`,
-    `Folded development accuracy: ${pct(folded.accuracy)} (${folded.correct}/${folded.total}; stats, testimonials, pricing and logo-strip folded into collection).`
+    ...(options.familySet==='D'?[]:[`Fold flips (key versus Jev top-1): ${FOLDS.map(name=>`${name} ${count(flips.flips[name],flips.eligible[name])}`).join('; ')}.`]),
+    options.familySet==='D'?`Set-D development accuracy: ${pct(folded.accuracy)} (${folded.correct}/${folded.total}).`:`Folded development accuracy: ${pct(folded.accuracy)} (${folded.correct}/${folded.total}; stats, testimonials, pricing and logo-strip folded into collection).`
   ]
   const json={decision,conditions,baseline:{accuracy:baseline,interval:baselineInterval,...baseTotals},candidate:{accuracy:candidate,interval:candidateInterval,...candTotals},gain:{point:difference,interval:gainInterval},leaveOneSiteOut,checks:checkResults,noise:{halfWidth:noise,label:'single-run, conservative'},heldOut,sameBlockCount:{pages:same.length,gain:sameGain},jev,folded}
   return {decision,conditions,baseline:json.baseline,candidate:json.candidate,leaveOneSiteOut,heldOut,folded,markdown:report.join('\n')+'\n',json}
@@ -123,7 +123,7 @@ async function loadRun(root:string,page:string,arm:string,run:string,familySet:s
 async function heldOutOverall(root:string,pages:string[],arm:string,runs:string[],familySet:string){const totals=new Map(runs.map(run=>[run,{correct:0,total:0}]));for(const page of pages)for(const run of runs){try{const dir=path.join(root,'arms',page,arm,run),record=await optional<any>(path.join(dir,'run.json'));validateRun(record,page,arm,run,true);const file=path.join(root,'labels',page,'scores-stick',stickScoreName(arm,run,familySet)+'.json');if(!await optional<any>(file))await scorePage(page,{components:path.join(dir,'components.json'),name:stickScoreName(arm,run),familySet,root});const score=await readJson<{accuracy?:{correct:number;total:number}}>(file);if(!score.accuracy||!Number.isFinite(score.accuracy.correct)||!Number.isFinite(score.accuracy.total))throw new Error('Overall score missing');const value=totals.get(run)!;value.correct+=score.accuracy.correct;value.total+=score.accuracy.total}catch{throw new Error(`Held-out overall scoring failed for ${arm}/${run}`)}}return mean(runs.map(run=>{const value=totals.get(run)!;return ratio(value.correct,value.total)}))}
 export async function generateComparison(root:string,options:CompareOptions){
   const pair=options.baseline+'|'+options.candidate
-  if(!['blocks-production|family-fill','blocks-production|blocks-production+repair','family-fill|family-fill+repair'].includes(pair)||options.familySet!=='C'||options.runs.length!==2||options.heldOutRuns.length!==1)throw new Error('Compare requires a supported arm pair, two development runs, one held-out run and family set C')
+  if(!['blocks-production|family-fill','blocks-production|blocks-production+repair','family-fill|family-fill+repair'].includes(pair)||!['C','D'].includes(options.familySet)||options.runs.length!==2||options.heldOutRuns.length!==1)throw new Error('Compare requires a supported arm pair, two development runs, one held-out run and family set C or D')
   const manifest=validatePages(await readJson(path.join(root,'pages.json'))),development=Object.keys(manifest).filter(page=>!manifest[page].heldOut).sort(),held=Object.keys(manifest).filter(page=>manifest[page].heldOut).sort()
   if(!development.length||!held.length)throw new Error('Compare requires development and held-out pages')
   let absent=0

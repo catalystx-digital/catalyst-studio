@@ -1,5 +1,5 @@
 import { componentStrings, componentResources, extractPageEvidence, isHumanText, measureTextKept, measureTextNotFound, normalizeText, containsPhrase, wordShingles, TEXT_COVERAGE_THRESHOLD, absoluteUrl, type Component, type Field } from './metrics'
-import { familyOf, type FamilySet } from './families'
+import { familyOf, foldFamily, foldedFamilies, labelForFamilySet, type FamilySet } from './families'
 import { familySchemas } from './family-schemas'
 import { sha, type Block, type FamilyLabel } from './labels'
 import type { SourceEvidence } from './source-evidence'
@@ -12,7 +12,7 @@ interface Check { passed: boolean | null; expected: unknown; produced: unknown; 
 interface BlockScore { id: string; order: number; description: string; acceptableFamilies: string[]; producedFamilies: string[]; producedTypes: string[]; componentIndices: number[]; verdict: Verdict; checks: Record<'C1'|'C2'|'C3'|'C4'|'C5'|'C6'|'C7',Check>; failedChecks: string[]; split: boolean; splitAllowed: boolean; merged: boolean; ignored: boolean; structuralErrors: string[] }
 export interface V2Sheet {version:2;page:string;heldOut?:boolean;snapshotSha256:string;proposalSha256:string;blocks?:Block[];familySet:string;entries:Array<{blockId:string;order:number;status:string;label:Record<string,unknown>}>}
 const hasDispute=(value:unknown):boolean=>!!value&&typeof value==='object'&&(('disputed' in value&&value.disputed===true)||Object.values(value).some(hasDispute))
-const familyName=(type:string,families:FamilySet)=>families.entries.some(entry=>entry.type===type)?type:familyOf(type,families)
+const familyName=(type:string,families:FamilySet)=>families.entries.some(entry=>entry.type===type)?type:families.set==='D'&&foldedFamilies.includes(type as typeof foldedFamilies[number])?foldFamily(type):familyOf(type,families)
 const includesText=containsPhrase
 const HEADING_KEYS=new Set(['title','heading','headline','subheading','subtitle','eyebrow','name','question'])
 const lastKey=(field:Field)=>field.path.split('.').pop()!.replace(/\[\d+\]/g,'')
@@ -120,6 +120,7 @@ export function checkVisibleContent(source:SourceEvidence,components:Component[]
   return {checks,missing:{text:missingRuns.map(run=>run.text),links:source.links.filter(link=>missingLinks.includes(link)||missingLabels.includes(link)),images:missingImages.map(group=>group.addresses)},invented:notFound.map(field=>field.value)}
 }
 export function checkContent(block:Block,label:FamilyLabel,components:Component[],baseUrl:string,families:FamilySet,source:SourceEvidence=emptyEvidence(block,baseUrl),pageSource=''):BlockScore['checks'] {
+  label=labelForFamilySet(label,families.set)
   const producedFamilies=components.map(c=>familyName(c.type,families))
   const remaining=[...label.familiesInOrder]
   const rightType=label.multiple?producedFamilies.every(name=>{const index=remaining.indexOf(name);if(index<0)return false;remaining.splice(index,1);return true})&&remaining.length===0:producedFamilies.some(name=>label.acceptableFamilies.includes(name))
@@ -132,7 +133,7 @@ export function checkContent(block:Block,label:FamilyLabel,components:Component[
 }
 export function scoreSheet(sheet:V2Sheet,components:Component[],baseUrl:string,options:{families:FamilySet;blocks:Block[];evidence?:SourceEvidence[];pageSource?:string;allMissed?:boolean}) {
   if(sheet?.version!==2||!Array.isArray(sheet.entries))throw new Error('Expected a version-2 answer sheet (answer-sheet-v2.json); version-1 sheets cannot be scored')
-  if(sheet.familySet!==options.families.set)throw new Error('Answer sheet and scoring family sets differ')
+  if(sheet.familySet!==options.families.set&&!(sheet.familySet==='C'&&options.families.set==='D'))throw new Error('Answer sheet and scoring family sets differ')
   if(!Array.isArray(components)||components.some(c=>!c||typeof c.type!=='string'))throw new Error('Expected a JSON array of components, each with a string type')
   components.forEach(c=>familyName(c.type,options.families))
   if(sheet.entries.length!==options.blocks.length||sheet.entries.some((entry,index)=>entry.blockId!==options.blocks[index].id))throw new Error('Version-2 answer sheet and block proposal differ')
@@ -143,7 +144,7 @@ export function scoreSheet(sheet:V2Sheet,components:Component[],baseUrl:string,o
     const produced=indices.map(i=>components[i]),types=produced.map(c=>c.type),mapped=types.map(type=>familyName(type,options.families))
     const unsettled=hasDispute(entry.label)
     if(!unsettled&&(!entry.label||typeof entry.label!=='object'))throw new Error('Missing version-2 label: '+block.id)
-    const label=entry.label as unknown as FamilyLabel
+    const label=labelForFamilySet(entry.label as unknown as FamilyLabel,options.families.set)
     const source=matchedBlockEvidence(block,options.blocks,indices,matching.matches,options.evidence||[],baseUrl)
     const checks=unsettled?Object.fromEntries(['C1','C2','C3','C4','C5','C6','C7'].map(name=>[name,{passed:null,expected:null,produced:null,detail:'Unsettled label'}])) as BlockScore['checks']:checkContent(block,label,produced,baseUrl,options.families,source,options.pageSource)
     if(!unsettled&&(!indices.length||label.ignore))for(const check of Object.values(checks)){check.passed=null;check.structureUnknown=false;check.detail=label.ignore?'Ignored block':'No matched component'}

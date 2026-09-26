@@ -140,7 +140,8 @@ export async function repairRuns(root:string,options:RepairOptions,fixture:Fixtu
     await fs.mkdir(path.dirname(targetDir),{recursive:true})
     await fs.mkdir(targetDir)
     const recorder=new CallRecorder(targetDir,false)
-    const familyOverride=options.arm==='family-fill'?(await familyCatalogueOverride()).override:undefined
+    // Repair validates against the family set the source run was filled with; runs before set D recorded set C.
+    const familyOverride=options.arm==='family-fill'?(await familyCatalogueOverride(record.families?.set==='D'?'D':'C')).override:undefined
     let runRepaired=0,runKept=0
     const repairedKeys=new Set<string>()
     const client=fixture.client||((request:Request,callOptions?:{signal?:AbortSignal;timeout?:number})=>{

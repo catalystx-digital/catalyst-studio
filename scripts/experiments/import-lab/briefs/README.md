@@ -37,6 +37,7 @@ These briefs were given to a coding agent with no internet, no paid calls and no
 | 26 | [Automatic block verification](26-block-verification.md) | Check imported development sections for missing text, links and images or invented text using source evidence alone. | A runtime check is needed before a targeted repair call can list missing content. |
 | 27 | [Targeted repair](27-targeted-repair.md) | Repair only sections with measured missing or invented content. | The verifier identified content gaps after import. |
 | 28 | [Family fairness gaps](28-family-fairness-gaps.md) | Validate family links with production SmartLink rules and place families as their production equivalents for template assembly. | Final ruling removed family-only link, settings and media repairs; saved development comparisons showed four generic-template region failures. |
+| 29 | [Fold to eleven families](29-fold-to-eleven.md) | Add set D with 11 families, fold four kinds into collection, and score historical set-C labels under D. | Gate G3 found 33.2% folded development accuracy against 32.9% for set C, with only 0–1.7% confusion for the folded families. |
 
 ## Removed after the decisions
 

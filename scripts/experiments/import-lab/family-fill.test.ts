@@ -6,7 +6,7 @@ import {spawnSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
 import { buildDetectionPromptFromCatalog } from '@/lib/studio/import/detection/prompt-builder'
 import { familyCatalogueOverride } from './family-fill'
-import { familyJsonSchemas } from './family-schemas'
+import { familyJsonSchemasForSet } from './family-schemas'
 import { parseSectionDetectionResponse } from '@/lib/studio/import/detection/response-parser'
 import { aggregateSectionArtifacts } from '@/lib/studio/import/detection/section-aggregation'
 import { inferLocationFromType } from '@/lib/studio/import/detection/response-parser'
@@ -23,19 +23,25 @@ test('family prompt preserves every description and the complete JSON Schema con
     mode: 'section', pageUrl: 'https://example.com/workshop',
     catalogueContractOverride: override.contract, omitCatalogueRules: override.omitRules
   })
-  expect(Object.keys(override.types)).toHaveLength(15)
+  expect(Object.keys(override.types)).toHaveLength(11)
   expect(prompt.slice(prompt.indexOf(override.contract), prompt.indexOf(override.contract) + override.contract.length)).toBe(override.contract)
   for (const [type, description] of Object.entries(override.types)) {
     expect(prompt).toContain(`${type}: ${description}`)
   }
   expect(prompt).toContain('=== FAMILY CONTENT CONTRACTS ===\n{')
-  expect(prompt).toContain(JSON.stringify(familyJsonSchemas))
+  expect(prompt).toContain(JSON.stringify(familyJsonSchemasForSet('D')))
   const omitted = [CONTENT_EXTRACTION_SECTION, VALUE_OBJECT_OUTPUT_SECTION, CONTENT_REFERENCE_RULES_SECTION, FORBIDDEN_FIELDS_SECTION]
     .flatMap(section => section.split('\n'))
     .filter(line => line.startsWith('- ') && override.omitRules.some(type =>
       new RegExp(`(^|[^a-zA-Z0-9_-])${type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^a-zA-Z0-9_-])`).test(line)))
   expect(omitted.length).toBeGreaterThan(0)
   for (const rule of omitted) expect(prompt).not.toContain(rule)
+})
+
+test('set C remains selectable for historical family-fill runs', async () => {
+  const {override}=await familyCatalogueOverride('C')
+  expect(Object.keys(override.types)).toHaveLength(15)
+  expect(override.validateContent('stats',{heading:'Invented count'})).toMatchObject({heading:'Invented count'})
 })
 
 test('a filled family header passes the required block check after parsing', async () => {

@@ -74,7 +74,7 @@ For other page sets, eval.ts arms --arms blocks-production --run RUN --yes-spend
 
 ## 3. Picking and families
 
-To measure family filling on one development page, dry plan both arms first. Each plan saves its call list and `run.json`. A run without `--dry-run` uses paid decision and fill calls; use a fresh run ID for each attempt.
+To measure family filling on one development page, dry plan both arms first. Each plan saves its call list and `run.json`. Family fill defaults to the 11-family set D; pass `--family-set C` only to reproduce the historical 15-family arm. A run without `--dry-run` uses paid decision and fill calls; use a fresh run ID for each attempt.
 
 ~~~powershell
 node --import tsx scripts/experiments/import-lab/run-arm.ts --page PAGE --arm family-fill --run family-preview --dry-run
@@ -83,7 +83,7 @@ node --import tsx scripts/experiments/import-lab/run-arm.ts --page PAGE --arm fa
 node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs
 ~~~
 
-Compare `family-fill--family-r1--stick2-family-C.json` and the matching `blocks-production` stick2 score in `labels/PAGE/scores-stick/`. The family arm passes set C descriptions, schema contract, validator and location function into the production blocks harness. Paid runs re-render the saved HTML. The family arm rejects held-out pages. `run.json` records the effective configuration, source and prompt hashes, and override identity; `comparisonKey` changes with the override.
+Compare `family-fill--family-r1--stick2-family-D.json` and the matching `blocks-production` stick2 score in `labels/PAGE/scores-stick/`. The family arm passes the selected set's descriptions, schema contract, validator and location function into the production blocks harness. Paid runs re-render the saved HTML. The family arm rejects held-out pages. `run.json` records the family set, effective configuration, source and prompt hashes, and override identity; `comparisonKey` changes with the override.
 
 ~~~powershell
 node --import tsx scripts/experiments/import-lab/eval.ts arms --arms jev-pick --run pick-r1 --dry-run
@@ -123,7 +123,7 @@ These commands are **FREE**. Summary regeneration writes reports/SUMMARY.md and 
 
 ## Accuracy stick
 
-Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs` with `IMPORT_LAB_ROOT` set to saved data. It reads the version-2 answer key and uses set C by default. C1 checks family, C2 text, C3 headings, C4 links, C5 content images after labelled decorations, C6 item count and C7 invented text. Unsettled labels are counted but excluded from accuracy. Immutable stick2 files are saved in `labels/<page>/scores-stick/` without colliding with stick1 files.
+Run `node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --all-runs` with `IMPORT_LAB_ROOT` set to saved data. It reads the version-2 answer key and uses set C by default; pass `--family-set D` to score the folded catalogue. C1 checks family, C2 text, C3 headings, C4 links, C5 content images after labelled decorations, C6 item count and C7 invented text. Set-D scoring folds the four historical key families into collection without editing labels. Unsettled labels are counted but excluded from accuracy. Immutable stick2 files are saved in `labels/<page>/scores-stick/` without colliding with stick1 files.
 
 ## Accuracy report
 
@@ -133,7 +133,7 @@ node --import tsx scripts/experiments/import-lab/eval.ts verify --arm blocks-pro
 node --import tsx scripts/experiments/import-lab/eval.ts accuracy --arm blocks-production --runs a-r1,a-r2 --family-set C
 ~~~
 
-These saved-data commands are **FREE**. Use set C for both score and accuracy. Pages without the requested runs are skipped; the report names skipped development pages and counts skipped held-out pages. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
+These saved-data commands are **FREE**. Use the same set for score and accuracy; both accept `--family-set D`. Pages without the requested runs are skipped; the report names skipped development pages and counts skipped held-out pages. The report stays under `IMPORT_LAB_ROOT/reports/`; previous copies are archived.
 
 The verify command reads development pages only, saves one file per arm and run without overwriting it, and exits 1 on any mismatch with the stick's C2, C4, C5 by code rule, and C7 checks. Rerun accuracy with the same arm and verified runs to show the two automatic-check counts.
 
@@ -142,6 +142,15 @@ After stick2 score files exist, move each version-1 `labels/<page>/answer-sheet.
 ## Family go / no-go comparison
 
 After both development runs and the held-out run are saved for both arms, run `node --import tsx scripts/experiments/import-lab/eval.ts compare --baseline blocks-production --candidate family-fill --runs c-r1,c-r2 --held-out-runs c-r1 --family-set C`. This is offline and free. Read `reports/COMPARE.md` under `IMPORT_LAB_ROOT`; it contains development aggregates and only overall held-out accuracy per arm. Missing stick files are scored into new files.
+
+The gate G3 comparison above remains set C. For later 11-family runs, select `--family-set D` consistently in scoring, accuracy and compare commands. Re-score only development pages when checking the historical c-r1/c-r2 fold; keep held-out data closed.
+
+For each development `PAGE`, make new set-D scores for the saved family-fill runs:
+
+~~~powershell
+node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --components "$env:IMPORT_LAB_ROOT/arms/PAGE/family-fill/c-r1/components.json" --name family-fill--c-r1--stick2 --family-set D
+node --import tsx scripts/experiments/import-lab/score.ts --page PAGE --components "$env:IMPORT_LAB_ROOT/arms/PAGE/family-fill/c-r2/components.json" --name family-fill--c-r2--stick2 --family-set D
+~~~
 
 ## Two-labeller family key
 
