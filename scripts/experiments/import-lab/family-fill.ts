@@ -44,7 +44,7 @@ export async function familyCatalogueOverride(): Promise<{ override: BlockCatalo
 
 export async function runFamilyFill(page: string, directory: string, dryRun: boolean, record: any, fixtures?: RunFixtures) {
   const entry = (await loadPages())[page]
-  if (!entry || entry.heldOut) throw new Error('Family fill requires a development page')
+  if (!entry) throw new Error('Family fill requires a page from pages.json')
   const { override, familySha256 } = await familyCatalogueOverride()
   record.families = { set: 'C', sha256: familySha256 }
   await runProductionBlocks(page, directory, dryRun, record, fixtures, override)
