@@ -14,6 +14,8 @@ export interface SubcomponentNormalizerContext {
 export interface SubcomponentNormalizationWarning {
   issue: NormalizationIssueCode
   message: string
+  field?: string
+  childType?: string
   details?: Record<string, unknown>
 }
 
@@ -268,6 +270,8 @@ export function normalizeImage(
         options.warnings.push({
           issue: 'invalid-value',
           message: `Rejected page URL "${trimmed.substring(0, 80)}" as image source`,
+          field: options.field,
+          childType: options.context?.canonicalType,
           details: { field: options.field ?? 'image', url: trimmed }
         })
       }
@@ -332,6 +336,8 @@ export function normalizeImage(
         options.warnings.push({
           issue: 'invalid-value',
           message: `Rejected page URL "${trimmed.substring(0, 80)}" as image candidate`,
+          field: options.field,
+          childType: options.context?.canonicalType,
           details: { field: options?.field ?? 'image', url: trimmed, bucket }
         })
       }
@@ -497,6 +503,8 @@ function recordMissingMediaSrc(
   warnings.push({
     issue: 'media-src-missing',
     message: `Media asset ${mediaId} is missing a usable URL after normalization.`,
+    field,
+    childType: context.canonicalType,
     details: {
       canonicalType: context.canonicalType,
       parentCanonicalType: context.parentCanonicalType,

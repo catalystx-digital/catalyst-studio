@@ -1451,6 +1451,113 @@ describe('parseSectionDetectionResponse', () => {
     })
   })
 
+  it('keeps five usable logos when three media references have no URL', () => {
+    const logos = Array.from({ length: 8 }, (_, index) => ({
+      id: `partner-${index}`,
+      alt: `Partner ${index}`,
+      src: {
+        mediaId: `detected:partner-${index}`,
+        mediaType: 'image',
+        url: index < 3 ? '' : `https://cdn.example.com/partner-${index}.svg`
+      }
+    }))
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [{ component: 'logo-cloud', confidence: 0.9, content: { logos } }]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.components).toHaveLength(1)
+    expect((parsed.components[0].content.logos as Array<{ id: string }>).map(logo => logo.id)).toEqual([
+      'partner-3', 'partner-4', 'partner-5', 'partner-6', 'partner-7'
+    ])
+  })
+
+  it.each([
+    ['missing URL', undefined],
+    ['empty URL', ''],
+    ['relative URL', '/logos/bad.svg'],
+    ['data URI', 'data:image/svg+xml;base64,PHN2Zz4='],
+    ['page URL', 'https://example.com/about'],
+    ['bare word', 'logo']
+  ])('drops a logo with a %s while keeping a usable logo', (_kind, url) => {
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [{
+          component: 'logo-cloud',
+          confidence: 0.9,
+          content: {
+            logos: [
+              { id: 'bad', src: { mediaId: 'detected:bad', mediaType: 'image', ...(url === undefined ? {} : { url }) } },
+              { id: 'good', src: { mediaId: 'detected:good', mediaType: 'image', url: 'https://cdn.example.com/good.svg' } }
+            ]
+          }
+        }]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components).toHaveLength(1)
+    expect((parsed.components[0].content.logos as Array<{ id: string }>).map(logo => logo.id)).toEqual(['good'])
+  })
+
+  it('drops a logo-cloud section when all eight media references lack URLs', () => {
+    const logos = Array.from({ length: 8 }, (_, index) => ({
+      id: `partner-${index}`,
+      alt: `Partner ${index}`,
+      src: { mediaId: `detected:partner-${index}`, mediaType: 'image', url: '' }
+    }))
+    const parsed = parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [{ component: 'logo-cloud', confidence: 0.9, content: { logos } }]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25,
+      isolateInvalidComponents: true
+    })
+
+    expect(parsed.components).toEqual([])
+    expect(parsed.invalidComponents).toBeUndefined()
+    expect(parsed.parserRepairs).toEqual([
+      expect.objectContaining({ component: 'logo-cloud', action: 'drop_empty_logo_cloud' })
+    ])
+  })
+
+  it('still rejects a hero whose media image has no usable URL', () => {
+    expect(() => parseSectionDetectionResponse({
+      rawResponse: JSON.stringify({
+        sectionKey: 'main:0-99',
+        components: [{
+          component: 'hero-with-image',
+          confidence: 0.9,
+          content: {
+            heading: 'A real heading',
+            image: { src: { mediaId: 'detected:hero', mediaType: 'image' }, alt: 'Hero' }
+          }
+        }]
+      }),
+      sectionKey: 'main:0-99',
+      availableComponents: patterns,
+      url: 'https://example.com/',
+      confidenceThreshold: 0.25
+    })).toThrow('image:media-src-missing')
+  })
+
   it('drops all-invalid optional logo-cloud sections after normalization', () => {
     const parsed = parseSectionDetectionResponse({
       rawResponse: JSON.stringify({
