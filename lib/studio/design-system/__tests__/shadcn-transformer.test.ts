@@ -52,6 +52,26 @@ function createMockCapture(palette: Partial<DomPaletteCapture> = {}): DomDesignS
 }
 
 describe('toShadcnVariables', () => {
+  it('uses the dominant body sample before a smaller caption', () => {
+    const capture = createMockCapture()
+    capture.typography = [
+      { fontFamily: 'Example', fontWeight: '400', fontSizePx: 16, role: 'body' },
+      { fontFamily: 'Example', fontWeight: '400', fontSizePx: 12, role: 'body' },
+    ] as DomDesignSystemCapture['typography']
+
+    expect(toShadcnVariables(capture).typography?.body[0].fontSize).toBe('16px')
+  })
+
+  it('keeps the largest heading when a site has no h1', () => {
+    const capture = createMockCapture()
+    capture.typography = [
+      { fontFamily: 'Example', fontWeight: '600', fontSizePx: 28, role: 'heading', tag: 'h2' },
+      { fontFamily: 'Example', fontWeight: '600', fontSizePx: 36, role: 'heading' },
+    ] as DomDesignSystemCapture['typography']
+
+    expect(toShadcnVariables(capture).typography?.heading[0].fontSize).toBe('36px')
+  })
+
   it('should return all shadcn variable names', () => {
     const capture = createMockCapture()
     const result = toShadcnVariables(capture)

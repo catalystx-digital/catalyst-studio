@@ -53,6 +53,7 @@ interface PaletteCapture {
  */
 interface TypographySample {
   fontFamily: string
+  tag?: string
   fontStack?: string
   fontWeight: string
   fontSizePx: number
@@ -322,15 +323,17 @@ function extractTypography(
     return undefined
   }
 
-  const heading: TypographyToken[] = []
+  const heading = samples
+    .filter(sample => sample.role === 'heading')
+    .sort((a, b) => Number(b.tag === 'h1') - Number(a.tag === 'h1') || b.fontSizePx - a.fontSizePx)
+    .map(sample => normalizeTypographySample(sample, 'heading'))
+  // Body samples arrive in usage order; keep the dominant style first.
   const body: TypographyToken[] = []
   const ui: TypographyToken[] = []
 
   for (const sample of samples) {
     const role = sample.role
-    if (role === 'heading') {
-      heading.push(normalizeTypographySample(sample, 'heading'))
-    } else if (role === 'body') {
+    if (role === 'body') {
       body.push(normalizeTypographySample(sample, 'body'))
     } else if (role === 'label' || role === 'cta') {
       ui.push(normalizeTypographySample(sample, 'ui'))
@@ -338,9 +341,6 @@ function extractTypography(
     // Ignore 'unknown' role samples
   }
 
-  // Sort by font size (largest first for headings, smallest first for body/ui)
-  heading.sort((a, b) => parseFloat(b.fontSize) - parseFloat(a.fontSize))
-  body.sort((a, b) => parseFloat(a.fontSize) - parseFloat(b.fontSize))
   ui.sort((a, b) => parseFloat(a.fontSize) - parseFloat(b.fontSize))
 
   // Only return if we have at least some typography
