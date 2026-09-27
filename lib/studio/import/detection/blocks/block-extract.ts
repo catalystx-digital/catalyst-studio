@@ -16,6 +16,7 @@ import {
 import type { DetectionTelemetry } from '@/lib/studio/import/telemetry/detection-telemetry'
 import { buildDetectionPromptFromCatalog } from '../prompt-builder'
 import { parseSectionDetectionResponse } from '../response-parser'
+import { findInventedText } from './text-provenance'
 import type { BlockCatalogueOverride } from './block-catalogue'
 import type { BlockInput } from './block-input'
 import type { selectBlockCandidates } from './block-pick'
@@ -155,6 +156,7 @@ export async function runBlockReply<TRequest, TParsed>({
 
 export async function extractBlock({
   blockInput,
+  pageCorpus,
   allowedTypes,
   selection,
   pageOutline,
@@ -166,6 +168,7 @@ export async function extractBlock({
   catalogueOverride
 }: {
   blockInput: BlockInput & { url: string; finalUrl?: string }
+  pageCorpus: string
   allowedTypes: string[]
   selection: ReturnType<typeof selectBlockCandidates>
   pageOutline: string
@@ -293,8 +296,15 @@ export async function extractBlock({
         ...(catalogueOverride ? { validateContent: ({ canonicalType, content }: { canonicalType: string; content: Record<string, unknown> }) => catalogueOverride.validateContent(canonicalType, content) } : {})
       })
     })
+    const provenanceNotes = findInventedText(parsed.components, pageCorpus).map(({type, path, componentIndex}) => {
+      const component = parsed.components[componentIndex]
+      console.warn(`[DetectionService] Possible invented text ${sectionKey} ${type} ${path}`)
+      return {index: componentIndex, component: component.component, type: component.type, action: 'flag_invented_text' as const, reason: `${type} ${path}`}
+    })
     return {
-      artifact: { ...parsed, sectionOrder: block.order - 1, durationMs: Date.now() - started },
+      artifact: { ...parsed,
+        ...(provenanceNotes.length ? {parserRepairs: [...(parsed.parserRepairs || []), ...provenanceNotes]} : {}),
+        sectionOrder: block.order - 1, durationMs: Date.now() - started },
       pageSummary, usage, requestCount: state.requestCount,
       debug: { model: endpointModel, stage: state.stage, rawResponse: state.rawResponse, rawResponseLength: state.rawResponse.length, finishReason: state.finishReason, usage, requestCount: state.requestCount, ...state.repairDebug }
     }

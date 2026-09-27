@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import { APIError } from 'openai'
 import { extractBlock } from './block-extract'
+import { pageTextCorpus } from './text-provenance'
 import { buildBlockInput } from './block-input'
 import { selectBlockCandidates } from './block-pick'
 import { extractBackgroundImages } from '@/lib/studio/import/services/web-tools'
@@ -33,6 +34,7 @@ function args(create: jest.Mock) {
   }
   return {
     blockInput,
+    pageCorpus: pageTextCorpus(html),
     selection: selectBlockCandidates(blockInput, blockInput.url),
     allowedTypes: ['text-block'],
     pageOutline: '1 main text-block',
@@ -48,6 +50,26 @@ const invalid = JSON.stringify({ sectionKey: 'block:1', components: 'invalid' })
 const response = (content: string, finish_reason = 'stop') => ({
   choices: [{ finish_reason, message: { content } }],
   usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.001 }
+})
+
+test('flags invented reply text without changing content or making another request', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'text-block', confidence: 0.95,
+      content: { body: 'A wholly invented sentence for this fixture' } }]
+  })))
+  try {
+    const result = await extractBlock(args(create))
+    expect(result.artifact.components[0].content.body).toBe('A wholly invented sentence for this fixture')
+    expect(result.requestCount).toBe(1)
+    expect(result.artifact.parserRepairs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: 'flag_invented_text', reason: 'field content.body' })
+    ]))
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith('[DetectionService] Possible invented text block:1 field content.body')
+  } finally {
+    warn.mockRestore()
+  }
 })
 
 test('passes column geometry to the fill payload with one layout rule', async () => {

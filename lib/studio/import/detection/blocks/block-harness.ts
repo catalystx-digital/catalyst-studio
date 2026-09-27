@@ -11,6 +11,7 @@ import { BlockCutError, renderAndCut } from './block-cutter'
 import { buildBlockInput } from './block-input'
 import { pickBlockTypes, selectBlockCandidates } from './block-pick'
 import { extractBlock } from './block-extract'
+import { pageTextCorpus } from './text-provenance'
 import { inferLocationFromType } from '../response-parser'
 import type { BlockCatalogueOverride } from './block-catalogue'
 
@@ -44,6 +45,7 @@ export async function runBlockHarness({
 }): Promise<SectionProcessingResult[]> {
   const { checkpointSession, checkpointService, globalSectionCache, onProgress } = options
   const html = webTools.getRawHtml(preFlightFetch.handle)
+  const pageCorpus = pageTextCorpus(html)
   const { bgImageMap, stylesheets } = webTools.getPageStyling(preFlightFetch.handle)
   const finalUrl = preFlightFetch.finalUrl || url
   let cut
@@ -155,6 +157,7 @@ export async function runBlockHarness({
       const extract = async (): Promise<SectionExtractionArtifact> => {
         fresh = await extractBlock({
           blockInput: input,
+          pageCorpus,
           allowedTypes: pick.allowedTypes,
           selection: input.selection,
           pageOutline,

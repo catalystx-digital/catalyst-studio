@@ -7,6 +7,11 @@ const field=(value:string,path='content.body'):Field=>({value,path,componentType
 test('normalization decodes entities, joins inline text, separates blocks and excludes executable text',()=>{
   expect(normalizeText(' <p>Hello <b>WORLD</b> &amp; friends&nbsp; </p><p>Next</p><script>hidden</script>')).toBe('hello world & friends next')
 })
+
+test('source support retains escaped markup shown as literal text',()=>{
+  const evidence = extractPageEvidence('<p>Use &lt;b&gt; tags as literal text.</p>', base)
+  expect(evidence.allText).toEqual(['use <b> tags as literal text'])
+})
 test('absolute URLs resolve relative paths; only links drop fragments and trailing slashes',()=>{
   expect(absoluteUrl('../register/#form',base,'link')).toBe('https://example.com/register')
   expect(absoluteUrl('/garden.jpg#crop',base,'image')).toBe('https://example.com/garden.jpg#crop')

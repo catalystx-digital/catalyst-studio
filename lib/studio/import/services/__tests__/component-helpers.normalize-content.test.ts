@@ -789,6 +789,17 @@ describe('normalizeComponentContent through extractComponentPayload', () => {
     expect(props.content).not.toHaveProperty('metadata')
   })
 
+  it('accepts a cta-simple with no visible button', () => {
+    const detection: DetectionResult = {
+      id: 'cta-notice', type: 'cta-simple', bounds: baseBounds,
+      content: { heading: 'Service notice', body: 'Open as usual today.' }
+    }
+    const props = extractComponentProps(detection, createComponentType('cta-simple'))
+    expect(props.content?.primaryButton).toBeUndefined()
+    expect(CTASimpleDef.schema.safeParse(props.content).success).toBe(true)
+    expect(consumeNormalizationWarnings()).toEqual([])
+  })
+
   it('preserves detector-supplied header regions even when default props specify main', () => {
     const detection: DetectionResult = {
       id: 'cta-header',
