@@ -1,5 +1,6 @@
 import { APIError } from 'openai'
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { ComponentType } from '@/lib/studio/components/cms/_core/types'
 import { ConfidenceConfig, DetectionConfig, ModelConfig, OpenRouterConfig } from '@/lib/studio/import/config'
 import { applyAllowedProviders, type createLLMClient } from '@/lib/studio/import/services/llm-client'
 import { getReasoningConfig } from '@/lib/studio/import/openrouter-models'
@@ -296,6 +297,21 @@ export async function extractBlock({
         ...(catalogueOverride ? { validateContent: ({ canonicalType, content }: { canonicalType: string; content: Record<string, unknown> }) => catalogueOverride.validateContent(canonicalType, content) } : {})
       })
     })
+    if (block.backgroundColor) {
+      for (const component of parsed.components) {
+        const content = component.content
+        if (block.region === 'header' && component.type === ComponentType.NavBar && content.layout !== 'multi-row' &&
+          !content.utilityNav?.length &&
+          !content.styles?.rootRow?.backgroundColor?.trim()) {
+          content.styles ??= {}
+          content.styles.rootRow ??= {}
+          content.styles.rootRow.backgroundColor = block.backgroundColor
+        }
+        if (block.region === 'footer' && component.type === ComponentType.Footer && !content.backgroundColor?.trim()) {
+          content.backgroundColor = block.backgroundColor
+        }
+      }
+    }
     const provenanceNotes = findInventedText(parsed.components, pageCorpus).map(({type, path, componentIndex}) => {
       const component = parsed.components[componentIndex]
       console.warn(`[DetectionService] Possible invented text ${sectionKey} ${type} ${path}`)

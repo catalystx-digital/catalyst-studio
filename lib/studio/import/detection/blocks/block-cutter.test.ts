@@ -338,3 +338,62 @@ test('merged blocks and split children retain rendered repeated groups', () => {
   expect(blocks[0].repeatedChildren).toEqual([...repeatedA, ...repeatedB])
   expect(blocks[0].children.map(child => child.repeatedChildren)).toEqual([repeatedA, repeatedB])
 })
+
+test('header background comes from its own single-child chain, never the body', () => {
+  const nav = geometry('nav', 0, 100, 1170, [{ ...text('link', 0, 100), tag: 'a' }], { tag: 'nav', backgroundColor: 'rgb(20, 30, 40)' })
+  const header = geometry('header', 0, 100, 1170, [nav], { tag: 'header' })
+  const body = geometry('body', 0, 800, 1440, [header, { ...text('content', 100, 700), tag: 'main' }], { backgroundColor: 'rgb(250, 250, 250)' })
+  expect(cutRenderedPage(body)[0].backgroundColor).toBe('rgb(20, 30, 40)')
+  expect(cutRenderedPage({ ...body, children: [{ ...header, children: [{ ...nav, backgroundColor: undefined }] }, body.children[1]] })[0]).not.toHaveProperty('backgroundColor')
+})
+
+test('merged header rows retain their captured background', () => {
+  const row = (key: string, y: number, backgroundColor?: string) => geometry(key, y, 100, 1170, [{ ...text(key + 'link', y, 100), tag: 'a' }], { tag: 'header', backgroundColor })
+  const blocks = cutRenderedPage(geometry('body', 0, 800, 1440, [row('first', 0, 'rgb(15, 25, 35)'), row('second', 100), { ...text('content', 200, 600), tag: 'main' }]))
+  expect(blocks[0].backgroundColor).toBe('rgb(15, 25, 35)')
+  expect(blocks[0].children[0].backgroundColor).toBe('rgb(15, 25, 35)')
+})
+
+test('footer background comes from its own single-child chain', () => {
+  const inner = geometry('inner', 0, 100, 1170, [text('legal', 0, 100)], { backgroundColor: 'rgb(10, 20, 30)' })
+  const footer = geometry('footer', 0, 100, 1170, [inner], { tag: 'footer' })
+  const body = geometry('body', 0, 100, 1440, [footer], { backgroundColor: 'rgb(250, 250, 250)' })
+  expect(cutRenderedPage(body)[0].backgroundColor).toBe('rgb(10, 20, 30)')
+})
+
+test.each(['header', 'footer'] as const)('%s wrapper colour survives descent through a transparent div', tag => {
+  const link = { ...text('link', 0, 100), tag: 'a' }
+  const inner = geometry('inner', 0, 100, 1170, [link])
+  const wrapper = geometry(tag, 0, 100, 1170, [inner], { tag, backgroundColor: 'rgb(12, 34, 56)' })
+  const blocks = cutRenderedPage(geometry('body', 0, 100, 1440, [wrapper], { backgroundColor: 'rgb(240, 240, 240)' }))
+  expect(blocks).toHaveLength(1)
+  expect(blocks[0].region).toBe(tag)
+  expect(blocks[0].backgroundColor).toBe('rgb(12, 34, 56)')
+})
+
+test.each(['header', 'footer'] as const)('transparent %s takes its coloured single-child div before descending to a text link', tag => {
+  const link = { ...text('link', 0, 100), tag: 'a' }
+  const inner = geometry('inner', 0, 100, 1170, [link], { backgroundColor: 'rgb(12, 34, 56)' })
+  const wrapper = geometry(tag, 0, 100, 1170, [inner], { tag, backgroundColor: 'transparent' })
+  const blocks = cutRenderedPage(geometry('body', 0, 100, 1440, [wrapper], { backgroundColor: 'rgb(240, 240, 240)' }))
+  expect(blocks).toHaveLength(1)
+  expect(blocks[0].region).toBe(tag)
+  expect(blocks[0].backgroundColor).toBe('rgb(12, 34, 56)')
+  expect(cutRenderedPage(geometry('body', 0, 100, 1440, [
+    { ...wrapper, backgroundColor: 'rgb(1, 2, 3)' }
+  ]))[0].backgroundColor).toBe('rgb(1, 2, 3)')
+})
+
+test('captured colours do not change block counts or keys', () => {
+  const header = geometry('header', 0, 100, 1170, [geometry('nav', 0, 100, 1170, [{ ...text('link', 0, 100), tag: 'a' }])], { tag: 'header' })
+  const main = geometry('main', 100, 700, 1170, [text('copy', 100, 350), text('more', 450, 350)], { tag: 'main' })
+  const footer = geometry('footer', 800, 100, 1170, [text('legal', 800, 100)], { tag: 'footer' })
+  const tree = geometry('body', 0, 900, 1440, [header, main, footer])
+  const plain = cutRenderedPage(tree)
+  const coloured = cutRenderedPage({ ...tree, backgroundColor: 'rgb(240, 240, 240)', children: [
+    { ...header, backgroundColor: 'rgb(10, 20, 30)' }, main, { ...footer, backgroundColor: 'rgb(40, 50, 60)' }
+  ] })
+  expect(coloured).toHaveLength(plain.length)
+  expect(coloured.map(block => [block.id, block.children.map(child => child.id)]))
+    .toEqual(plain.map(block => [block.id, block.children.map(child => child.id)]))
+})

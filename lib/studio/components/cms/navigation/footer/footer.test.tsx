@@ -240,6 +240,13 @@ describe('Footer Component', () => {
     );
   });
 
+  it('uses light text over a captured dark computed background', () => {
+    render(<Footer {...defaultProps} content={{ ...defaultProps.content, backgroundColor: 'rgb(20, 30, 40)' }} />);
+
+    expect(screen.getByRole('contentinfo')).toHaveStyle({ backgroundColor: 'rgb(20, 30, 40)' });
+    expect(screen.getByRole('contentinfo')).toHaveClass('theme-dark', 'text-white');
+  });
+
   it('does not duplicate social links already present in footer columns', () => {
     render(
       <Footer

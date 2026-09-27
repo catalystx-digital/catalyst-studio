@@ -72,6 +72,72 @@ test('flags invented reply text without changing content or making another reque
   }
 })
 
+test('captured dark header fills an empty single-row navbar background', async () => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [] } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['navbar']
+  const result = await extractBlock(input)
+  expect(result.artifact.components[0].content.styles.rootRow.backgroundColor).toBe('rgb(20, 30, 40)')
+})
+
+test('transparent header leaves navbar style empty', async () => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [] } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.allowedTypes = ['navbar']
+  const result = await extractBlock(input)
+  expect(result.artifact.components[0].content.styles).toBeUndefined()
+})
+
+test('captured header background preserves model color and skips multi-row navbar', async () => {
+  const create = jest.fn().mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [], styles: { rootRow: { backgroundColor: '#123456' } } } }]
+  }))).mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [], layout: 'multi-row', utilityNav: [] } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['navbar']
+  expect((await extractBlock(input)).artifact.components[0].content.styles.rootRow.backgroundColor).toBe('#123456')
+  expect((await extractBlock(input)).artifact.components[0].content.styles).toBeUndefined()
+})
+
+test.each([
+  { layout: undefined, utilityNav: [{ label: 'Fixture help', href: '/help' }] },
+  { layout: 'single-row', utilityNav: [{ label: 'Fixture help', href: '/help' }] }
+])('captured header background skips navbar with utility row %#', async ({ layout, utilityNav }) => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95,
+      content: { menuItems: [], ...(layout ? { layout } : {}), utilityNav } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['navbar']
+  expect((await extractBlock(input)).artifact.components[0].content.styles).toBeUndefined()
+})
+
+test('captured dark footer fills empty background while preserving model color', async () => {
+  const create = jest.fn().mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'footer', confidence: 0.95, content: { copyright: 'Fixture copyright' } }]
+  }))).mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'footer', confidence: 0.95, content: { copyright: 'Fixture copyright', backgroundColor: '#abcdef' } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'footer'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['footer']
+  expect((await extractBlock(input)).artifact.components[0].content.backgroundColor).toBe('rgb(20, 30, 40)')
+  expect((await extractBlock(input)).artifact.components[0].content.backgroundColor).toBe('#abcdef')
+})
+
 test('passes column geometry to the fill payload with one layout rule', async () => {
   const create = jest.fn().mockResolvedValue(response(valid))
   const input = args(create)
