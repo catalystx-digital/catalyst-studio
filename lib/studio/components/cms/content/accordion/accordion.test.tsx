@@ -12,19 +12,19 @@ const mockContent: AccordionProps['content'] = {
   items: [
     {
       id: '1',
-      title: 'What is React?',
-      content: 'React is a JavaScript library for building user interfaces.',
+      question: 'What is React?',
+      answer: 'React is a JavaScript library for building user interfaces.',
       defaultOpen: true
     },
     {
       id: '2',
-      title: 'How does it work?',
-      content: 'React uses a virtual DOM to efficiently update the UI.'
+      question: 'How does it work?',
+      answer: 'React uses a virtual DOM to efficiently update the UI.'
     },
     {
       id: '3',
-      title: 'Why use React?',
-      content: 'React makes it easy to create interactive UIs.'
+      question: 'Why use React?',
+      answer: 'React makes it easy to create interactive UIs.'
     }
   ],
   allowMultiple: true
@@ -50,7 +50,7 @@ describe('CMSComponent: Accordion', () => {
     render(<Accordion {...defaultProps} />);
     
     mockContent.items.forEach(item => {
-      expect(screen.getByText(item.title)).toBeInTheDocument();
+      expect(screen.getByText(item.question)).toBeInTheDocument();
     });
   });
 
@@ -128,6 +128,23 @@ describe('CMSComponent: Accordion', () => {
     render(<Accordion {...defaultProps} />);
     
     expect(screen.getByText('React is a JavaScript library for building user interfaces.')).toBeVisible();
+  });
+
+  it('renders a saved FAQ item without an id and includes its question and answer in JSON-LD', () => {
+    const { container } = render(<Accordion {...defaultProps} content={{
+      heading: 'FAQ',
+      items: [{ question: 'Can I edit this?', answer: 'Yes, you can.' }],
+      defaultOpenItems: []
+    }} />);
+
+    expect(screen.getByRole('button', { name: 'Can I edit this?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Can I edit this?' }));
+    expect(screen.getByText('Yes, you can.')).toBeVisible();
+    const schema = JSON.parse(container.querySelector('script[type="application/ld+json"]')!.textContent!);
+    expect(schema.mainEntity[0]).toMatchObject({
+      name: 'Can I edit this?',
+      acceptedAnswer: { text: 'Yes, you can.' }
+    });
   });
 
   it('calls onItemToggle callback', async () => {

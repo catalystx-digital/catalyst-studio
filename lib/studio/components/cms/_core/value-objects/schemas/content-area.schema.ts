@@ -28,8 +28,8 @@ const ComponentInstanceSchema = z.object({
  * ```typescript
  * {
  *   items: [
- *     { id: 'i1', type: 'accordion-item', content: { title: 'A', content: 'A1' } },
- *     { id: 'i2', type: 'accordion-item', content: { title: 'B', content: 'B1' } }
+ *     { id: 'i1', type: 'accordion-item', content: { question: 'A', answer: 'A1' } },
+ *     { id: 'i2', type: 'accordion-item', content: { question: 'B', answer: 'B1' } }
  *   ]
  * }
  * ```

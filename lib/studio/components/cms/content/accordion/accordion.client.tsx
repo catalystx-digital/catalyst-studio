@@ -194,7 +194,7 @@ export function AccordionClient({
                   </span>
                 )}
                 <span className={cn('flex-1 text-left', cmsHeading(5))}>
-                  {item.title}
+                  {item.question}
                 </span>
               </span>
               {hasCustomIndicator && (
@@ -222,7 +222,7 @@ export function AccordionClient({
                   : 'transition-none data-[state=open]:animate-none data-[state=closed]:animate-none',
               )}
             >
-              {item.content}
+              {item.answer}
             </AccordionContent>
           </AccordionItem>
         );

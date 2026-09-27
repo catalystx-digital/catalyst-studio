@@ -302,8 +302,8 @@ export function DocumentationExample() {
             <Accordion
               items={[
                 {
-                  title: 'Getting Started',
-                  content: (
+                  question: 'Getting Started',
+                  answer: (
                     <ul className="space-y-2">
                       <li><a href="#intro">Introduction</a></li>
                       <li><a href="#install">Installation</a></li>
@@ -312,8 +312,8 @@ export function DocumentationExample() {
                   )
                 },
                 {
-                  title: 'Core Concepts',
-                  content: (
+                  question: 'Core Concepts',
+                  answer: (
                     <ul className="space-y-2">
                       <li><a href="#components">Components</a></li>
                       <li><a href="#routing">Routing</a></li>

@@ -61,8 +61,8 @@ import { CardGrid } from '@/lib/studio/components/cms/content/card-grid';
 
 export function ContentPage() {
   const faqs = [
-    { title: 'How do I get started?', content: 'Getting started is easy...' },
-    { title: 'What are the pricing options?', content: 'We offer flexible plans...' }
+    { question: 'How do I get started?', answer: 'Getting started is easy...' },
+    { question: 'What are the pricing options?', answer: 'We offer flexible plans...' }
   ];
 
   const cards = [

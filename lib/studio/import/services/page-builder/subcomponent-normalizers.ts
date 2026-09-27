@@ -783,9 +783,9 @@ function normalizeAccordionItem(
 
   const source = expandSourceRecord(input, buildFlattenContext('accordion-item', context))
 
-  const title = pickFirstString(source, ['title', 'heading', 'label', 'question'])
-  const content =
-    pickFirstString(source, ['content', 'body', 'description', 'answer', 'text']) ?? coerceRichText(source.content)
+  const question = pickFirstString(source, ['question', 'title', 'heading', 'label'])
+  const answer =
+    pickFirstString(source, ['answer', 'content', 'body', 'description', 'text']) ?? coerceRichText(source.content)
   const icon = pickFirstString(source, ['icon', 'iconName'])
   const defaultOpen =
     normalizeBoolean(source.defaultOpen) ??
@@ -798,11 +798,11 @@ function normalizeAccordionItem(
     id: computeStableId('accordion-item', context, source)
   }
 
-  if (title) {
-    normalized.title = title
+  if (question) {
+    normalized.question = question
   }
-  if (content) {
-    normalized.content = content
+  if (answer) {
+    normalized.answer = answer
   }
   if (icon) {
     normalized.icon = icon

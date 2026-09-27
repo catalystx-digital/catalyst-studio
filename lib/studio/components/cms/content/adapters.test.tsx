@@ -68,10 +68,10 @@ describe('content adapters canonical shape handling', () => {
     expect(TwoColumn.mock.calls[0][0].content.areas).toBeUndefined();
   });
 
-  it('does not map legacy Accordion items into areas.items', () => {
+  it('does not map Accordion items into areas.items', () => {
     const content = {
       heading: 'FAQ',
-      items: [{ id: 'legacy-item', title: 'Legacy', content: 'Body' }]
+      items: [{ id: 'faq-item', question: 'Question', answer: 'Body' }]
     };
 
     render(<AccordionAdapter {...baseProps(ComponentType.Accordion, content)} />);

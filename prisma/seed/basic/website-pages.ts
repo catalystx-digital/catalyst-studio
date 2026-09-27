@@ -635,8 +635,8 @@ export async function createWebsitePages(
             position: 4,
             props: {
               items: [
-                { id: 'validation', title: 'Validation Checklist', content: 'Run template validation tests before rollout.' },
-                { id: 'tooling', title: 'Tooling Updates', content: 'CLI now includes template summaries by default.' }
+                { id: 'validation', question: 'Validation Checklist', answer: 'Run template validation tests before rollout.' },
+                { id: 'tooling', question: 'Tooling Updates', answer: 'CLI now includes template summaries by default.' }
               ]
             }
           },

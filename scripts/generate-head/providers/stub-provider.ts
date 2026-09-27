@@ -2005,18 +2005,18 @@ function buildStubPricingPage(): SnapshotPage {
           items: [
             {
               id: 'faq-implementation',
-              title: 'How long does implementation take?',
-              content: 'Most teams deploy their first Catalyst head within four weeks using the stub provider as a north star.'
+              question: 'How long does implementation take?',
+              answer: 'Most teams deploy their first Catalyst head within four weeks using the stub provider as a north star.'
             },
             {
               id: 'faq-security',
-              title: 'Do you support enterprise security requirements?',
-              content: 'Yes. Enterprise plans include SSO, audit logs, and custom data retention controls.'
+              question: 'Do you support enterprise security requirements?',
+              answer: 'Yes. Enterprise plans include SSO, audit logs, and custom data retention controls.'
             },
             {
               id: 'faq-billing',
-              title: 'Can we switch plans later?',
-              content: 'Plans can be upgraded or downgraded at any time. Annual pricing and procurement support are available.'
+              question: 'Can we switch plans later?',
+              answer: 'Plans can be upgraded or downgraded at any time. Annual pricing and procurement support are available.'
             }
           ],
           allowMultiple: true
