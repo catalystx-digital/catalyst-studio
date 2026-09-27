@@ -79,6 +79,21 @@ type Section={sectionKey:string;sectionOrder:number;components:Component[];[key:
 const files=async(folder:string)=>{try{return (await fs.readdir(folder)).filter(name=>name.endsWith('.json')).sort()}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return [];throw error}}
 const count=(items:Section[])=>items.reduce((n,item)=>n+item.components.length,0)
 
+export async function loadSavedRun(root:string,page:string,arm:'blocks-production'|'family-fill',run:string) {
+  const sourceDir=path.join(root,'arms',page,arm,run)
+  const [record,proposal,geometry,plan,sections,original,callFiles]=await Promise.all([
+    readJson<any>(path.join(sourceDir,'run.json')),
+    readJson<Proposal>(path.join(root,'labels',page,'blocks.json')),
+    readJson<any>(path.join(root,'labels',page,'geometry.json')),
+    readJson<{sections:Array<{sectionKey:string;sectionOrder:number;candidateTypes:string[]}>}>(path.join(sourceDir,'section-plan.json')),
+    optionalJson<Section[]>(path.join(sourceDir,'sections.json')),
+    readJson<Component[]>(path.join(sourceDir,'components.json')),
+    files(path.join(sourceDir,'calls'))
+  ])
+  const calls=await Promise.all(callFiles.map(file=>readJson<any>(path.join(sourceDir,'calls',file))))
+  return {sourceDir,record,proposal,geometry,plan,sections:sections||[],original,calls}
+}
+
 export async function repairRuns(root:string,options:RepairOptions,fixture:Fixture={}) {
   if(!['blocks-production','family-fill'].includes(options.arm)||!options.runs.length)throw new Error('Repair needs blocks-production or family-fill and --runs')
   if(options.dryRun&&options.yesSpend)throw new Error('Choose --dry-run or --yes-spend')
@@ -90,7 +105,8 @@ export async function repairRuns(root:string,options:RepairOptions,fixture:Fixtu
     const sourceDir=path.join(root,'arms',page,options.arm,run)
     const targetDir=path.join(root,'arms',page,options.arm+'+repair',run)
     if(await optionalJson(path.join(targetDir,'run.json'))||await fs.stat(targetDir).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error}))throw new Error('Repair run already exists: '+page+'/'+run)
-    const record=await readJson<any>(path.join(sourceDir,'run.json'))
+    const savedRun=await loadSavedRun(root,page,options.arm,run)
+    const {record,proposal,geometry,plan,sections,original,calls}=savedRun
     if(record.status==='dry-run'||record.fixture||!['complete','failed'].includes(record.status))throw new Error('Source run is unusable: '+page+'/'+run)
     // A source run that aborted as a whole has nothing to repair; copy it so both arms score the page as missed.
     if((record.failures||[]).some((failure:{stage?:string})=>failure.stage==='run')) {
@@ -107,18 +123,12 @@ export async function repairRuns(root:string,options:RepairOptions,fixture:Fixtu
     const providerErrorRetries=record.rules?.providerErrorRetries
     const validationRetries=record.rules?.validationRetries
     if(!Number.isFinite(confidenceThreshold)||confidenceThreshold<0||confidenceThreshold>1||!Number.isFinite(perRequestMs)||perRequestMs<=0||!Number.isFinite(stallTimeoutMs)||stallTimeoutMs<=0||!Number.isSafeInteger(infrastructureRetries)||infrastructureRetries<0||!Number.isSafeInteger(providerErrorRetries)||providerErrorRetries<0||!Number.isSafeInteger(validationRetries)||validationRetries<0)throw new Error('Missing or invalid recorded fill settings: '+page+'/'+run)
-    const proposal=await readJson<Proposal>(path.join(root,'labels',page,'blocks.json'))
-    const geometry=await readJson(path.join(root,'labels',page,'geometry.json'))
     const html=await fs.readFile(path.join(root,'pages',page,'page.html'),'utf8')
     if(record.snapshotSha256&&record.snapshotSha256!==digest(html))throw new Error('Run snapshot checksum differs: '+page+'/'+run)
     const stylesheets=await readJson<string[]>(path.join(root,'pages',page,'stylesheets.json'))
-    const original=await readJson<Component[]>(path.join(sourceDir,'components.json'))
-    const sections=await optionalJson<Section[]>(path.join(sourceDir,'sections.json'))||[]
-    const plan=await readJson<{sections:Array<{sectionKey:string;sectionOrder:number;candidateTypes:string[]}>}>(path.join(sourceDir,'section-plan.json'))
     const byKey=new Map(sections.map(section=>[section.sectionKey,section]))
     const ordered=plan.sections.map(task=>byKey.get(task.sectionKey)||{sectionKey:task.sectionKey,sectionOrder:task.sectionOrder,components:[]})
     if(count(ordered)!==original.length||JSON.stringify(ordered.flatMap(section=>section.components))!==JSON.stringify(original))throw new Error('Saved sections differ from assembled components: '+page+'/'+run)
-    const calls=await Promise.all((await files(path.join(sourceDir,'calls'))).map(file=>readJson<any>(path.join(sourceDir,'calls',file))))
     const out=structuredClone(ordered)
     const decisions:Array<Record<string,unknown>>=[]
     const pending:Array<{index:number;source:SourceEvidence;request:Request;sectionKey:string;allowed:string[]}>=[]
