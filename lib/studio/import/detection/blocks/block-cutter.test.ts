@@ -116,6 +116,37 @@ test('a single-child wrapper descends to the inner item row', () => {
   expect(cutRenderedPage(geometry('wrapper', 0, 200, 1000, [inner]))[0].columns).toBe(2)
 })
 
+test('a slider row finds four slides through nested single-child wrappers', () => {
+  const slides = Array.from({ length: 4 }, (_, i) => geometry(`slide-${i}`, 100, 200, 220, [], {
+    box: { x: 100 + i * 240, y: 100, width: 220, height: 200 }
+  }))
+  const track = geometry('track', 100, 200, 1000, slides, { box: { x: 100, y: 100, width: 1000, height: 200 } })
+  const slider = geometry('slider', 100, 200, 1000, [geometry('viewport', 100, 200, 1000, [track], { box: { x: 100, y: 100, width: 1000, height: 200 } })], { box: { x: 100, y: 100, width: 1000, height: 200 } })
+  const heading = geometry('heading', 0, 80, 1000, [], { tag: 'h2', ownTextLength: 12 })
+  expect(cutRenderedPage(geometry('section', 0, 300, 1000, [heading, slider]))[0].columns).toBe(4)
+})
+
+test('off-screen slider clones do not add columns beyond the wrapper width', () => {
+  const slides = Array.from({ length: 6 }, (_, i) => geometry(`slide-${i}`, 100, 200, 220, [], {
+    box: { x: 100 + i * 240, y: 100, width: 220, height: 200 }
+  }))
+  const track = geometry('track', 100, 200, 1420, slides, { box: { x: 100, y: 100, width: 1420, height: 200 } })
+  const slider = geometry('slider', 100, 200, 1000, [track], { box: { x: 100, y: 100, width: 1000, height: 200 } })
+  const heading = geometry('heading', 0, 80, 1000, [], { tag: 'h2', ownTextLength: 12 })
+  expect(cutRenderedPage(geometry('section', 0, 300, 1000, [heading, slider]))[0].columns).toBe(4)
+})
+
+test('slider columns use the narrowest viewport in a single-child wrapper chain', () => {
+  const slides = Array.from({ length: 6 }, (_, i) => geometry(`slide-${i}`, 100, 200, 250, [], {
+    box: { x: i * 250, y: 100, width: 250, height: 200 }
+  }))
+  const track = geometry('track', 100, 200, 1500, slides, { box: { x: 0, y: 100, width: 1500, height: 200 } })
+  const viewport = geometry('viewport', 100, 200, 1000, [track], { box: { x: 0, y: 100, width: 1000, height: 200 } })
+  const slider = geometry('slider', 100, 200, 1440, [viewport], { box: { x: 0, y: 100, width: 1440, height: 200 } })
+  const heading = geometry('heading', 0, 80, 1440, [], { tag: 'h2', ownTextLength: 12 })
+  expect(cutRenderedPage(geometry('section', 0, 300, 1440, [heading, slider]))[0].columns).toBe(4)
+})
+
 test('merged blocks do not inherit a child column maximum', () => {
   const first = geometry('first', 0, 200, 1170, [0, 1, 2].map(i => cardWithBadges(`card${i}`, i * 390, 0)), { tag: 'footer' })
   const second = geometry('second', 200, 100, 1170, [], { tag: 'footer', ownTextLength: 10 })

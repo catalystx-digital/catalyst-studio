@@ -1,6 +1,8 @@
 import { APIError } from 'openai'
+import { z } from 'zod'
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { ComponentType } from '@/lib/studio/components/cms/_core/types'
+import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 import { ConfidenceConfig, DetectionConfig, ModelConfig, OpenRouterConfig } from '@/lib/studio/import/config'
 import { applyAllowedProviders, type createLLMClient } from '@/lib/studio/import/services/llm-client'
 import { getReasoningConfig } from '@/lib/studio/import/openrouter-models'
@@ -309,6 +311,28 @@ export async function extractBlock({
         }
         if (block.region === 'footer' && component.type === ComponentType.Footer && !content.backgroundColor?.trim()) {
           content.backgroundColor = block.backgroundColor
+        }
+      }
+    }
+    if (!catalogueOverride && block.columns !== undefined && block.columns >= 2) {
+      const registry = cmsComponentFactory.getRegistry()
+      for (const component of parsed.components) {
+        if (component.type === ComponentType.Timeline) continue
+        const schema = registry.get(component.type)?.schema
+        if (!(schema instanceof z.ZodObject)) continue
+        const content = component.content
+        const layoutField = schema.shape.layout
+        const layoutEnum = layoutField instanceof z.ZodOptional ? layoutField.unwrap() : layoutField
+        const largestArray = Math.max(0, ...Object.values(content).filter(Array.isArray).map(items => items.length))
+        if ((content.layout === undefined || content.layout === null || content.layout === '') &&
+          layoutEnum instanceof z.ZodEnum && layoutEnum.options.includes('horizontal') &&
+          largestArray >= block.columns) {
+          content.layout = 'horizontal'
+        }
+        const columnsField = schema.shape.columns
+        const numberField = columnsField instanceof z.ZodOptional ? columnsField.unwrap() : columnsField
+        if ((content.columns === undefined || content.columns === null) && numberField instanceof z.ZodNumber) {
+          content.columns = Math.min(block.columns, numberField.maxValue ?? block.columns)
         }
       }
     }

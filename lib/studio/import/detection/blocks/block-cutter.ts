@@ -233,14 +233,16 @@ function columnsOf(row: Geometry): Geometry[] {
   return []
 }
 
-function descendSingleChild(node: Geometry): { root: Geometry; children: Geometry[] } {
+function descendSingleChild(node: Geometry): { root: Geometry; children: Geometry[]; visibleBox: Box } {
   let root = node
+  let visibleBox = node.box
   let children = meaningfulChildren(root)
   while (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed)) && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
     root = children[0]
+    if (root.box.width < visibleBox.width) visibleBox = root.box
     children = meaningfulChildren(root)
   }
-  return { root, children }
+  return { root, children, visibleBox }
 }
 
 function singleChildBackground(node: Geometry): string | undefined {
@@ -262,8 +264,20 @@ function regionBackground(node: Geometry): string | undefined {
 
 function widestRowColumns(node: Geometry): number {
   if (hasOwnText(node) || atomicTags.has(node.tag)) return 0
-  const { children } = descendSingleChild(node)
-  return Math.max(columnsOf(node).length, ...groupRows(children).map(row => columnsOf(row).length))
+  const insideWidth = (column: Geometry, box: Box) =>
+    column.box.x >= box.x && column.box.x + column.box.width <= box.x + box.width
+  const nestedColumns = (wrapper: Geometry) => {
+    const { root, children, visibleBox } = descendSingleChild(wrapper)
+    if (root === wrapper) return 0
+    return Math.max(0, ...groupRows(children).map(row => columnsOf(row).filter(column => insideWidth(column, visibleBox)).length))
+  }
+  const { root, children, visibleBox } = descendSingleChild(node)
+  return Math.max(columnsOf(node).length, ...groupRows(children).map(row => {
+    const direct = columnsOf(row)
+    const wrapper = row.grouping === 'attached' ? row.members!.find(member => !attaches(member)) : row
+    return Math.max(direct.filter(column => root === node || insideWidth(column, visibleBox)).length,
+      wrapper ? nestedColumns(wrapper) : 0)
+  }))
 }
 
 function mergeGridRows(rows: Geometry[]): Geometry[] {
