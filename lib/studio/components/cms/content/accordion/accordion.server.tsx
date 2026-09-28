@@ -51,14 +51,8 @@ export function AccordionServer({
     ? preparedContent.items.reduce<
         Array<{ question: string; answer: string }>
       >((acc, item) => {
-        const question =
-          typeof item.title === 'string'
-            ? sanitizeText(item.title)
-            : undefined;
-        const answer =
-          typeof item.content === 'string'
-            ? sanitizeText(item.content)
-            : undefined;
+        const question = typeof item.question === 'string' ? sanitizeText(item.question) : '';
+        const answer = typeof item.answer === 'string' ? sanitizeText(item.answer) : '';
 
         if (question && answer) {
           acc.push({ question, answer });

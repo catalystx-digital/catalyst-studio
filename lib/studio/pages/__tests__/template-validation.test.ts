@@ -1,5 +1,5 @@
 import { ComponentType as ComponentTypeEnum } from '@/lib/studio/components/cms/_core/types'
-import type { PageCatalogTemplateSummary } from '../catalog'
+import { getPageCatalogSummary, type PageCatalogTemplateSummary } from '../catalog'
 import { validatePageTemplate } from '../validation/template-validation'
 
 const baseTemplate: PageCatalogTemplateSummary = {
@@ -24,6 +24,23 @@ const baseTemplate: PageCatalogTemplateSummary = {
 }
 
 describe('validatePageTemplate', () => {
+  it('allows html-block in every optional-content main region', async () => {
+    const { templates } = await getPageCatalogSummary(true)
+    const withOptionalMain = templates.filter(template =>
+      template.optionalRegions.some(region => region.region === 'main')
+    )
+
+    expect(withOptionalMain.length).toBeGreaterThan(0)
+    for (const template of withOptionalMain) {
+      const mainRegions = [
+        ...template.requiredRegions,
+        ...template.optionalRegions
+      ].filter(region => region.region === 'main')
+      expect(mainRegions.flatMap(region => region.allowedComponents)).toContain(ComponentTypeEnum.HtmlBlock)
+      expect(template.contentSchema?.components.allowedComponentTypes).toContain(ComponentTypeEnum.HtmlBlock)
+    }
+  })
+
   it('accepts component trees that satisfy required regions', () => {
     const result = validatePageTemplate({
       template: baseTemplate,

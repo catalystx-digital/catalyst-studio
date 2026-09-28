@@ -5,7 +5,7 @@ export interface CTASimpleContent {
   eyebrow?: string;
   heading: string;
   body?: string;
-  primaryButton: CTAButton;
+  primaryButton?: CTAButton;
   secondaryButton?: CTAButton;
   alignment?: 'left' | 'center' | 'right';
   backgroundVariant?: 'surface' | 'accent' | 'inverted';

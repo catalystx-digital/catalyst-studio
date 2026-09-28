@@ -264,7 +264,7 @@ const analysisImplementation = function analysisImplementation(
   }
 
   function toTypographySampleId(sample: Omit<DomTypographySample, 'id'>): string {
-    const base = `${sample.fontFamily}-${sample.fontSizePx}-${sample.fontWeight}-${sample.lineHeightPx}-${sample.letterSpacingPx}-${sample.role}`
+    const base = `${sample.fontFamily}-${sample.fontSizePx}-${sample.fontWeight}-${sample.lineHeightPx}-${sample.letterSpacingPx}-${sample.role}-${sample.tag ?? ''}`
     return base.replace(/[^a-zA-Z0-9_-]/g, '_')
   }
 
@@ -335,14 +335,27 @@ const analysisImplementation = function analysisImplementation(
     if (!style) continue
     if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue
 
-    const textContent = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
-    if (textContent.length >= settings.minTextLength) {
+    const headingElement = element.closest('h1, h2, h3')
+    const tag = (headingElement ?? element).tagName.toLowerCase()
+    const isLevelHeading = /^h[1-3]$/.test(tag)
+    const rect = tag === 'h1' ? (headingElement ?? element).getBoundingClientRect() : null
+    const visibleHeading = !rect || (rect.width > 1 && rect.height > 1)
+    const textContent = Array.from(element.childNodes)
+      .filter(node => node.nodeType === Node.TEXT_NODE)
+      .map(node => node.textContent ?? '')
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const thresholdText = isLevelHeading
+      ? (headingElement?.textContent ?? '').replace(/\s+/g, ' ').trim()
+      : textContent
+    if (visibleHeading && textContent.length > 0 && thresholdText.length >= settings.minTextLength) {
       const fontSizePx = parseCssPx(style.fontSize)
       if (fontSizePx && fontSizePx > 0) {
         const { fontFamily, fontStack } = normalizeFontStack(style.fontFamily)
         const lineHeightPx = parseCssPx(style.lineHeight)
         const letterSpacingPx = parseCssPx(style.letterSpacing)
-        const role = computeRole(element, fontSizePx, style.fontWeight, textContent)
+        const role = isLevelHeading ? 'heading' : computeRole(element, fontSizePx, style.fontWeight, textContent)
         const scriptDetection = detectScript(textContent)
         const selector = buildSelector(element)
         const key = [
@@ -352,11 +365,13 @@ const analysisImplementation = function analysisImplementation(
           lineHeightPx ?? 'auto',
           letterSpacingPx ?? 'auto',
           style.textTransform ?? 'none',
-          role
+          role,
+          isLevelHeading ? tag : ''
         ].join('|')
         const sample: DomTypographySample = typographyMap.get(key) ?? {
           id: '',
           selector,
+          tag,
           fontFamily,
           fontStack,
           fontWeight: style.fontWeight,
@@ -392,9 +407,12 @@ const analysisImplementation = function analysisImplementation(
     diagnostics.warnings.push('No typography samples detected in DOM traversal')
   }
 
-  const typographySamples = Array.from(typographyMap.values())
+  const sortedTypography = Array.from(typographyMap.values())
     .sort((a, b) => b.usageCount - a.usageCount)
-    .slice(0, settings.sampleLimit)
+  const typographySamples = sortedTypography.slice(0, settings.sampleLimit)
+  for (const sample of sortedTypography.slice(settings.sampleLimit)) {
+    if (sample.tag && /^h[1-3]$/.test(sample.tag)) typographySamples.push(sample)
+  }
 
   const palette = buildPalette(colorMap, settings.colorSampleLimit)
   if (palette.colors.length === 0) {

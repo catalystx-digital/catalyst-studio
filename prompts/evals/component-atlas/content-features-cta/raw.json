@@ -48,15 +48,15 @@
         "heading": "Frequently asked questions",
         "items": [
           {
-            "content": "Most teams launch their first production experience within two weeks.",
+            "answer": "Most teams launch their first production experience within two weeks.",
             "id": "accordion-item-faq-implementation",
-            "title": "How long does implementation take?",
+            "question": "How long does implementation take?",
             "type": "accordion-item"
           },
           {
-            "content": "We maintain SOC 2 Type II and regularly complete enterprise vendor assessments.",
+            "answer": "We maintain SOC 2 Type II and regularly complete enterprise vendor assessments.",
             "id": "accordion-item-faq-security",
-            "title": "What security certifications do you hold?",
+            "question": "What security certifications do you hold?",
             "type": "accordion-item"
           }
         ]

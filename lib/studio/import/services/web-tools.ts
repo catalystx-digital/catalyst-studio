@@ -427,10 +427,15 @@ export function traverseToNodes(
       }
       if (!bgColor && typeof clsRaw === 'string') {
         const classNames = clsRaw.split(/\s+/)
-        for (const className of classNames) {
-          if (bgImageMap.bgColorByClass.has(className)) {
-            bgColor = bgImageMap.bgColorByClass.get(className)
-            break
+        const classSet = new Set(classNames)
+        const compoundMatch = bgImageMap.bgColorByClassSet.find(({ classes }) => classes.every(className => classSet.has(className)))
+        bgColor = compoundMatch?.color
+        if (!bgColor) {
+          for (const className of classNames) {
+            if (bgImageMap.bgColorByClass.has(className)) {
+              bgColor = bgImageMap.bgColorByClass.get(className)
+              break
+            }
           }
         }
       }
@@ -800,6 +805,8 @@ export interface BackgroundImageMap {
   byId: Map<string, string>
   /** Map of class name (without dot) to background-color (hex) */
   bgColorByClass: Map<string, string>
+  /** Background colours for selectors requiring every listed class */
+  bgColorByClassSet: Array<{ classes: string[]; color: string }>
   /** Map of ID (without hash) to background-color (hex) */
   bgColorById: Map<string, string>
   /** Class names whose own selector is deterministically hidden */
@@ -820,6 +827,7 @@ export function extractBackgroundImages(html: string): BackgroundImageMap {
   const byClass = new Map<string, string>()
   const byId = new Map<string, string>()
   const bgColorByClass = new Map<string, string>()
+  const bgColorByClassSet: BackgroundImageMap['bgColorByClassSet'] = []
   const bgColorById = new Map<string, string>()
   const hiddenByClass = new Set<string>()
   const hiddenById = new Set<string>()
@@ -874,13 +882,13 @@ export function extractBackgroundImages(html: string): BackgroundImageMap {
     }
 
     // Also extract background-color rules
-    parseCssForBackgroundColors(cssContent, bgColorByClass, bgColorById)
+    parseCssForBackgroundColors(cssContent, bgColorByClass, bgColorById, bgColorByClassSet)
     parseCssForHiddenSelectors(cssContent, hiddenByClass, hiddenById)
   }
 
   // Note: inline styles are handled per-element in traverseToNodes
 
-  return { byClass, byId, bgColorByClass, bgColorById, hiddenByClass, hiddenById }
+  return { byClass, byId, bgColorByClass, bgColorByClassSet, bgColorById, hiddenByClass, hiddenById }
 }
 
 /**
@@ -889,14 +897,16 @@ export function extractBackgroundImages(html: string): BackgroundImageMap {
 export function parseCssForBackgroundColors(
   cssContent: string,
   bgColorByClass: Map<string, string>,
-  bgColorById: Map<string, string>
+  bgColorById: Map<string, string>,
+  bgColorByClassSet: BackgroundImageMap['bgColorByClassSet']
 ): void {
-  // Match CSS rules with background-color
-  // Pattern: selector { ... background-color: #hex or rgb(...) ... }
+  const uncommentedCss = cssContent.replace(/\/\*[\s\S]*?\*\//g, '')
+  const seenClassSets = new Set(bgColorByClassSet.map(({ classes }) => classes.join('\0')))
+  // Match CSS rules with a hex or rgb background colour.
   const colorRegex = /([^{}]+)\{[^}]*background-color\s*:\s*(#[0-9a-fA-F]{3,8}|rgb[a]?\([^)]+\))[^}]*\}/gi
   let colorMatch: RegExpExecArray | null
 
-  while ((colorMatch = colorRegex.exec(cssContent)) !== null) {
+  while ((colorMatch = colorRegex.exec(uncommentedCss)) !== null) {
     const selectorPart = colorMatch[1].trim()
     let colorValue = colorMatch[2].trim()
 
@@ -916,25 +926,30 @@ export function parseCssForBackgroundColors(
     const selectors = selectorPart.split(',').map(s => s.trim())
 
     for (const selector of selectors) {
-      // Extract class names (.classname)
-      const classMatches = selector.match(/\.([a-zA-Z_-][a-zA-Z0-9_-]*)/g)
-      if (classMatches) {
-        for (const cls of classMatches) {
-          const className = cls.slice(1)
-          if (!bgColorByClass.has(className)) {
-            bgColorByClass.set(className, colorValue)
-          }
+      const classMatch = selector.match(/^\.([a-zA-Z_-][a-zA-Z0-9_-]*)$/)
+      if (classMatch) {
+        const className = classMatch[1]
+        if (!bgColorByClass.has(className)) {
+          bgColorByClass.set(className, colorValue)
         }
+        continue
       }
 
-      // Extract IDs (#idname)
-      const idMatches = selector.match(/#([a-zA-Z_-][a-zA-Z0-9_-]*)/g)
-      if (idMatches) {
-        for (const id of idMatches) {
-          const idName = id.slice(1)
-          if (!bgColorById.has(idName)) {
-            bgColorById.set(idName, colorValue)
-          }
+      if (/^(?:\.[a-zA-Z_-][a-zA-Z0-9_-]*){2,}$/.test(selector)) {
+        const classes = [...new Set(selector.match(/[a-zA-Z_-][a-zA-Z0-9_-]*/g)!)].sort()
+        const key = classes.join('\0')
+        if (!seenClassSets.has(key)) {
+          bgColorByClassSet.push({ classes, color: colorValue })
+          seenClassSets.add(key)
+        }
+        continue
+      }
+
+      const idMatch = selector.match(/^#([a-zA-Z_-][a-zA-Z0-9_-]*)$/)
+      if (idMatch) {
+        const idName = idMatch[1]
+        if (!bgColorById.has(idName)) {
+          bgColorById.set(idName, colorValue)
         }
       }
     }
@@ -1377,7 +1392,7 @@ async function fetchExternalCssBackgroundImages(
       const beforeCount = bgImageMap.byClass.size + bgImageMap.byId.size
       parseCssForBackgroundImages(cssContent, bgImageMap.byClass, bgImageMap.byId, cssUrl)
       // Also extract background-colors from external CSS
-      parseCssForBackgroundColors(cssContent, bgImageMap.bgColorByClass, bgImageMap.bgColorById)
+      parseCssForBackgroundColors(cssContent, bgImageMap.bgColorByClass, bgImageMap.bgColorById, bgImageMap.bgColorByClassSet)
       parseCssForHiddenSelectors(cssContent, bgImageMap.hiddenByClass, bgImageMap.hiddenById)
       const afterCount = bgImageMap.byClass.size + bgImageMap.byId.size
 
@@ -1601,10 +1616,10 @@ export class WebFetchTools {
       }
 
       // Log background colors found
-      const totalBgColors = bgImageMap.bgColorByClass.size + bgImageMap.bgColorById.size
+      const totalBgColors = bgImageMap.bgColorByClass.size + bgImageMap.bgColorByClassSet.length + bgImageMap.bgColorById.size
       if (totalBgColors > 0) {
         notes.push(`extracted ${totalBgColors} background-colors`)
-        console.log(`[WebTools] bgColor map: ${totalBgColors} entries (${bgImageMap.bgColorByClass.size} classes, ${bgImageMap.bgColorById.size} IDs)`)
+        console.log(`[WebTools] bgColor map: ${totalBgColors} entries (${bgImageMap.bgColorByClass.size} classes, ${bgImageMap.bgColorByClassSet.length} class sets, ${bgImageMap.bgColorById.size} IDs)`)
         console.log(`[WebTools] Sample bgColors:`, [...bgImageMap.bgColorByClass.entries()].slice(0, 8).map(([k, v]) => `${k}: ${v}`))
       }
 

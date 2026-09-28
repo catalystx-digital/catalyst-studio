@@ -693,11 +693,6 @@ function getDefaultClassName(normalizedType: string): string | undefined {
       return 'rounded-3xl border border-border/60 bg-background/80 shadow-lg'
     case 'text-block':
       return 'prose prose-slate max-w-none'
-    case 'cta':
-    case 'cta-banner':
-    case 'cta-simple':
-    case 'cta-button-group':
-      return 'rounded-3xl bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-xl overflow-hidden'
     case 'footer':
       return 'mt-24 border-t border-border/60 bg-background/90'
     default:

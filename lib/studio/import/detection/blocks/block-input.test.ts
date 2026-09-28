@@ -9,6 +9,13 @@ function block(index = 0, extra: Partial<Block> = {}): Block {
 }
 const section = '<section><div></div><p>Repeated invented note</p></section>'
 
+test('a .qa block input includes its collapsed answer and question', () => {
+  const html = '<div class="qa"><div>What is Acme?</div><div style="height:0;overflow:hidden">Acme is a demo club.</div></div>'
+  const input = buildBlockInput({ html, block: block(0, { anchor: { path: [0], tag: 'div', id: '', classes: ['qa'] } }), bgImageMap: extractBackgroundImages(html) })
+  expect(input.nodes.map(node => node.text)).toContain('What is Acme?')
+  expect(input.nodes.map(node => node.text)).toContain('Acme is a demo club.')
+})
+
 test('block nodes equal production traversal of the same cleaned subtree and map', () => {
   const html = '<section><style>.panel{background-color:#123456}</style><!-- comment --><script>ignored()</script><p class="panel">Example   note</p></section>'
   const bgImageMap = extractBackgroundImages(html)

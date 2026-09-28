@@ -35,6 +35,13 @@ describe('CTASimple Component', () => {
     ).toBeInTheDocument();
   });
 
+  it('renders copy without a button when none is present', () => {
+    render(<CTASimple {...baseProps} content={{ heading: 'Service notice', body: 'Open as usual today.' }} />);
+    expect(screen.getByText('Service notice')).toBeInTheDocument();
+    expect(screen.getByText('Open as usual today.')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
   it('forwards analytics events when buttons are clicked', () => {
     const onInteraction = jest.fn();
     render(<CTASimple {...baseProps} onInteraction={onInteraction} />);

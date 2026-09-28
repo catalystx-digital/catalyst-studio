@@ -64,7 +64,7 @@ export const FooterDef = defineComponent({
 
   // LLM extraction directives
   directives: [
-    'Data requirements: Populate columns[] with one object for each visible footer column. For every column, include title (if displayed) and links[] populated with MenuItem objects using label, structured href, external flag, and nested children when present.',
+    'Data requirements: Populate columns[] with one object for each visible footer column. For every column, include title (if displayed) and links[] populated with MenuItem objects using label, structured href, external flag, and nested children when present. Omit title when the column has no visible heading; never invent one.',
     'Populate socialLinks[] with SocialLink objects including platform, url, and label. Populate legalLinks[] with MenuItem objects using structured href—never leave these arrays empty when links are visible.',
     'Capture newsletter heading/description/placeholder/buttonText, logo/logoAlt, description, and copyright when rendered. Omit deprecated summary-only fields.',
     'Mapping guidance: iterate each footer column and capture every anchor/link under it as MenuItem entries (label=textContent, href=SmartLink object, external=true when target="_blank" or absolute external domains). Social icon anchors map to SocialLink objects with platform inferred from class/icon and label text. Legal footer nav anchors map to legalLinks[].',
@@ -93,7 +93,6 @@ export const FooterDef = defineComponent({
     description: 'Building the future of digital experiences',
     columns: [
       {
-        title: 'Products',
         links: [
           { label: 'Features', href: { type: 'internal', pageId: 'features', path: '/features' } },
           { label: 'Pricing', href: { type: 'internal', pageId: 'pricing', path: '/pricing' } },
@@ -101,7 +100,6 @@ export const FooterDef = defineComponent({
         ],
       },
       {
-        title: 'Company',
         links: [
           { label: 'About', href: { type: 'internal', pageId: 'about', path: '/about' } },
           { label: 'Blog', href: { type: 'internal', pageId: 'blog', path: '/blog' } },

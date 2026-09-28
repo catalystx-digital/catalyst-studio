@@ -1,5 +1,8 @@
 import { APIError } from 'openai'
+import { z } from 'zod'
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { ComponentType } from '@/lib/studio/components/cms/_core/types'
+import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 import { ConfidenceConfig, DetectionConfig, ModelConfig, OpenRouterConfig } from '@/lib/studio/import/config'
 import { applyAllowedProviders, type createLLMClient } from '@/lib/studio/import/services/llm-client'
 import { getReasoningConfig } from '@/lib/studio/import/openrouter-models'
@@ -16,6 +19,7 @@ import {
 import type { DetectionTelemetry } from '@/lib/studio/import/telemetry/detection-telemetry'
 import { buildDetectionPromptFromCatalog } from '../prompt-builder'
 import { parseSectionDetectionResponse } from '../response-parser'
+import { findInventedText } from './text-provenance'
 import type { BlockCatalogueOverride } from './block-catalogue'
 import type { BlockInput } from './block-input'
 import type { selectBlockCandidates } from './block-pick'
@@ -155,6 +159,7 @@ export async function runBlockReply<TRequest, TParsed>({
 
 export async function extractBlock({
   blockInput,
+  pageCorpus,
   allowedTypes,
   selection,
   pageOutline,
@@ -166,6 +171,7 @@ export async function extractBlock({
   catalogueOverride
 }: {
   blockInput: BlockInput & { url: string; finalUrl?: string }
+  pageCorpus: string
   allowedTypes: string[]
   selection: ReturnType<typeof selectBlockCandidates>
   pageOutline: string
@@ -205,6 +211,7 @@ export async function extractBlock({
     role: selection.task.role,
     intent: selection.taxonomy.intent,
     intentEvidence: selection.taxonomy.evidence,
+    ...(block.columns !== undefined ? { columns: block.columns } : {}),
     stats: blockInput.stats,
     resourcesSummary: blockInput.resourcesSummary,
     nodes: blockInput.nodes
@@ -216,6 +223,7 @@ export async function extractBlock({
         'The component field must be exactly one allowed component type.',
         'Never emit generic wrappers such as section, container, wrapper, block, group, layout, or raw DOM/tag names.',
         'Do not invent copy, URLs, images, dates, categories, or placeholder content.',
+        '`columns` is how many items sit side by side in this section\'s main row; use it only for a layout/columns field that arranges this section\'s repeated items (never for footer link groups, tables or responsive settings), and never above the schema\'s allowed maximum.',
         'If this section contains project/case-study/client-work/latest-project tiles, use card-grid, not content-feed.',
         'One carousel, slider, tab panel, or responsive listing surface must become one component with nested items; never emit one top-level component per slide/card variant.',
         'Hidden or inactive slides/items marked by aria-hidden, hidden, data-active/current/index, carousel/slider classes, or responsive duplicate wrappers must not become separate top-level components.',
@@ -291,8 +299,52 @@ export async function extractBlock({
         ...(catalogueOverride ? { validateContent: ({ canonicalType, content }: { canonicalType: string; content: Record<string, unknown> }) => catalogueOverride.validateContent(canonicalType, content) } : {})
       })
     })
+    if (block.backgroundColor) {
+      for (const component of parsed.components) {
+        const content = component.content
+        if (block.region === 'header' && component.type === ComponentType.NavBar && content.layout !== 'multi-row' &&
+          !content.utilityNav?.length &&
+          !content.styles?.rootRow?.backgroundColor?.trim()) {
+          content.styles ??= {}
+          content.styles.rootRow ??= {}
+          content.styles.rootRow.backgroundColor = block.backgroundColor
+        }
+        if (block.region === 'footer' && component.type === ComponentType.Footer && !content.backgroundColor?.trim()) {
+          content.backgroundColor = block.backgroundColor
+        }
+      }
+    }
+    if (!catalogueOverride && block.columns !== undefined && block.columns >= 2) {
+      const registry = cmsComponentFactory.getRegistry()
+      for (const component of parsed.components) {
+        if (component.type === ComponentType.Timeline) continue
+        const schema = registry.get(component.type)?.schema
+        if (!(schema instanceof z.ZodObject)) continue
+        const content = component.content
+        const layoutField = schema.shape.layout
+        const layoutEnum = layoutField instanceof z.ZodOptional ? layoutField.unwrap() : layoutField
+        const largestArray = Math.max(0, ...Object.values(content).filter(Array.isArray).map(items => items.length))
+        if ((content.layout === undefined || content.layout === null || content.layout === '') &&
+          layoutEnum instanceof z.ZodEnum && layoutEnum.options.includes('horizontal') &&
+          largestArray >= block.columns) {
+          content.layout = 'horizontal'
+        }
+        const columnsField = schema.shape.columns
+        const numberField = columnsField instanceof z.ZodOptional ? columnsField.unwrap() : columnsField
+        if ((content.columns === undefined || content.columns === null) && numberField instanceof z.ZodNumber) {
+          content.columns = Math.min(block.columns, numberField.maxValue ?? block.columns)
+        }
+      }
+    }
+    const provenanceNotes = findInventedText(parsed.components, pageCorpus).map(({type, path, componentIndex}) => {
+      const component = parsed.components[componentIndex]
+      console.warn(`[DetectionService] Possible invented text ${sectionKey} ${type} ${path}`)
+      return {index: componentIndex, component: component.component, type: component.type, action: 'flag_invented_text' as const, reason: `${type} ${path}`}
+    })
     return {
-      artifact: { ...parsed, sectionOrder: block.order - 1, durationMs: Date.now() - started },
+      artifact: { ...parsed,
+        ...(provenanceNotes.length ? {parserRepairs: [...(parsed.parserRepairs || []), ...provenanceNotes]} : {}),
+        sectionOrder: block.order - 1, durationMs: Date.now() - started },
       pageSummary, usage, requestCount: state.requestCount,
       debug: { model: endpointModel, stage: state.stage, rawResponse: state.rawResponse, rawResponseLength: state.rawResponse.length, finishReason: state.finishReason, usage, requestCount: state.requestCount, ...state.repairDebug }
     }

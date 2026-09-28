@@ -227,21 +227,10 @@ function normalizeCtaButton(
 function normalizeCtaButtons(
   normalized: Record<string, any>,
   canonicalType: 'cta-simple' | 'cta-banner',
-  warnings: LocalNormalizationWarning[],
-  requiredPrimary: boolean
+  warnings: LocalNormalizationWarning[]
 ): void {
   const primary = normalized.primaryButton
-  if (primary == null) {
-    if (requiredPrimary) {
-      warnings.push({
-        issue: 'missing-required-field',
-        message: `Normalized ${canonicalType} is missing required "primaryButton" field.`,
-        field: 'primaryButton',
-        childType: canonicalType,
-        details: { field: 'primaryButton' }
-      })
-    }
-  } else {
+  if (primary != null) {
     const button = normalizeCtaButton(primary, 'primaryButton', warnings, canonicalType)
     if (button) normalized.primaryButton = button
     else delete normalized.primaryButton
@@ -330,7 +319,7 @@ export const normalizeCtaSimpleContent: ComponentContentNormalizer = (
   })
   const normalized: Record<string, any> = { ...flattened }
 
-  normalizeCtaButtons(normalized, 'cta-simple', warnings, true)
+  normalizeCtaButtons(normalized, 'cta-simple', warnings)
 
   const alignment = normalizeAlignment(normalized.alignment)
   if (alignment) normalized.alignment = alignment
@@ -367,7 +356,7 @@ export const normalizeCtaBannerContent: ComponentContentNormalizer = (
   })
   const normalized: Record<string, any> = { ...flattened }
 
-  normalizeCtaButtons(normalized, 'cta-banner', warnings, false)
+  normalizeCtaButtons(normalized, 'cta-banner', warnings)
 
   const alignment = normalizeAlignment(normalized.alignment)
   if (alignment) normalized.alignment = alignment

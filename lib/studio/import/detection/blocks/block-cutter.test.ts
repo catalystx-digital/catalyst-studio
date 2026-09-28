@@ -37,6 +37,38 @@ test('single wrappers descend but a container at 700px is retained', () => {
   expect(keys(proposeGeometry(geometry('wrapper', 0, 900, 1440, [band])))).toEqual(['band'])
   expect(keys(childCandidates(band))).toEqual(['a', 'b'])
 })
+test('collapsed FAQ answers keep five 200px items as blocks instead of questions', () => {
+  const items = Array.from({ length: 5 }, (_, i) => {
+    const y = i * 200
+    const question = text('question-' + i, y, 60)
+    const answer = geometry('answer-' + i, y + 60, 0, 800, [], { visible: false, meaningful: true })
+    return geometry('item-' + i, y, 200, 800, [question, answer])
+  })
+  expect(keys(proposeGeometry(geometry('list', 0, 1000, 800, items)))).toEqual(items.map(item => item.key))
+})
+test('a tall body with a collapsed drawer still descends into its content wrapper', () => {
+  const content = geometry('content', 0, 900, 800, [text('first', 0, 450), text('second', 450, 450)])
+  const drawer = geometry('drawer', 0, 0, 300, [], { visible: false, meaningful: true })
+  const body = geometry('body', 0, 900, 1000, [content, drawer])
+  expect(keys(proposeGeometry(body))).toEqual(['first', 'second'])
+  expect(keys(childCandidates(body))).toEqual(['first', 'second'])
+})
+test('a display:none-like 0x0 sibling still lets its wrapper descend', () => {
+  const content = geometry('content', 0, 300, 800, [text('question', 0, 60)])
+  const hidden = geometry('hidden', 0, 0, 0, [], { visible: false, meaningful: true })
+  expect(keys(proposeGeometry(geometry('wrapper', 0, 300, 800, [content, hidden])))).toEqual(['question'])
+})
+test('a zero-height wrapper with only an absolutely positioned image stays ineligible before and after', () => {
+  const image = geometry('image', 0, 100, 100, [], { tag: 'img' })
+  const wrapper = geometry('wrapper', 0, 0, 100, [image])
+  expect(proposeGeometry(wrapper)).toEqual([])
+  expect(childCandidates(wrapper)).toEqual([])
+})
+test('child candidates stop at an item with a collapsed answer', () => {
+  const content = geometry('content', 0, 300, 800, [text('first', 0, 150), text('second', 150, 150)])
+  const answer = geometry('answer', 300, 0, 800, [], { visible: false, meaningful: true })
+  expect(childCandidates(geometry('item', 0, 300, 800, [content, answer]))).toEqual([])
+})
 test('a row of four tiles stays one block and never splits into its columns', () => {
   const tiles = Array.from({ length: 4 }, (_, i) => geometry('tile' + i, 0, 200, 250, [], { box: { x: i * 280, y: 0, width: 250, height: 200 } }))
   const root = geometry('tiles', 0, 200, 1170, tiles)
@@ -48,6 +80,81 @@ test('a row of four tiles stays one block and never splits into its columns', ()
   expect(selected).toHaveLength(2)
   expect(keys(selected[0].members!)).toEqual(['tile0', 'tile1', 'tile2', 'tile3'])
 })
+
+test('a block records its widest meaningful row of four columns', () => {
+  const tiles = Array.from({ length: 4 }, (_, i) => geometry('tile' + i, 0, 200, 250, [], {
+    box: { x: i * 280, y: 0, width: 250, height: 200 }
+  }))
+  const block = cutRenderedPage(geometry('tiles', 0, 200, 1170, tiles))[0]
+  expect(block.columns).toBe(4)
+})
+
+test('a single-column block has no columns field', () => {
+  const block = cutRenderedPage(geometry('list', 0, 400, 1170, [text('first', 0, 200), text('second', 200, 200)]))[0]
+  expect(block).not.toHaveProperty('columns')
+})
+
+function cardWithBadges(key: string, x: number, y: number): Geometry {
+  const badges = Array.from({ length: 3 }, (_, i) => geometry(`${key}-badge${i}`, y + 50, 30, 50, [], {
+    box: { x: x + i * 70, y: y + 50, width: 50, height: 30 }
+  }))
+  return geometry(key, y, 200, 400, badges, { ownTextLength: 10, box: { x, y, width: 400, height: 200 } })
+}
+
+test('two cards with nested badge rows report two columns', () => {
+  const block = cutRenderedPage(geometry('cards', 0, 200, 1000, [cardWithBadges('a', 0, 0), cardWithBadges('b', 500, 0)]))[0]
+  expect(block.columns).toBe(2)
+})
+
+test('vertically stacked cards with inline badges have no columns', () => {
+  const block = cutRenderedPage(geometry('cards', 0, 420, 1000, [cardWithBadges('a', 0, 0), cardWithBadges('b', 0, 220)]))[0]
+  expect(block).not.toHaveProperty('columns')
+})
+
+test('a single-child wrapper descends to the inner item row', () => {
+  const inner = geometry('inner', 0, 200, 1000, [cardWithBadges('a', 0, 0), cardWithBadges('b', 500, 0)])
+  expect(cutRenderedPage(geometry('wrapper', 0, 200, 1000, [inner]))[0].columns).toBe(2)
+})
+
+test('a slider row finds four slides through nested single-child wrappers', () => {
+  const slides = Array.from({ length: 4 }, (_, i) => geometry(`slide-${i}`, 100, 200, 220, [], {
+    box: { x: 100 + i * 240, y: 100, width: 220, height: 200 }
+  }))
+  const track = geometry('track', 100, 200, 1000, slides, { box: { x: 100, y: 100, width: 1000, height: 200 } })
+  const slider = geometry('slider', 100, 200, 1000, [geometry('viewport', 100, 200, 1000, [track], { box: { x: 100, y: 100, width: 1000, height: 200 } })], { box: { x: 100, y: 100, width: 1000, height: 200 } })
+  const heading = geometry('heading', 0, 80, 1000, [], { tag: 'h2', ownTextLength: 12 })
+  expect(cutRenderedPage(geometry('section', 0, 300, 1000, [heading, slider]))[0].columns).toBe(4)
+})
+
+test('off-screen slider clones do not add columns beyond the wrapper width', () => {
+  const slides = Array.from({ length: 6 }, (_, i) => geometry(`slide-${i}`, 100, 200, 220, [], {
+    box: { x: 100 + i * 240, y: 100, width: 220, height: 200 }
+  }))
+  const track = geometry('track', 100, 200, 1420, slides, { box: { x: 100, y: 100, width: 1420, height: 200 } })
+  const slider = geometry('slider', 100, 200, 1000, [track], { box: { x: 100, y: 100, width: 1000, height: 200 } })
+  const heading = geometry('heading', 0, 80, 1000, [], { tag: 'h2', ownTextLength: 12 })
+  expect(cutRenderedPage(geometry('section', 0, 300, 1000, [heading, slider]))[0].columns).toBe(4)
+})
+
+test('slider columns use the narrowest viewport in a single-child wrapper chain', () => {
+  const slides = Array.from({ length: 6 }, (_, i) => geometry(`slide-${i}`, 100, 200, 250, [], {
+    box: { x: i * 250, y: 100, width: 250, height: 200 }
+  }))
+  const track = geometry('track', 100, 200, 1500, slides, { box: { x: 0, y: 100, width: 1500, height: 200 } })
+  const viewport = geometry('viewport', 100, 200, 1000, [track], { box: { x: 0, y: 100, width: 1000, height: 200 } })
+  const slider = geometry('slider', 100, 200, 1440, [viewport], { box: { x: 0, y: 100, width: 1440, height: 200 } })
+  const heading = geometry('heading', 0, 80, 1440, [], { tag: 'h2', ownTextLength: 12 })
+  expect(cutRenderedPage(geometry('section', 0, 300, 1440, [heading, slider]))[0].columns).toBe(4)
+})
+
+test('merged blocks do not inherit a child column maximum', () => {
+  const first = geometry('first', 0, 200, 1170, [0, 1, 2].map(i => cardWithBadges(`card${i}`, i * 390, 0)), { tag: 'footer' })
+  const second = geometry('second', 200, 100, 1170, [], { tag: 'footer', ownTextLength: 10 })
+  const block = cutRenderedPage(geometry('body', 0, 300, 1170, [first, second]))[0]
+  expect(block.children[0].columns).toBe(3)
+  expect(block).not.toHaveProperty('columns')
+})
+
 test('2 x 2 feature grid inside a 550px container stays one block', () => {
   const cards = Array.from({ length: 4 }, (_, i) => geometry('card' + i, Math.floor(i / 2) * 275, 250, 500, [], { box: { x: (i % 2) * 600, y: Math.floor(i / 2) * 275, width: 500, height: 250 } }))
   const root = geometry('features', 0, 550, 1170, cards)
@@ -261,4 +368,63 @@ test('merged blocks and split children retain rendered repeated groups', () => {
   expect(blocks).toHaveLength(1)
   expect(blocks[0].repeatedChildren).toEqual([...repeatedA, ...repeatedB])
   expect(blocks[0].children.map(child => child.repeatedChildren)).toEqual([repeatedA, repeatedB])
+})
+
+test('header background comes from its own single-child chain, never the body', () => {
+  const nav = geometry('nav', 0, 100, 1170, [{ ...text('link', 0, 100), tag: 'a' }], { tag: 'nav', backgroundColor: 'rgb(20, 30, 40)' })
+  const header = geometry('header', 0, 100, 1170, [nav], { tag: 'header' })
+  const body = geometry('body', 0, 800, 1440, [header, { ...text('content', 100, 700), tag: 'main' }], { backgroundColor: 'rgb(250, 250, 250)' })
+  expect(cutRenderedPage(body)[0].backgroundColor).toBe('rgb(20, 30, 40)')
+  expect(cutRenderedPage({ ...body, children: [{ ...header, children: [{ ...nav, backgroundColor: undefined }] }, body.children[1]] })[0]).not.toHaveProperty('backgroundColor')
+})
+
+test('merged header rows retain their captured background', () => {
+  const row = (key: string, y: number, backgroundColor?: string) => geometry(key, y, 100, 1170, [{ ...text(key + 'link', y, 100), tag: 'a' }], { tag: 'header', backgroundColor })
+  const blocks = cutRenderedPage(geometry('body', 0, 800, 1440, [row('first', 0, 'rgb(15, 25, 35)'), row('second', 100), { ...text('content', 200, 600), tag: 'main' }]))
+  expect(blocks[0].backgroundColor).toBe('rgb(15, 25, 35)')
+  expect(blocks[0].children[0].backgroundColor).toBe('rgb(15, 25, 35)')
+})
+
+test('footer background comes from its own single-child chain', () => {
+  const inner = geometry('inner', 0, 100, 1170, [text('legal', 0, 100)], { backgroundColor: 'rgb(10, 20, 30)' })
+  const footer = geometry('footer', 0, 100, 1170, [inner], { tag: 'footer' })
+  const body = geometry('body', 0, 100, 1440, [footer], { backgroundColor: 'rgb(250, 250, 250)' })
+  expect(cutRenderedPage(body)[0].backgroundColor).toBe('rgb(10, 20, 30)')
+})
+
+test.each(['header', 'footer'] as const)('%s wrapper colour survives descent through a transparent div', tag => {
+  const link = { ...text('link', 0, 100), tag: 'a' }
+  const inner = geometry('inner', 0, 100, 1170, [link])
+  const wrapper = geometry(tag, 0, 100, 1170, [inner], { tag, backgroundColor: 'rgb(12, 34, 56)' })
+  const blocks = cutRenderedPage(geometry('body', 0, 100, 1440, [wrapper], { backgroundColor: 'rgb(240, 240, 240)' }))
+  expect(blocks).toHaveLength(1)
+  expect(blocks[0].region).toBe(tag)
+  expect(blocks[0].backgroundColor).toBe('rgb(12, 34, 56)')
+})
+
+test.each(['header', 'footer'] as const)('transparent %s takes its coloured single-child div before descending to a text link', tag => {
+  const link = { ...text('link', 0, 100), tag: 'a' }
+  const inner = geometry('inner', 0, 100, 1170, [link], { backgroundColor: 'rgb(12, 34, 56)' })
+  const wrapper = geometry(tag, 0, 100, 1170, [inner], { tag, backgroundColor: 'transparent' })
+  const blocks = cutRenderedPage(geometry('body', 0, 100, 1440, [wrapper], { backgroundColor: 'rgb(240, 240, 240)' }))
+  expect(blocks).toHaveLength(1)
+  expect(blocks[0].region).toBe(tag)
+  expect(blocks[0].backgroundColor).toBe('rgb(12, 34, 56)')
+  expect(cutRenderedPage(geometry('body', 0, 100, 1440, [
+    { ...wrapper, backgroundColor: 'rgb(1, 2, 3)' }
+  ]))[0].backgroundColor).toBe('rgb(1, 2, 3)')
+})
+
+test('captured colours do not change block counts or keys', () => {
+  const header = geometry('header', 0, 100, 1170, [geometry('nav', 0, 100, 1170, [{ ...text('link', 0, 100), tag: 'a' }])], { tag: 'header' })
+  const main = geometry('main', 100, 700, 1170, [text('copy', 100, 350), text('more', 450, 350)], { tag: 'main' })
+  const footer = geometry('footer', 800, 100, 1170, [text('legal', 800, 100)], { tag: 'footer' })
+  const tree = geometry('body', 0, 900, 1440, [header, main, footer])
+  const plain = cutRenderedPage(tree)
+  const coloured = cutRenderedPage({ ...tree, backgroundColor: 'rgb(240, 240, 240)', children: [
+    { ...header, backgroundColor: 'rgb(10, 20, 30)' }, main, { ...footer, backgroundColor: 'rgb(40, 50, 60)' }
+  ] })
+  expect(coloured).toHaveLength(plain.length)
+  expect(coloured.map(block => [block.id, block.children.map(child => child.id)]))
+    .toEqual(plain.map(block => [block.id, block.children.map(child => child.id)]))
 })

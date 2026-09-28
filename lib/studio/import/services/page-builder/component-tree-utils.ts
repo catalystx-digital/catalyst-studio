@@ -79,7 +79,7 @@ export function deduplicateComponents(components: ComponentInstance[]): Componen
   const deduplicated: ComponentInstance[] = []
 
   for (const component of components) {
-    const key = `${component.type}-${JSON.stringify(component.props)}`
+    const key = JSON.stringify([component.type, component.props, component.content])
     if (seen.has(key)) {
       continue
     }

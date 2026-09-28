@@ -398,8 +398,8 @@ describe('Subcomponent normalizers', () => {
 
     expect(accordion.value).toMatchObject({
       type: 'accordion-item',
-      title: 'What is Catalyst Studio?',
-      content: 'Catalyst Studio is a studio web builder.',
+      question: 'What is Catalyst Studio?',
+      answer: 'Catalyst Studio is a studio web builder.',
       defaultOpen: true
     })
 

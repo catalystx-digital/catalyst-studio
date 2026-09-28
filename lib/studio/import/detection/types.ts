@@ -64,7 +64,7 @@ export interface ParserRepairNote {
   index: number
   component: string
   type: string
-  action: 'drop_trailing_characters' | 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero'
+  action: 'drop_trailing_characters' | 'drop_duplicate_empty_card_grid' | 'drop_empty_logo_cloud' | 'drop_image_only_hero' | 'flag_invented_text'
   reason: string
 }
 

@@ -1,5 +1,7 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { render } from '@testing-library/react'
+import { DesignSystemScope } from '@/lib/design-system/design-system-scope'
 
 const mockNotFound = jest.fn(() => {
   throw new Error('NEXT_NOT_FOUND')
@@ -376,7 +378,7 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     })
 
     const html = renderToStaticMarkup(element as React.ReactElement)
-    expect(html).not.toContain('studio-local-preview-design-system')
+    expect(html).toContain('studio-local-preview-design-system')
     expect(html).toContain('Rendered page')
     expect(mockPageRendererHelper).toHaveBeenCalledWith(expect.objectContaining({
       page: expect.objectContaining({
@@ -406,6 +408,14 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
     mockGenerateStrictDesignSystemCss.mockReturnValueOnce(`:root {
   --primary: 240 5.9% 10%;
   --background: 0 0% 100%;
+  --foreground: 0 0% 20%;
+  --accent: 270 50% 50%;
+}
+
+.dark {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 100%;
+  --accent: 240 4% 16%;
 }`)
 
     const { renderLocalWebsitePreview } = await import('../local-renderer')
@@ -416,13 +426,71 @@ describe('renderLocalWebsitePreview resolver strictness', () => {
 
     const html = renderToStaticMarkup(element as React.ReactElement)
     expect(html).toContain('studio-local-preview-design-system')
-    expect(html).toContain('[data-design-system-scope="true"]')
-    expect(html).toContain('--primary: 240 5.9% 10%;')
-    expect(html).not.toContain('--background')
+    expect(html).toContain('<div class="min-h-screen bg-background text-foreground" data-design-system-scope="true">')
+    expect(html).toMatch(/\[data-design-system-scope="true"\] \{[^}]*--background: 0 0% 100%;[^}]*--foreground: 0 0% 20%;[^}]*--accent: 270 50% 50%;[^}]*\}/)
+    expect(html).toMatch(/\[data-design-system-scope="true"\] :is\(\.dark,\.theme-dark\) \{[^}]*--background: 0 0% 4%;[^}]*--foreground: 0 0% 100%;[^}]*--accent: 240 4% 16%;[^}]*\}/)
+    expect(html).not.toMatch(/\[data-design-system-scope="true"\] \{[^}]*--background: 0 0% 4%;/)
+    expect(html).not.toMatch(/:is\(\.dark,\.theme-dark\) \{[^}]*--background: 0 0% 100%;/)
+    expect(html).not.toMatch(/\[data-design-system-scope="true"\] \{[^}]*--accent: 240 4% 16%;/)
+    expect(html).not.toMatch(/:is\(\.dark,\.theme-dark\) \{[^}]*--accent: 270 50% 50%;/)
     expect(mockGenerateStrictDesignSystemCss).toHaveBeenCalledWith(tokens, {
       websiteId: 'website-1',
       designSystemId: 'design-system-1',
     })
+  })
+
+  it('provides dark foreground and muted tokens when the stored design system has no dark set', async () => {
+    mockResolveUrl.mockResolvedValue({ success: true, data: resolvedPage() })
+    mockFindDesignSystem.mockResolvedValue({ id: 'design-system-1', tokens: {} })
+    mockGenerateStrictDesignSystemCss.mockReturnValueOnce(`:root {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 20%;
+  --muted-foreground: 240 5% 40%;
+}`)
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({ websiteId: 'website-1', slug: ['about'] })
+    const html = renderToStaticMarkup(element as React.ReactElement)
+
+    const darkFallback = html.match(/\[data-design-system-scope="true"\] :is\(\.dark,\.theme-dark\) \{[^}]*\}/)?.[0]
+    expect(darkFallback).toContain('--background: 0 0% 4%;')
+    expect(darkFallback).toContain('--card: 0 0% 10%;')
+    expect(darkFallback).toContain('--card-foreground: 0 0% 100%;')
+    expect(darkFallback).toContain('--border: 0 0% 20%;')
+    expect(darkFallback).toContain('--foreground: 0 0% 100%;')
+    expect(darkFallback).toContain('--muted-foreground: 240 5% 64.9%;')
+    expect(html).not.toMatch(/\[data-design-system-scope="true"\] \{[^}]*--foreground: 0 0% 100%;/)
+  })
+
+  it('applies stored dark background to a theme-dark page root inside a nested design scope', async () => {
+    mockResolveUrl.mockResolvedValue({ success: true, data: resolvedPage() })
+    mockFindDesignSystem.mockResolvedValue({ id: 'design-system-1', tokens: {} })
+    mockGenerateStrictDesignSystemCss.mockReturnValueOnce(`:root {
+  --background: 0 0% 100%;
+}
+
+.dark {
+  --background: 0 0% 4%;
+}`)
+    mockPageRendererHelper.mockReturnValueOnce(
+      <DesignSystemScope data-design-system-preview="renderer">
+        <main className="cms-page-root theme-dark">Rendered page</main>
+      </DesignSystemScope>
+    )
+
+    const { renderLocalWebsitePreview } = await import('../local-renderer')
+    const element = await renderLocalWebsitePreview({ websiteId: 'website-1', slug: ['about'] })
+    const { container } = render(element as React.ReactElement)
+    const scope = container.querySelector('[data-design-system-preview="renderer"]')
+    const darkRule = Array.from(container.querySelector('style#studio-local-preview-design-system')?.sheet?.cssRules ?? [])
+      .find(rule => rule.cssText.includes('--background: 0 0% 4%')) as CSSStyleRule | undefined
+
+    expect(scope).toHaveAttribute('data-design-system-scope', 'true')
+    expect(darkRule?.selectorText).toBe('[data-design-system-scope="true"] :is(.dark,.theme-dark)')
+    const darkRoot = container.querySelector(darkRule?.selectorText ?? '.missing')
+    expect(darkRoot).toHaveClass('cms-page-root', 'theme-dark')
+    expect(darkRoot?.parentElement).toBe(scope)
+    expect(darkRule?.style.getPropertyValue('--background').trim()).toBe('0 0% 4%')
   })
 
   it('uses no-style state when no design-system record exists', async () => {

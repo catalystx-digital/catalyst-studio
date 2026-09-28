@@ -11,7 +11,8 @@ import type {
   PageData
 } from '../interfaces'
 import { PageTemplateCategory } from '@/lib/studio/pages/_core/types'
-import type { PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
+import { getPageCatalogSummary, type PageCatalogTemplateSummary } from '@/lib/studio/pages/catalog'
+import { consumeNormalizationWarnings } from '../page-builder/normalization-telemetry'
 
 const createComponentType = (type: string): ImportComponentType =>
   ({
@@ -81,6 +82,28 @@ const createTemplate = (
 
 describe('ComponentRegionManager strict validation', () => {
   const manager = new ComponentRegionManager()
+
+  it('keeps an html-block assigned to main on marketing home without a placement warning', async () => {
+    const { templates } = await getPageCatalogSummary(true)
+    const template = templates.find(item => item.templateKey === 'marketing/home-default')
+    expect(template).toBeDefined()
+
+    const block = createComponent('html-block', {
+      region: 'main',
+      metadata: { region: 'main', detectionHarness: 'blocks' }
+    })
+    const nav = createComponent('navbar', { region: 'header' })
+    consumeNormalizationWarnings()
+    const result = manager.ensureRequiredRegionCoverage({
+      tree: createTree([nav, block]),
+      template: template!,
+      componentTypes: [createComponentType('navbar'), createComponentType('html-block')],
+      pageData: createPageData()
+    })
+
+    expect(result.components.map(component => component.id)).toEqual([nav.id, block.id])
+    expect(consumeNormalizationWarnings().filter(warning => warning.issue === 'component-region-dropped')).toEqual([])
+  })
 
   it('throws when component.content.region conflicts with props.region', () => {
     const template = createTemplate({

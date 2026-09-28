@@ -1,6 +1,9 @@
 /** @jest-environment node */
 import { APIError } from 'openai'
+import { z } from 'zod'
+import { cmsComponentFactory } from '@/lib/studio/components/cms/_factory/factory'
 import { extractBlock } from './block-extract'
+import { pageTextCorpus } from './text-provenance'
 import { buildBlockInput } from './block-input'
 import { selectBlockCandidates } from './block-pick'
 import { extractBackgroundImages } from '@/lib/studio/import/services/web-tools'
@@ -33,6 +36,7 @@ function args(create: jest.Mock) {
   }
   return {
     blockInput,
+    pageCorpus: pageTextCorpus(html),
     selection: selectBlockCandidates(blockInput, blockInput.url),
     allowedTypes: ['text-block'],
     pageOutline: '1 main text-block',
@@ -48,6 +52,158 @@ const invalid = JSON.stringify({ sectionKey: 'block:1', components: 'invalid' })
 const response = (content: string, finish_reason = 'stop') => ({
   choices: [{ finish_reason, message: { content } }],
   usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.001 }
+})
+
+test('flags invented reply text without changing content or making another request', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'text-block', confidence: 0.95,
+      content: { body: 'A wholly invented sentence for this fixture' } }]
+  })))
+  try {
+    const result = await extractBlock(args(create))
+    expect(result.artifact.components[0].content.body).toBe('A wholly invented sentence for this fixture')
+    expect(result.requestCount).toBe(1)
+    expect(result.artifact.parserRepairs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: 'flag_invented_text', reason: 'field content.body' })
+    ]))
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith('[DetectionService] Possible invented text block:1 field content.body')
+  } finally {
+    warn.mockRestore()
+  }
+})
+
+test('captured dark header fills an empty single-row navbar background', async () => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [] } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['navbar']
+  const result = await extractBlock(input)
+  expect(result.artifact.components[0].content.styles.rootRow.backgroundColor).toBe('rgb(20, 30, 40)')
+})
+
+test('transparent header leaves navbar style empty', async () => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [] } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.allowedTypes = ['navbar']
+  const result = await extractBlock(input)
+  expect(result.artifact.components[0].content.styles).toBeUndefined()
+})
+
+test('captured header background preserves model color and skips multi-row navbar', async () => {
+  const create = jest.fn().mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [], styles: { rootRow: { backgroundColor: '#123456' } } } }]
+  }))).mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95, content: { menuItems: [], layout: 'multi-row', utilityNav: [] } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['navbar']
+  expect((await extractBlock(input)).artifact.components[0].content.styles.rootRow.backgroundColor).toBe('#123456')
+  expect((await extractBlock(input)).artifact.components[0].content.styles).toBeUndefined()
+})
+
+test.each([
+  { layout: undefined, utilityNav: [{ label: 'Fixture help', href: '/help' }] },
+  { layout: 'single-row', utilityNav: [{ label: 'Fixture help', href: '/help' }] }
+])('captured header background skips navbar with utility row %#', async ({ layout, utilityNav }) => {
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'navbar', confidence: 0.95,
+      content: { menuItems: [], ...(layout ? { layout } : {}), utilityNav } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'header'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['navbar']
+  expect((await extractBlock(input)).artifact.components[0].content.styles).toBeUndefined()
+})
+
+test('captured dark footer fills empty background while preserving model color', async () => {
+  const create = jest.fn().mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'footer', confidence: 0.95, content: { copyright: 'Fixture copyright' } }]
+  }))).mockResolvedValueOnce(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'footer', confidence: 0.95, content: { copyright: 'Fixture copyright', backgroundColor: '#abcdef' } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.region = 'footer'
+  input.blockInput.block.backgroundColor = 'rgb(20, 30, 40)'
+  input.allowedTypes = ['footer']
+  expect((await extractBlock(input)).artifact.components[0].content.backgroundColor).toBe('rgb(20, 30, 40)')
+  expect((await extractBlock(input)).artifact.components[0].content.backgroundColor).toBe('#abcdef')
+})
+
+test('passes column geometry to the fill payload with one layout rule', async () => {
+  const create = jest.fn().mockResolvedValue(response(valid))
+  const input = args(create)
+  input.blockInput.block.columns = 4
+  await extractBlock(input)
+  const messages = create.mock.calls[0][0].messages
+  expect(JSON.parse(messages[2].content.split('Extract this single section:\n')[1]).columns).toBe(4)
+  expect(messages[1].content).toContain("`columns` is how many items sit side by side in this section's main row; use it only for a layout/columns field that arranges this section's repeated items (never for footer link groups, tables or responsive settings), and never above the schema's allowed maximum.")
+})
+
+test.each([
+  { type: 'feature-list', content: { items: Array.from({ length: 4 }, (_, i) => ({ title: `Feature ${i}` })) }, columns: 4, expectedLayout: 'horizontal', expectedColumns: undefined },
+  { type: 'feature-list', content: { items: [{ title: 'Feature A' }, { title: 'Feature B' }] }, columns: 4, expectedLayout: undefined, expectedColumns: undefined },
+  { type: 'feature-list', content: { items: Array.from({ length: 4 }, (_, i) => ({ title: `Feature ${i}` })), layout: 'vertical' }, columns: 4, expectedLayout: 'vertical', expectedColumns: undefined },
+  { type: 'timeline', content: { events: Array.from({ length: 4 }, (_, i) => ({ title: `Event ${i}` })) }, columns: 4, expectedLayout: undefined, expectedColumns: undefined },
+  { type: 'text-block', content: { body: 'Fixture copy' }, columns: 4, expectedLayout: undefined, expectedColumns: undefined },
+  { type: 'feature-grid', content: { features: Array.from({ length: 5 }, (_, i) => ({ title: `Feature ${i}` })) }, columns: 5, expectedLayout: undefined, expectedColumns: 4 },
+  { type: 'feature-grid', content: { features: [{ title: 'Feature A' }], columns: 3 }, columns: 4, expectedLayout: undefined, expectedColumns: 3 }
+])('column layout fills only eligible empty schema fields: $type $columns $expectedLayout', async ({ type, content, columns, expectedLayout, expectedColumns }) => {
+  const item = z.object({ title: z.string() })
+  const schema = type === 'feature-list' ? z.object({ items: z.array(item), layout: z.enum(['vertical', 'horizontal']).optional() })
+    : type === 'timeline' ? z.object({ events: z.array(item), layout: z.enum(['vertical', 'horizontal']).optional() })
+    : type === 'feature-grid' ? z.object({ features: z.array(item), columns: z.number().int().min(2).max(4).optional() })
+    : z.object({ body: z.string(), columns: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional() })
+  const registry = cmsComponentFactory.getRegistry()
+  registry.set(type as any, { schema } as any)
+  const registrySpy = jest.spyOn(cmsComponentFactory, 'getRegistry').mockReturnValue(registry)
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: type, confidence: 0.95, content }]
+  })))
+  const input = args(create)
+  input.blockInput.block.columns = columns
+  input.allowedTypes = [type]
+  try {
+    const result = await extractBlock(input)
+    expect(result.artifact.components[0].content.layout).toBe(expectedLayout)
+    expect(result.artifact.components[0].content.columns).toBe(expectedColumns)
+  } finally {
+    registrySpy.mockRestore()
+  }
+})
+
+test('catalogue override leaves column-derived layout untouched', async () => {
+  const schema = z.object({ items: z.array(z.object({ title: z.string() })), layout: z.enum(['vertical', 'horizontal']).optional() })
+  const registry = cmsComponentFactory.getRegistry()
+  registry.set('feature-list' as any, { schema } as any)
+  const registrySpy = jest.spyOn(cmsComponentFactory, 'getRegistry').mockReturnValue(registry)
+  const create = jest.fn().mockResolvedValue(response(JSON.stringify({
+    sectionKey: 'block:1', components: [{ component: 'feature-list', confidence: 0.95,
+      content: { items: Array.from({ length: 4 }, (_, i) => ({ title: `Feature ${i}` })) } }]
+  })))
+  const input = args(create)
+  input.blockInput.block.columns = 4
+  input.allowedTypes = ['feature-list']
+  try {
+    const result = await extractBlock({ ...input, catalogueOverride: {
+      types: { 'feature-list': 'A list of fixture features' }, contract: 'Fixture contract', omitRules: [],
+      validateContent: (_type, content) => content,
+      location: () => 'main', templateEquivalent: () => 'feature-list'
+    } })
+    expect(result.artifact.components[0].content.layout).toBeUndefined()
+  } finally {
+    registrySpy.mockRestore()
+  }
 })
 
 test('family override accepts an uppercase type in one call using the shared parser', async () => {

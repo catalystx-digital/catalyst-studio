@@ -273,7 +273,7 @@ export const LogoStrip: React.FC<LogoStripProps> = ({
     size = DEFAULT_SIZE,
     animateScroll = false,
     scrollSpeed = 30,
-    grayscale = true,
+    grayscale = false,
     caption,
   } = content;
   const totalLogos = logos.length;

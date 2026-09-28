@@ -1,4 +1,6 @@
 import { createRequire } from 'node:module'
+import { normalizeText, wordShingles, containsPhrase, isHumanText, fieldsNotFound, TEXT_COVERAGE_THRESHOLD } from '@/lib/studio/import/detection/blocks/text-provenance'
+export { normalizeText, wordShingles, containsPhrase, isHumanText, TEXT_COVERAGE_THRESHOLD } from '@/lib/studio/import/detection/blocks/text-provenance'
 // Node 24 can require parse5's ESM build; native loading also works in Jest's CJS runtime.
 const { parse, parseFragment } = createRequire(__filename)('parse5') as typeof import('parse5')
 
@@ -12,7 +14,6 @@ interface Evidence { text: Piece[]; allText: string[]; visibleText: string[]; at
 export interface Field { value: string; path: string; componentType: string; componentIndex: number; region: Region }
 interface Share { numerator: number; denominator: number; share: number | null }
 interface Coverage { kept: Share; invented: Share; missing: string[]; extra: string[] }
-export const TEXT_COVERAGE_THRESHOLD = 0.9
 interface PieceScore extends Piece { kept: boolean; shingles: string[]; missingShingles: string[] }
 interface SectionEvidence { text: Piece[]; fields: Field[]; sectionKeys: string[] }
 interface ScopeMetrics {
@@ -32,14 +33,8 @@ const rawText = (node: HtmlNode): string => node.nodeName === '#text' ? node.val
 const attrsOf = (node: HtmlNode) => Object.fromEntries((node.attrs || []).map(a => [a.name, a.value]))
 const blockTags = new Set(['p','div','section','article','header','footer','main','nav','li','ul','ol','h1','h2','h3','h4','h5','h6','blockquote','td','th','tr','figcaption','figure','address','form','br'])
 const excludedTags = new Set(['script','style','template','noscript'])
-
 const normalizePlainText = (value: string) => value.normalize('NFKC').replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, '').replace(/\s+/gu, ' ').trim().replace(/[\p{P}]+$/gu, '').toLocaleLowerCase('en')
 const joinChildren = (node: HtmlNode, flatten: (child: HtmlNode) => string) => (node.childNodes || []).map((child, index, children) => (index && child.tagName && children[index - 1].tagName ? ' ' : '') + flatten(child)).join('')
-export function normalizeText(value: string): string {
-  const tree = parseFragment(value) as HtmlNode
-  const flatten = (node: HtmlNode): string => excludedTags.has(node.tagName || '') ? '' : node.nodeName === '#text' ? node.value || '' : (blockTags.has(node.tagName || '') ? ' ' : '') + joinChildren(node, flatten) + (blockTags.has(node.tagName || '') ? ' ' : '')
-  return normalizePlainText(flatten(tree))
-}
 export function absoluteUrl(value: string, base: string, kind: 'image' | 'link'): string | null {
   const clean = value.trim()
   if (!clean || /^(data|javascript|blob):/i.test(clean)) return null
@@ -74,16 +69,6 @@ export function componentStrings(components: Component[]): Field[] {
     for (const key of ['content','props'] as const) walk(component[key], key)
   })
   return result
-}
-export function isHumanText(field: Field, minimumLength = 12): boolean {
-  const text = normalizeText(field.value), key = field.path.split('.').pop()!.replace(/\[\d+\]/g, '')
-  if (text.length < minimumLength) return false
-  if (/^(?:id|.*Id|slug|type|component|componentType|variant|layout|size|align|alignment|position|region|location|class|className|classes|color|.*Color|style|theme|icon|font|fontFamily|weight|target|rel|mediaType|url|href|src|srcset|path|originalUrl|canonicalUrl)$/i.test(key)) return false
-  if (/^(?:https?:|mailto:|tel:|data:|\/|#|rgb\(|rgba\(|hsl\(|var\(|[a-z]+:\/\/)/i.test(text)) return false
-  if (/^[a-f0-9-]{12,}$/i.test(text) || /^\S+@\S+\.\S+$/.test(text)) return false
-  if (/^(?:eyebrow|intro|subtitle|title|heading|subheading|description|text|body|bodyHtml|html|content|label|alt|caption|quote|name|placeholder|value|summary|copyright)$/i.test(key)) return true
-  // Unknown fields need prose evidence; token-like identifiers and class lists are excluded.
-  return /\s/u.test(text) && !text.split(/\s+/).every(word => /[_:]/.test(word) || /^[a-z]+-/.test(word)) && /\p{L}/u.test(text)
 }
 const hiddenCache=new WeakMap<string[],(a:Record<string,string>,checkClass?:boolean)=>boolean>()
 export function hiddenElement(css: string[]) {
@@ -217,22 +202,6 @@ export function componentResources(fields: Field[], evidence: Evidence): {images
   return result
 }
 export function share(numerator: number, denominator: number): Share { return {numerator,denominator,share:denominator === 0 ? null : numerator / denominator} }
-export function wordShingles(value: string): string[] {
-  const words = normalizeText(value).split(/\s+/).filter(Boolean)
-  return words.length < 5 ? (words.length ? [words.join(' ')] : []) : words.slice(0, -4).map((_, index) => words.slice(index, index + 5).join(' '))
-}
-export const containsPhrase = (text:string, phrase:string) => {
-  const needle=normalizeText(phrase), haystack=normalizeText(text)
-  if(!needle)return false
-  let index=haystack.indexOf(needle)
-  while(index!==-1) {
-    const before=haystack[index-1], after=haystack[index+needle.length]
-    if((index===0||/\s/u.test(before)) && (after===undefined||/[\s\p{P}]/u.test(after)))return true
-    index=haystack.indexOf(needle,index+1)
-  }
-  return false
-}
-const containsShingle = (text: string, shingle: string) => containsPhrase(text,shingle)
 function fieldCorpus(fields: Field[]): string[] {
   const groups = new Map<number, string[]>()
   for (const field of fields.filter(field => isHumanText(field, 1))) {
@@ -270,7 +239,7 @@ export function measureTextKept(pieces: Piece[], fields: Field[]) {
   }
   const scores: PieceScore[] = [...unique.values()].map(piece => {
     const shingles = wordShingles(piece.text)
-    const missingShingles = shingles.filter(shingle => !text.some(value => containsShingle(value, shingle)))
+    const missingShingles = shingles.filter(shingle => !text.some(value => containsPhrase(value, shingle)))
     return {...piece, shingles, missingShingles, kept: shingles.length > 0 && (shingles.length - missingShingles.length) / shingles.length >= TEXT_COVERAGE_THRESHOLD}
   })
   const missing = scores.filter(piece => !piece.kept).map(({text, region}) => ({text, region})).sort((a,b) => b.text.length-a.text.length)
@@ -283,10 +252,7 @@ export function measureTextKept(pieces: Piece[], fields: Field[]) {
 export function measureTextNotFound(fields: Field[], source: string | Evidence) {
   const human = fields.filter(field => isHumanText(field,1))
   const corpus = typeof source === 'string' ? normalizeText(source) : [...source.allText, ...source.attributeText].join(' ')
-  const notFound = human.filter(field => {
-    const shingles = wordShingles(field.value)
-    return shingles.filter(shingle => containsShingle(corpus, shingle)).length / shingles.length < TEXT_COVERAGE_THRESHOLD
-  })
+  const notFound = fieldsNotFound(human, corpus)
   return {share: share(notFound.length,human.length), notFound}
 }
 export function measureResources(source: Resource[], output: Resource[]): Coverage {

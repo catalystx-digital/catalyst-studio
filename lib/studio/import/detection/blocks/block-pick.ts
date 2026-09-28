@@ -31,11 +31,29 @@ export function selectBlockCandidates(input: BlockInput, url: string, catalogueO
   const types = new Set(task.candidateTypes)
   taxonomy.allowedTypes.forEach(type => types.add(type))
   expandCandidatesFromSectionEvidence(types, input.nodes)
+  if (isImageTextPair(input)) types.add('two-column')
   if (task.role === 'header' || task.role === 'footer') {
     types.clear()
     types.add(task.role === 'header' ? 'navbar' : 'footer')
   }
   return { allowedTypes: catalogueOverride ? Object.keys(catalogueOverride.types) : filterPageContentCandidateTypes(types), task, taxonomy }
+}
+
+function isImageTextPair(input: BlockInput): boolean {
+  if (input.block.columns !== 2) return false
+  let image = false
+  let text = false
+  const walk = (node: any, inAction = false, excluded = false) => {
+    if (!node.tagName) return
+    const tag = node.tagName
+    const action = inAction || tag === 'a' || tag === 'button' || node.attrs?.some((attr: any) => attr.name === 'role' && attr.value === 'button')
+    const skipText = excluded || ['script', 'style', 'svg'].includes(tag)
+    if (tag === 'img') image = true
+    if (!action && !skipText && node.childNodes?.some((child: any) => child.nodeName === '#text' && child.value?.trim())) text = true
+    for (const child of node.childNodes || []) walk(child, action, skipText)
+  }
+  input.trees.forEach(tree => walk(tree))
+  return image && text
 }
 
 // Exported for the lab to record production evidence in dry runs.
@@ -151,11 +169,17 @@ export async function pickBlockTypes(
   if (distribution[ranked[0]] === distribution[ranked[1]]) {
     evidence.issues.push('Top probability tie; catalogue type lexical order breaks ties')
   }
+  const imageTextPair = isImageTextPair(blockInput)
   const allowedTypes = multipleProbability >= 0.5
     ? ranked.slice(0, 3)
     : distribution[ranked[0]] >= 2 * distribution[ranked[1]]
       ? ranked.slice(0, 1)
       : ranked.slice(0, 3)
+  if (blockInput.block.region !== 'header' && blockInput.block.region !== 'footer' &&
+    imageTextPair &&
+    types.includes('two-column') && !allowedTypes.includes('two-column')) {
+    allowedTypes.push('two-column')
+  }
   return {
     allowedTypes,
     answer,

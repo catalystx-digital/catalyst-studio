@@ -5,6 +5,7 @@ import { FooterClient } from './footer.client';
 import { FooterLink, resolveLinkHref } from './footer-link';
 import { FooterLogo } from './footer-logo';
 import { sanitizeText } from '../../_core/security';
+import { contrastTextColor } from '@/lib/studio/components/cms/_utils/color-contrast';
 import type { FooterProps } from './footer.types';
 
 // Grid columns based on column count
@@ -38,7 +39,9 @@ export function FooterServer({ content, className, style, theme, onInteraction }
   }
 
   const hasCustomBackground = typeof content.backgroundColor === 'string' && content.backgroundColor.trim().length > 0;
-  const resolvedTheme = hasCustomBackground ? 'dark' : resolveTheme(theme);
+  const customTextColor = hasCustomBackground ? contrastTextColor(content.backgroundColor!) : undefined;
+  const hasLightBackground = customTextColor === '#111827';
+  const resolvedTheme = hasCustomBackground ? (hasLightBackground ? 'light' : 'dark') : resolveTheme(theme);
   const footerStyle: React.CSSProperties = {
     ...(hasCustomBackground ? { backgroundColor: content.backgroundColor } : {}),
     ...(typeof content.textColor === 'string' && content.textColor.trim() ? { color: content.textColor } : {}),
@@ -75,7 +78,7 @@ export function FooterServer({ content, className, style, theme, onInteraction }
 
   return (
     <footer
-      className={cn('cms-footer', themeClass(resolvedTheme), hasCustomBackground ? 'text-white' : 'bg-muted/50', className)}
+      className={cn('cms-footer', themeClass(resolvedTheme), hasCustomBackground ? (hasLightBackground ? 'text-gray-900' : 'text-white') : 'bg-muted/50', className)}
       style={footerStyle}
       role="contentinfo"
     >

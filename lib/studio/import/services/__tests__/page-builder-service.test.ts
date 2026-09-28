@@ -1289,7 +1289,8 @@ describe('PageBuilderService', () => {
             typeId: 'type-1',
             parentId: null,
             position: 99,
-            props: { title: 'Hero' }
+            props: { title: 'Hero' },
+            content: { heading: 'Welcome' }
           },
           {
             id: 'comp-2',
@@ -1297,7 +1298,8 @@ describe('PageBuilderService', () => {
             typeId: 'type-1',
             parentId: null,
             position: 88,
-            props: { title: 'Hero' } // Duplicate content
+            props: { title: 'Hero' },
+            content: { heading: 'Welcome' } // Duplicate content
           }
         ],
         metadata: { totalComponents: 2, maxDepth: 0, componentTypes: ['hero-banner'] }
@@ -1868,38 +1870,40 @@ describe('PageBuilderService', () => {
       expect(result).toBe('Test Page Name')
     })
 
-    it('should deduplicate components with identical props', () => {
+    it('keeps different accordion questions and removes identical copies', () => {
       const components: ComponentInstance[] = [
         {
           id: 'comp-1',
-          type: 'button',
+          type: 'accordion',
           typeId: 'type-1',
           parentId: null,
           position: 0,
-          props: { text: 'Click me' }
+          props: { allowMultiple: false },
+          content: { items: [{ question: 'First question?', answer: 'First answer.' }] }
         },
         {
           id: 'comp-2',
-          type: 'button',
+          type: 'accordion',
           typeId: 'type-1',
           parentId: null,
           position: 1,
-          props: { text: 'Click me' } // Duplicate
+          props: { allowMultiple: false },
+          content: { items: [{ question: 'Second question?', answer: 'Second answer.' }] }
         },
         {
           id: 'comp-3',
-          type: 'button',
+          type: 'accordion',
           typeId: 'type-1',
           parentId: null,
           position: 2,
-          props: { text: 'Different' } // Not duplicate
+          props: { allowMultiple: false },
+          content: { items: [{ question: 'First question?', answer: 'First answer.' }] }
         }
       ]
 
       const result = (service as any).deduplicateComponents(components)
       expect(result).toHaveLength(2)
-      expect(result[0].props.text).toBe('Click me')
-      expect(result[1].props.text).toBe('Different')
+      expect(result.map((component: ComponentInstance) => component.id)).toEqual(['comp-1', 'comp-2'])
     })
 
     it('should build hierarchical tree with proper parent-child relationships', () => {

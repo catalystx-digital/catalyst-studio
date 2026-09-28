@@ -259,13 +259,13 @@ export function registerExperienceCanonicalComponents(): void {
       items: [
         {
           id: 'faq-implementation',
-          title: 'How long does implementation take?',
-          content: 'Most teams launch their first production experience within two weeks.'
+          question: 'How long does implementation take?',
+          answer: 'Most teams launch their first production experience within two weeks.'
         },
         {
           id: 'faq-security',
-          title: 'What security certifications do you hold?',
-          content: 'We maintain SOC 2 Type II and regularly complete enterprise vendor assessments.'
+          question: 'What security certifications do you hold?',
+          answer: 'We maintain SOC 2 Type II and regularly complete enterprise vendor assessments.'
         }
       ],
       allowMultiple: false

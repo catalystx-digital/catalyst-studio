@@ -3,9 +3,9 @@ import type { ReactNode } from 'react';
 import type { CMSComponentProps } from '../../_core/types';
 
 export interface AccordionItem {
-  id: string;
-  title: ReactNode;
-  content: ReactNode;
+  id?: string;
+  question: ReactNode;
+  answer: ReactNode;
   icon?: ReactNode;
   defaultOpen?: boolean;
 }
@@ -30,7 +30,8 @@ export interface AccordionProps extends Omit<CMSComponentProps, 'content'> {
 export interface AccordionServerProps
   extends Omit<AccordionProps, 'onItemToggle' | 'onAllToggle'> {}
 
-export interface AccordionClientProps extends AccordionServerProps {
+export interface AccordionClientProps extends Omit<AccordionServerProps, 'content'> {
+  content: Omit<AccordionContent, 'items'> & { items: (AccordionItem & { id: string })[] };
   animated?: boolean;
   onItemToggle?: (itemId: string, isOpen: boolean) => void;
   onAllToggle?: (allOpen: boolean) => void;

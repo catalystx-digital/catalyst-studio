@@ -459,6 +459,9 @@ export class MediaIngestService {
       }
 
       const pushCandidate = (url: string, fieldPath: string, componentType?: string) => {
+        if (!this.isMediaField(fieldPath)) {
+          return
+        }
         const normalized = this.normalizeCandidateUrl(url, detection.pageUrl, pageOrigin)
         if (!normalized) {
           recordWarning({
@@ -467,9 +470,6 @@ export class MediaIngestService {
             fieldPath,
             componentType
           })
-          return
-        }
-        if (!this.isMediaField(fieldPath)) {
           return
         }
         if (!this.isProcessableUrl(normalized)) {
@@ -979,7 +979,13 @@ export class MediaIngestService {
       if (match) {
         // Full media reference with mediaId
         if (match.mediaId) {
-          return { src: match.originalUrl, mediaId: match.mediaId, originalUrl: match.originalUrl }
+          return {
+            src: match.originalUrl,
+            mediaId: match.mediaId,
+            originalUrl: match.originalUrl,
+            ...(typeof match.width === 'number' ? { width: match.width } : {}),
+            ...(typeof match.height === 'number' ? { height: match.height } : {})
+          }
         }
         // URL-only resolution (download failed but we resolved relative → absolute)
         return match.originalUrl
@@ -1061,7 +1067,9 @@ export class MediaIngestService {
       mediaId: match.mediaId,
       mediaType: mediaType ?? 'image',
       url: match.originalUrl,
-      originalUrl: match.originalUrl
+      originalUrl: match.originalUrl,
+      ...(typeof record.width !== 'number' && typeof match.width === 'number' ? { width: match.width } : {}),
+      ...(typeof record.height !== 'number' && typeof match.height === 'number' ? { height: match.height } : {})
     }
   }
 
@@ -1226,6 +1234,9 @@ export class MediaIngestService {
       } catch {
         return null
       }
+    }
+    if (!/[/.]/.test(trimmed) && !/^[a-z][a-z\d+.-]*:/i.test(trimmed)) {
+      return null
     }
     if (pageUrl) {
       try {

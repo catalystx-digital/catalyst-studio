@@ -2,6 +2,8 @@
 import * as launcher from '@/lib/studio/design-system/dom-probe/launch-headless-chromium'
 import { createServer } from 'node:http'
 import { renderAndCut, instrumentHtml, BlockCutError } from './block-cutter'
+import { buildBlockInput } from './block-input'
+import { extractBackgroundImages } from '@/lib/studio/import/services/web-tools'
 
 jest.mock('@/lib/studio/design-system/dom-probe/launch-headless-chromium', () => ({
   ...jest.requireActual('@/lib/studio/design-system/dom-probe/launch-headless-chromium'),
@@ -9,6 +11,97 @@ jest.mock('@/lib/studio/design-system/dom-probe/launch-headless-chromium', () =>
 }))
 
 const browserTest = process.env.CHROMIUM_EXECUTABLE_PATH ? test : test.skip
+browserTest('captures computed header and footer backgrounds from CSS (skipped without CHROMIUM_EXECUTABLE_PATH)', async () => {
+  const launch = jest.requireActual<typeof launcher>('@/lib/studio/design-system/dom-probe/launch-headless-chromium').launchHeadlessChromium
+  const browsers: Awaited<ReturnType<typeof launch>>[] = []
+  const spy = jest.mocked(launcher.launchHeadlessChromium).mockImplementation(async () => {
+    const browser = await launch()
+    browsers.push(browser)
+    const newContext = browser.newContext.bind(browser)
+    jest.spyOn(browser, 'newContext').mockImplementation(async options => {
+      const context = await newContext(options)
+      await context.route('**/*', route => route.abort())
+      return context
+    })
+    return browser
+  })
+  const html = '<!doctype html><html><head><style>body{margin:0}header,footer{height:100px}header{background:#14283c}footer{background:#1e3246}header a{display:inline-block;height:100px}main{height:600px}</style></head><body><header><a href="/">Fixture home</a><a href="/about">Fixture about</a></header><main>Fixture content</main><footer>Fixture footer</footer></body></html>'
+  try {
+    const result = await renderAndCut({ html, finalUrl: 'https://example.com/fixture' })
+    expect(result.blocks.find(block => block.region === 'header')?.backgroundColor).toBe('rgb(20, 40, 60)')
+    expect(result.blocks.find(block => block.region === 'footer')?.backgroundColor).toBe('rgb(30, 50, 70)')
+  } finally {
+    spy.mockRestore()
+    await Promise.all(browsers.map(browser => browser.close()))
+  }
+}, 30000)
+
+browserTest('captures only opaque CSS backgrounds, including rgb black and red (skipped without CHROMIUM_EXECUTABLE_PATH)', async () => {
+  const launch = jest.requireActual<typeof launcher>('@/lib/studio/design-system/dom-probe/launch-headless-chromium').launchHeadlessChromium
+  const browsers: Awaited<ReturnType<typeof launch>>[] = []
+  const spy = jest.mocked(launcher.launchHeadlessChromium).mockImplementation(async () => {
+    const browser = await launch()
+    browsers.push(browser)
+    const newContext = browser.newContext.bind(browser)
+    jest.spyOn(browser, 'newContext').mockImplementation(async options => {
+      const context = await newContext(options)
+      await context.route('**/*', route => route.abort())
+      return context
+    })
+    return browser
+  })
+  const cases = [
+    { css: 'rgb(0, 0, 0)', expected: 'rgb(0, 0, 0)' },
+    { css: 'rgb(255, 0, 0)', expected: 'rgb(255, 0, 0)' },
+    { css: 'transparent', expected: undefined },
+    { css: 'rgba(255, 0, 0, 0)', expected: undefined },
+    { css: 'rgb(255 0 0 / 0)', expected: undefined },
+    { css: 'color(srgb 1 0 0 / 0)', expected: undefined },
+    { css: 'rgba(255, 0, 0, 0.5)', expected: 'rgba(255, 0, 0, 0.5)' }
+  ]
+  try {
+    for (const { css, expected } of cases) {
+      const html = '<!doctype html><html><head><style>body{margin:0;background:rgb(240,240,240)}header{height:100px;background:' + css + '}header a{display:block;height:100px}main{height:600px}</style></head>' +
+        '<body><header><a href="/">Fixture navigation</a></header><main>Fixture content</main></body></html>'
+      const result = await renderAndCut({ html, finalUrl: 'https://example.com/fixture' })
+      expect(result.blocks.find(block => block.region === 'header')?.backgroundColor).toBe(expected)
+    }
+  } finally {
+    spy.mockRestore()
+    await Promise.all(browsers.map(browser => browser.close()))
+  }
+}, 60000)
+
+browserTest('collapsed Acme accordion keeps each answer in its item block (skipped without CHROMIUM_EXECUTABLE_PATH)', async () => {
+  const launch = jest.requireActual<typeof launcher>('@/lib/studio/design-system/dom-probe/launch-headless-chromium').launchHeadlessChromium
+  const browsers: Awaited<ReturnType<typeof launch>>[] = []
+  const spy = jest.mocked(launcher.launchHeadlessChromium).mockImplementation(async () => {
+    const browser = await launch()
+    browsers.push(browser)
+    const newContext = browser.newContext.bind(browser)
+    jest.spyOn(browser, 'newContext').mockImplementation(async options => {
+      const context = await newContext(options)
+      await context.route('**/*', route => route.abort())
+      return context
+    })
+    return browser
+  })
+  const item = '<div class="qa"><div>What is Acme?</div><div style="height:0;overflow:hidden">Acme is a demo club.</div></div>'
+  const html = '<!doctype html><html><head><style>body{margin:0}.qa{height:200px;width:800px}.qa>div:first-child{height:60px}</style></head><body><main>' + item.repeat(5) + '</main></body></html>'
+  try {
+    const result = await renderAndCut({ html, finalUrl: 'https://example.com/accordion' })
+    expect(result.blocks).toHaveLength(5)
+    expect(result.blocks.every(block => block.anchor?.classes.includes('qa'))).toBe(true)
+    const bgImageMap = extractBackgroundImages(html)
+    for (const block of result.blocks) {
+      const input = buildBlockInput({ html, block, bgImageMap })
+      expect(input.nodes.map(node => node.text).join(' ')).toContain('Acme is a demo club.')
+    }
+  } finally {
+    spy.mockRestore()
+    await Promise.all(browsers.map(browser => browser.close()))
+  }
+}, 30000)
 browserTest.each([false, true])('renders an intercepted example.com fixture with esbuild names: %s (skipped without CHROMIUM_EXECUTABLE_PATH)', async esbuildNames => {
   const toString = Function.prototype.toString
   let injected = false

@@ -22,6 +22,7 @@ export interface DomProbeConsoleMessage {
 export interface DomTypographySample {
   id: string
   selector: string
+  tag?: string
   fontFamily: string
   fontStack: string
   fontWeight: string

@@ -29,6 +29,8 @@ export interface Block {
   sourceAnchors?: Anchor[]
   box: Box
   children: Block[]
+  backgroundColor?: string
+  columns?: number
   repeatedChildren?: Array<{ signature: string; count: number }>
   oversized: boolean
 }
@@ -87,6 +89,8 @@ export interface Geometry {
   role?: string
   anchorKey?: string | null
   ownTextLength?: number
+  backgroundColor?: string
+  regionWrapperBackground?: string
   children: Geometry[]
   repeatedChildren?: Array<{ signature: string; count: number }>
   anchor?: Anchor | null
@@ -125,6 +129,8 @@ const meaningfulChildren = (node: Geometry) => node.children.filter(eligible)
 
 const hasOwnText = (node: Geometry) => Boolean(node.ownTextLength)
 
+const collapsed = (node: Geometry) => node.meaningful && node.box.width > 0 && node.box.height === 0
+
 function eligible(node: Geometry): boolean {
   return node.visible && node.box.height > 0 && node.box.width > 0 &&
     (node.meaningful || hasOwnText(node) || node.children.some(eligible))
@@ -142,6 +148,8 @@ function combine(nodes: Geometry[], grouping: 'columns' | 'attached' | 'grid'): 
     key: 'row-' + digest(nodes.map(n => n.key).join('|')).slice(0, 16),
     tag: 'div',
     region: nodes.every(n => n.region === nodes[0].region) ? nodes[0].region : 'main',
+    regionWrapperBackground: nodes.every(n => n.regionWrapperBackground === nodes[0].regionWrapperBackground)
+      ? nodes[0].regionWrapperBackground : undefined,
     headerRequiresNavigation: nodes.some(n => n.headerRequiresNavigation),
     box: { x, y, width: Math.max(...nodes.map(n => n.box.x + n.box.width)) - x, height: Math.max(...nodes.map(n => n.box.y + n.box.height)) - y },
     visible: true,
@@ -225,6 +233,53 @@ function columnsOf(row: Geometry): Geometry[] {
   return []
 }
 
+function descendSingleChild(node: Geometry): { root: Geometry; children: Geometry[]; visibleBox: Box } {
+  let root = node
+  let visibleBox = node.box
+  let children = meaningfulChildren(root)
+  while (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed)) && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
+    root = children[0]
+    if (root.box.width < visibleBox.width) visibleBox = root.box
+    children = meaningfulChildren(root)
+  }
+  return { root, children, visibleBox }
+}
+
+function singleChildBackground(node: Geometry): string | undefined {
+  let current = node
+  for (;;) {
+    const color = current.backgroundColor?.trim()
+    if (color && !/^transparent$/i.test(color) &&
+      !/^[a-z][\w-]*\([^)]*\/\s*(?:0+(?:\.0*)?|\.0+)%?\s*\)$/i.test(color) &&
+      !/^(?:rgba|hsla)\([^)]*,\s*(?:0+(?:\.0*)?|\.0+)%?\s*\)$/i.test(color)) return color
+    const children = meaningfulChildren(current)
+    if (children.length !== 1) return undefined
+    current = children[0]
+  }
+}
+
+function regionBackground(node: Geometry): string | undefined {
+  return node.regionWrapperBackground || singleChildBackground(node)
+}
+
+function widestRowColumns(node: Geometry): number {
+  if (hasOwnText(node) || atomicTags.has(node.tag)) return 0
+  const insideWidth = (column: Geometry, box: Box) =>
+    column.box.x >= box.x && column.box.x + column.box.width <= box.x + box.width
+  const nestedColumns = (wrapper: Geometry) => {
+    const { root, children, visibleBox } = descendSingleChild(wrapper)
+    if (root === wrapper) return 0
+    return Math.max(0, ...groupRows(children).map(row => columnsOf(row).filter(column => insideWidth(column, visibleBox)).length))
+  }
+  const { root, children, visibleBox } = descendSingleChild(node)
+  return Math.max(columnsOf(node).length, ...groupRows(children).map(row => {
+    const direct = columnsOf(row)
+    const wrapper = row.grouping === 'attached' ? row.members!.find(member => !attaches(member)) : row
+    return Math.max(direct.filter(column => root === node || insideWidth(column, visibleBox)).length,
+      wrapper ? nestedColumns(wrapper) : 0)
+  }))
+}
+
 function mergeGridRows(rows: Geometry[]): Geometry[] {
   const merged: Geometry[] = []
   for (const row of rows) {
@@ -304,7 +359,7 @@ export function proposeGeometry(root: Geometry): Geometry[] {
     return [root]
   }
   const children = meaningfulChildren(root)
-  if (children.length === 1) {
+  if (children.length === 1 && !(root.box.height <= TALL_BLOCK && root.children.some(collapsed))) {
     return proposeGeometry(children[0])
   }
   if (root.box.height <= (root.region === 'header' ? MAX_HEADER_HEIGHT : TALL_BLOCK) || children.length < 2) {
@@ -334,16 +389,15 @@ export function childCandidates(node: Geometry): Geometry[] {
   if (hasOwnText(node) || atomicTags.has(node.tag)) {
     return []
   }
-  let children = meaningfulChildren(node)
-  while (children.length === 1 && !hasOwnText(children[0]) && !atomicTags.has(children[0].tag)) {
-    children = meaningfulChildren(children[0])
-  }
+  const { children } = descendSingleChild(node)
   const rows = groupRows(children)
   return rows.length >= 2 ? rows : []
 }
 
 function regionHints(root: Geometry, semantic: boolean): Geometry {
-  const visit = (node: Geometry, region: Region, inMain: boolean, headerRequiresNavigation = false): Geometry => {
+  const visit = (node: Geometry, region: Region, inMain: boolean, headerRequiresNavigation = false,
+    regionWrapperBackground?: string): Geometry => {
+    const parentRegion = region
     const identity = [node.id, ...(node.classes || [])].join(' ')
     if (!inMain && (node.tag === 'header' || node.role === 'banner' || (!semantic && /header|nav|masthead/i.test(identity)))) {
       region = 'header'
@@ -356,7 +410,11 @@ function regionHints(root: Geometry, semantic: boolean): Geometry {
       region = 'main'
       inMain = true
     }
-    return { ...node, region, headerRequiresNavigation, children: node.children.map(n => visit(n, region, inMain, headerRequiresNavigation)) }
+    if (region !== parentRegion || node.tag === 'header' || node.tag === 'footer') {
+      regionWrapperBackground = singleChildBackground(node)
+    }
+    return { ...node, region, headerRequiresNavigation, regionWrapperBackground,
+      children: node.children.map(n => visit(n, region, inMain, headerRequiresNavigation, regionWrapperBackground)) }
   }
   return visit(root, 'main', false)
 }
@@ -436,11 +494,16 @@ export function cutRenderedPage(geometry: Geometry): Block[] {
         repeatedChildren: node.repeatedChildren || []
       }
     }
+    const columns = widestRowColumns(node)
+    const backgroundColor = node.region === 'header' || node.region === 'footer' ? regionBackground(node) : undefined
+    delete block.columns
     return {
       ...block,
+      ...(backgroundColor ? { backgroundColor } : {}),
       region: node.region,
       box: node.box,
       oversized: node.box.height > UNDER_CUT_HEIGHT,
+      ...(columns >= 2 ? { columns } : {}),
       children: children ? childCandidates(node).map((n, i) => ({ ...build(n, false), order: i + 1 })) : []
     }
   }
@@ -464,13 +527,16 @@ export function cutRenderedPage(geometry: Geometry): Block[] {
 
 function mergeBlocks(a: Block, b: Block): Block {
   const x = Math.min(a.box.x, b.box.x), y = Math.min(a.box.y, b.box.y)
-  return {
+  const merged: Block = {
     ...a, id: 'merge-' + digest(a.id + '|' + b.id).slice(0, 16), anchor: null, anchorResolved: a.anchorResolved && b.anchorResolved,
+    ...(a.backgroundColor || b.backgroundColor ? { backgroundColor: a.backgroundColor || b.backgroundColor } : {}),
     repeatedChildren: [...(a.repeatedChildren || []), ...(b.repeatedChildren || [])],
     sourceAnchors: [...(a.sourceAnchors || (a.anchor ? [a.anchor] : [])), ...(b.sourceAnchors || (b.anchor ? [b.anchor] : []))],
     box: { x, y, width: Math.max(a.box.x + a.box.width, b.box.x + b.box.width) - x, height: Math.max(a.box.y + a.box.height, b.box.y + b.box.height) - y },
     oversized: Math.max(a.box.y + a.box.height, b.box.y + b.box.height) - y > UNDER_CUT_HEIGHT, children: [a, b]
   }
+  delete merged.columns
+  return merged
 }
 
 const VIEWPORT_WIDTH = 1440
@@ -637,10 +703,15 @@ async function renderPage(html: string, finalUrl: string, javascriptEnabled: boo
           signature: tag + (el.id ? '#' + el.id : '') + ' / ' + signature,
           count
         }))
+        const backgroundColor = style.backgroundColor
         return {
           key, tag, id: el.id, classes: Array.from(el.classList), role: el.getAttribute('role') || '',
           anchorKey: anchorKey && seen[anchorKey] === 1 ? anchorKey : null,
           ownTextLength, region: 'main',
+          ...(visible && backgroundColor && !/^transparent$/i.test(backgroundColor.trim()) &&
+            !/^[a-z][\w-]*\([^)]*\/\s*(?:0+(?:\.0*)?|\.0+)%?\s*\)$/i.test(backgroundColor) &&
+            !/^(?:rgba|hsla)\([^)]*,\s*(?:0+(?:\.0*)?|\.0+)%?\s*\)$/i.test(backgroundColor)
+            ? { backgroundColor } : {}),
           box: { x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height },
           visible,
           meaningful: Boolean((el as HTMLElement).innerText?.trim() || el.querySelector('img,picture,video,svg,input') ||

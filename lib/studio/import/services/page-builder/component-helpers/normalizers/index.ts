@@ -79,6 +79,8 @@ export {
   normalizeStatisticsContent
 } from './data-normalizers'
 
+export { normalizePricingTableContent } from './pricing-normalizers'
+
 // Feature normalizers
 export {
   normalizeFeatureGridContent
@@ -102,6 +104,7 @@ import { normalizeBlogListContent, normalizeBlogPostContent, normalizeArticleHea
 import { normalizeTeamGridContent } from './about-normalizers'
 import { normalizeImageGalleryContent, normalizeVideoEmbedContent } from './media-normalizers'
 import { normalizeStatisticsContent } from './data-normalizers'
+import { normalizePricingTableContent } from './pricing-normalizers'
 import { normalizeFeatureGridContent } from './feature-normalizers'
 import { normalizeLogoCloudContent, normalizeTestimonialsContent } from './social-proof-normalizers'
 import type { ComponentContentNormalizer } from './shared-normalizer-utils'
@@ -126,6 +129,7 @@ export const COMPONENT_CONTENT_NORMALIZERS: Record<string, ComponentContentNorma
   sidemenu: normalizeSidemenuContent,
   'sidebar-nav': normalizeSidebarNavContent,
   statistics: normalizeStatisticsContent,
+  'pricing-table': normalizePricingTableContent,
   'content-feed': normalizeContentFeedContent,
   'blog-list': normalizeBlogListContent,
   'blog-post': normalizeBlogPostContent,
