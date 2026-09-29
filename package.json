@@ -127,7 +127,7 @@
     "docx": "^9.7.1",
     "docx-templates": "^4.15.0",
     "fast-xml-parser": "5.11.1",
-    "framer-motion": "^12.42.0",
+    "framer-motion": "^13.4.0",
     "graphql": "^17.0.2",
     "graphql-depth-limit": "^1.1.0",
     "graphql-validation-complexity": "^0.4.2",
